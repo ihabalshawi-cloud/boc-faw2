@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Arabic font default ── */
+body {
+  font-family: 'IBM Plex Sans Arabic', Arial, sans-serif;
+  direction: rtl;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── iOS safe area for bottom nav ── */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── Hide scrollbar utility ── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── Smooth touch scrolling ── */
+* { -webkit-tap-highlight-color: transparent; }
+html { -webkit-overflow-scrolling: touch; }
