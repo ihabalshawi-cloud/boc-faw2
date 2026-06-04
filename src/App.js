@@ -1384,11 +1384,13 @@ function MaterialRequest({ emp, empSignatures, setEmpSignatures }) {
    LOGIN HISTORY — سجل الدخول والخروج (ادمن فقط)
 ═══════════════════════════════════════════════════════════ */
 function LoginHistoryPage() {
-  const [loginHistory, , ready] = useFirebase("login_history", []);
-  const [search, setSearch]     = useState("");
+  const [loginHistory, , ready] = useFirebase("login_history", null);
+  const [search, setSearch]       = useState("");
   const [filterDept, setFilterDept] = useState("الكل");
 
-  const history = Array.isArray(loginHistory) ? loginHistory : [];
+  // null = still loading, [] = loaded but empty, [...] = has data
+  const isLoading = loginHistory === null && !ready;
+  const history   = Array.isArray(loginHistory) ? loginHistory : [];
 
   const depts = ["الكل", ...Array.from(new Set(history.map(h => h.empDept).filter(Boolean)))];
 
@@ -1438,7 +1440,7 @@ function LoginHistoryPage() {
       </div>
 
       {/* Table */}
-      {!ready ? (
+      {isLoading ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
           <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-2"/>
           <p className="text-sm text-slate-400">جاري تحميل السجلات...</p>
@@ -1769,6 +1771,24 @@ function Dashboard({ emp, onLogout }) {
 
   const isAdmin = emp.username === "i.shawi";
 
+  // ── Login history logger — defined BEFORE useEffect
+  const logLogin = useCallback(() => {
+    const entry = {
+      id: Date.now(),
+      empId: emp.id,
+      empName: emp.name,
+      empTitle: emp.title,
+      empDept: emp.dept,
+      username: emp.username,
+      loginAt: new Date().toISOString(),
+      device: navigator.userAgent.includes("Mobile") ? "موبايل" : "كمبيوتر",
+    };
+    fb.get("login_history").then(existing => {
+      const prev = Array.isArray(existing) ? existing : [];
+      fb.set("login_history", [entry, ...prev].slice(0, 500));
+    });
+  }, [emp]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Log login on mount
   useEffect(() => { logLogin(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1821,25 +1841,6 @@ function Dashboard({ emp, onLogout }) {
     setReceipt(rec);
     setView("receipt");
   };
-
-  // ── Login history logger (called at login time, handled below in ROOT)
-  const logLogin = useCallback(() => {
-    const entry = {
-      id: Date.now(),
-      empId: emp.id,
-      empName: emp.name,
-      empTitle: emp.title,
-      empDept: emp.dept,
-      username: emp.username,
-      loginAt: new Date().toISOString(),
-      device: navigator.userAgent.includes("Mobile") ? "موبايل" : "كمبيوتر",
-    };
-    fb.get("login_history").then(existing => {
-      const prev = Array.isArray(existing) ? existing : [];
-      // Keep last 500 entries
-      fb.set("login_history", [entry, ...prev].slice(0, 500));
-    });
-  }, [emp]);
 
   // ── Admin: approve or reject a request
   const handleApproval = useCallback((reqId, decision, adminNote = "") => {
