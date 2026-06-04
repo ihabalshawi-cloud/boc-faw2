@@ -1759,14 +1759,13 @@ function Dashboard({ emp, onLogout }) {
   const [empSignatures, setEmpSignatures] = useLocalStorage("boc_signatures", {});
 
   // ── FIREBASE (shared across ALL browsers/devices in real-time)
-  const [allRequests,   setAllRequests,  reqReady]   = useFirebase("requests",              []);
-  const [employees,     setEmployees,    empReady]   = useFirebase("employees",             ACCOUNTS);
-  const [transferLog,   setTransferLog,  xferReady]  = useFirebase("transfers",             []);
-  const [notifications, setNotifications,notifReady] = useFirebase(`notifications/${emp.id}`, []);
-  const [loginHistory,  setLoginHistory, loginReady] = useFirebase("login_history",         []);
+  const [allRequests,   setAllRequests]   = useFirebase("requests",              []);
+  const [employees,     setEmployees]     = useFirebase("employees",             ACCOUNTS);
+  const [transferLog,   setTransferLog]   = useFirebase("transfers",             []);
+  const [notifications, setNotifications] = useFirebase(`notifications/${emp.id}`, []);
 
   // Personal history (also on Firebase, keyed per employee)
-  const [history, setHistory, histReady] = useFirebase(`history/${emp.id}`, []);
+  const [history, setHistory] = useFirebase(`history/${emp.id}`, []);
 
   const isAdmin = emp.username === "i.shawi";
 
@@ -3470,7 +3469,6 @@ const ALLOWED_TYPES = ["application/pdf","application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "image/jpeg","image/png","image/jpg"];
 
-function getDaysInMonth(year, month) { return new Date(year, month+1, 0).getDate(); }
 function getMonthDueDate() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), 15).toISOString().slice(0,10);
@@ -4032,7 +4030,6 @@ function EvaluationPage({ emp, isAdmin, allEmployees }) {
   const todayKey = now.toISOString().slice(0,10);
 
   const tasksList  = Array.isArray(tasks) ? tasks : [];
-  const daysInMonth = getDaysInMonth(selYear, selMonth);
   const dueDate    = `${selYear}-${String(selMonth+1).padStart(2,"0")}-15`;
 
   // ── Score calculations
