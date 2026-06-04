@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { LogIn, LogOut, FileText, Clock, Heart, Calendar, CheckCircle, ChevronLeft, User, Eye, EyeOff, AlertCircle, Printer, Users, Shield, Package, Plus, Trash2, Edit3, Save, X, ArrowRightLeft, PenTool, RefreshCw, Search, FolderOpen, Upload, Download, Layers, ClipboardList, ChevronRight, Home, Bell, ThumbsUp, ThumbsDown } from "lucide-react";
+import { LogIn, LogOut, FileText, Clock, Heart, Calendar, CheckCircle, ChevronLeft, User, Eye, EyeOff, AlertCircle, Printer, Users, Shield, Package, Plus, Trash2, Edit3, Save, X, ArrowRightLeft, PenTool, RefreshCw, Search, FolderOpen, Upload, Download, Layers, ClipboardList, ChevronRight, Home, Bell, ThumbsUp, ThumbsDown, Star, Target, BarChart2, BookOpen, Award, TrendingUp, CheckSquare, Filter } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════
    FIREBASE CONFIG
@@ -274,7 +274,7 @@ function LoginScreen({ onLogin }) {
           <h1 className="text-white text-xl font-bold leading-tight">شركة نفط البصرة</h1>
           <p className="text-blue-300 text-xs mt-1 tracking-wide">نظام الإجازات والطلبات الإدارية</p>
           <div className="mt-3 text-[10px] text-blue-400 border border-blue-800 rounded-lg px-3 py-1.5 inline-block bg-blue-950/40">
-            قسم السيطرة والنظم / شعبة مستودع الفاو / شعبة المرافئ
+            قسم السيطرة والنظم / شعبة سيطرة مستودع الفاو والمرافئ
           </div>
         </div>
 
@@ -1972,8 +1972,9 @@ function Dashboard({ emp, onLogout }) {
         {/* Nav tabs inside header */}
         <div className="max-w-5xl mx-auto px-4 pb-0 flex gap-1 overflow-x-auto no-scrollbar">
           {[
-            { id:"home",      label:"الرئيسية",  icon:<Home size={13}/> },
-            { id:"materials", label:"طلب مواد",     icon:<Package size={13}/> },
+            { id:"home",      label:"الرئيسية",      icon:<Home size={13}/> },
+            { id:"evaluation", label:"التقييم الشهري", icon:<Star size={13}/> },
+            { id:"materials", label:"طلب مواد",        icon:<Package size={13}/> },
             { id:"inventory", label:"جرد المخزن", icon:<Layers size={13}/> },
             { id:"furniture", label:"جرد الأثاث",  icon:<ClipboardList size={13}/> },
             { id:"projects",  label:"المشاريع",    icon:<FolderOpen size={13}/> },
@@ -2132,6 +2133,21 @@ function Dashboard({ emp, onLogout }) {
         {view === "receipt" && receipt && (
           <div className="fu">
             <LeaveReceipt emp={emp} leave={receipt} onClose={()=>setView("home")}/>
+          </div>
+        )}
+
+        {view === "evaluation" && (
+          <div className="fu">
+            <div className="flex items-center gap-3 mb-4 no-print">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                <Star size={16} className="text-amber-600"/>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">التقييم الشهري</h2>
+                <p className="text-[11px] text-slate-500">المهام · الحضور · المشاركة · المبادرة</p>
+              </div>
+            </div>
+            <EvaluationPage emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
           </div>
         )}
 
@@ -2299,6 +2315,7 @@ function Dashboard({ emp, onLogout }) {
         <div className="flex">
           {[
             { id:"home",      label:"الرئيسية",  icon:<Home size={18}/> },
+            { id:"evaluation",label:"التقييم",   icon:<Star size={18}/> },
             { id:"materials", label:"طلب مواد",  icon:<Package size={18}/> },
             { id:"inventory", label:"المخزن",    icon:<Layers size={18}/> },
             { id:"furniture", label:"الأثاث",    icon:<ClipboardList size={18}/> },
@@ -3274,6 +3291,1163 @@ function ProjectsPage({ emp }) {
         <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl no-print ${toast.err?"bg-red-600":"bg-slate-900"}`}>
           {toast.err ? <AlertCircle size={14} className="text-red-200"/> : <CheckCircle size={14} className="text-emerald-400"/>}
           {toast.msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EVALUATION CONSTANTS
+═══════════════════════════════════════════════════════════ */
+const EVAL_CRITERIA = [
+  { key:"attendance",    label:"الحضور والانضباط",         icon:"📅", defaultWeight:20, desc:"الحضور التام يعطي الدرجة الكاملة — تُخصم الإجازات" },
+  { key:"tasks",         label:"إنجاز المهام",              icon:"✅", defaultWeight:40, desc:"مجموع درجات المهام المنجزة خلال الشهر" },
+  { key:"participation", label:"المشاركة والدورات",         icon:"🎓", defaultWeight:20, desc:"المشاركة في الأعمال الجماعية والدورات التدريبية" },
+  { key:"initiative",    label:"المبادرة الذاتية",           icon:"💡", defaultWeight:20, desc:"التنظيف، الصيانة، التجهيز، الإضافات للشعبة" },
+];
+
+const TASK_STATUS = { pending:"قيد التنفيذ", submitted:"مُرسلة للمراجعة", approved:"مقبولة", rejected:"مرفوضة" };
+const TASK_STATUS_STYLE = {
+  "قيد التنفيذ":       "bg-amber-100 text-amber-800 border-amber-200",
+  "مُرسلة للمراجعة":  "bg-blue-100 text-blue-800 border-blue-200",
+  "مقبولة":            "bg-emerald-100 text-emerald-800 border-emerald-200",
+  "مرفوضة":            "bg-red-100 text-red-800 border-red-200",
+};
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_TYPES = ["application/pdf","application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "image/jpeg","image/png","image/jpg"];
+
+function getDaysInMonth(year, month) { return new Date(year, month+1, 0).getDate(); }
+function getMonthDueDate() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 15).toISOString().slice(0,10);
+}
+
+/* ── CSV utilities ── */
+const csv = {
+  parse(text) {
+    const lines = text.trim().split("\n");
+    const headers = lines[0].split(",").map(h=>h.trim().replace(/^"|"$/g,""));
+    return lines.slice(1).map(line=>{
+      const vals = line.split(",").map(v=>v.trim().replace(/^"|"$/g,""));
+      return Object.fromEntries(headers.map((h,i)=>[h,vals[i]||""]));
+    });
+  },
+  stringify(rows, headers) {
+    const h = headers || Object.keys(rows[0]||{});
+    const lines = [h.join(","), ...rows.map(r=>h.map(k=>`"${(r[k]||"").toString().replace(/"/g,'""')}"`).join(","))];
+    return lines.join("\n");
+  },
+  download(content, filename) {
+    const BOM = "\uFEFF"; // UTF-8 BOM for Arabic in Excel
+    const blob = new Blob([BOM+content],{type:"text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href=url; a.download=filename; a.click();
+    URL.revokeObjectURL(url);
+  },
+};
+
+/* ── File upload to Firebase Storage via REST ── */
+const STORAGE_URL = "https://firebasestorage.googleapis.com/v0/b/faop-scada.appspot.com/o";
+async function uploadFileToStorage(file, path) {
+  try {
+    const encoded = encodeURIComponent(path);
+    const r = await fetch(`${STORAGE_URL}?uploadType=media&name=${encoded}`, {
+      method:"POST",
+      headers:{"Content-Type": file.type},
+      body: file,
+    });
+    if (!r.ok) throw new Error("Upload failed");
+    const data = await r.json();
+    return `https://firebasestorage.googleapis.com/v0/b/faop-scada.appspot.com/o/${encoded}?alt=media&token=${data.downloadTokens}`;
+  } catch {
+    // Fallback: convert to base64 and store in Firebase DB (for files <1MB)
+    if (file.size > 1024*1024) throw new Error("الملف كبير جداً للتخزين الاحتياطي");
+    return new Promise((res,rej)=>{
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result);
+      reader.onerror = rej;
+      reader.readAsDataURL(file);
+    });
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAINTENANCE EQUIPMENT DATA
+═══════════════════════════════════════════════════════════ */
+const PUMP_EQUIPMENT = [
+  "مضخة الخام #1","مضخة الخام #2","مضخة الخام #3",
+  "مضخة نقل #1","مضخة نقل #2",
+  "مضخة المياه #1","مضخة المياه #2",
+];
+const TANK_EQUIPMENT = [
+  "خزان #1 (10,000 م³)","خزان #2 (10,000 م³)",
+  "خزان #3 (5,000 م³)","خزان المياه الرئيسي",
+  "خزان الوقود الاحتياطي",
+];
+const MAINT_TYPES = [
+  "فحص دوري","تشحيم","تغيير زيت","إحكام وصلات",
+  "فحص ضغط","تنظيف فلتر","اختبار تشغيل","إصلاح طارئ","استبدال قطعة",
+];
+const MAINT_STATUS = ["سليم","يحتاج متابعة","يحتاج إصلاح","متوقف عن العمل"];
+const MAINT_STATUS_STYLE = {
+  "سليم":              "bg-emerald-100 text-emerald-800",
+  "يحتاج متابعة":     "bg-amber-100 text-amber-800",
+  "يحتاج إصلاح":      "bg-orange-100 text-orange-800",
+  "متوقف عن العمل":   "bg-red-100 text-red-800 font-bold",
+};
+
+const EMPTY_MAINT_ENTRY = { equipment:"", type:"فحص دوري", status:"سليم", notes:"", hours:"", technician:"" };
+
+/* ── Daily Maintenance Form (admin fills) ── */
+function DailyMaintenanceForm({ todayKey, dailyLogs, setDailyLogs, emp, showToast }) {
+  const existing = dailyLogs[todayKey];
+  const [entries, setEntries] = useState(existing?.entries || [{ ...EMPTY_MAINT_ENTRY }]);
+  const [generalNote, setGeneralNote] = useState(existing?.generalNote || "");
+  const [saved, setSaved] = useState(!!existing);
+  const allEquip = [...PUMP_EQUIPMENT, ...TANK_EQUIPMENT];
+
+  const addEntry = () => setEntries(p => [...p, { ...EMPTY_MAINT_ENTRY }]);
+  const removeEntry = (i) => setEntries(p => p.filter((_, xi) => xi !== i));
+  const setEntry = (i, k, v) => setEntries(p => p.map((e, xi) => xi === i ? { ...e, [k]: v } : e));
+
+  const save = () => {
+    if (entries.every(e => !e.equipment)) return showToast("أضف معدة واحدة على الأقل");
+    const log = {
+      entries: entries.filter(e => e.equipment),
+      generalNote,
+      recordedBy: emp.name,
+      recordedAt: new Date().toISOString(),
+      date: todayKey,
+    };
+    setDailyLogs(prev => ({ ...prev, [todayKey]: log }));
+    setSaved(true);
+    showToast("✓ تم حفظ تقرير الصيانة اليومي");
+  };
+
+  const inpS = "w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white appearance-none";
+
+  return (
+    <div className="space-y-4">
+      {saved && (
+        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs text-emerald-800">
+          <CheckCircle size={13} className="text-emerald-600"/> تقرير اليوم محفوظ
+          <button onClick={() => setSaved(false)} className="mr-auto text-blue-600 font-bold hover:underline">تعديل</button>
+        </div>
+      )}
+
+      {/* Entries table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="bg-slate-800 text-white">
+              {["المعدة / الجهاز","نوع الصيانة","الحالة","ساعات التشغيل","الفني المنفذ","ملاحظات",""].map(h=>(
+                <th key={h} className="px-2 py-2.5 text-right font-bold text-[10px] whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((entry, i) => (
+              <tr key={i} className={`border-b border-slate-100 ${i%2===0?"bg-white":"bg-slate-50/40"}`}>
+                <td className="p-1.5 min-w-[160px]">
+                  <select value={entry.equipment} onChange={e=>setEntry(i,"equipment",e.target.value)} className={inpS}>
+                    <option value="">-- اختر معدة --</option>
+                    <optgroup label="مضخات">
+                      {PUMP_EQUIPMENT.map(eq=><option key={eq}>{eq}</option>)}
+                    </optgroup>
+                    <optgroup label="خزانات">
+                      {TANK_EQUIPMENT.map(eq=><option key={eq}>{eq}</option>)}
+                    </optgroup>
+                  </select>
+                </td>
+                <td className="p-1.5 min-w-[130px]">
+                  <select value={entry.type} onChange={e=>setEntry(i,"type",e.target.value)} className={inpS}>
+                    {MAINT_TYPES.map(t=><option key={t}>{t}</option>)}
+                  </select>
+                </td>
+                <td className="p-1.5 min-w-[140px]">
+                  <select value={entry.status} onChange={e=>setEntry(i,"status",e.target.value)} className={inpS}>
+                    {MAINT_STATUS.map(s=><option key={s}>{s}</option>)}
+                  </select>
+                </td>
+                <td className="p-1.5 min-w-[80px]">
+                  <input type="number" min="0" value={entry.hours} onChange={e=>setEntry(i,"hours",e.target.value)}
+                    placeholder="ساعة" className={inpS+" text-center"}/>
+                </td>
+                <td className="p-1.5 min-w-[120px]">
+                  <input value={entry.technician} onChange={e=>setEntry(i,"technician",e.target.value)}
+                    placeholder="اسم الفني" className={inpS}/>
+                </td>
+                <td className="p-1.5 min-w-[160px]">
+                  <input value={entry.notes} onChange={e=>setEntry(i,"notes",e.target.value)}
+                    placeholder="ملاحظات..." className={inpS}/>
+                </td>
+                <td className="p-1.5 text-center">
+                  {entries.length>1 && (
+                    <button onClick={()=>removeEntry(i)} className="text-red-400 hover:text-red-600 p-0.5"><X size={13}/></button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <button onClick={addEntry} className="flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+        <Plus size={12}/> إضافة معدة
+      </button>
+
+      {/* General note */}
+      <div>
+        <label className="block text-[10px] font-bold text-slate-500 mb-1">ملاحظات عامة على الموقع</label>
+        <textarea value={generalNote} onChange={e=>setGeneralNote(e.target.value)} rows={2}
+          placeholder="أي ملاحظات عامة على الموقع أو المنظومة..."
+          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"/>
+      </div>
+
+      <button onClick={save}
+        className="flex items-center gap-1.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-5 py-2.5 rounded-xl active:scale-95 transition-all shadow-sm">
+        <Save size={14}/> حفظ تقرير الصيانة
+      </button>
+    </div>
+  );
+}
+
+/* ── Read-only daily log card ── */
+function DailyLogCard({ day, log }) {
+  if (!log) return null;
+  const entries = Array.isArray(log.entries) ? log.entries : [];
+  const hasAlert = entries.some(e => e.status === "متوقف عن العمل" || e.status === "يحتاج إصلاح");
+
+  return (
+    <div className={`px-4 py-4 ${hasAlert ? "bg-red-50/30" : ""}`}>
+      <div className="flex items-center gap-2 mb-3">
+        <div className={`w-2 h-2 rounded-full shrink-0 ${hasAlert ? "bg-red-500" : "bg-emerald-400"}`}/>
+        <p className="text-[11px] font-bold text-slate-600">
+          {new Date(day).toLocaleDateString("ar-IQ",{weekday:"long",day:"numeric",month:"long"})}
+        </p>
+        {hasAlert && <span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">⚠️ تنبيه</span>}
+        <span className="text-[10px] text-slate-400 mr-auto">{log.recordedBy?.split(" ").slice(0,2).join(" ")}</span>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-[10px] border-collapse">
+          <thead>
+            <tr className="bg-slate-100">
+              {["المعدة","نوع الصيانة","الحالة","ساعات التشغيل","الفني","ملاحظات"].map(h=>(
+                <th key={h} className="px-2 py-1.5 text-right font-bold text-slate-500 whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((e, i) => (
+              <tr key={i} className={`border-b border-slate-100 ${e.status==="متوقف عن العمل"?"bg-red-50":e.status==="يحتاج إصلاح"?"bg-orange-50":""}`}>
+                <td className="px-2 py-1.5 font-semibold text-slate-700 whitespace-nowrap">{e.equipment}</td>
+                <td className="px-2 py-1.5 text-slate-600">{e.type}</td>
+                <td className="px-2 py-1.5">
+                  <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${MAINT_STATUS_STYLE[e.status]||""}`}>{e.status}</span>
+                </td>
+                <td className="px-2 py-1.5 text-center text-slate-500">{e.hours ? `${e.hours}س` : "—"}</td>
+                <td className="px-2 py-1.5 text-slate-500 whitespace-nowrap">{e.technician||"—"}</td>
+                <td className="px-2 py-1.5 text-slate-500">{e.notes||"—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {log.generalNote && (
+        <p className="mt-2 text-[10px] text-slate-500 border-t border-slate-100 pt-2">
+          <span className="font-bold">ملاحظات عامة:</span> {log.generalNote}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ── Employee Score Card with ONE objection per month ── */
+function EmployeeScoreCard({ emp, monthKey, months, selMonth, selYear, totalScore, taskScore, attendanceScore, participationScore, initiativeScore, criteria, tasksList, showToast }) {
+  const objPath = `evaluation/objections/${emp.id}/${monthKey}`;
+  const [objection, setObjection] = useFirebase(objPath, null);
+  const [objText, setObjText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const hasSubmitted = !!objection;
+  const isFinalized = objection?.status === "مقبول" || objection?.status === "مرفوض";
+
+  const submitObjection = () => {
+    if (!objText.trim()) return showToast("اكتب ملاحظتك أولاً");
+    if (objText.trim().length < 10) return showToast("الملاحظة قصيرة جداً — أضف تفاصيل");
+    setSubmitting(true);
+    setObjection({
+      text: objText.trim(),
+      empId: emp.id,
+      empName: emp.name,
+      submittedAt: new Date().toISOString(),
+      status: "بانتظار المراجعة",
+      adminReply: "",
+    });
+    // Notify admin
+    fb.get("notifications/1").then(existing => {
+      const prev = Array.isArray(existing) ? existing : [];
+      fb.set("notifications/1", [{
+        id: Date.now(), type: "اعتراض",
+        title: `📝 اعتراض على تقييم ${months[selMonth]}`,
+        body: `${emp.name.split(" ").slice(0,2).join(" ")} — ${objText.trim().slice(0,60)}`,
+        timestamp: new Date().toISOString(), read: false,
+      }, ...prev]);
+    });
+    showToast("✓ تم إرسال اعتراضك — سيتم الرد عليك من المشرف");
+    setSubmitting(false);
+  };
+
+  const scoreColor = totalScore>=85?"text-emerald-600":totalScore>=70?"text-blue-600":totalScore>=50?"text-amber-600":"text-red-600";
+  const scoreBg    = totalScore>=85?"bg-emerald-50 border-emerald-200":totalScore>=70?"bg-blue-50 border-blue-200":totalScore>=50?"bg-amber-50 border-amber-200":"bg-red-50 border-red-200";
+
+  return (
+    <div className="space-y-4">
+      {/* Score display */}
+      <div className={`bg-white rounded-2xl border-2 ${scoreBg} p-5 shadow-sm`}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-sm font-bold text-slate-800">تقييمك الشهري</p>
+            <p className="text-xs text-slate-500">{months[selMonth]} {selYear}</p>
+          </div>
+          <div className="text-center">
+            <p className={`text-5xl font-bold ${scoreColor}`}>{totalScore}</p>
+            <p className="text-xs text-slate-400 mt-1">من 100 درجة</p>
+          </div>
+        </div>
+
+        <div className="space-y-2.5">
+          {criteria.map(c=>{
+            const sc = c.key==="tasks"?taskScore:c.key==="attendance"?attendanceScore:c.key==="participation"?participationScore:initiativeScore;
+            return (
+              <div key={c.key} className="flex items-center gap-3">
+                <span className="text-xs text-slate-500 w-36 shrink-0">{c.icon} {c.label} ({c.weight}%)</span>
+                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all duration-700 ${sc>=80?"bg-emerald-500":sc>=60?"bg-blue-500":sc>=40?"bg-amber-400":"bg-red-400"}`} style={{width:`${sc}%`}}/>
+                </div>
+                <span className="text-xs font-bold text-slate-700 w-8">{sc}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Approved tasks */}
+        {tasksList.filter(t=>t.status==="مقبولة").length>0 && (
+          <div className="mt-4 border-t border-slate-100 pt-3 space-y-1.5">
+            <p className="text-[11px] font-bold text-slate-600">المهام المقبولة:</p>
+            {tasksList.filter(t=>t.status==="مقبولة").map(t=>(
+              <div key={t.id} className="flex items-center gap-2 text-xs">
+                <CheckSquare size={11} className="text-emerald-500 shrink-0"/>
+                <span className="flex-1 text-slate-600">{t.title}</span>
+                <span className="font-bold text-emerald-700">{t.adminScore}/{t.maxScore}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Objection section */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+        <h4 className="text-sm font-bold text-slate-800 mb-1 flex items-center gap-2">
+          <AlertCircle size={14} className="text-amber-500"/> الاعتراض على التقييم
+        </h4>
+        <p className="text-[11px] text-slate-400 mb-4">
+          يُسمح بتقديم اعتراض واحد فقط لكل تقييم شهري — قرار المشرف نهائي
+        </p>
+
+        {!hasSubmitted && (
+          <div className="space-y-3">
+            <textarea value={objText} onChange={e=>setObjText(e.target.value)} rows={3}
+              placeholder="اكتب ملاحظتك أو اعتراضك على هذا التقييم بوضوح وتفصيل..."
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"/>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] text-red-500">⚠️ لا يمكن التعديل بعد الإرسال</p>
+              <button onClick={submitObjection} disabled={submitting}
+                className="flex items-center gap-1.5 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-xl active:scale-95 transition-all">
+                <Save size={13}/> إرسال الاعتراض
+              </button>
+            </div>
+          </div>
+        )}
+
+        {hasSubmitted && (
+          <div className={`rounded-xl border p-4 space-y-3 ${
+            objection.status==="مقبول"?"bg-emerald-50 border-emerald-200":
+            objection.status==="مرفوض"?"bg-red-50 border-red-200":
+            "bg-amber-50 border-amber-200"
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
+                objection.status==="مقبول"?"bg-emerald-200 text-emerald-800":
+                objection.status==="مرفوض"?"bg-red-200 text-red-800":
+                "bg-amber-200 text-amber-800"
+              }`}>
+                {objection.status==="مقبول"?"✅ مقبول":objection.status==="مرفوض"?"❌ مرفوض":"⏳ بانتظار المراجعة"}
+              </span>
+              <span className="text-[10px] text-slate-400">{new Date(objection.submittedAt).toLocaleDateString("ar-IQ")}</span>
+              {isFinalized && <span className="text-[10px] font-bold text-slate-500 mr-auto">القرار نهائي</span>}
+            </div>
+            <div className="bg-white/60 rounded-lg p-3">
+              <p className="text-[11px] font-bold text-slate-600 mb-1">اعتراضك:</p>
+              <p className="text-sm text-slate-700">{objection.text}</p>
+            </div>
+            {objection.adminReply && (
+              <div className="bg-white/60 rounded-lg p-3">
+                <p className="text-[11px] font-bold text-slate-600 mb-1">رد المشرف:</p>
+                <p className="text-sm text-slate-700">{objection.adminReply}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Admin monthly report with objection management ── */
+function AdminMonthlyReport({ months, selMonth, selYear, dailyLogs, monthKey, allEmployees, totalScore, taskScore, attendanceScore, participationScore, initiativeScore, tasksList, criteria, ScoreBar, emp, showToast }) {
+  const [objections, setObjections] = useFirebase(`evaluation/objections`, {});
+  const [replyText, setReplyText]   = useState({});
+
+  const thisMonthObjs = Object.entries(objections || {}).reduce((acc, [empId, months]) => {
+    const obj = months[monthKey];
+    if (obj && obj.status === "بانتظار المراجعة") {
+      acc.push({ empId, ...obj });
+    }
+    return acc;
+  }, []);
+
+  const resolveObjection = (empId, decision, reply) => {
+    const path = `evaluation/objections/${empId}/${monthKey}`;
+    fb.get(path).then(existing => {
+      if (!existing) return;
+      fb.set(path, { ...existing, status: decision, adminReply: reply, resolvedAt: new Date().toISOString(), resolvedBy: emp.name });
+    });
+    // Notify employee
+    fb.get(`notifications/${empId}`).then(existing => {
+      const prev = Array.isArray(existing) ? existing : [];
+      fb.set(`notifications/${empId}`, [{
+        id: Date.now(), type: decision === "مقبول" ? "موافقة" : "رفض",
+        title: decision === "مقبول" ? "✅ تم قبول اعتراضك على التقييم" : "❌ تم رفض اعتراضك على التقييم",
+        body: reply || `قرار المشرف على اعتراض ${months[selMonth]} ${selYear}: ${decision}`,
+        timestamp: new Date().toISOString(), read: false,
+      }, ...prev]);
+    });
+    showToast(`✓ تم ${decision === "مقبول" ? "قبول" : "رفض"} الاعتراض وإشعار الموظف`);
+  };
+
+  // Get all maintenance entries for the month and flag critical
+  const allDailyEntries = Object.entries(dailyLogs)
+    .filter(([d]) => d.slice(0,7) === `${selYear}-${String(selMonth+1).padStart(2,"0")}`)
+    .sort(([a],[b]) => b.localeCompare(a));
+
+  const criticalItems = allDailyEntries.flatMap(([day, log]) =>
+    (log.entries||[]).filter(e => e.status === "متوقف عن العمل" || e.status === "يحتاج إصلاح")
+      .map(e => ({ ...e, day }))
+  );
+
+  return (
+    <div id="print-monthly" className="space-y-5">
+      {/* Print header */}
+      <div className="hidden print:block text-center mb-6">
+        <p className="text-xl font-bold">شركة نفط البصرة — شعبة مستودع الفاو</p>
+        <p className="text-base font-semibold mt-1">التقرير الشهري الشامل للصيانة والتقييم</p>
+        <p className="text-sm text-slate-600">{months[selMonth]} {selYear}</p>
+      </div>
+
+      {/* Critical alerts */}
+      {criticalItems.length > 0 && (
+        <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4">
+          <h4 className="text-sm font-bold text-red-800 mb-2 flex items-center gap-2">
+            <AlertCircle size={15} className="text-red-600"/> تنبيهات تحتاج إجراء ({criticalItems.length})
+          </h4>
+          <div className="space-y-1.5">
+            {criticalItems.map((e,i)=>(
+              <div key={i} className="flex items-center gap-2 text-xs bg-white/60 rounded-lg px-3 py-2">
+                <span className={`font-bold px-2 py-0.5 rounded-full text-[10px] ${MAINT_STATUS_STYLE[e.status]||""}`}>{e.status}</span>
+                <span className="font-semibold text-slate-700">{e.equipment}</span>
+                <span className="text-slate-500">— {e.type}</span>
+                <span className="text-slate-400 mr-auto font-mono text-[10px]">{e.day}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Maintenance summary */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+          <h4 className="font-bold text-slate-800 text-sm">ملخص أعمال الصيانة — {months[selMonth]} {selYear}</h4>
+        </div>
+        <div className="p-5 space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { l:"أيام التقرير", v: allDailyEntries.length, c:"text-blue-700", bg:"bg-blue-50" },
+              { l:"إجمالي العمليات", v: allDailyEntries.reduce((s,[,log])=>s+(log.entries?.length||0),0), c:"text-slate-700", bg:"bg-slate-50" },
+              { l:"تنبيهات حرجة", v: criticalItems.length, c:"text-red-700", bg:"bg-red-50" },
+              { l:"أعمال اكتملت", v: allDailyEntries.reduce((s,[,log])=>s+(log.entries?.filter(e=>e.status==="سليم").length||0),0), c:"text-emerald-700", bg:"bg-emerald-50" },
+            ].map(s=>(
+              <div key={s.l} className={`${s.bg} rounded-xl p-3 text-center`}>
+                <p className={`text-2xl font-bold ${s.c}`}>{s.v}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">{s.l}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Pending objections */}
+      {thisMonthObjs.length > 0 && (
+        <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-amber-100 bg-amber-50 flex items-center gap-2">
+            <AlertCircle size={14} className="text-amber-600"/>
+            <h4 className="font-bold text-amber-800 text-sm">اعتراضات على التقييم تنتظر ردك ({thisMonthObjs.length})</h4>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {thisMonthObjs.map((obj,i) => {
+              const empInfo = allEmployees.find(e=>String(e.id)===String(obj.empId));
+              return (
+                <div key={i} className="p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                      {empInfo?.name?.[0]||"م"}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">{empInfo?.name?.split(" ").slice(0,3).join(" ")||"موظف"}</p>
+                      <p className="text-[10px] text-slate-400">{empInfo?.dept} · {new Date(obj.submittedAt).toLocaleDateString("ar-IQ")}</p>
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-3 text-sm text-slate-700">{obj.text}</div>
+                  <div className="space-y-2">
+                    <textarea value={replyText[obj.empId]||""} onChange={e=>setReplyText(p=>({...p,[obj.empId]:e.target.value}))}
+                      placeholder="رد المشرف (مطلوب للقبول والرفض)..." rows={2}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"/>
+                    <div className="flex gap-2">
+                      <button onClick={()=>resolveObjection(obj.empId,"مقبول",replyText[obj.empId]||"")}
+                        className="flex items-center gap-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-xl">
+                        <ThumbsUp size={12}/> قبول الاعتراض
+                      </button>
+                      <button onClick={()=>resolveObjection(obj.empId,"مرفوض",replyText[obj.empId]||"")}
+                        className="flex items-center gap-1 text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-4 py-2 rounded-xl">
+                        <ThumbsDown size={12}/> رفض الاعتراض
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MONTHLY EVALUATION PAGE
+═══════════════════════════════════════════════════════════ */
+function EvaluationPage({ emp, isAdmin, allEmployees }) {
+  const now = new Date();
+  const [selMonth, setSelMonth] = useState(now.getMonth());
+  const [selYear,  setSelYear]  = useState(now.getFullYear());
+  const [selEmpId, setSelEmpId] = useState(isAdmin ? null : emp.id);
+  const [activeTab, setActiveTab] = useState("tasks"); // tasks | daily | monthly | csv
+  const [criteria, setCriteria] = useState(EVAL_CRITERIA.map(c=>({...c, weight:c.defaultWeight})));
+  const [toast, setToast] = useState("");
+  const csvFileRef = useRef();
+
+  const showToast = (m) => { setToast(m); setTimeout(()=>setToast(""),3000); };
+
+  // Firebase paths
+  const monthKey    = `${selYear}_${String(selMonth+1).padStart(2,"0")}`;
+  const empTarget   = selEmpId || emp.id;
+  const tasksPath   = `evaluation/tasks/${empTarget}/${monthKey}`;
+  const dailyPath   = `evaluation/daily/${empTarget}/${monthKey}`;
+  const scoresPath  = `evaluation/scores/${empTarget}/${monthKey}`;
+
+  const [tasks,      setTasks]      = useFirebase(tasksPath, []);
+  const [dailyLogs,  setDailyLogs]  = useFirebase(dailyPath, {});
+  const [scores,     setScores]     = useFirebase(scoresPath, {});
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [taskForm,  setTaskForm]    = useState({ title:"", desc:"", maxScore:10, dueDate: getMonthDueDate() });
+  const [noteModal, setNoteModal]   = useState(null);
+  const [todayLog,  setTodayLog]    = useState("");
+  const todayKey = now.toISOString().slice(0,10);
+
+  const tasksList  = Array.isArray(tasks) ? tasks : [];
+  const daysInMonth = getDaysInMonth(selYear, selMonth);
+  const dueDate    = `${selYear}-${String(selMonth+1).padStart(2,"0")}-15`;
+
+  // ── Score calculations
+  const taskScore = useMemo(()=>{
+    const approved = tasksList.filter(t=>t.status==="مقبولة");
+    const total = approved.reduce((s,t)=>s+(t.maxScore||10),0);
+    const earned = approved.reduce((s,t)=>s+(t.adminScore||0),0);
+    return total>0 ? Math.round((earned/total)*100) : 0;
+  },[tasksList]);
+
+  const attendanceScore = scores.attendance ?? 20;
+  const participationScore = scores.participation ?? 0;
+  const initiativeScore = scores.initiative ?? 0;
+
+  const totalScore = useMemo(()=>{
+    const w = criteria.reduce((acc,c)=>({...acc,[c.key]:c.weight}),{});
+    const total = w.attendance+w.tasks+w.participation+w.initiative;
+    return Math.round(
+      (attendanceScore/100*w.attendance +
+       taskScore/100*w.tasks +
+       participationScore/100*w.participation +
+       initiativeScore/100*w.initiative) / total * 100
+    );
+  },[criteria, attendanceScore, taskScore, participationScore, initiativeScore]);
+
+  // Add task (admin only)
+  const addTask = () => {
+    if (!taskForm.title) return showToast("عنوان المهمة مطلوب");
+    const newTask = {
+      id: Date.now(),
+      ...taskForm,
+      status:"قيد التنفيذ",
+      assignedBy: emp.name,
+      assignedAt: new Date().toISOString(),
+      empId: empTarget,
+    };
+    setTasks([...tasksList, newTask]);
+    // Notify employee
+    fb.get(`notifications/${empTarget}`).then(existing=>{
+      const prev = Array.isArray(existing)?existing:[];
+      fb.set(`notifications/${empTarget}`,[{
+        id:Date.now()+1, type:"مهمة_جديدة",
+        title:`📋 مهمة جديدة: ${taskForm.title}`,
+        body:`الموعد النهائي: ${taskForm.dueDate} | الدرجة القصوى: ${taskForm.maxScore}`,
+        timestamp:new Date().toISOString(), read:false,
+      },...prev]);
+    });
+    setTaskForm({title:"",desc:"",maxScore:10,dueDate:getMonthDueDate()});
+    setShowAddTask(false);
+    showToast("✓ تم إسناد المهمة وإشعار الموظف");
+  };
+
+  // Employee submits task with file
+  const submitTaskFile = async (taskId, file) => {
+    if (!file) return showToast("اختر ملفاً");
+    if (file.size > MAX_FILE_SIZE) return showToast("❌ الملف يتجاوز 5 ميغا");
+    if (!ALLOWED_TYPES.includes(file.type)) return showToast("❌ نوع الملف غير مسموح (PDF, Word, صورة فقط)");
+    showToast("جاري الرفع...");
+    try {
+      const url = await uploadFileToStorage(file, `tasks/${empTarget}/${monthKey}/${taskId}_${file.name}`);
+      setTasks(tasksList.map(t=>t.id===taskId
+        ?{...t, status:"مُرسلة للمراجعة", fileUrl:url, fileName:file.name, submittedAt:new Date().toISOString()}:t
+      ));
+      // Notify admin
+      fb.get("notifications/1").then(existing=>{
+        const prev=Array.isArray(existing)?existing:[];
+        fb.set("notifications/1",[{
+          id:Date.now(), type:"مهمة_مرسلة",
+          title:`📎 مهمة مُرسلة للمراجعة`,
+          body:`${emp.name.split(" ").slice(0,2).join(" ")} — ${tasksList.find(t=>t.id===taskId)?.title||""}`,
+          timestamp:new Date().toISOString(), read:false,
+        },...prev]);
+      });
+      showToast("✓ تم رفع الملف وإرسال المهمة للمراجعة");
+    } catch(e) { showToast("❌ "+ e.message); }
+  };
+
+  // Admin approves/rejects task
+  const reviewTask = (taskId, approved, adminScore, note="") => {
+    setTasks(tasksList.map(t=>t.id===taskId
+      ?{...t, status:approved?"مقبولة":"مرفوضة", adminScore:approved?adminScore:0, adminNote:note, reviewedAt:new Date().toISOString()}:t
+    ));
+    const task = tasksList.find(t=>t.id===taskId);
+    fb.get(`notifications/${empTarget}`).then(existing=>{
+      const prev=Array.isArray(existing)?existing:[];
+      fb.set(`notifications/${empTarget}`,[{
+        id:Date.now(), type:approved?"موافقة":"رفض",
+        title:approved?`✅ تم قبول مهمتك`:`❌ تم رفض مهمتك`,
+        body:`${task?.title||""} — الدرجة: ${approved?adminScore:0}/${task?.maxScore||10}${note?" | "+note:""}`,
+        timestamp:new Date().toISOString(), read:false,
+      },...prev]);
+    });
+    setNoteModal(null);
+    showToast(approved?"✓ تم قبول المهمة":"✓ تم رفض المهمة");
+  };
+
+  // Save daily log
+  const saveDailyLog = () => {
+    if (!todayLog.trim()) return;
+    setDailyLogs({...dailyLogs, [todayKey]: { text:todayLog, savedAt:new Date().toISOString(), empId:emp.id, empName:emp.name }});
+    showToast("✓ تم حفظ التقرير اليومي");
+  };
+
+  // Admin saves scores
+  const saveScores = (key, val) => {
+    setScores({...scores, [key]: Math.min(100, Math.max(0, Number(val)))});
+    showToast("✓ تم حفظ الدرجة");
+  };
+
+  // CSV Export
+  const exportCSV = () => {
+    const rows = tasksList.map(t=>({
+      "العنوان":t.title||"",
+      "الوصف":t.desc||"",
+      "الموعد النهائي":t.dueDate||"",
+      "الدرجة القصوى":t.maxScore||"",
+      "درجة المشرف":t.adminScore||"",
+      "الحالة":t.status||"",
+      "تاريخ الإسناد":t.assignedAt?new Date(t.assignedAt).toLocaleDateString("ar-IQ"):"",
+      "تاريخ الإرسال":t.submittedAt?new Date(t.submittedAt).toLocaleDateString("ar-IQ"):"",
+      "ملاحظة المشرف":t.adminNote||"",
+    }));
+    csv.download(csv.stringify(rows), `مهام_${monthKey}.csv`);
+    showToast("✓ تم تحميل ملف CSV");
+  };
+
+  // CSV Import
+  const importCSV = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const rows = csv.parse(ev.target.result);
+        const imported = rows.filter(r=>r["العنوان"]).map(r=>({
+          id:Date.now()+Math.random(),
+          title:r["العنوان"]||"",
+          desc:r["الوصف"]||"",
+          dueDate:r["الموعد النهائي"]||getMonthDueDate(),
+          maxScore:Number(r["الدرجة القصوى"])||10,
+          status:"قيد التنفيذ",
+          assignedBy:emp.name,
+          assignedAt:new Date().toISOString(),
+          empId:empTarget,
+        }));
+        setTasks([...tasksList,...imported]);
+        showToast(`✓ تم استيراد ${imported.length} مهمة`);
+      } catch { showToast("❌ خطأ في قراءة الملف"); }
+    };
+    reader.readAsText(file, "UTF-8");
+    e.target.value="";
+  };
+
+  const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  const inpC="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white";
+  const selC=inpC+" appearance-none cursor-pointer";
+
+  const ScoreBar = ({label,score,color="bg-blue-500",max=100})=>(
+    <div className="flex items-center gap-3">
+      <span className="text-xs text-slate-500 w-32 shrink-0">{label}</span>
+      <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{width:`${(score/max)*100}%`}}/>
+      </div>
+      <span className="text-xs font-bold text-slate-700 w-12 text-left">{score}/{max}</span>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4 fu" dir="rtl">
+
+      {/* Header controls */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <div className="flex flex-wrap gap-3 items-center">
+          <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm">
+            {months.map((m,i)=><option key={i} value={i}>{m}</option>)}
+          </select>
+          <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm">
+            {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+          </select>
+          {isAdmin && (
+            <select value={selEmpId||""} onChange={e=>setSelEmpId(Number(e.target.value)||null)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm flex-1 min-w-[160px]">
+              <option value="">-- اختر موظفاً --</option>
+              {allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,3).join(" ")}</option>)}
+            </select>
+          )}
+          <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl shrink-0">
+            <Clock size={12}/> الموعد النهائي: 15 {months[selMonth]}
+          </div>
+        </div>
+
+        {/* Score summary */}
+        <div className="bg-slate-900 rounded-xl p-4 text-white">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold">التقييم الإجمالي — {months[selMonth]} {selYear}</p>
+            <div className="flex items-center gap-1">
+              <span className="text-3xl font-bold text-amber-400">{totalScore}</span>
+              <span className="text-slate-400 text-sm">/100</span>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {criteria.map(c=>(
+              <div key={c.key} className="flex items-center gap-2">
+                <span className="text-slate-400 text-[10px] w-28 shrink-0">{c.icon} {c.label} ({c.weight}%)</span>
+                <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                  <div className="h-full bg-amber-400 rounded-full transition-all duration-700" style={{width:`${
+                    c.key==="tasks"?taskScore:
+                    c.key==="attendance"?attendanceScore:
+                    c.key==="participation"?participationScore:initiativeScore
+                  }%`}}/>
+                </div>
+                <span className="text-[10px] text-slate-300 w-8 text-left">{
+                  c.key==="tasks"?taskScore:
+                  c.key==="attendance"?attendanceScore:
+                  c.key==="participation"?participationScore:initiativeScore
+                }</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Admin: edit criteria weights */}
+        {isAdmin && (
+          <details className="bg-slate-50 rounded-xl border border-slate-200">
+            <summary className="px-3 py-2 text-xs font-bold text-slate-600 cursor-pointer">⚙️ تعديل أوزان معايير التقييم</summary>
+            <div className="p-3 grid grid-cols-2 gap-2">
+              {criteria.map((c,i)=>(
+                <div key={c.key} className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500 flex-1">{c.icon} {c.label}</span>
+                  <input type="number" min="0" max="100" value={c.weight}
+                    onChange={e=>setCriteria(prev=>prev.map((x,xi)=>xi===i?{...x,weight:Number(e.target.value)}:x))}
+                    className="w-16 border border-slate-200 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-400"/>
+                  <span className="text-xs text-slate-400">%</span>
+                </div>
+              ))}
+              <p className="col-span-2 text-[10px] text-slate-400">المجموع: {criteria.reduce((s,c)=>s+c.weight,0)}% (يجب أن يساوي 100)</p>
+            </div>
+          </details>
+        )}
+
+        {/* Admin: attendance/participation/initiative scores */}
+        {isAdmin && selEmpId && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-2">
+            <p className="text-xs font-bold text-blue-800 mb-2">درجات المشرف (من 100)</p>
+            {[
+              {key:"attendance",    label:"الحضور",         color:"text-amber-600"},
+              {key:"participation", label:"المشاركة",        color:"text-violet-600"},
+              {key:"initiative",    label:"المبادرة الذاتية",color:"text-emerald-600"},
+            ].map(item=>(
+              <div key={item.key} className="flex items-center gap-2">
+                <span className={`text-xs font-semibold w-32 ${item.color}`}>{item.label}</span>
+                <input type="number" min="0" max="100"
+                  value={scores[item.key]??0}
+                  onChange={e=>saveScores(item.key, e.target.value)}
+                  className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-400"/>
+                <span className="text-xs text-slate-400">/100</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Tab navigation */}
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar no-print">
+        {[
+          {id:"tasks",   label:"المهام",        icon:<Target size={13}/>},
+          {id:"daily",   label:"التقرير اليومي",icon:<FileText size={13}/>},
+          {id:"monthly", label:"التقرير الشهري",icon:<BarChart2 size={13}/>},
+          {id:"csv",     label:"CSV",            icon:<Download size={13}/>},
+        ].map(t=>(
+          <button key={t.id} onClick={()=>setActiveTab(t.id)}
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl whitespace-nowrap transition-all ${
+              activeTab===t.id?"bg-slate-900 text-white":"bg-white border border-slate-200 text-slate-600 hover:border-slate-300"
+            }`}>
+            {t.icon}{t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── TASKS TAB ── */}
+      {activeTab==="tasks" && (
+        <div className="space-y-3">
+          {isAdmin && (
+            <div className="flex gap-2 no-print">
+              <button onClick={()=>setShowAddTask(p=>!p)}
+                className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-xl shadow-sm">
+                <Plus size={13}/> إسناد مهمة جديدة
+              </button>
+              <PrintButton targetId="print-tasks" title="تقرير المهام"/>
+            </div>
+          )}
+
+          {showAddTask && (
+            <div className="bg-white rounded-2xl border-2 border-blue-200 p-4 shadow-sm no-print">
+              <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2"><Target size={14} className="text-blue-600"/> إسناد مهمة</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">عنوان المهمة *</label>
+                  <input value={taskForm.title} onChange={e=>setTaskForm(p=>({...p,title:e.target.value}))} className={inpC} placeholder="عنوان المهمة"/>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">تفاصيل المهمة</label>
+                  <textarea value={taskForm.desc} onChange={e=>setTaskForm(p=>({...p,desc:e.target.value}))} rows={2} className={inpC+" resize-none"} placeholder="وصف تفصيلي للمهمة..."/>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">الموعد النهائي (لا يتجاوز 15 من الشهر)</label>
+                  <input type="date" value={taskForm.dueDate} max={dueDate} onChange={e=>setTaskForm(p=>({...p,dueDate:e.target.value}))} className={inpC}/>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">الدرجة القصوى للمهمة</label>
+                  <input type="number" min="1" max="100" value={taskForm.maxScore} onChange={e=>setTaskForm(p=>({...p,maxScore:Number(e.target.value)}))} className={inpC}/>
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end mt-3">
+                <button onClick={()=>setShowAddTask(false)} className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200">إلغاء</button>
+                <button onClick={addTask} className="flex items-center gap-1 px-4 py-2 text-xs font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700">
+                  <Save size={12}/> إسناد المهمة
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div id="print-tasks" className="space-y-3">
+            {tasksList.length===0 ? (
+              <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-10 text-center">
+                <Target size={28} className="text-slate-300 mx-auto mb-2"/>
+                <p className="text-sm text-slate-400">لا توجد مهام مسندة لهذا الشهر</p>
+              </div>
+            ) : tasksList.map(task=>(
+              <div key={task.id} className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${
+                task.status==="قيد التنفيذ"?"border-amber-200 border-r-4 border-r-amber-400":
+                task.status==="مُرسلة للمراجعة"?"border-blue-200 border-r-4 border-r-blue-400":
+                task.status==="مقبولة"?"border-emerald-200 border-r-4 border-r-emerald-500":
+                "border-red-200 border-r-4 border-r-red-400"
+              }`}>
+                <div className="p-4">
+                  <div className="flex items-start gap-3 mb-2">
+                    <div className="flex-1">
+                      <p className="font-bold text-slate-900 text-sm">{task.title}</p>
+                      {task.desc && <p className="text-xs text-slate-500 mt-0.5">{task.desc}</p>}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${TASK_STATUS_STYLE[task.status]||""}`}>
+                        {task.status}
+                      </span>
+                      {task.status==="مقبولة" && (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                          {task.adminScore}/{task.maxScore} ⭐
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-[10px] text-slate-400 mb-3">
+                    <span>📅 الموعد: <strong className={new Date(task.dueDate)<now&&task.status==="قيد التنفيذ"?"text-red-500":"text-slate-600"}>{task.dueDate}</strong></span>
+                    <span>🎯 الدرجة القصوى: <strong>{task.maxScore}</strong></span>
+                    {task.assignedBy && <span>👤 أسندها: {task.assignedBy.split(" ")[0]}</span>}
+                  </div>
+
+                  {task.adminNote && (
+                    <div className="bg-slate-50 rounded-xl p-2 text-xs text-slate-600 mb-2">
+                      <span className="font-bold">ملاحظة المشرف:</span> {task.adminNote}
+                    </div>
+                  )}
+
+                  {/* Employee: submit file */}
+                  {!isAdmin && task.status==="قيد التنفيذ" && (
+                    <div className="border-t border-slate-100 pt-3 no-print">
+                      <label className="flex items-center gap-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl cursor-pointer transition-colors w-fit">
+                        <Upload size={13}/> رفع الملف وإرسال المهمة
+                        <input type="file" className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                          onChange={e=>e.target.files?.[0] && submitTaskFile(task.id, e.target.files[0])}/>
+                      </label>
+                      <p className="text-[9px] text-slate-400 mt-1">PDF, Word, صورة — الحد الأقصى 5 ميغا</p>
+                    </div>
+                  )}
+
+                  {/* Submitted file */}
+                  {task.fileUrl && (
+                    <a href={task.fileUrl} target="_blank" rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl hover:bg-emerald-100 mt-2">
+                      <Download size={12}/> {task.fileName || "تحميل الملف"}
+                    </a>
+                  )}
+
+                  {/* Admin: review submitted task */}
+                  {isAdmin && task.status==="مُرسلة للمراجعة" && (
+                    <div className="border-t border-slate-100 pt-3 no-print">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <input type="number" min="0" max={task.maxScore}
+                          placeholder={`الدرجة (0-${task.maxScore})`}
+                          className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          id={`score_${task.id}`}/>
+                        <button onClick={()=>{
+                          const sc = Number(document.getElementById(`score_${task.id}`)?.value||0);
+                          reviewTask(task.id, true, sc);
+                        }} className="flex items-center gap-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-xl">
+                          <ThumbsUp size={12}/> قبول
+                        </button>
+                        <button onClick={()=>setNoteModal({taskId:task.id, approve:false})}
+                          className="flex items-center gap-1 text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-xl">
+                          <ThumbsDown size={12}/> رفض
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── DAILY MAINTENANCE REPORT TAB ── */}
+      {activeTab==="daily" && (
+        <div className="space-y-4">
+
+          {/* Only admin/authorized can enter maintenance reports */}
+          {isAdmin && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+              <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <FileText size={14} className="text-blue-600"/>
+                تقرير الصيانة اليومي — {new Date(todayKey).toLocaleDateString("ar-IQ",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}
+              </h4>
+              <DailyMaintenanceForm
+                todayKey={todayKey}
+                dailyLogs={dailyLogs}
+                setDailyLogs={setDailyLogs}
+                emp={emp}
+                showToast={showToast}
+              />
+            </div>
+          )}
+
+          {/* View logs — both admin and employee can read */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+              <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                <ClipboardList size={13} className="text-slate-500"/>
+                سجل تقارير الصيانة — {months[selMonth]} {selYear}
+              </h4>
+              <PrintButton targetId="print-daily" title={`تقارير الصيانة — ${months[selMonth]} ${selYear}`}/>
+            </div>
+            <div id="print-daily" className="divide-y divide-slate-50">
+              {Object.entries(dailyLogs)
+                .filter(([d])=>d.slice(0,7)===`${selYear}-${String(selMonth+1).padStart(2,"0")}`)
+                .sort(([a],[b])=>b.localeCompare(a))
+                .map(([day, log])=>(
+                  <DailyLogCard key={day} day={day} log={log}/>
+                ))
+              }
+              {Object.keys(dailyLogs).filter(d=>d.slice(0,7)===`${selYear}-${String(selMonth+1).padStart(2,"0")}`).length===0 && (
+                <div className="p-10 text-center text-slate-400 text-sm">
+                  <ClipboardList size={28} className="text-slate-300 mx-auto mb-2"/>
+                  لا توجد تقارير صيانة لهذا الشهر
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MONTHLY REPORT TAB ── */}
+      {activeTab==="monthly" && (
+        <div className="space-y-4">
+          <div className="flex justify-end no-print">
+            <PrintButton targetId="print-monthly" title={`التقرير الشهري — ${months[selMonth]} ${selYear}`}/>
+          </div>
+
+          {/* ── For EMPLOYEE: show cumulative score + objection ── */}
+          {!isAdmin && (
+            <EmployeeScoreCard
+              emp={emp}
+              monthKey={monthKey}
+              months={months}
+              selMonth={selMonth}
+              selYear={selYear}
+              totalScore={totalScore}
+              taskScore={taskScore}
+              attendanceScore={attendanceScore}
+              participationScore={participationScore}
+              initiativeScore={initiativeScore}
+              criteria={criteria}
+              tasksList={tasksList}
+              showToast={showToast}
+            />
+          )}
+
+          {/* ── For ADMIN: full monthly maintenance report ── */}
+          {isAdmin && (
+            <AdminMonthlyReport
+              months={months}
+              selMonth={selMonth}
+              selYear={selYear}
+              dailyLogs={dailyLogs}
+              monthKey={monthKey}
+              allEmployees={allEmployees}
+              totalScore={totalScore}
+              taskScore={taskScore}
+              attendanceScore={attendanceScore}
+              participationScore={participationScore}
+              initiativeScore={initiativeScore}
+              tasksList={tasksList}
+              criteria={criteria}
+              ScoreBar={ScoreBar}
+              emp={emp}
+              showToast={showToast}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ── CSV TAB ── */}
+      {activeTab==="csv" && (
+        <div className="space-y-3">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+            <h4 className="text-sm font-bold text-slate-800">استيراد وتصدير البيانات (CSV)</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                <p className="text-sm font-bold text-emerald-800 mb-1 flex items-center gap-2"><Download size={14}/> تصدير CSV</p>
+                <p className="text-xs text-emerald-700 mb-3">تحميل بيانات المهام كملف Excel/CSV مع دعم العربية</p>
+                <button onClick={exportCSV} className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-xl">
+                  تحميل CSV
+                </button>
+              </div>
+              {isAdmin && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <p className="text-sm font-bold text-blue-800 mb-1 flex items-center gap-2"><Upload size={14}/> استيراد CSV</p>
+                  <p className="text-xs text-blue-700 mb-3">استيراد مهام من ملف CSV — يجب أن يحتوي على عمود "العنوان"</p>
+                  <label className="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl cursor-pointer">
+                    اختيار ملف CSV
+                    <input ref={csvFileRef} type="file" accept=".csv" className="hidden" onChange={importCSV}/>
+                  </label>
+                </div>
+              )}
+            </div>
+            <div className="bg-slate-50 rounded-xl p-3">
+              <p className="text-xs font-bold text-slate-600 mb-1">تنسيق ملف CSV للاستيراد:</p>
+              <code className="text-[10px] text-slate-500 font-mono block">
+                العنوان,الوصف,الموعد النهائي,الدرجة القصوى<br/>
+                مهمة الصيانة,فحص الأجهزة,2026-06-15,10<br/>
+                تقرير شهري,إعداد التقرير,2026-06-15,15
+              </code>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject note modal */}
+      {noteModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={()=>setNoteModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" dir="rtl" onClick={e=>e.stopPropagation()}>
+            <h3 className="font-bold text-slate-800 mb-3">سبب الرفض</h3>
+            <textarea id="reject_note" rows={3} placeholder="اكتب سبب الرفض..." className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none mb-4"/>
+            <div className="flex gap-2">
+              <button onClick={()=>setNoteModal(null)} className="flex-1 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button>
+              <button onClick={()=>reviewTask(noteModal.taskId, false, 0, document.getElementById("reject_note")?.value||"")}
+                className="flex-1 py-2 text-sm font-bold text-white bg-red-600 rounded-xl">رفض المهمة</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl no-print">
+          <CheckCircle size={14} className="text-emerald-400"/>{toast}
         </div>
       )}
     </div>
