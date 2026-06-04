@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { LogIn, LogOut, FileText, Clock, Heart, Calendar, CheckCircle, ChevronLeft, User, Eye, EyeOff, AlertCircle, Printer, Users, Shield, Package, Plus, Trash2, Edit3, Save, X, ArrowRightLeft, PenTool, RefreshCw, Search, FolderOpen, Upload, Download, Layers, ClipboardList, ChevronRight, Home, Bell, ThumbsUp, ThumbsDown, Star, Target, BarChart2, BookOpen, Award, TrendingUp, CheckSquare, Filter } from "lucide-react";
+import { LogIn, LogOut, FileText, Clock, Heart, Calendar, CheckCircle, ChevronLeft, User, Eye, EyeOff, AlertCircle, Printer, Users, Shield, Package, Plus, Trash2, Edit3, Save, X, ArrowRightLeft, PenTool, RefreshCw, Search, FolderOpen, Upload, Download, Layers, ClipboardList, ChevronRight, Home, Bell, ThumbsUp, ThumbsDown, Star, Target, BarChart2, CheckSquare } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════
    FIREBASE CONFIG
@@ -1017,7 +1017,7 @@ function SignaturePad({ onSave, existingSig, storageKey }) {
   // if loaded from storage, notify parent immediately
   useEffect(() => {
     if (preview && !existingSig) onSave(preview);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getPos = (e, canvas) => {
     const r = canvas.getBoundingClientRect();
@@ -1759,14 +1759,13 @@ function Dashboard({ emp, onLogout }) {
   const [empSignatures, setEmpSignatures] = useLocalStorage("boc_signatures", {});
 
   // ── FIREBASE (shared across ALL browsers/devices in real-time)
-  const [allRequests,   setAllRequests,  reqReady]   = useFirebase("requests",              []);
-  const [employees,     setEmployees,    empReady]   = useFirebase("employees",             ACCOUNTS);
-  const [transferLog,   setTransferLog,  xferReady]  = useFirebase("transfers",             []);
-  const [notifications, setNotifications,notifReady] = useFirebase(`notifications/${emp.id}`, []);
-  const [loginHistory,  setLoginHistory, loginReady] = useFirebase("login_history",         []);
+  const [allRequests,   setAllRequests]  = useFirebase("requests",              []);
+  const [employees,     setEmployees]    = useFirebase("employees",             ACCOUNTS);
+  const [transferLog,   setTransferLog]   = useFirebase("transfers",             []);
+  const [notifications, setNotifications] = useFirebase(`notifications/${emp.id}`, []);
 
   // Personal history (also on Firebase, keyed per employee)
-  const [history, setHistory, histReady] = useFirebase(`history/${emp.id}`, []);
+  const [history, setHistory] = useFirebase(`history/${emp.id}`, []);
 
   const isAdmin = emp.username === "i.shawi";
 
@@ -3457,7 +3456,6 @@ const EVAL_CRITERIA = [
   { key:"initiative",    label:"المبادرة الذاتية",           icon:"💡", defaultWeight:20, desc:"التنظيف، الصيانة، التجهيز، الإضافات للشعبة" },
 ];
 
-const TASK_STATUS = { pending:"قيد التنفيذ", submitted:"مُرسلة للمراجعة", approved:"مقبولة", rejected:"مرفوضة" };
 const TASK_STATUS_STYLE = {
   "قيد التنفيذ":       "bg-amber-100 text-amber-800 border-amber-200",
   "مُرسلة للمراجعة":  "bg-blue-100 text-blue-800 border-blue-200",
@@ -3470,7 +3468,6 @@ const ALLOWED_TYPES = ["application/pdf","application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "image/jpeg","image/png","image/jpg"];
 
-function getDaysInMonth(year, month) { return new Date(year, month+1, 0).getDate(); }
 function getMonthDueDate() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), 15).toISOString().slice(0,10);
@@ -3559,7 +3556,6 @@ function DailyMaintenanceForm({ todayKey, dailyLogs, setDailyLogs, emp, showToas
   const [entries, setEntries] = useState(existing?.entries || [{ ...EMPTY_MAINT_ENTRY }]);
   const [generalNote, setGeneralNote] = useState(existing?.generalNote || "");
   const [saved, setSaved] = useState(!!existing);
-  const allEquip = [...PUMP_EQUIPMENT, ...TANK_EQUIPMENT];
 
   const addEntry = () => setEntries(p => [...p, { ...EMPTY_MAINT_ENTRY }]);
   const removeEntry = (i) => setEntries(p => p.filter((_, xi) => xi !== i));
@@ -3863,7 +3859,7 @@ function EmployeeScoreCard({ emp, monthKey, months, selMonth, selYear, totalScor
 
 /* ── Admin monthly report with objection management ── */
 function AdminMonthlyReport({ months, selMonth, selYear, dailyLogs, monthKey, allEmployees, totalScore, taskScore, attendanceScore, participationScore, initiativeScore, tasksList, criteria, ScoreBar, emp, showToast }) {
-  const [objections, setObjections] = useFirebase(`evaluation/objections`, {});
+  const [objections] = useFirebase(`evaluation/objections`, {});
   const [replyText, setReplyText]   = useState({});
 
   const thisMonthObjs = Object.entries(objections || {}).reduce((acc, [empId, months]) => {
@@ -4028,11 +4024,9 @@ function EvaluationPage({ emp, isAdmin, allEmployees }) {
   const [showAddTask, setShowAddTask] = useState(false);
   const [taskForm,  setTaskForm]    = useState({ title:"", desc:"", maxScore:10, dueDate: getMonthDueDate() });
   const [noteModal, setNoteModal]   = useState(null);
-  const [todayLog,  setTodayLog]    = useState("");
   const todayKey = now.toISOString().slice(0,10);
 
-  const tasksList  = Array.isArray(tasks) ? tasks : [];
-  const daysInMonth = getDaysInMonth(selYear, selMonth);
+  const tasksList  = useMemo(() => Array.isArray(tasks) ? tasks : [], [tasks]);
   const dueDate    = `${selYear}-${String(selMonth+1).padStart(2,"0")}-15`;
 
   // ── Score calculations
@@ -4129,13 +4123,6 @@ function EvaluationPage({ emp, isAdmin, allEmployees }) {
     showToast(approved?"✓ تم قبول المهمة":"✓ تم رفض المهمة");
   };
 
-  // Save daily log
-  const saveDailyLog = () => {
-    if (!todayLog.trim()) return;
-    setDailyLogs({...dailyLogs, [todayKey]: { text:todayLog, savedAt:new Date().toISOString(), empId:emp.id, empName:emp.name }});
-    showToast("✓ تم حفظ التقرير اليومي");
-  };
-
   // Admin saves scores
   const saveScores = (key, val) => {
     setScores({...scores, [key]: Math.min(100, Math.max(0, Number(val)))});
@@ -4188,7 +4175,6 @@ function EvaluationPage({ emp, isAdmin, allEmployees }) {
 
   const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
   const inpC="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white";
-  const selC=inpC+" appearance-none cursor-pointer";
 
   const ScoreBar = ({label,score,color="bg-blue-500",max=100})=>(
     <div className="flex items-center gap-3">
