@@ -1887,7 +1887,6 @@ function Dashboard({ emp, onLogout }) {
     }
   }, [allRequests, emp, setAllRequests, setNotifications]);
 
-  const ICONS = { اعتيادية:<Calendar size={16}/>, مرضية:<Heart size={16}/>, زمنية:<Clock size={16}/> };
   const STATUS_STYLE = {
     "بانتظار المراجعة": "bg-amber-50 text-amber-700 border-amber-200",
     "موافق عليها":      "bg-emerald-50 text-emerald-700 border-emerald-200",
