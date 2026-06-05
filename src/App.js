@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { LogIn, LogOut, FileText, Clock, Heart, Calendar, CheckCircle, ChevronLeft, User, Eye, EyeOff, AlertCircle, Printer, Users, Shield, Package, Plus, Trash2, Edit3, Save, X, ArrowRightLeft, PenTool, RefreshCw, Search, FolderOpen, Upload, Download, Layers, ClipboardList, ChevronRight, Home, Bell, ThumbsUp, ThumbsDown, Star, Target, BarChart2, CheckSquare, BookOpen, GraduationCap, BarChart, MessageCircle } from "lucide-react";
+import { LogIn, LogOut, FileText, Clock, Calendar, CheckCircle, ChevronLeft, User, Eye, EyeOff, AlertCircle, Printer, Users, Shield, Package, Plus, Trash2, Edit3, Save, X, ArrowRightLeft, PenTool, RefreshCw, Search, FolderOpen, Upload, Download, Layers, ClipboardList, ChevronRight, Home, Bell, ThumbsUp, ThumbsDown, Star, Target, BarChart2, CheckSquare, BookOpen, GraduationCap, BarChart, MessageCircle } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════
    FIREBASE CONFIG
