@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { LogIn, LogOut, FileText, Clock, Heart, Calendar, CheckCircle, ChevronLeft, User, Eye, EyeOff, AlertCircle, Printer, Users, Shield, Package, Plus, Trash2, Edit3, Save, X, ArrowRightLeft, PenTool, RefreshCw, Search, FolderOpen, Upload, Download, Layers, ClipboardList, ChevronRight, Home, Bell, ThumbsUp, ThumbsDown, Star, Target, BarChart2, CheckSquare } from "lucide-react";
+import { LogIn, LogOut, FileText, Clock, Heart, Calendar, CheckCircle, ChevronLeft, User, Eye, EyeOff, AlertCircle, Printer, Users, Shield, Package, Plus, Trash2, Edit3, Save, X, ArrowRightLeft, PenTool, RefreshCw, Search, FolderOpen, Upload, Download, Layers, ClipboardList, ChevronRight, Home, Bell, ThumbsUp, ThumbsDown, Star, Target, BarChart2, CheckSquare, BookOpen, GraduationCap, BarChart, MessageCircle } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════
    FIREBASE CONFIG
@@ -1972,9 +1972,11 @@ function Dashboard({ emp, onLogout }) {
         {/* Nav tabs inside header */}
         <div className="max-w-5xl mx-auto px-4 pb-0 flex gap-1 overflow-x-auto no-scrollbar">
           {[
-            { id:"home",      label:"الرئيسية",      icon:<Home size={13}/> },
-            { id:"evaluation", label:"التقييم الشهري", icon:<Star size={13}/> },
-            { id:"materials", label:"طلب مواد",        icon:<Package size={13}/> },
+            { id:"home",       label:"الرئيسية",      icon:<Home size={13}/> },
+            { id:"evaluation", label:"التقييم",          icon:<Star size={13}/> },
+            { id:"training",   label:"التدريب",          icon:<GraduationCap size={13}/> },
+            { id:"reports",    label:"التقارير",         icon:<BarChart size={13}/> },
+            { id:"materials",  label:"طلب مواد",          icon:<Package size={13}/> },
             { id:"inventory", label:"جرد المخزن", icon:<Layers size={13}/> },
             { id:"furniture", label:"جرد الأثاث",  icon:<ClipboardList size={13}/> },
             { id:"projects",  label:"المشاريع",    icon:<FolderOpen size={13}/> },
@@ -2080,6 +2082,9 @@ function Dashboard({ emp, onLogout }) {
               </div>
             </div>
 
+            {/* ── My Pending Tasks widget (non-admin) ── */}
+            {!isAdmin && <MyTasksWidget emp={emp} onNavigate={setView}/>}
+
             {/* History — shows live status from allRequests */}
             <div>
               <h3 className="text-sm font-bold text-slate-700 mb-3">طلباتي السابقة</h3>
@@ -2133,6 +2138,36 @@ function Dashboard({ emp, onLogout }) {
         {view === "receipt" && receipt && (
           <div className="fu">
             <LeaveReceipt emp={emp} leave={receipt} onClose={()=>setView("home")}/>
+          </div>
+        )}
+
+        {view === "training" && (
+          <div className="fu">
+            <div className="flex items-center gap-3 mb-4 no-print">
+              <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                <GraduationCap size={16} className="text-violet-600"/>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">التدريب والتطوير</h2>
+                <p className="text-[11px] text-slate-500">المهام التدريبية · طلبات المشاركة · إشعارات واتساب</p>
+              </div>
+            </div>
+            <TrainingPage emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
+          </div>
+        )}
+
+        {view === "reports" && (
+          <div className="fu">
+            <div className="flex items-center gap-3 mb-4 no-print">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                <BarChart size={16} className="text-blue-600"/>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">التقارير</h2>
+                <p className="text-[11px] text-slate-500">يومي · أسبوعي · شهري</p>
+              </div>
+            </div>
+            <ReportsPage emp={emp} isAdmin={isAdmin}/>
           </div>
         )}
 
@@ -2316,7 +2351,9 @@ function Dashboard({ emp, onLogout }) {
           {[
             { id:"home",      label:"الرئيسية",  icon:<Home size={18}/> },
             { id:"evaluation",label:"التقييم",   icon:<Star size={18}/> },
-            { id:"materials", label:"طلب مواد",  icon:<Package size={18}/> },
+            { id:"training",  label:"التدريب",   icon:<GraduationCap size={18}/> },
+            { id:"reports",   label:"التقارير",  icon:<BarChart size={18}/> },
+            { id:"materials", label:"مواد",       icon:<Package size={18}/> },
             { id:"inventory", label:"المخزن",    icon:<Layers size={18}/> },
             { id:"furniture", label:"الأثاث",    icon:<ClipboardList size={18}/> },
             { id:"projects",  label:"المشاريع",  icon:<FolderOpen size={18}/> },
@@ -4585,6 +4622,911 @@ function EvaluationPage({ emp, isAdmin, allEmployees }) {
       )}
 
       {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl no-print">
+          <CheckCircle size={14} className="text-emerald-400"/>{toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   WHATSAPP NOTIFICATIONS via CallMeBot (مجاني)
+   الإعداد: كل موظف يرسل "I allow callmebot to send me messages"
+   لرقم +34 698 92 01 85 على واتساب مرة واحدة
+═══════════════════════════════════════════════════════════ */
+const CALLMEBOT_API = "https://api.callmebot.com/whatsapp.php";
+
+// phone: رقم الهاتف بدون 0 في البداية مع رمز البلد مثل 9647801165298
+// apikey: يحصل عليه الموظف بعد تفعيل الخدمة
+async function sendWhatsApp(phone, apikey, message) {
+  if (!phone || !apikey) return false;
+  try {
+    const url = `${CALLMEBOT_API}?phone=${phone}&text=${encodeURIComponent(message)}&apikey=${apikey}`;
+    await fetch(url);
+    return true;
+  } catch { return false; }
+}
+
+/* ── WhatsApp Setup Guide Modal ── */
+function WhatsAppSetupModal({ onClose }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+         onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" dir="rtl"
+           onClick={e=>e.stopPropagation()}>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+            <MessageCircle size={18} className="text-green-600"/>
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-800">تفعيل إشعارات واتساب</h3>
+            <p className="text-xs text-slate-500">خدمة CallMeBot المجانية</p>
+          </div>
+        </div>
+        <div className="space-y-3 text-sm">
+          {[
+            { n:"1", t:"افتح واتساب وأضف الرقم", d:"+34 698 92 01 85" },
+            { n:"2", t:"أرسل هذه الرسالة بالضبط", d:"I allow callmebot to send me messages" },
+            { n:"3", t:"ستصلك رسالة تحتوي على API Key", d:"مثال: apikey=123456" },
+            { n:"4", t:"أدخل رقم هاتفك والـ API Key في الإعدادات", d:"رقمك مع رمز الدولة بدون + مثل: 9647801165298" },
+          ].map(s=>(
+            <div key={s.n} className="flex gap-3">
+              <span className="w-6 h-6 rounded-full bg-green-600 text-white text-xs font-bold flex items-center justify-center shrink-0">{s.n}</span>
+              <div>
+                <p className="font-semibold text-slate-700">{s.t}</p>
+                <p className="text-xs text-slate-500 font-mono mt-0.5 bg-slate-50 px-2 py-1 rounded">{s.d}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button onClick={onClose} className="w-full mt-4 py-2.5 text-sm font-bold text-white bg-green-600 rounded-xl hover:bg-green-700">فهمت</button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Widget: My Pending Tasks (shown on home page) ── */
+function MyTasksWidget({ emp, onNavigate }) {
+  const [evalTasks,     ] = useFirebase(`evaluation/tasks/${emp.id}/${new Date().getFullYear()}_${String(new Date().getMonth()+1).padStart(2,"0")}`, []);
+  const [trainingTasks, ] = useFirebase("training/tasks", []);
+
+  const evalPending     = (Array.isArray(evalTasks)     ? evalTasks     : []).filter(t=>t.status==="قيد التنفيذ"||t.status==="مُسندة");
+  const trainingPending = (Array.isArray(trainingTasks) ? trainingTasks : []).filter(t=>String(t.empId)===String(emp.id)&&(t.status==="مُسندة"||t.status==="قيد التنفيذ"));
+  const total = evalPending.length + trainingPending.length;
+
+  if (total === 0) return null;
+
+  return (
+    <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+      <div className="px-4 py-3 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+        <h3 className="text-sm font-bold text-amber-800 flex items-center gap-2">
+          <Bell size={14} className="text-amber-600"/>
+          مهاماتي المعلقة
+          <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{total}</span>
+        </h3>
+        <button onClick={()=>onNavigate("evaluation")} className="text-[11px] font-bold text-amber-600 hover:underline">عرض الكل</button>
+      </div>
+      <div className="divide-y divide-slate-50">
+        {evalPending.slice(0,3).map(t=>(
+          <div key={t.id} className="px-4 py-3 flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+              <Target size={13} className="text-blue-600"/>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-slate-800 truncate">{t.title}</p>
+              <p className="text-[10px] text-slate-400">مهمة تقييم · موعدها: {t.dueDate||"—"}</p>
+            </div>
+            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 whitespace-nowrap">{t.status}</span>
+          </div>
+        ))}
+        {trainingPending.slice(0,3).map(t=>(
+          <div key={t.id} className="px-4 py-3 flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center shrink-0">
+              <GraduationCap size={13} className="text-violet-600"/>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-slate-800 truncate">{t.title}</p>
+              <p className="text-[10px] text-slate-400">{t.type} · {t.startDate||"—"}</p>
+            </div>
+            <button onClick={()=>onNavigate("training")} className="text-[10px] font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-200 whitespace-nowrap hover:bg-violet-100">
+              فتح →
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TRAINING PAGE — صفحة التدريب
+═══════════════════════════════════════════════════════════ */
+const TRAINING_TYPES = ["تدريب ذاتي","تدريب موقعي","دورة تدريبية خارجية","ورشة عمل","تدريب إلكتروني"];
+const TRAINING_STATUS_STYLE = {
+  "مُسندة":              "bg-amber-100 text-amber-800 border-amber-200",
+  "قيد التنفيذ":         "bg-blue-100 text-blue-800 border-blue-200",
+  "طلب إغلاق":           "bg-violet-100 text-violet-800 border-violet-200",
+  "مكتملة":              "bg-emerald-100 text-emerald-800 border-emerald-200",
+  "طلب مشاركة":          "bg-violet-100 text-violet-800 border-violet-200",
+  "طلب مشاركة — مقبول": "bg-emerald-100 text-emerald-800 border-emerald-200",
+  "طلب مشاركة — مرفوض": "bg-red-100 text-red-800 border-red-200",
+};
+
+function TrainingPage({ emp, isAdmin, allEmployees }) {
+  const [trainings,    setTrainings]    = useFirebase("training/tasks",    []);
+  const [requests,     setRequests]     = useFirebase("training/requests",  []);
+  const [waSettings,   setWaSettings]   = useLocalStorage(`wa_${emp.id}`,  { phone:"", apikey:"" });
+  const [showWaSetup,  setShowWaSetup]  = useState(false);
+  const [showAddForm,  setShowAddForm]  = useState(false);
+  const [showReqForm,  setShowReqForm]  = useState(false);
+  const [activeTab,    setActiveTab]    = useState("assigned"); // assigned | requests | settings
+  const [selEmpId,     setSelEmpId]     = useState(null);
+  const [toast,        setToast]        = useState("");
+
+  const showToast = (m) => { setToast(m); setTimeout(()=>setToast(""),3000); };
+
+  const tasksList    = Array.isArray(trainings) ? trainings : [];
+  const requestsList = Array.isArray(requests)  ? requests  : [];
+
+  // My tasks (for non-admin)
+  const myTasks = tasksList.filter(t => t.empId === emp.id);
+  // Admin sees all or filtered by emp
+  const visibleTasks = isAdmin
+    ? (selEmpId ? tasksList.filter(t=>t.empId===selEmpId) : tasksList)
+    : myTasks;
+
+  const pendingRequests = requestsList.filter(r=>r.status==="طلب مشاركة").length;
+
+  // Assign training (admin)
+  const [form, setForm] = useState({ empId:"", title:"", type:"تدريب ذاتي", desc:"", startDate:"", endDate:"", provider:"", objectives:"" });
+
+  const assignTraining = () => {
+    if (!form.empId||!form.title) return showToast("الموظف والعنوان مطلوبان");
+    const entry = { ...form, id:Date.now(), status:"مُسندة", assignedBy:emp.name, assignedAt:new Date().toISOString() };
+    setTrainings([entry, ...tasksList]);
+
+    // In-app notification
+    fb.get(`notifications/${form.empId}`).then(ex=>{
+      const prev = Array.isArray(ex)?ex:[];
+      fb.set(`notifications/${form.empId}`,[{
+        id:Date.now()+1, type:"تدريب_جديد",
+        title:`📚 مهمة تدريبية جديدة: ${form.title}`,
+        body:`النوع: ${form.type} | من: ${form.startDate||"—"} إلى: ${form.endDate||"—"}`,
+        timestamp:new Date().toISOString(), read:false,
+      },...prev]);
+    });
+
+    // WhatsApp notification to employee
+    const empInfo = allEmployees.find(e=>String(e.id)===String(form.empId));
+    fb.get(`wa_${form.empId}`).then(wa=>{
+      if (wa?.phone && wa?.apikey) {
+        sendWhatsApp(wa.phone, wa.apikey,
+          `📚 مهمة تدريبية جديدة\nالعنوان: ${form.title}\nالنوع: ${form.type}\nمن المشرف: ${emp.name.split(" ").slice(0,2).join(" ")}`
+        );
+      }
+    });
+
+    setForm({ empId:"", title:"", type:"تدريب ذاتي", desc:"", startDate:"", endDate:"", provider:"", objectives:"" });
+    setShowAddForm(false);
+    showToast(`✓ تم إسناد التدريب وإشعار ${empInfo?.name?.split(" ")[0]||"الموظف"}`);
+  };
+
+  // Employee request to join training
+  const [reqForm, setReqForm] = useState({ courseName:"", provider:"", reason:"", startDate:"" });
+
+  const submitRequest = () => {
+    if (!reqForm.courseName||!reqForm.reason) return showToast("اسم الدورة والسبب مطلوبان");
+    const req = { ...reqForm, id:Date.now(), empId:emp.id, empName:emp.name, empDept:emp.dept,
+      status:"طلب مشاركة", submittedAt:new Date().toISOString() };
+    setRequests([req,...requestsList]);
+
+    // Notify admin
+    fb.get("notifications/1").then(ex=>{
+      const prev=Array.isArray(ex)?ex:[];
+      fb.set("notifications/1",[{
+        id:Date.now()+1, type:"طلب_تدريب",
+        title:`🎓 طلب مشاركة بدورة تدريبية`,
+        body:`${emp.name.split(" ").slice(0,2).join(" ")} — ${reqForm.courseName}`,
+        timestamp:new Date().toISOString(), read:false,
+      },...prev]);
+    });
+
+    setReqForm({ courseName:"", provider:"", reason:"", startDate:"" });
+    setShowReqForm(false);
+    showToast("✓ تم إرسال طلب المشاركة للمشرف");
+  };
+
+  // Admin: update training status
+  const updateStatus = (id, status) => {
+    setTrainings(tasksList.map(t=>t.id===id?{...t,status,completedAt:status==="مكتملة"?new Date().toISOString():t.completedAt}:t));
+    const task = tasksList.find(t=>t.id===id);
+    if (task) {
+      fb.get(`notifications/${task.empId}`).then(ex=>{
+        const prev=Array.isArray(ex)?ex:[];
+        fb.set(`notifications/${task.empId}`,[{
+          id:Date.now(), type:status==="مكتملة"?"موافقة":"تدريب_جديد",
+          title:status==="مكتملة"?"✅ تم تسجيل إكمال التدريب":`🔄 تحديث حالة تدريبك`,
+          body:`${task.title} — ${status}`,
+          timestamp:new Date().toISOString(), read:false,
+        },...prev]);
+      });
+    }
+    showToast("✓ تم تحديث الحالة");
+  };
+
+  // Admin: resolve training request
+  const resolveRequest = (id, approved) => {
+    const req = requestsList.find(r=>r.id===id);
+    setRequests(requestsList.map(r=>r.id===id?{...r,status:approved?"طلب مشاركة — مقبول":"طلب مشاركة — مرفوض",resolvedAt:new Date().toISOString(),resolvedBy:emp.name}:r));
+    if (req) {
+      fb.get(`notifications/${req.empId}`).then(ex=>{
+        const prev=Array.isArray(ex)?ex:[];
+        fb.set(`notifications/${req.empId}`,[{
+          id:Date.now(), type:approved?"موافقة":"رفض",
+          title:approved?"✅ تمت الموافقة على طلب مشاركتك بالدورة":"❌ تم رفض طلب مشاركتك بالدورة",
+          body:`الدورة: ${req.courseName}`,
+          timestamp:new Date().toISOString(), read:false,
+        },...prev]);
+      });
+    }
+    showToast(approved?"✓ تمت الموافقة على الطلب":"✓ تم رفض الطلب");
+  };
+
+  const inp = "w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white";
+  const sel = inp+" appearance-none cursor-pointer";
+
+  const [actionModal, setActionModal] = useState(null); // { taskId, currentAction }
+
+  const submitAction = (taskId, actionText) => {
+    setTrainings(tasksList.map(t=>t.id===taskId
+      ? {...t, status:"قيد التنفيذ", empAction:actionText, actionAt:new Date().toISOString()}
+      : t
+    ));
+    // Notify admin
+    const task = tasksList.find(t=>t.id===taskId);
+    fb.get("notifications/1").then(ex=>{
+      const prev=Array.isArray(ex)?ex:[];
+      fb.set("notifications/1",[{
+        id:Date.now(), type:"انجاز_مهمة",
+        title:`📋 تحديث على مهمة تدريبية`,
+        body:`${emp.name.split(" ").slice(0,2).join(" ")} — ${task?.title||""}: ${actionText.slice(0,60)}`,
+        timestamp:new Date().toISOString(), read:false,
+      },...prev]);
+    });
+    // WhatsApp to admin if configured
+    fb.get("wa_1").then(wa=>{
+      if(wa?.phone&&wa?.apikey) sendWhatsApp(wa.phone,wa.apikey,`📋 تحديث مهمة: ${task?.title||""}\nالموظف: ${emp.name.split(" ").slice(0,2).join(" ")}\nالإجراء: ${actionText.slice(0,80)}`);
+    });
+    setActionModal(null);
+    showToast("✓ تم إرسال الإجراء المتخذ للمشرف");
+  };
+
+  const requestClose = (taskId) => {
+    const task = tasksList.find(t=>t.id===taskId);
+    setTrainings(tasksList.map(t=>t.id===taskId
+      ? {...t, status:"طلب إغلاق", closureRequestedAt:new Date().toISOString()}
+      : t
+    ));
+    fb.get("notifications/1").then(ex=>{
+      const prev=Array.isArray(ex)?ex:[];
+      fb.set("notifications/1",[{
+        id:Date.now(), type:"طلب_إغلاق",
+        title:`✅ طلب إغلاق مهمة تدريبية`,
+        body:`${emp.name.split(" ").slice(0,2).join(" ")} أنجز: ${task?.title||""}`,
+        timestamp:new Date().toISOString(), read:false,
+      },...prev]);
+    });
+    fb.get("wa_1").then(wa=>{
+      if(wa?.phone&&wa?.apikey) sendWhatsApp(wa.phone,wa.apikey,`✅ طلب إغلاق مهمة\nالموظف: ${emp.name.split(" ").slice(0,2).join(" ")}\nالمهمة: ${task?.title||""}`);
+    });
+    showToast("✓ تم إشعار المشرف بالإنجاز — بانتظار الإغلاق");
+  };
+
+  const TrainingCard = ({t})=>{
+    const empInfo = allEmployees.find(e=>String(e.id)===String(t.empId));
+    const isMyTask = String(t.empId)===String(emp.id);
+    return (
+      <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${
+        t.status==="مُسندة"?"border-amber-200 border-r-4 border-r-amber-400":
+        t.status==="قيد التنفيذ"?"border-blue-200 border-r-4 border-r-blue-400":
+        t.status==="طلب إغلاق"?"border-violet-200 border-r-4 border-r-violet-500":
+        t.status==="مكتملة"?"border-emerald-200":"border-slate-200"
+      }`}>
+        <div className="p-4">
+          <div className="flex items-start gap-3 mb-2">
+            <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+              <GraduationCap size={16} className="text-violet-600"/>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-slate-900 text-sm">{t.title}</p>
+              {isAdmin && empInfo && <p className="text-xs text-slate-500">{empInfo.name?.split(" ").slice(0,3).join(" ")}</p>}
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                <span className="text-[10px] font-bold bg-violet-50 text-violet-700 px-2 py-0.5 rounded-full border border-violet-100">{t.type}</span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${TRAINING_STATUS_STYLE[t.status]||""}`}>{t.status}</span>
+              </div>
+            </div>
+          </div>
+          {t.desc && <p className="text-xs text-slate-500 mb-2 pr-12">{t.desc}</p>}
+          {t.objectives && <p className="text-xs text-blue-700 bg-blue-50 rounded-lg px-2 py-1.5 mb-2">🎯 {t.objectives}</p>}
+          <div className="flex flex-wrap gap-2 text-[10px] text-slate-400 mb-2">
+            {t.startDate&&<span>📅 من: {t.startDate}</span>}
+            {t.endDate&&<span>← إلى: {t.endDate}</span>}
+            {t.provider&&<span>🏛️ {t.provider}</span>}
+          </div>
+
+          {/* Employee action taken */}
+          {t.empAction && (
+            <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 mb-2">
+              <p className="text-[10px] font-bold text-emerald-700 mb-0.5">الإجراء المتخذ:</p>
+              <p className="text-xs text-emerald-800">{t.empAction}</p>
+              <p className="text-[9px] text-emerald-500 mt-1 font-mono">{t.actionAt ? new Date(t.actionAt).toLocaleDateString("ar-IQ") : ""}</p>
+            </div>
+          )}
+
+          {/* Employee actions (non-admin, my task) */}
+          {!isAdmin && isMyTask && t.status!=="مكتملة" && (
+            <div className="flex gap-2 mt-2 no-print flex-wrap">
+              {(t.status==="مُسندة"||t.status==="قيد التنفيذ") && (
+                <button onClick={()=>setActionModal({taskId:t.id, currentAction:t.empAction||""})}
+                  className="flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl border border-blue-200">
+                  <Edit3 size={12}/> كتابة الإجراء
+                </button>
+              )}
+              {t.empAction && t.status!=="طلب إغلاق" && (
+                <button onClick={()=>requestClose(t.id)}
+                  className="flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-200">
+                  <CheckSquare size={12}/> طلب إغلاق المهمة
+                </button>
+              )}
+              {t.status==="طلب إغلاق" && (
+                <span className="text-[11px] font-bold text-violet-700 bg-violet-50 px-3 py-1.5 rounded-xl border border-violet-200">
+                  ⏳ بانتظار موافقة المشرف
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Admin actions */}
+          {isAdmin && (
+            <div className="flex gap-2 mt-2 no-print flex-wrap">
+              {t.status==="مُسندة"&&<button onClick={()=>updateStatus(t.id,"قيد التنفيذ")} className="text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl">▶ بدء</button>}
+              {(t.status==="قيد التنفيذ"||t.status==="طلب إغلاق") && (
+                <button onClick={()=>updateStatus(t.id,"مكتملة")}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-xl ${t.status==="طلب إغلاق"?"text-white bg-emerald-600 hover:bg-emerald-700 animate-pulse":"text-emerald-700 bg-emerald-50 hover:bg-emerald-100"}`}>
+                  {t.status==="طلب إغلاق"?"✅ إغلاق المهمة (مطلوب)":"✓ إكمال"}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4 fu" dir="rtl">
+
+      {/* Tabs */}
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar no-print flex-wrap">
+        {[
+          {id:"assigned", label:"المهام التدريبية", icon:<BookOpen size={13}/>, badge: isAdmin?0:myTasks.filter(t=>t.status==="مُسندة").length},
+          {id:"requests", label:"طلبات المشاركة",  icon:<GraduationCap size={13}/>, badge: isAdmin?pendingRequests:0},
+          {id:"settings", label:"إعدادات الواتساب", icon:<MessageCircle size={13}/>},
+        ].map(tab=>(
+          <button key={tab.id} onClick={()=>setActiveTab(tab.id)}
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl whitespace-nowrap transition-all ${
+              activeTab===tab.id?"bg-slate-900 text-white":"bg-white border border-slate-200 text-slate-600 hover:border-slate-300"
+            }`}>
+            {tab.icon}{tab.label}
+            {tab.badge>0&&<span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{tab.badge}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* ── ASSIGNED TRAININGS ── */}
+      {activeTab==="assigned" && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2 no-print">
+            {isAdmin && (
+              <>
+                <button onClick={()=>setShowAddForm(p=>!p)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 px-3 py-2 rounded-xl shadow-sm">
+                  <Plus size={13}/> إسناد مهمة تدريبية
+                </button>
+                <select value={selEmpId||""} onChange={e=>setSelEmpId(Number(e.target.value)||null)}
+                  className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm">
+                  <option value="">كل الموظفين</option>
+                  {allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,3).join(" ")}</option>)}
+                </select>
+              </>
+            )}
+            {!isAdmin && (
+              <button onClick={()=>setShowReqForm(p=>!p)}
+                className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-xl shadow-sm">
+                <Plus size={13}/> طلب مشاركة بدورة
+              </button>
+            )}
+            <PrintButton targetId="print-training" title="تقرير التدريب"/>
+          </div>
+
+          {/* Assign form */}
+          {showAddForm && isAdmin && (
+            <div className="bg-white rounded-2xl border-2 border-violet-200 p-5 shadow-sm no-print">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><GraduationCap size={14} className="text-violet-600"/> إسناد مهمة تدريبية</h4>
+                <button onClick={()=>setShowAddForm(false)} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100"><X size={14}/></button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">الموظف *</label>
+                  <select value={form.empId} onChange={e=>setForm(p=>({...p,empId:e.target.value}))} className={sel}>
+                    <option value="">-- اختر موظفاً --</option>
+                    {allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,3).join(" ")}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">عنوان التدريب *</label>
+                  <input value={form.title} onChange={e=>setForm(p=>({...p,title:e.target.value}))} className={inp} placeholder="عنوان المهمة التدريبية"/>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">نوع التدريب</label>
+                  <select value={form.type} onChange={e=>setForm(p=>({...p,type:e.target.value}))} className={sel}>
+                    {TRAINING_TYPES.map(t=><option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">الجهة / المزود</label>
+                  <input value={form.provider} onChange={e=>setForm(p=>({...p,provider:e.target.value}))} className={inp} placeholder="اسم الجهة أو المزود"/>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">تاريخ البدء</label>
+                  <input type="date" value={form.startDate} onChange={e=>setForm(p=>({...p,startDate:e.target.value}))} className={inp}/>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">تاريخ الانتهاء</label>
+                  <input type="date" value={form.endDate} onChange={e=>setForm(p=>({...p,endDate:e.target.value}))} className={inp}/>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">الأهداف التدريبية</label>
+                  <input value={form.objectives} onChange={e=>setForm(p=>({...p,objectives:e.target.value}))} className={inp} placeholder="ما الذي يجب تعلمه؟"/>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">ملاحظات</label>
+                  <textarea value={form.desc} onChange={e=>setForm(p=>({...p,desc:e.target.value}))} rows={2} className={inp+" resize-none"} placeholder="تفاصيل إضافية..."/>
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end mt-3">
+                <button onClick={()=>setShowAddForm(false)} className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button>
+                <button onClick={assignTraining} className="flex items-center gap-1 px-4 py-2 text-xs font-bold text-white bg-violet-600 rounded-xl hover:bg-violet-700">
+                  <Save size={12}/> إسناد التدريب
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Request form */}
+          {showReqForm && !isAdmin && (
+            <div className="bg-white rounded-2xl border-2 border-blue-200 p-5 shadow-sm no-print">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><GraduationCap size={14} className="text-blue-600"/> طلب مشاركة بدورة تدريبية</h4>
+                <button onClick={()=>setShowReqForm(false)} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100"><X size={14}/></button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">اسم الدورة *</label>
+                  <input value={reqForm.courseName} onChange={e=>setReqForm(p=>({...p,courseName:e.target.value}))} className={inp} placeholder="اسم الدورة أو البرنامج التدريبي"/>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">الجهة المنظِّمة</label>
+                  <input value={reqForm.provider} onChange={e=>setReqForm(p=>({...p,provider:e.target.value}))} className={inp} placeholder="اسم الجهة"/>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">التاريخ المقترح</label>
+                  <input type="date" value={reqForm.startDate} onChange={e=>setReqForm(p=>({...p,startDate:e.target.value}))} className={inp}/>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">سبب الطلب *</label>
+                  <textarea value={reqForm.reason} onChange={e=>setReqForm(p=>({...p,reason:e.target.value}))} rows={2}
+                    className={inp+" resize-none"} placeholder="لماذا تريد المشاركة بهذه الدورة؟ وما الفائدة المتوقعة؟"/>
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end mt-3">
+                <button onClick={()=>setShowReqForm(false)} className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button>
+                <button onClick={submitRequest} className="flex items-center gap-1 px-4 py-2 text-xs font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700">
+                  <Save size={12}/> إرسال الطلب
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Training cards */}
+          <div id="print-training" className="space-y-3">
+            {visibleTasks.length===0?(
+              <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-10 text-center">
+                <GraduationCap size={28} className="text-slate-300 mx-auto mb-2"/>
+                <p className="text-sm text-slate-400">لا توجد مهام تدريبية</p>
+              </div>
+            ):visibleTasks.map(t=><TrainingCard key={t.id} t={t}/>)}
+          </div>
+        </div>
+      )}
+
+      {/* ── REQUESTS TAB ── */}
+      {activeTab==="requests" && (
+        <div className="space-y-3">
+          {requestsList.length===0?(
+            <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-10 text-center">
+              <BookOpen size={28} className="text-slate-300 mx-auto mb-2"/>
+              <p className="text-sm text-slate-400">لا توجد طلبات مشاركة</p>
+            </div>
+          ):(isAdmin?requestsList:requestsList.filter(r=>r.empId===emp.id)).map(req=>(
+            <div key={req.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+              <div className="flex items-start gap-3 mb-2">
+                <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                  <GraduationCap size={16} className="text-violet-600"/>
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-slate-900 text-sm">{req.courseName}</p>
+                  {isAdmin&&<p className="text-xs text-slate-500">{req.empName?.split(" ").slice(0,3).join(" ")} — {req.empDept}</p>}
+                  {req.provider&&<p className="text-xs text-slate-400">🏛️ {req.provider}</p>}
+                  <p className="text-xs text-slate-600 mt-1 bg-slate-50 rounded-lg px-2 py-1">{req.reason}</p>
+                </div>
+                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border shrink-0 ${TRAINING_STATUS_STYLE[req.status]||""}`}>{req.status}</span>
+              </div>
+              {isAdmin && req.status==="طلب مشاركة" && (
+                <div className="flex gap-2 mt-2 no-print">
+                  <button onClick={()=>resolveRequest(req.id,true)} className="flex items-center gap-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-xl">
+                    <ThumbsUp size={12}/> قبول
+                  </button>
+                  <button onClick={()=>resolveRequest(req.id,false)} className="flex items-center gap-1 text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-xl">
+                    <ThumbsDown size={12}/> رفض
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── WHATSAPP SETTINGS TAB ── */}
+      {activeTab==="settings" && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+                <MessageCircle size={18} className="text-green-600"/>
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-800">إشعارات واتساب</h4>
+                <p className="text-xs text-slate-500">استقبل إشعارات المهام التدريبية والموافقات على واتساب</p>
+              </div>
+              <button onClick={()=>setShowWaSetup(true)} className="mr-auto text-xs font-bold text-green-600 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-xl">
+                دليل التفعيل
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1">رقم الهاتف (مع رمز الدولة، بدون +)</label>
+                <input value={waSettings.phone} onChange={e=>setWaSettings(p=>({...p,phone:e.target.value}))}
+                  className={inp} placeholder="مثال: 9647801165298"/>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1">API Key (من رسالة CallMeBot)</label>
+                <input value={waSettings.apikey} onChange={e=>setWaSettings(p=>({...p,apikey:e.target.value}))}
+                  className={inp} placeholder="مثال: 1234567"/>
+              </div>
+              <button onClick={async()=>{
+                if (!waSettings.phone||!waSettings.apikey) return showToast("أدخل الرقم والـ API Key أولاً");
+                fb.set(`wa_${emp.id}`, waSettings);
+                const ok = await sendWhatsApp(waSettings.phone, waSettings.apikey, "✅ تم تفعيل إشعارات واتساب لنظام BOC الفاو بنجاح!");
+                showToast(ok?"✓ تم الحفظ وإرسال رسالة تجريبية":"✓ تم الحفظ (تحقق من إعدادات CallMeBot)");
+              }} className="flex items-center gap-1.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 px-4 py-2.5 rounded-xl active:scale-95 transition-all">
+                <MessageCircle size={14}/> حفظ وإرسال رسالة تجريبية
+              </button>
+            </div>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-800 space-y-1">
+            <p className="font-bold">⚠️ ملاحظات مهمة:</p>
+            <p>• كل موظف يفعّل الخدمة لحسابه الشخصي فقط</p>
+            <p>• الخدمة مجانية ولكن لها حد يومي للرسائل</p>
+            <p>• رقم الهاتف والـ API Key محفوظان على جهازك فقط</p>
+          </div>
+        </div>
+      )}
+
+      {showWaSetup && <WhatsAppSetupModal onClose={()=>setShowWaSetup(false)}/>}
+
+      {/* Action modal */}
+      {actionModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+             onClick={()=>setActionModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" dir="rtl"
+               onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
+                <Edit3 size={16} className="text-blue-600"/>
+              </div>
+              <h3 className="font-bold text-slate-800">الإجراء المتخذ في المهمة</h3>
+            </div>
+            <p className="text-xs text-slate-500 mb-3">اكتب ما قمت به تجاه هذه المهمة التدريبية:</p>
+            <textarea
+              id="action_text"
+              defaultValue={actionModal.currentAction}
+              rows={4}
+              placeholder="مثال: أتممت قراءة المادة التدريبية وطبّقت الخطوات على الجهاز..."
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none mb-4"/>
+            <div className="flex gap-2">
+              <button onClick={()=>setActionModal(null)} className="flex-1 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200">إلغاء</button>
+              <button onClick={()=>submitAction(actionModal.taskId, document.getElementById("action_text")?.value||"")}
+                className="flex-1 py-2.5 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 active:scale-95 transition-all">
+                إرسال للمشرف
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl no-print">
+          <CheckCircle size={14} className="text-emerald-400"/>{toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   REPORTS PAGE — التقارير اليومية والأسبوعية في صفحة واحدة
+═══════════════════════════════════════════════════════════ */
+function ReportsPage({ emp, isAdmin }) {
+  const now = new Date();
+  const [activeTab, setActiveTab] = useState("daily");
+  const [selDate,   setSelDate]   = useState(now.toISOString().slice(0,10));
+  const [selWeek,   setSelWeek]   = useState(()=>{
+    const d = new Date(); d.setDate(d.getDate()-d.getDay()+1);
+    return d.toISOString().slice(0,10);
+  });
+  const [selMonth, setSelMonth]   = useState(now.getMonth());
+  const [selYear,  setSelYear]    = useState(now.getFullYear());
+
+  const monthKey  = `${selYear}_${String(selMonth+1).padStart(2,"0")}`;
+  const dailyPath = `evaluation/daily/${isAdmin?"admin":emp.id}/${monthKey}`;
+  const [dailyLogs, setDailyLogs] = useFirebase(dailyPath, {});
+  const [reportText, setReportText] = useState("");
+  const [toast, setToast] = useState("");
+  const showToast = (m)=>{ setToast(m); setTimeout(()=>setToast(""),3000); };
+
+  const logs = typeof dailyLogs==="object"&&dailyLogs!==null ? dailyLogs : {};
+
+  // Get week days from Monday
+  const getWeekDays = (weekStart) => {
+    const days=[];
+    const d=new Date(weekStart);
+    for(let i=0;i<7;i++){
+      const dd=new Date(d); dd.setDate(d.getDate()+i);
+      days.push(dd.toISOString().slice(0,10));
+    }
+    return days;
+  };
+  const weekDays = getWeekDays(selWeek);
+
+  // Save daily report
+  const saveReport = () => {
+    if (!reportText.trim()) return showToast("اكتب التقرير أولاً");
+    setDailyLogs({...logs, [selDate]:{
+      text: reportText.trim(),
+      savedAt: new Date().toISOString(),
+      author: emp.name,
+    }});
+    setReportText("");
+    showToast("✓ تم حفظ التقرير");
+  };
+
+  // Monthly summary from all daily logs
+  const monthLogs = Object.entries(logs)
+    .filter(([d])=>d.slice(0,7)===`${selYear}-${String(selMonth+1).padStart(2,"0")}`)
+    .sort(([a],[b])=>b.localeCompare(a));
+
+  const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+
+  return (
+    <div className="space-y-4 fu" dir="rtl">
+
+      {/* Tab navigation */}
+      <div className="flex gap-1.5 no-print">
+        {[
+          {id:"daily",   label:"اليومي",   icon:<FileText size={13}/>},
+          {id:"weekly",  label:"الأسبوعي", icon:<BarChart size={13}/>},
+          {id:"monthly", label:"الشهري",   icon:<BarChart2 size={13}/>},
+        ].map(t=>(
+          <button key={t.id} onClick={()=>setActiveTab(t.id)}
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl whitespace-nowrap transition-all ${
+              activeTab===t.id?"bg-slate-900 text-white":"bg-white border border-slate-200 text-slate-600 hover:border-slate-300"
+            }`}>
+            {t.icon}{t.label}
+          </button>
+        ))}
+        <PrintButton targetId="print-report" title={`تقرير ${activeTab==="daily"?"يومي":activeTab==="weekly"?"أسبوعي":"شهري"}`}/>
+      </div>
+
+      {/* ── DAILY ── */}
+      {activeTab==="daily" && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 no-print">
+            <input type="date" value={selDate} onChange={e=>setSelDate(e.target.value)}
+              className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm"/>
+            <span className="text-xs text-slate-500">
+              {new Date(selDate).toLocaleDateString("ar-IQ",{weekday:"long",day:"numeric",month:"long"})}
+            </span>
+          </div>
+
+          {/* Entry form */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+            <h4 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
+              <FileText size={14} className="text-blue-600"/> تقرير يوم {new Date(selDate).toLocaleDateString("ar-IQ",{day:"numeric",month:"long"})}
+            </h4>
+            {logs[selDate] ? (
+              <div className="space-y-2">
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-sm text-slate-700 leading-relaxed">{logs[selDate]?.text||logs[selDate]}</p>
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  آخر تعديل: {new Date(logs[selDate]?.savedAt||"").toLocaleTimeString("ar-IQ",{hour:"2-digit",minute:"2-digit"})} — {logs[selDate]?.author||""}
+                </p>
+                <button onClick={()=>setReportText(logs[selDate]?.text||logs[selDate]||"")}
+                  className="text-xs font-bold text-blue-600 hover:underline">تعديل التقرير</button>
+              </div>
+            ):(
+              <div className="space-y-2">
+                <textarea value={reportText} onChange={e=>setReportText(e.target.value)} rows={4}
+                  placeholder="اكتب ملاحظات اليوم، الأعمال المنجزة، المشاكل المواجهة..."
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"/>
+                <button onClick={saveReport}
+                  className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl">
+                  <Save size={13}/> حفظ التقرير
+                </button>
+              </div>
+            )}
+            {reportText && logs[selDate] && (
+              <div className="mt-2 space-y-2">
+                <textarea value={reportText} onChange={e=>setReportText(e.target.value)} rows={4}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"/>
+                <button onClick={saveReport}
+                  className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl">
+                  <Save size={13}/> تحديث التقرير
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Recent logs */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+              <h4 className="text-sm font-bold text-slate-700">آخر التقارير</h4>
+            </div>
+            <div id="print-report" className="divide-y divide-slate-50">
+              {Object.entries(logs).sort(([a],[b])=>b.localeCompare(a)).slice(0,10).map(([day,log])=>(
+                <div key={day} className={`px-4 py-3 ${day===selDate?"bg-blue-50/30":""}`}>
+                  <p className="text-[10px] font-bold text-slate-400 mb-1">
+                    {new Date(day).toLocaleDateString("ar-IQ",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}
+                  </p>
+                  <p className="text-sm text-slate-700 leading-relaxed">{log?.text||log}</p>
+                </div>
+              ))}
+              {Object.keys(logs).length===0&&(
+                <div className="p-8 text-center text-slate-400 text-sm">لا توجد تقارير</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── WEEKLY ── */}
+      {activeTab==="weekly" && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 no-print">
+            <label className="text-xs font-semibold text-slate-600">بداية الأسبوع:</label>
+            <input type="date" value={selWeek} onChange={e=>setSelWeek(e.target.value)}
+              className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm"/>
+          </div>
+          <div id="print-report" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+              <h4 className="text-sm font-bold text-slate-700">
+                التقرير الأسبوعي — {new Date(selWeek).toLocaleDateString("ar-IQ",{day:"numeric",month:"long"})} إلى {new Date(weekDays[6]).toLocaleDateString("ar-IQ",{day:"numeric",month:"long",year:"numeric"})}
+              </h4>
+            </div>
+            <div className="divide-y divide-slate-50">
+              {weekDays.map(day=>{
+                const log = logs[day];
+                const isToday = day===now.toISOString().slice(0,10);
+                return (
+                  <div key={day} className={`px-4 py-3 ${isToday?"bg-blue-50/30":!log?"opacity-50":""}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${log?"bg-emerald-400":"bg-slate-200"}`}/>
+                      <p className="text-[11px] font-bold text-slate-600">
+                        {new Date(day).toLocaleDateString("ar-IQ",{weekday:"long",day:"numeric",month:"long"})}
+                        {isToday&&<span className="mr-2 text-[9px] bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded-full font-bold">اليوم</span>}
+                      </p>
+                    </div>
+                    {log
+                      ? <p className="text-sm text-slate-700 pr-4 leading-relaxed">{log?.text||log}</p>
+                      : <p className="text-xs text-slate-300 pr-4">لا يوجد تقرير</p>
+                    }
+                  </div>
+                );
+              })}
+            </div>
+            <div className="px-4 py-3 bg-slate-50 border-t border-slate-100">
+              <p className="text-xs text-slate-500">
+                أيام مسجّلة: <strong>{weekDays.filter(d=>logs[d]).length}/7</strong>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MONTHLY SUMMARY ── */}
+      {activeTab==="monthly" && (
+        <div className="space-y-4">
+          <div className="flex gap-2 no-print">
+            <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))}
+              className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm">
+              {months.map((m,i)=><option key={i} value={i}>{m}</option>)}
+            </select>
+            <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))}
+              className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm">
+              {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+            </select>
+          </div>
+
+          <div id="print-report" className="space-y-3">
+            <div className="hidden print:block text-center mb-4">
+              <p className="text-lg font-bold">شركة نفط البصرة — شعبة الفاو</p>
+              <p className="text-base">التقرير الشهري — {months[selMonth]} {selYear}</p>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white border border-slate-200 rounded-2xl p-3 text-center shadow-sm">
+                <p className="text-2xl font-bold text-blue-700">{monthLogs.length}</p>
+                <p className="text-[10px] text-slate-500">تقرير مُدخل</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-2xl p-3 text-center shadow-sm">
+                <p className="text-2xl font-bold text-slate-700">{new Date(selYear,selMonth+1,0).getDate()}</p>
+                <p className="text-[10px] text-slate-500">أيام الشهر</p>
+              </div>
+              <div className={`rounded-2xl p-3 text-center shadow-sm border ${monthLogs.length/new Date(selYear,selMonth+1,0).getDate()>0.7?"bg-emerald-50 border-emerald-200":"bg-amber-50 border-amber-200"}`}>
+                <p className={`text-2xl font-bold ${monthLogs.length/new Date(selYear,selMonth+1,0).getDate()>0.7?"text-emerald-700":"text-amber-700"}`}>
+                  {Math.round(monthLogs.length/new Date(selYear,selMonth+1,0).getDate()*100)}%
+                </p>
+                <p className="text-[10px] text-slate-500">نسبة التوثيق</p>
+              </div>
+            </div>
+
+            {/* All month logs */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                <h4 className="text-sm font-bold text-slate-700">تقارير {months[selMonth]} {selYear}</h4>
+              </div>
+              <div className="divide-y divide-slate-50">
+                {monthLogs.length===0?(
+                  <div className="p-8 text-center text-slate-400 text-sm">لا توجد تقارير لهذا الشهر</div>
+                ):monthLogs.map(([day,log])=>(
+                  <div key={day} className="px-4 py-3">
+                    <p className="text-[10px] font-bold text-slate-400 mb-1">
+                      {new Date(day).toLocaleDateString("ar-IQ",{weekday:"long",day:"numeric",month:"long"})}
+                    </p>
+                    <p className="text-sm text-slate-700 leading-relaxed">{log?.text||log}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast&&(
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl no-print">
           <CheckCircle size={14} className="text-emerald-400"/>{toast}
         </div>
