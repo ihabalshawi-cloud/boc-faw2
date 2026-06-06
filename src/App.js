@@ -7273,8 +7273,6 @@ function ExcelExportPage({ emp, isAdmin, allEmployees }) {
     }
 
     const headers = Object.keys(rows[0]||{});
-    const content = [headers.join(","), ...rows.map(r=>headers.map(k=>`"${r[k]??""}""`).join(","))].join("\n");
-    // Fix double quotes
     const fixed = [headers.join(","), ...rows.map(r=>headers.map(k=>`"${String(r[k]??"")}"`).join(","))].join("\n");
     downloadCSV(fixed, `حضور_${months[selMonth]}_${selYear}.csv`);
     setLoading(false);
