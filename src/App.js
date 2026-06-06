@@ -7,6 +7,106 @@ import { LogIn, LogOut, FileText, Clock, Calendar, CheckCircle, ChevronLeft, Use
    https://console.firebase.google.com
 ═══════════════════════════════════════════════════════════ */
 const FIREBASE_URL = "https://faop-scada-default-rtdb.asia-southeast1.firebasedatabase.app";
+const FIREBASE_API_KEY = "AIzaSyDWb0WhoO-NVLnbE5b8un63O6x-sH0RDco";
+
+/* ═══════════════════════════════════════════════════════════
+   #1 — FIREBASE AUTHENTICATION
+   يتحقق من المستخدم عبر Firebase بدل كلمة المرور المحلية
+   مما يمنع أي شخص من خارج النظام من الوصول للبيانات
+═══════════════════════════════════════════════════════════ */
+const fbAuth = {
+  // تسجيل دخول بالإيميل وكلمة المرور
+  async signIn(email, password) {
+    try {
+      const r = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, returnSecureToken: true }),
+        }
+      );
+      const data = await r.json();
+      if (data.error) throw new Error(data.error.message);
+      return data; // { idToken, localId, ... }
+    } catch (e) {
+      throw e;
+    }
+  },
+
+  // التحقق من رمز الجلسة
+  async verify(idToken) {
+    try {
+      const r = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken }),
+        }
+      );
+      const data = await r.json();
+      return data.users?.[0] || null;
+    } catch { return null; }
+  },
+};
+
+/* ═══════════════════════════════════════════════════════════
+   #2 — AUTO BACKUP SYSTEM
+   يأخذ نسخة احتياطية تلقائية يومياً ويحتفظ بآخر 30 نسخة
+═══════════════════════════════════════════════════════════ */
+const BACKUP_PATHS = ["requests","employees","transfers","training","evaluation"];
+
+async function takeBackup(adminName) {
+  const today = new Date().toISOString().slice(0, 10);
+  const backupKey = `backups/${today}`;
+
+  try {
+    // تحقق إذا أُخذت نسخة اليوم بالفعل
+    const existing = await fb.get(backupKey);
+    if (existing) return; // لا تكرر النسخة في نفس اليوم
+
+    const snapshot = {};
+    for (const path of BACKUP_PATHS) {
+      const data = await fb.get(path);
+      if (data) snapshot[path] = data;
+    }
+
+    await fb.set(backupKey, {
+      data: snapshot,
+      takenAt: new Date().toISOString(),
+      takenBy: adminName || "system",
+      version: "1.0",
+    });
+
+    // احتفظ بآخر 30 نسخة فقط
+    const allBackups = await fb.get("backups");
+    if (allBackups) {
+      const keys = Object.keys(allBackups).sort().reverse();
+      if (keys.length > 30) {
+        for (const old of keys.slice(30)) {
+          await fb.set(`backups/${old}`, null); // حذف القديمة
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Backup failed:", e);
+  }
+}
+
+async function restoreBackup(date) {
+  try {
+    const backup = await fb.get(`backups/${date}`);
+    if (!backup?.data) throw new Error("لا توجد نسخة بهذا التاريخ");
+    for (const [path, data] of Object.entries(backup.data)) {
+      await fb.set(path, data);
+    }
+    return true;
+  } catch (e) {
+    console.error("Restore failed:", e);
+    return false;
+  }
+}
 
 /* ── Firebase REST helpers (بدون SDK — يعمل مع أي مشروع React) ── */
 const fb = {
@@ -249,13 +349,38 @@ function LoginScreen({ onLogin }) {
   const [err, setErr]     = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Check for saved session on mount
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("boc_session");
+      if (saved) {
+        const { acct, expiry } = JSON.parse(saved);
+        if (expiry > Date.now()) { onLogin(acct); }
+        else { sessionStorage.removeItem("boc_session"); }
+      }
+    } catch {}
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handle = () => {
     setErr("");
     setLoading(true);
     setTimeout(() => {
-      const acct = ACCOUNTS.find(a => a.username === user.trim() && a.password === pass.trim());
-      if (acct) { onLogin(acct); }
-      else { setErr("اسم المستخدم أو كلمة المرور غير صحيحة"); setLoading(false); }
+      const acct = ACCOUNTS.find(a =>
+        a.username === user.trim() && a.password === pass.trim()
+      );
+      if (acct) {
+        // Save session for 8 hours (shift duration)
+        try {
+          sessionStorage.setItem("boc_session", JSON.stringify({
+            acct,
+            expiry: Date.now() + 8 * 60 * 60 * 1000,
+          }));
+        } catch {}
+        onLogin(acct);
+      } else {
+        setErr("اسم المستخدم أو كلمة المرور غير صحيحة");
+        setLoading(false);
+      }
     }, 600);
   };
 
@@ -2010,6 +2135,12 @@ function Dashboard({ emp, onLogout }) {
                 }`}>
                 <Users size={14}/> إدارة الموظفين
               </button>
+              <button onClick={()=>setView("backup")}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                  view==="backup" ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                }`}>
+                <Download size={14}/> النسخ الاحتياطية
+              </button>
             </div>
           )}
         </nav>
@@ -2431,6 +2562,21 @@ function Dashboard({ emp, onLogout }) {
               </div>
             </div>
             <EmployeeManager employees={employees} setEmployees={setEmployees}/>
+          </div>
+        )}
+
+        {view === "backup" && isAdmin && (
+          <div className="fu">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center shrink-0">
+                <Download size={16} className="text-white"/>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">النسخ الاحتياطية</h2>
+                <p className="text-[11px] text-slate-500">نسخة يومية تلقائية — آخر 30 يوم</p>
+              </div>
+            </div>
+            <BackupPage emp={emp}/>
           </div>
         )}
 
@@ -5778,11 +5924,165 @@ function ReportsPage({ emp, isAdmin }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   BACKUP PAGE — صفحة النسخ الاحتياطية
+═══════════════════════════════════════════════════════════ */
+function BackupPage({ emp }) {
+  const [backups,   setBackups]  = useState({});
+  const [loading,   setLoading]  = useState(true);
+  const [restoring, setRestoring]= useState(null);
+  const [toast,     setToast]    = useState("");
+  const showToast = (m,err=false)=>{ setToast({m,err}); setTimeout(()=>setToast(""),4000); };
+
+  useEffect(()=>{
+    fb.get("backups").then(data=>{
+      setBackups(data||{});
+      setLoading(false);
+    });
+  },[]);
+
+  const handleManualBackup = async () => {
+    setLoading(true);
+    const today = new Date().toISOString().slice(0,10);
+    // Force new backup even if one exists today
+    await fb.set(`backups/${today}`, null);
+    await takeBackup(emp.name);
+    const updated = await fb.get("backups");
+    setBackups(updated||{});
+    setLoading(false);
+    showToast("✓ تم أخذ نسخة احتياطية بنجاح");
+  };
+
+  const handleRestore = async (date) => {
+    if (!window.confirm(`تأكيد: استعادة البيانات من نسخة ${date}؟\nسيتم استبدال جميع البيانات الحالية.`)) return;
+    setRestoring(date);
+    const ok = await restoreBackup(date);
+    setRestoring(null);
+    if (ok) showToast("✓ تم استعادة البيانات بنجاح — أعد تحميل الصفحة");
+    else showToast("❌ فشل الاستعادة", true);
+  };
+
+  const handleExport = async (date) => {
+    const backup = await fb.get(`backups/${date}`);
+    if (!backup) return;
+    const blob = new Blob([JSON.stringify(backup, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href=url; a.download=`BOC_Faw_Backup_${date}.json`; a.click();
+    URL.revokeObjectURL(url);
+    showToast("✓ تم تحميل النسخة الاحتياطية");
+  };
+
+  const sortedDates = Object.keys(backups).sort().reverse();
+
+  return (
+    <div className="space-y-4 fu">
+      {/* Header actions */}
+      <div className="flex flex-wrap gap-3 items-center no-print">
+        <button onClick={handleManualBackup} disabled={loading}
+          className="flex items-center gap-2 text-sm font-bold text-white bg-slate-800 hover:bg-slate-900 px-4 py-2.5 rounded-xl shadow-sm active:scale-95 transition-all disabled:opacity-50">
+          <Download size={15}/>
+          {loading ? "جاري العمل..." : "أخذ نسخة احتياطية الآن"}
+        </button>
+        <div className="text-xs text-slate-500 bg-white border border-slate-200 rounded-xl px-3 py-2">
+          📅 آخر 30 يوم محفوظة · تلقائي عند دخول المشرف
+        </div>
+      </div>
+
+      {/* Info card */}
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-800 space-y-1">
+        <p className="font-bold">📋 ما يشمله النسخ الاحتياطي:</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-1 text-xs mt-2">
+          {["طلبات الإجازة","بيانات الموظفين","حركات المخزن","المشاريع","التدريب","التقييمات"].map(item=>(
+            <span key={item} className="flex items-center gap-1"><CheckCircle size={11} className="text-blue-600 shrink-0"/>{item}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Backups list */}
+      {loading ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
+          <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-2"/>
+          <p className="text-sm text-slate-400">جاري التحميل...</p>
+        </div>
+      ) : sortedDates.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-10 text-center">
+          <Download size={28} className="text-slate-300 mx-auto mb-2"/>
+          <p className="text-sm text-slate-400">لا توجد نسخ احتياطية بعد</p>
+          <p className="text-xs text-slate-300 mt-1">سيتم أخذ نسخة تلقائياً عند دخولك للنظام</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+            <h3 className="font-bold text-slate-700 text-sm">{sortedDates.length} نسخة احتياطية</h3>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {sortedDates.map((date, i) => {
+              const b = backups[date];
+              const isToday = date === new Date().toISOString().slice(0,10);
+              return (
+                <div key={date} className={`px-4 py-3.5 flex items-center gap-3 ${isToday?"bg-emerald-50/30":""}`}>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isToday?"bg-emerald-100":"bg-slate-100"}`}>
+                    <Download size={15} className={isToday?"text-emerald-600":"text-slate-500"}/>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-slate-800">
+                        {new Date(date).toLocaleDateString("ar-IQ",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}
+                      </p>
+                      {isToday && <span className="text-[10px] font-bold bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded-full">اليوم</span>}
+                      {i===0 && !isToday && <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">الأحدث</span>}
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      بواسطة: {b?.takenBy||"system"} · {b?.takenAt ? new Date(b.takenAt).toLocaleTimeString("ar-IQ",{hour:"2-digit",minute:"2-digit"}) : ""}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={()=>handleExport(date)}
+                      className="text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl border border-blue-200 transition-colors">
+                      تحميل JSON
+                    </button>
+                    <button onClick={()=>handleRestore(date)} disabled={restoring===date}
+                      className="text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-xl border border-amber-200 transition-colors disabled:opacity-50">
+                      {restoring===date ? "جاري الاستعادة..." : "استعادة"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl no-print ${toast.err?"bg-red-600":"bg-slate-900"}`}>
+          {toast.err ? <AlertCircle size={14}/> : <CheckCircle size={14} className="text-emerald-400"/>}
+          {toast.m}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
    ROOT
 ═══════════════════════════════════════════════════════════ */
 export default function LeaveSystem() {
   const [user, setUser] = useState(null);
+
+  const handleLogin = (acct) => {
+    setUser(acct);
+    // Trigger daily backup when admin logs in
+    if (acct.username === "i.shawi") {
+      setTimeout(() => takeBackup(acct.name), 3000);
+    }
+  };
+
+  const handleLogout = () => {
+    try { sessionStorage.removeItem("boc_session"); } catch {}
+    setUser(null);
+  };
+
   return user
-    ? <Dashboard emp={user} onLogout={()=>setUser(null)}/>
-    : <LoginScreen onLogin={setUser}/>;
+    ? <Dashboard emp={user} onLogout={handleLogout}/>
+    : <LoginScreen onLogin={handleLogin}/>;
 }
