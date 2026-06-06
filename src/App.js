@@ -183,11 +183,14 @@ async function restoreBackup(date) {
   }
 }
 
-/* ── Firebase REST helpers (بدون SDK — يعمل مع أي مشروع React) ── */
+/* ── Firebase REST helpers — موثوق مع timeout ── */
 const fb = {
   async get(path) {
     try {
-      const r = await fetch(`${FIREBASE_URL}/${path}.json`);
+      const ctrl = new AbortController();
+      const t = setTimeout(()=>ctrl.abort(), 8000);
+      const r = await fetch(`${FIREBASE_URL}/${path}.json`, {signal:ctrl.signal});
+      clearTimeout(t);
       if (!r.ok) return null;
       return await r.json();
     } catch { return null; }
@@ -195,128 +198,77 @@ const fb = {
   async set(path, data) {
     try {
       await fetch(`${FIREBASE_URL}/${path}.json`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data),
       });
     } catch {}
   },
   async push(path, data) {
     try {
       const r = await fetch(`${FIREBASE_URL}/${path}.json`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data),
       });
-      const j = await r.json();
-      return j?.name; // Firebase push key
+      return (await r.json())?.name;
     } catch { return null; }
   },
   async patch(path, data) {
     try {
       await fetch(`${FIREBASE_URL}/${path}.json`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data),
       });
     } catch {}
   },
-  // Real-time listener using Server-Sent Events
-  listen(path, callback) {
-    const url = `${FIREBASE_URL}/${path}.json`;
-    let es;
-    try {
-      es = new EventSource(url);
-      es.addEventListener("put", (e) => {
-        try { callback(JSON.parse(e.data)?.data ?? null); } catch {}
-      });
-      es.addEventListener("patch", (e) => {
-        try { callback(JSON.parse(e.data)?.data ?? null); } catch {}
-      });
-    } catch {}
-    return () => { try { es?.close(); } catch {} };
-  },
+  listen() { return ()=>{}; }, // SSE معطّل — نستخدم polling فقط
 };
 
-/* ── localStorage fallback (للبيانات الشخصية غير المشتركة) ── */
-function useLocalStorage(key, initial) {
-  const [val, setVal] = useState(() => {
-    try {
-      const s = localStorage.getItem(key);
-      return s ? JSON.parse(s) : initial;
-    } catch { return initial; }
-  });
-  const set = useCallback((v) => {
-    setVal(prev => {
-      const next = typeof v === "function" ? v(prev) : v;
-      try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
-      return next;
-    });
-  }, [key]);
-  return [val, set];
-}
-
-/* ── Firebase hook — مزامنة فورية مع Cache مشترك لمنع الطلبات المكررة ── */
-
-// Global cache — مشترك بين كل المكوّنات
-const _fbCache    = {};  // { path: data }
-const _fbListeners = {}; // { path: Set<callback> }
-const _fbSubs     = {};  // { path: unsubscribe }
+/* ── Global cache & polling system ── */
+const _fbCache     = {};
+const _fbListeners = {};
+const _fbPolls     = {};
 
 function _fbNotify(path, data) {
   _fbCache[path] = data;
-  (_fbListeners[path] || new Set()).forEach(cb => cb(data));
+  (_fbListeners[path]||new Set()).forEach(cb=>cb(data));
 }
 
-function _fbSubscribe(path) {
-  if (_fbSubs[path]) return; // Already subscribed
-  // Fetch once
-  fb.get(path).then(data => { if (data !== null) _fbNotify(path, data); });
-  // SSE listener
-  _fbSubs[path] = fb.listen(path, (data) => {
-    if (data !== null) _fbNotify(path, data);
-  });
-  // Polling — only for critical paths, every 15s (not 5s)
-  const isCritical = path.startsWith("notifications") || path.startsWith("requests") || path.startsWith("training");
-  if (isCritical) {
-    const interval = setInterval(() => {
-      fb.get(path).then(data => { if (data !== null) _fbNotify(path, data); });
-    }, 15000); // 15 seconds instead of 5
-    _fbSubs[path + "_poll"] = () => clearInterval(interval);
-  }
+function _pollInterval(path) {
+  if (path.startsWith("notifications")) return 5000;
+  if (path.startsWith("requests"))      return 8000;
+  if (path.startsWith("training"))      return 10000;
+  if (path.startsWith("login_history")) return 30000;
+  if (path.startsWith("audit_log"))     return 60000;
+  if (path.startsWith("backups"))       return 60000;
+  return 20000;
 }
 
+function _fbStart(path) {
+  if (_fbPolls[path]) return;
+  // Fetch immediately
+  fb.get(path).then(data => { _fbNotify(path, data ?? null); });
+  // Poll
+  _fbPolls[path] = setInterval(()=>{
+    if (!(_fbListeners[path]?.size>0)) return;
+    fb.get(path).then(data=>{ if(data!==null) _fbNotify(path,data); });
+  }, _pollInterval(path));
+}
+
+/* ── useFirebase hook ── */
 function useFirebase(path, initial) {
-  const [val, setVal] = useState(() => _fbCache[path] !== undefined ? _fbCache[path] : initial);
-  const [ready, setReady] = useState(_fbCache[path] !== undefined);
+  const [val,   setVal]   = useState(()=> _fbCache[path]!==undefined ? _fbCache[path] : initial);
+  const [ready, setReady] = useState(_fbCache[path]!==undefined);
 
-  useEffect(() => {
+  useEffect(()=>{
     if (!_fbListeners[path]) _fbListeners[path] = new Set();
-
-    const cb = (data) => {
-      setVal(data);
-      setReady(true);
-    };
+    const cb = (data)=>{ if(data!==null){setVal(data);} setReady(true); };
     _fbListeners[path].add(cb);
+    if (_fbCache[path]!==undefined){ setVal(_fbCache[path]); setReady(true); }
+    _fbStart(path);
+    return ()=>{ _fbListeners[path]?.delete(cb); };
+  }, [path]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Start subscription if not already active
-    _fbSubscribe(path);
-
-    // If cached, update immediately
-    if (_fbCache[path] !== undefined) {
-      setVal(_fbCache[path]);
-      setReady(true);
-    }
-
-    return () => {
-      _fbListeners[path]?.delete(cb);
-    };
-  }, [path]);
-
-  const set = useCallback((v) => {
-    setVal(prev => {
-      const next = typeof v === "function" ? v(prev) : v;
-      _fbNotify(path, next); // Update cache & all listeners immediately
+  const set = useCallback((v)=>{
+    setVal(prev=>{
+      const next = typeof v==="function" ? v(prev) : v;
+      _fbNotify(path, next);
       fb.set(path, next);
       return next;
     });
@@ -324,6 +276,23 @@ function useFirebase(path, initial) {
 
   return [val, set, ready];
 }
+
+/* ── localStorage hook ── */
+function useLocalStorage(key, initial) {
+  const [val, setVal] = useState(()=>{
+    try { const s=localStorage.getItem(key); return s?JSON.parse(s):initial; }
+    catch { return initial; }
+  });
+  const set = useCallback((v)=>{
+    setVal(prev=>{
+      const next = typeof v==="function"?v(prev):v;
+      try { localStorage.setItem(key,JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, [key]);
+  return [val, set];
+}
+
 
 /* ═══════════════════════════════════════════════════════════
    PRINT / PDF UTILITY
