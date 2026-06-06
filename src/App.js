@@ -1003,23 +1003,28 @@ function EmployeeManager({ employees, setEmployees }) {
     if (!form.name.trim() || !form.jobNum.trim()) return showToast("الاسم والرقم الوظيفي مطلوبان");
     if (adding) {
       setEmployees(p => [...p, {...form, id: Date.now()}]);
+      auditLog("إضافة", `موظف جديد: ${form.name} — ${form.jobNum}`, "المشرف");
       showToast("✓ تم إضافة الموظف");
     } else {
       setEmployees(p => p.map(e => e.id===editId ? {...form, id:editId} : e));
+      auditLog("تعديل", `تعديل بيانات: ${form.name}`, "المشرف");
       showToast("✓ تم حفظ التعديلات");
     }
     cancelForm();
   };
 
   const deleteEmp = (id) => {
+    const emp = employees.find(e=>e.id===id);
     setEmployees(p => p.filter(e => e.id!==id));
     setDelConf(null);
+    auditLog("حذف", `حذف موظف: ${emp?.name||id}`, "المشرف");
     showToast("✓ تم حذف الموظف");
   };
 
   const moveEmpDept = () => {
     if (!moveDept) return;
     setEmployees(p => p.map(e => e.id===moveEmp.id ? {...e, dept:moveDept} : e));
+    auditLog("نقل", `نقل ${moveEmp.name} إلى ${moveDept}`, "المشرف");
     setMoveEmp(null);
     showToast(`✓ تم نقل ${moveEmp.name} إلى ${moveDept}`);
   };
@@ -2097,6 +2102,9 @@ function Dashboard({ emp, onLogout }) {
     if (req.empId === emp.id) {
       setNotifications(prev => [empNotif, ...(Array.isArray(prev) ? prev : [])]);
     }
+
+    // #8 Audit Log
+    auditLog(decision==="approve"?"موافقة":"رفض", `${req.empName} — ${req.type} ${req.days} يوم${adminNote?" | "+adminNote:""}`, emp.name);
   }, [allRequests, emp, setAllRequests, setNotifications]);
 
   const STATUS_STYLE = {
@@ -2196,6 +2204,18 @@ function Dashboard({ emp, onLogout }) {
           {isAdmin && (
             <div className="border-t border-slate-800 pt-3 mt-3 space-y-0.5">
               <p className="text-[10px] font-bold text-slate-500 px-3 mb-2">صلاحيات المشرف</p>
+              <button onClick={()=>setView("dashboard")}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                  view==="dashboard" ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                }`}>
+                <BarChart2 size={14}/> لوحة الإحصائيات
+              </button>
+              <button onClick={()=>setView("search")}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                  view==="search" ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                }`}>
+                <Search size={14}/> بحث عام
+              </button>
               <button onClick={()=>setView("approvals")}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
                   view==="approvals" ? "bg-amber-600 text-white" : "text-amber-400 hover:bg-slate-800"
@@ -2220,6 +2240,12 @@ function Dashboard({ emp, onLogout }) {
                   view==="backup" ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"
                 }`}>
                 <Download size={14}/> النسخ الاحتياطية
+              </button>
+              <button onClick={()=>setView("auditlog")}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                  view==="auditlog" ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                }`}>
+                <ClipboardList size={14}/> سجل التعديلات
               </button>
             </div>
           )}
@@ -2707,6 +2733,51 @@ function Dashboard({ emp, onLogout }) {
               </div>
             </div>
             <BackupPage emp={emp}/>
+          </div>
+        )}
+
+        {view === "dashboard" && isAdmin && (
+          <div className="fu">
+            <div className="flex items-center gap-3 mb-4 no-print">
+              <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+                <BarChart2 size={16} className="text-indigo-600"/>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">لوحة الإحصائيات</h2>
+                <p className="text-[11px] text-slate-500">نظرة شاملة على النظام</p>
+              </div>
+            </div>
+            <DashboardStats emp={emp} allEmployees={employees}/>
+          </div>
+        )}
+
+        {view === "search" && isAdmin && (
+          <div className="fu">
+            <div className="flex items-center gap-3 mb-4 no-print">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                <Search size={16} className="text-blue-600"/>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">البحث العام</h2>
+                <p className="text-[11px] text-slate-500">ابحث في كل بيانات النظام</p>
+              </div>
+            </div>
+            <GlobalSearch emp={emp} isAdmin={isAdmin} allEmployees={employees} onNavigate={setView}/>
+          </div>
+        )}
+
+        {view === "auditlog" && isAdmin && (
+          <div className="fu">
+            <div className="flex items-center gap-3 mb-4 no-print">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                <ClipboardList size={16} className="text-slate-600"/>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">سجل التعديلات</h2>
+                <p className="text-[11px] text-slate-500">كل عملية تمت على النظام</p>
+              </div>
+            </div>
+            <AuditLogPage/>
           </div>
         )}
 
@@ -6508,6 +6579,341 @@ function MonthlyPDFReport({ emp, isAdmin, allEmployees }) {
       </div>
       {/* Hidden print area */}
       <div id="monthly-pdf-content" className="hidden print:block"/>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   #6 — DASHBOARD — لوحة إحصائيات المشرف
+═══════════════════════════════════════════════════════════ */
+function DashboardStats({ emp, allEmployees }) {
+  const [allRequests]  = useFirebase("requests", []);
+  const [trainings]    = useFirebase("training/tasks", []);
+  const [loginHistory] = useFirebase("login_history", []);
+  const [stock]        = useLocalStorage("boc_stock", []);
+
+  const reqs      = Array.isArray(allRequests) ? allRequests : [];
+  const tasks     = Array.isArray(trainings)   ? trainings   : [];
+  const logins    = Array.isArray(loginHistory) ? loginHistory : [];
+  const items     = Array.isArray(stock) ? stock : [];
+
+  const today     = new Date().toDateString();
+  const thisMonth = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,"0")}`;
+
+  // Stats
+  const pendingReqs    = reqs.filter(r=>r.status==="بانتظار المراجعة").length;
+  const monthReqs      = reqs.filter(r=>r.submittedAt?.startsWith(thisMonth)).length;
+  const pendingTasks   = tasks.filter(t=>t.status==="مُسندة"||t.status==="قيد التنفيذ").length;
+  const closureReqs    = tasks.filter(t=>t.status==="طلب إغلاق").length;
+  const completedTasks = tasks.filter(t=>t.status==="مكتملة").length;
+  const todayLogins    = logins.filter(l=>new Date(l.loginAt).toDateString()===today).length;
+  const uniqueToday    = new Set(logins.filter(l=>new Date(l.loginAt).toDateString()===today).map(l=>l.empId)).size;
+  const damagedItems   = items.filter(i=>i.condition==="تالف").length;
+  const lowItems       = items.filter(i=>i.qty<=2).length;
+
+  // Recent activity
+  const recentReqs  = reqs.slice(0, 5);
+  const recentLogin = logins.slice(0, 5);
+
+  const StatCard = ({icon, label, value, color, sub}) => (
+    <div className={`rounded-2xl border p-4 shadow-sm ${color}`}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-2xl">{icon}</span>
+        <span className="text-3xl font-bold">{value}</span>
+      </div>
+      <p className="text-xs font-bold">{label}</p>
+      {sub && <p className="text-[10px] opacity-70 mt-0.5">{sub}</p>}
+    </div>
+  );
+
+  return (
+    <div className="space-y-5 fu" dir="rtl">
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard icon="📋" label="طلبات معلقة" value={pendingReqs} color="bg-amber-50 border-amber-200 text-amber-800" sub="بانتظار موافقتك"/>
+        <StatCard icon="🔔" label="طلبات إغلاق" value={closureReqs} color="bg-violet-50 border-violet-200 text-violet-800" sub="مهام تنتظر إغلاقك"/>
+        <StatCard icon="✅" label="مهام مكتملة" value={completedTasks} color="bg-emerald-50 border-emerald-200 text-emerald-800" sub={`${pendingTasks} قيد التنفيذ`}/>
+        <StatCard icon="📅" label="طلبات الشهر" value={monthReqs} color="bg-blue-50 border-blue-200 text-blue-800" sub={thisMonth}/>
+        <StatCard icon="👥" label="دخلوا اليوم" value={uniqueToday} color="bg-slate-50 border-slate-200 text-slate-800" sub={`${todayLogins} عملية دخول`}/>
+        <StatCard icon="👤" label="الكادر الكلي" value={allEmployees.length} color="bg-indigo-50 border-indigo-200 text-indigo-800"/>
+        <StatCard icon="⚠️" label="مواد تالفة" value={damagedItems} color={damagedItems>0?"bg-red-50 border-red-200 text-red-800":"bg-slate-50 border-slate-200 text-slate-600"} sub="في المخزن"/>
+        <StatCard icon="📦" label="مواد منخفضة" value={lowItems} color={lowItems>0?"bg-orange-50 border-orange-200 text-orange-800":"bg-slate-50 border-slate-200 text-slate-600"} sub="كمية ≤ 2"/>
+      </div>
+
+      {/* Two columns */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Recent requests */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+            <h3 className="font-bold text-slate-700 text-sm">آخر الطلبات</h3>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {recentReqs.length===0 ? (
+              <div className="p-6 text-center text-slate-400 text-sm">لا توجد طلبات</div>
+            ) : recentReqs.map(r=>(
+              <div key={r.id} className="px-4 py-3 flex items-center gap-3">
+                <div className={`w-2 h-2 rounded-full shrink-0 ${r.status==="بانتظار المراجعة"?"bg-amber-400":r.status==="موافق عليها"?"bg-emerald-400":"bg-red-400"}`}/>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-slate-800 truncate">{r.empName?.split(" ").slice(0,2).join(" ")}</p>
+                  <p className="text-[10px] text-slate-400">{r.type} · {r.days} يوم</p>
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                  {r.submittedAt ? new Date(r.submittedAt).toLocaleDateString("ar-IQ",{day:"numeric",month:"short"}) : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Recent logins */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+            <h3 className="font-bold text-slate-700 text-sm">آخر عمليات الدخول</h3>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {recentLogin.length===0 ? (
+              <div className="p-6 text-center text-slate-400 text-sm">لا توجد سجلات</div>
+            ) : recentLogin.map((l,i)=>(
+              <div key={l.id||i} className="px-4 py-3 flex items-center gap-3">
+                <span className="text-sm">{l.device==="موبايل"?"📱":"💻"}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-slate-800 truncate">{l.empName?.split(" ").slice(0,2).join(" ")}</p>
+                  <p className="text-[10px] text-slate-400">{l.empDept}</p>
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                  {l.loginAt ? new Date(l.loginAt).toLocaleTimeString("ar-IQ",{hour:"2-digit",minute:"2-digit"}) : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   #7 — GLOBAL SEARCH — بحث عام
+═══════════════════════════════════════════════════════════ */
+function GlobalSearch({ emp, isAdmin, allEmployees, onNavigate }) {
+  const [query, setQuery] = useState("");
+  const [allRequests]     = useFirebase("requests", []);
+  const [trainings]       = useFirebase("training/tasks", []);
+  const [stock]           = useLocalStorage("boc_stock", []);
+  const [furniture]       = useLocalStorage("boc_furniture", []);
+
+  const reqs  = Array.isArray(allRequests) ? allRequests : [];
+  const tasks = Array.isArray(trainings)   ? trainings   : [];
+  const items = Array.isArray(stock)       ? stock       : [];
+  const furns = Array.isArray(furniture)   ? furniture   : [];
+
+  const q = query.trim().toLowerCase();
+
+  const results = useMemo(()=>{
+    if (!q || q.length < 2) return [];
+    const r = [];
+
+    // Search employees
+    allEmployees.filter(e=>
+      e.name.toLowerCase().includes(q) || e.username.includes(q) || String(e.jobNum).includes(q)
+    ).forEach(e=>r.push({ type:"موظف", title:e.name, sub:`${e.title} · ${e.dept}`, icon:"👤", nav:"employees" }));
+
+    // Search requests
+    reqs.filter(req=>
+      req.empName?.toLowerCase().includes(q) || req.type?.includes(q) || req.purpose?.toLowerCase().includes(q)
+    ).slice(0,5).forEach(req=>r.push({ type:"طلب إجازة", title:`${req.empName?.split(" ").slice(0,2).join(" ")} — ${req.type}`, sub:`${req.days} يوم · ${req.status}`, icon:"📋", nav:"approvals" }));
+
+    // Search training tasks
+    tasks.filter(t=>
+      t.title?.toLowerCase().includes(q) || t.desc?.toLowerCase().includes(q)
+    ).slice(0,5).forEach(t=>r.push({ type:"تدريب", title:t.title, sub:`${t.type} · ${t.status}`, icon:"🎓", nav:"training" }));
+
+    // Search inventory
+    items.filter(i=>
+      i.name?.toLowerCase().includes(q) || i.code?.includes(q) || i.category?.includes(q)
+    ).slice(0,5).forEach(i=>r.push({ type:"مخزن", title:i.name, sub:`${i.category} · كمية: ${i.qty}`, icon:"📦", nav:"inventory" }));
+
+    // Search furniture
+    furns.filter(f=>
+      f.name?.toLowerCase().includes(q) || f.code?.includes(q) || f.serialNo?.includes(q)
+    ).slice(0,5).forEach(f=>r.push({ type:"أثاث", title:f.name, sub:`${f.category} · ${f.condition}`, icon:"🪑", nav:"furniture" }));
+
+    return r;
+  }, [q, allEmployees, reqs, tasks, items, furns]);
+
+  return (
+    <div className="space-y-4 fu" dir="rtl">
+      {/* Search input */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+        <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+          <Search size={18} className="text-slate-400 shrink-0"/>
+          <input value={query} onChange={e=>setQuery(e.target.value)}
+            placeholder="ابحث عن موظف، طلب، مادة، جهاز، مهمة تدريبية..."
+            className="bg-transparent text-sm outline-none text-slate-700 w-full placeholder:text-slate-400"
+            autoFocus/>
+          {query && (
+            <button onClick={()=>setQuery("")} className="text-slate-400 hover:text-slate-600">
+              <X size={16}/>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Results */}
+      {q.length >= 2 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <h3 className="font-bold text-slate-700 text-sm">نتائج البحث</h3>
+            <span className="text-xs text-slate-400">{results.length} نتيجة</span>
+          </div>
+          {results.length === 0 ? (
+            <div className="p-8 text-center">
+              <Search size={28} className="text-slate-300 mx-auto mb-2"/>
+              <p className="text-sm text-slate-400">لا توجد نتائج لـ "{query}"</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-50">
+              {results.map((r, i)=>(
+                <button key={i} onClick={()=>onNavigate(r.nav)}
+                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors text-right">
+                  <span className="text-xl shrink-0">{r.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-slate-800 truncate">{r.title}</p>
+                    <p className="text-[10px] text-slate-500 truncate">{r.sub}</p>
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full shrink-0">{r.type}</span>
+                  <ChevronLeft size={13} className="text-slate-300 shrink-0"/>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Quick shortcuts when no search */}
+      {q.length < 2 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <p className="text-xs font-bold text-slate-600 mb-3">🔍 بحث سريع في:</p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {[
+              {l:"الموظفين (اسم، رقم وظيفي)", ex:"احمد الامير"},
+              {l:"طلبات الإجازة (اسم، نوع)", ex:"اعتيادية"},
+              {l:"مهام التدريب (عنوان)", ex:"تدريب ذاتي"},
+              {l:"جرد المخزن (اسم، رمز)", ex:"FLUKE"},
+              {l:"الأثاث (رقم تسلسلي)", ex:"1402228079"},
+            ].map(s=>(
+              <button key={s.l} onClick={()=>setQuery(s.ex)}
+                className="bg-slate-50 rounded-xl p-3 text-right hover:bg-blue-50 hover:border-blue-200 border border-slate-100 transition-colors">
+                <p className="text-[11px] font-semibold text-slate-700">{s.l}</p>
+                <p className="text-[10px] text-blue-500 mt-1">جرب: {s.ex}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   #8 — AUDIT LOG — سجل التعديلات
+═══════════════════════════════════════════════════════════ */
+function auditLog(action, details, empName) {
+  const entry = {
+    id: Date.now(),
+    action,
+    details,
+    by: empName,
+    at: new Date().toISOString(),
+  };
+  fb.get("audit_log").then(existing => {
+    const prev = Array.isArray(existing) ? existing : [];
+    fb.set("audit_log", [entry, ...prev].slice(0, 1000)); // آخر 1000 عملية
+  });
+}
+
+function AuditLogPage() {
+  const [logs, , ready] = useFirebase("audit_log", null);
+  const [search, setSearch]       = useState("");
+  const [filterAction, setFilter] = useState("الكل");
+
+  const isLoading = logs === null && !ready;
+  const allLogs   = Array.isArray(logs) ? logs : [];
+
+  const actions = ["الكل", ...Array.from(new Set(allLogs.map(l=>l.action).filter(Boolean)))];
+
+  const filtered = allLogs.filter(l=>{
+    const ms = l.details?.includes(search) || l.by?.includes(search) || l.action?.includes(search);
+    const ma = filterAction === "الكل" || l.action === filterAction;
+    return ms && ma;
+  });
+
+  const ACTION_ICONS = {
+    "إضافة":"➕", "تعديل":"✏️", "حذف":"🗑️", "نقل":"🔄",
+    "موافقة":"✅", "رفض":"❌", "إسناد":"📋", "إغلاق":"🔒",
+    "استعادة":"♻️", "دخول":"🔑",
+  };
+
+  return (
+    <div className="space-y-4 fu" dir="rtl">
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 items-center no-print">
+        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 flex-1 min-w-[160px] shadow-sm">
+          <Search size={13} className="text-slate-400 shrink-0"/>
+          <input value={search} onChange={e=>setSearch(e.target.value)}
+            placeholder="بحث في السجل..."
+            className="bg-transparent text-xs outline-none text-slate-700 w-full placeholder:text-slate-400"/>
+        </div>
+        <select value={filterAction} onChange={e=>setFilter(e.target.value)}
+          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer shadow-sm appearance-none">
+          {actions.map(a=><option key={a}>{a}</option>)}
+        </select>
+        <PrintButton targetId="print-audit" title="سجل التعديلات"/>
+        <span className="text-xs text-slate-400">{filtered.length} سجل</span>
+      </div>
+
+      {/* Log table */}
+      {isLoading ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
+          <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-2"/>
+          <p className="text-sm text-slate-400">جاري التحميل...</p>
+        </div>
+      ) : (
+        <div id="print-audit" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="hidden print:block text-center p-4 border-b">
+            <p className="text-lg font-bold">شركة نفط البصرة — شعبة الفاو</p>
+            <p className="text-sm">سجل التعديلات والعمليات</p>
+          </div>
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 no-print">
+            <h3 className="font-bold text-slate-700 text-sm">سجل العمليات والتعديلات</h3>
+          </div>
+          {filtered.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-sm">لا توجد سجلات</div>
+          ) : (
+            <div className="divide-y divide-slate-50">
+              {filtered.slice(0, 100).map(l=>(
+                <div key={l.id} className="px-4 py-3 flex items-start gap-3 hover:bg-slate-50/50">
+                  <span className="text-lg mt-0.5 shrink-0">{ACTION_ICONS[l.action]||"📝"}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-slate-800">{l.action}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {l.at ? new Date(l.at).toLocaleDateString("ar-IQ",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : ""}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">{l.details}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">بواسطة: {l.by}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 text-xs text-blue-800">
+        📋 <strong>يُسجَّل تلقائياً:</strong> تعديل المخزن، إضافة/حذف موظف، موافقة/رفض الطلبات، إسناد المهام، إغلاق المهام، استعادة النسخ الاحتياطية
+      </div>
     </div>
   );
 }
