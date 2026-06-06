@@ -10,6 +10,79 @@ const FIREBASE_URL = "https://faop-scada-default-rtdb.asia-southeast1.firebaseda
 const FIREBASE_API_KEY = "AIzaSyDWb0WhoO-NVLnbE5b8un63O6x-sH0RDco";
 
 /* ═══════════════════════════════════════════════════════════
+   #3 — PUSH NOTIFICATIONS
+   إشعارات للهاتف حتى لو التطبيق مغلق
+   
+   الإعداد (مرة واحدة):
+   Firebase Console → faop-scada → Project Settings →
+   Cloud Messaging → Web Push certificates → Generate key pair
+   انسخ المفتاح وضعه في VAPID_KEY
+═══════════════════════════════════════════════════════════ */
+const VAPID_KEY = "BL-placeholder-get-from-firebase-cloud-messaging-settings";
+
+const fcm = {
+  async requestPermission(empId) {
+    try {
+      if (!("Notification" in window)) return null;
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") return null;
+      if (!("serviceWorker" in navigator)) return null;
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: VAPID_KEY,
+      }).catch(()=>null);
+      if (!sub) return null;
+      const token = btoa(JSON.stringify(sub));
+      await fb.set(`push_tokens/${empId}`, {
+        token, sub: JSON.stringify(sub),
+        updatedAt: new Date().toISOString(),
+        device: navigator.userAgent.includes("Mobile")?"موبايل":"كمبيوتر",
+      });
+      return token;
+    } catch { return null; }
+  },
+
+  async showLocal(title, body, tag="boc") {
+    try {
+      if (!("Notification" in window)) return;
+      if (Notification.permission !== "granted") return;
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification(title, {
+        body, icon:"/logo192.png", badge:"/logo192.png",
+        dir:"rtl", lang:"ar", vibrate:[200,100,200],
+        tag, renotify:true,
+      });
+    } catch {}
+  },
+};
+
+function usePushNotifications(emp) {
+  const [permStatus, setPermStatus] = useState(
+    typeof Notification!=="undefined" ? Notification.permission : "default"
+  );
+
+  const requestPush = useCallback(async () => {
+    const token = await fcm.requestPermission(emp.id);
+    if (token) setPermStatus("granted");
+    return !!token;
+  }, [emp.id]);
+
+  // إشعار push محلي عند وصول إشعار جديد من Firebase
+  useEffect(() => {
+    if (permStatus !== "granted") return;
+    const unsub = fb.listen(`notifications/${emp.id}`, (data) => {
+      if (!Array.isArray(data) || !data[0] || data[0].read) return;
+      const n = data[0];
+      fcm.showLocal(n.title, n.body, `notif-${n.id}`);
+    });
+    return unsub;
+  }, [emp.id, permStatus]);
+
+  return { permStatus, requestPush };
+}
+
+/* ═══════════════════════════════════════════════════════════
    #1 — FIREBASE AUTHENTICATION
    يتحقق من المستخدم عبر Firebase بدل كلمة المرور المحلية
    مما يمنع أي شخص من خارج النظام من الوصول للبيانات
@@ -1905,6 +1978,9 @@ function Dashboard({ emp, onLogout }) {
 
   const isAdmin = emp.username === "i.shawi";
 
+  // #3 Push Notifications
+  const { permStatus, requestPush } = usePushNotifications(emp);
+
   // ── Login history logger — defined BEFORE useEffect
   const logLogin = useCallback(() => {
     const entry = {
@@ -2085,7 +2161,9 @@ function Dashboard({ emp, onLogout }) {
         <nav className="flex-1 p-3 space-y-0.5">
           {[
             { id:"home",       label:"الرئيسية",        icon:<Home size={14}/> },
+            { id:"attendance", label:"الحضور والغياب",  icon:<Calendar size={14}/> },
             { id:"evaluation", label:"التقييم الشهري",  icon:<Star size={14}/> },
+            { id:"pdfreport",  label:"تقرير PDF",        icon:<FileText size={14}/> },
             { id:"training",   label:"التدريب",          icon:<GraduationCap size={14}/> },
             { id:"reports",    label:"التقارير",         icon:<BarChart size={14}/> },
             { id:"materials",  label:"طلب مواد",         icon:<Package size={14}/> },
@@ -2144,6 +2222,26 @@ function Dashboard({ emp, onLogout }) {
             </div>
           )}
         </nav>
+
+        {/* Push notification permission */}
+        <div className="px-3 pb-2">
+          {permStatus === "default" && (
+            <button onClick={requestPush}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-blue-400 hover:bg-slate-800 transition-colors border border-slate-700">
+              <Bell size={13}/> تفعيل إشعارات الهاتف
+            </button>
+          )}
+          {permStatus === "granted" && (
+            <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-emerald-400">
+              <CheckCircle size={11}/> الإشعارات مفعّلة
+            </div>
+          )}
+          {permStatus === "denied" && (
+            <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-red-400">
+              <AlertCircle size={11}/> الإشعارات معطّلة في المتصفح
+            </div>
+          )}
+        </div>
 
         {/* Logout */}
         <div className="p-3 border-t border-slate-800">
@@ -2397,6 +2495,36 @@ function Dashboard({ emp, onLogout }) {
               </div>
             </div>
             <ReportsPage emp={emp} isAdmin={isAdmin}/>
+          </div>
+        )}
+
+        {view === "attendance" && (
+          <div className="fu">
+            <div className="flex items-center gap-3 mb-4 no-print">
+              <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                <Calendar size={16} className="text-emerald-600"/>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">الحضور والغياب</h2>
+                <p className="text-[11px] text-slate-500">يُحتسب تلقائياً في التقييم الشهري</p>
+              </div>
+            </div>
+            <AttendancePage emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
+          </div>
+        )}
+
+        {view === "pdfreport" && (
+          <div className="fu">
+            <div className="flex items-center gap-3 mb-4 no-print">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                <FileText size={16} className="text-blue-600"/>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">تقرير PDF الشهري</h2>
+                <p className="text-[11px] text-slate-500">تقرير رسمي جاهز للطباعة والتوقيع</p>
+              </div>
+            </div>
+            <MonthlyPDFReport emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
           </div>
         )}
 
@@ -6059,6 +6187,326 @@ function BackupPage({ emp }) {
           {toast.m}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   #4 — ATTENDANCE PAGE — صفحة الحضور والغياب
+═══════════════════════════════════════════════════════════ */
+function AttendancePage({ emp, isAdmin, allEmployees }) {
+  const now = new Date();
+  const [selMonth, setSelMonth] = useState(now.getMonth());
+  const [selYear,  setSelYear]  = useState(now.getFullYear());
+  const [selEmpId, setSelEmpId] = useState(isAdmin ? null : emp.id);
+  const [toast, setToast] = useState("");
+  const showToast = (m) => { setToast(m); setTimeout(()=>setToast(""),3000); };
+
+  const empTarget = selEmpId || emp.id;
+  const monthKey  = `${selYear}_${String(selMonth+1).padStart(2,"0")}`;
+  const [attendance, setAttendance] = useFirebase(`attendance/${empTarget}/${monthKey}`, {});
+
+  const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  const daysInMonth = new Date(selYear, selMonth+1, 0).getDate();
+  const empInfo = allEmployees.find(e=>String(e.id)===String(empTarget));
+
+  const STATUS = {
+    "حاضر":    { color:"bg-emerald-100 text-emerald-800", short:"✓" },
+    "غائب":    { color:"bg-red-100 text-red-800",         short:"✗" },
+    "إجازة":   { color:"bg-blue-100 text-blue-800",       short:"إج" },
+    "مرضية":   { color:"bg-amber-100 text-amber-800",     short:"م" },
+    "عطلة":    { color:"bg-slate-100 text-slate-500",     short:"ع" },
+    "":        { color:"bg-slate-50 text-slate-300",      short:"—" },
+  };
+
+  const setDay = (day, status) => {
+    setAttendance({ ...attendance, [day]: status });
+    // Update attendance score in evaluation
+    const totalDays = Object.keys(attendance).length + 1;
+    const presentDays = Object.values({...attendance, [day]: status})
+      .filter(s=>s==="حاضر").length;
+    const score = Math.round((presentDays / daysInMonth) * 100);
+    fb.set(`evaluation/scores/${empTarget}/${monthKey}/attendance`, score);
+    showToast("✓ تم حفظ الحضور");
+  };
+
+  // Stats
+  const attended = Object.values(attendance).filter(s=>s==="حاضر").length;
+  const absent   = Object.values(attendance).filter(s=>s==="غائب").length;
+  const leaves   = Object.values(attendance).filter(s=>s==="إجازة"||s==="مرضية").length;
+  const score    = daysInMonth > 0 ? Math.round((attended/daysInMonth)*100) : 0;
+
+  // Days grid
+  const days = Array.from({length: daysInMonth}, (_,i) => i+1);
+
+  return (
+    <div className="space-y-4 fu" dir="rtl">
+      {/* Controls */}
+      <div className="flex flex-wrap gap-2 items-center no-print">
+        <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))}
+          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm">
+          {months.map((m,i)=><option key={i} value={i}>{m}</option>)}
+        </select>
+        <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))}
+          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm">
+          {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+        </select>
+        {isAdmin && (
+          <select value={selEmpId||""} onChange={e=>setSelEmpId(Number(e.target.value)||null)}
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm flex-1 min-w-[180px]">
+            <option value="">-- اختر موظفاً --</option>
+            {allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,3).join(" ")}</option>)}
+          </select>
+        )}
+        <PrintButton targetId="print-attendance" title={`كشف حضور ${months[selMonth]} ${selYear}`}/>
+      </div>
+
+      {/* Employee info + score */}
+      {empInfo && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-white font-bold text-lg shrink-0">
+            {empInfo.name[0]}
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-slate-900">{empInfo.name.split(" ").slice(0,3).join(" ")}</p>
+            <p className="text-xs text-slate-500">{empInfo.title} · {empInfo.dept}</p>
+          </div>
+          <div className="text-center">
+            <p className={`text-3xl font-bold ${score>=80?"text-emerald-600":score>=60?"text-amber-500":"text-red-500"}`}>{score}%</p>
+            <p className="text-[10px] text-slate-400">نسبة الحضور</p>
+          </div>
+        </div>
+      )}
+
+      {/* Stats strip */}
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          {l:"حاضر",  v:attended, c:"text-emerald-700 bg-emerald-50 border-emerald-200"},
+          {l:"غائب",  v:absent,   c:"text-red-700 bg-red-50 border-red-200"},
+          {l:"إجازة", v:leaves,   c:"text-blue-700 bg-blue-50 border-blue-200"},
+          {l:"الدرجة",v:`${score}/100`, c:"text-slate-700 bg-slate-50 border-slate-200"},
+        ].map(s=>(
+          <div key={s.l} className={`rounded-xl border p-2.5 text-center ${s.c}`}>
+            <p className="text-lg font-bold">{s.v}</p>
+            <p className="text-[10px]">{s.l}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Calendar grid */}
+      <div id="print-attendance" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="hidden print:block text-center p-4 border-b">
+          <p className="text-lg font-bold">شركة نفط البصرة — شعبة الفاو</p>
+          <p className="text-base">كشف الحضور — {empInfo?.name} — {months[selMonth]} {selYear}</p>
+        </div>
+        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 no-print">
+          <h3 className="font-bold text-slate-700 text-sm">كشف الحضور — {months[selMonth]} {selYear}</h3>
+        </div>
+        <div className="p-4">
+          {/* Status legend */}
+          <div className="flex flex-wrap gap-2 mb-4 no-print">
+            {Object.entries(STATUS).filter(([k])=>k).map(([s,v])=>(
+              <span key={s} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${v.color}`}>{s}</span>
+            ))}
+          </div>
+          {/* Days grid */}
+          <div className="grid grid-cols-7 gap-1.5">
+            {days.map(day => {
+              const key   = String(day).padStart(2,"0");
+              const status = attendance[key] || "";
+              const st     = STATUS[status] || STATUS[""];
+              return (
+                <div key={day} className="flex flex-col items-center gap-0.5">
+                  <span className="text-[9px] text-slate-400 font-mono">{day}</span>
+                  {isAdmin ? (
+                    <select value={status}
+                      onChange={e=>setDay(key, e.target.value)}
+                      className={`w-full text-[10px] font-bold rounded-lg border-0 text-center cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-400 py-1 ${st.color}`}
+                      style={{minWidth:0}}>
+                      <option value="">—</option>
+                      {Object.keys(STATUS).filter(k=>k).map(s=><option key={s} value={s}>{STATUS[s].short}</option>)}
+                    </select>
+                  ) : (
+                    <div className={`w-full text-center text-[10px] font-bold rounded-lg py-1 ${st.color}`}>
+                      {st.short}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Impact note */}
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-800">
+        📊 <strong>تأثير الحضور على التقييم:</strong> نسبة الحضور ({score}%) تُحتسب تلقائياً كدرجة الحضور في التقييم الشهري (وزنها 20%)
+      </div>
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl no-print">
+          <CheckCircle size={14} className="text-emerald-400"/>{toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   #5 — PDF REPORT GENERATOR — تقرير PDF رسمي شهري
+═══════════════════════════════════════════════════════════ */
+function MonthlyPDFReport({ emp, isAdmin, allEmployees }) {
+  const now = new Date();
+  const [selMonth, setSelMonth] = useState(now.getMonth());
+  const [selYear,  setSelYear]  = useState(now.getFullYear());
+  const [selEmpId, setSelEmpId] = useState(isAdmin ? null : emp.id);
+  const [generating, setGenerating] = useState(false);
+
+  const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  const empTarget = selEmpId || emp.id;
+  const monthKey  = `${selYear}_${String(selMonth+1).padStart(2,"0")}`;
+  const empInfo   = allEmployees.find(e=>String(e.id)===String(empTarget));
+
+  const [scores,     ] = useFirebase(`evaluation/scores/${empTarget}/${monthKey}`,   {});
+  const [tasks,      ] = useFirebase(`evaluation/tasks/${empTarget}/${monthKey}`,    []);
+  const [attendance, ] = useFirebase(`attendance/${empTarget}/${monthKey}`,          {});
+  const [trainings,  ] = useFirebase("training/tasks", []);
+
+  const tasksList     = Array.isArray(tasks)     ? tasks     : [];
+  const trainingList  = Array.isArray(trainings) ? trainings.filter(t=>String(t.empId)===String(empTarget)&&t.status==="مكتملة") : [];
+  const attendedDays  = Object.values(attendance||{}).filter(s=>s==="حاضر").length;
+  const daysInMonth   = new Date(selYear, selMonth+1, 0).getDate();
+
+  const generatePDF = () => {
+    setGenerating(true);
+    const content = `
+      <div style="font-family:Arial,sans-serif;direction:rtl;padding:20mm;color:#1e293b;max-width:210mm;margin:0 auto">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0d2348;padding-bottom:15px;margin-bottom:20px">
+          <div>
+            <div style="font-size:20px;font-weight:900;color:#0d2348">شركة نفط البصرة</div>
+            <div style="font-size:13px;color:#64748b">شعبة مستودع الفاو — قسم السيطرة والنظم</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:14px;font-weight:700;color:#0d2348">التقرير الشهري الشامل</div>
+            <div style="font-size:12px;color:#64748b">${months[selMonth]} ${selYear}</div>
+          </div>
+          <div style="width:60px;height:60px;border-radius:50%;background:#0d2348;display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:14px">BOC</div>
+        </div>
+
+        <!-- Employee Info -->
+        <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:11px">
+          <tr style="background:#f1f5f9">
+            <td style="padding:8px;border:1px solid #cbd5e1;font-weight:700">الاسم</td>
+            <td style="padding:8px;border:1px solid #cbd5e1">${empInfo?.name||""}</td>
+            <td style="padding:8px;border:1px solid #cbd5e1;font-weight:700">الرقم الوظيفي</td>
+            <td style="padding:8px;border:1px solid #cbd5e1">${empInfo?.jobNum||""}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border:1px solid #cbd5e1;font-weight:700">العنوان الوظيفي</td>
+            <td style="padding:8px;border:1px solid #cbd5e1">${empInfo?.title||""}</td>
+            <td style="padding:8px;border:1px solid #cbd5e1;font-weight:700">القسم</td>
+            <td style="padding:8px;border:1px solid #cbd5e1">${empInfo?.dept||""}</td>
+          </tr>
+        </table>
+
+        <!-- Scores Summary -->
+        <div style="background:#0d2348;color:white;padding:15px;border-radius:8px;margin-bottom:20px;display:flex;justify-content:space-around;text-align:center">
+          <div><div style="font-size:32px;font-weight:900;color:#fbbf24">${scores?.total||0}</div><div style="font-size:11px;opacity:0.8">المجموع الكلي /100</div></div>
+          <div><div style="font-size:24px;font-weight:700">${scores?.attendance||Math.round(attendedDays/daysInMonth*100)||0}</div><div style="font-size:10px;opacity:0.7">الحضور /100</div></div>
+          <div><div style="font-size:24px;font-weight:700">${scores?.tasks||0}</div><div style="font-size:10px;opacity:0.7">المهام /100</div></div>
+          <div><div style="font-size:24px;font-weight:700">${scores?.participation||0}</div><div style="font-size:10px;opacity:0.7">المشاركة /100</div></div>
+          <div><div style="font-size:24px;font-weight:700">${scores?.initiative||0}</div><div style="font-size:10px;opacity:0.7">المبادرة /100</div></div>
+        </div>
+
+        <!-- Attendance -->
+        <h3 style="color:#0d2348;font-size:13px;border-bottom:1px solid #e2e8f0;padding-bottom:5px;margin-bottom:10px">أولاً: الحضور والانضباط</h3>
+        <p style="font-size:11px;margin-bottom:15px">أيام الحضور: <strong>${attendedDays}</strong> من أصل <strong>${daysInMonth}</strong> يوم · نسبة الحضور: <strong>${Math.round(attendedDays/daysInMonth*100)}%</strong></p>
+
+        <!-- Tasks -->
+        <h3 style="color:#0d2348;font-size:13px;border-bottom:1px solid #e2e8f0;padding-bottom:5px;margin-bottom:10px">ثانياً: المهام المنجزة</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:15px">
+          <tr style="background:#f1f5f9;font-weight:700">
+            <td style="padding:6px;border:1px solid #cbd5e1">المهمة</td>
+            <td style="padding:6px;border:1px solid #cbd5e1;text-align:center">الحالة</td>
+            <td style="padding:6px;border:1px solid #cbd5e1;text-align:center">الدرجة</td>
+            <td style="padding:6px;border:1px solid #cbd5e1">الإجراء المتخذ</td>
+          </tr>
+          ${tasksList.map(t=>`
+            <tr>
+              <td style="padding:6px;border:1px solid #e2e8f0">${t.title}</td>
+              <td style="padding:6px;border:1px solid #e2e8f0;text-align:center">${t.status}</td>
+              <td style="padding:6px;border:1px solid #e2e8f0;text-align:center">${t.adminScore||0}/${t.maxScore||10}</td>
+              <td style="padding:6px;border:1px solid #e2e8f0;font-size:9px">${t.empAction?.slice(0,80)||"—"}</td>
+            </tr>
+          `).join("")}
+        </table>
+
+        <!-- Training -->
+        ${trainingList.length>0 ? `
+        <h3 style="color:#0d2348;font-size:13px;border-bottom:1px solid #e2e8f0;padding-bottom:5px;margin-bottom:10px">ثالثاً: التدريب والتطوير</h3>
+        <ul style="font-size:10px;margin-bottom:15px;padding-right:20px">
+          ${trainingList.map(t=>`<li style="margin-bottom:4px">${t.title} (${t.type})</li>`).join("")}
+        </ul>` : ""}
+
+        <!-- Signatures -->
+        <div style="margin-top:40px;display:flex;justify-content:space-between;font-size:11px">
+          <div style="text-align:center;width:35%">
+            <div style="border-top:1px solid #0d2348;padding-top:8px;margin-top:40px">توقيع الموظف</div>
+            <div style="margin-top:5px">${empInfo?.name?.split(" ").slice(0,2).join(" ")||""}</div>
+          </div>
+          <div style="text-align:center;width:35%">
+            <div style="border-top:1px solid #0d2348;padding-top:8px;margin-top:40px">توقيع المشرف المخول</div>
+            <div style="margin-top:5px">ايهاب عبد اللطيف الشاوي</div>
+          </div>
+        </div>
+      </div>
+    `;
+    printElement("monthly-pdf-content", `تقرير ${months[selMonth]} ${selYear} — ${empInfo?.name?.split(" ").slice(0,2).join(" ")||""}`);
+    document.getElementById("monthly-pdf-content").innerHTML = content;
+    setTimeout(()=>{ window.print(); setGenerating(false); }, 300);
+  };
+
+  return (
+    <div className="space-y-4 fu" dir="rtl">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+          <FileText size={16} className="text-blue-600"/> توليد تقرير PDF رسمي
+        </h3>
+        <div className="flex flex-wrap gap-3">
+          <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))}
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm">
+            {months.map((m,i)=><option key={i} value={i}>{m}</option>)}
+          </select>
+          <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))}
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm">
+            {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+          </select>
+          {isAdmin && (
+            <select value={selEmpId||""} onChange={e=>setSelEmpId(Number(e.target.value)||null)}
+              className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm flex-1 min-w-[180px]">
+              <option value="">-- اختر موظفاً --</option>
+              {allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,3).join(" ")}</option>)}
+            </select>
+          )}
+        </div>
+        <div className="bg-slate-50 rounded-xl p-3 text-xs text-slate-600 space-y-1">
+          <p className="font-bold text-slate-700">يشمل التقرير:</p>
+          <div className="grid grid-cols-2 gap-1">
+            {["معلومات الموظف","الدرجات الإجمالية","كشف الحضور","المهام المنجزة","التدريب المكتمل","توقيع المشرف"].map(i=>(
+              <span key={i} className="flex items-center gap-1"><CheckCircle size={10} className="text-emerald-500"/>{i}</span>
+            ))}
+          </div>
+        </div>
+        <button onClick={generatePDF} disabled={generating||!empTarget}
+          className="flex items-center gap-2 text-sm font-bold text-white px-6 py-3 rounded-xl active:scale-95 transition-all disabled:opacity-50 shadow-md"
+          style={{background:"linear-gradient(135deg,#0d2348,#1d4ed8)"}}>
+          <Printer size={15}/>
+          {generating ? "جاري التوليد..." : "توليد وطباعة التقرير"}
+        </button>
+      </div>
+      {/* Hidden print area */}
+      <div id="monthly-pdf-content" className="hidden print:block"/>
     </div>
   );
 }
