@@ -6702,16 +6702,15 @@ function GlobalSearch({ emp, isAdmin, allEmployees, onNavigate }) {
   const [stock]           = useLocalStorage("boc_stock", []);
   const [furniture]       = useLocalStorage("boc_furniture", []);
 
-  const reqs  = Array.isArray(allRequests) ? allRequests : [];
-  const tasks = Array.isArray(trainings)   ? trainings   : [];
-  const items = Array.isArray(stock)       ? stock       : [];
-  const furns = Array.isArray(furniture)   ? furniture   : [];
-
   const q = query.trim().toLowerCase();
 
   const results = useMemo(()=>{
     if (!q || q.length < 2) return [];
     const r = [];
+    const reqs  = Array.isArray(allRequests) ? allRequests : [];
+    const tasks = Array.isArray(trainings)   ? trainings   : [];
+    const items = Array.isArray(stock)       ? stock       : [];
+    const furns = Array.isArray(furniture)   ? furniture   : [];
 
     // Search employees
     allEmployees.filter(e=>
@@ -6739,7 +6738,7 @@ function GlobalSearch({ emp, isAdmin, allEmployees, onNavigate }) {
     ).slice(0,5).forEach(f=>r.push({ type:"أثاث", title:f.name, sub:`${f.category} · ${f.condition}`, icon:"🪑", nav:"furniture" }));
 
     return r;
-  }, [q, allEmployees, reqs, tasks, items, furns]);
+  }, [q, allEmployees, allRequests, trainings, stock, furniture]);
 
   return (
     <div className="space-y-4 fu" dir="rtl">
