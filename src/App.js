@@ -87,6 +87,8 @@ function usePushNotifications(emp) {
    يتحقق من المستخدم عبر Firebase بدل كلمة المرور المحلية
    مما يمنع أي شخص من خارج النظام من الوصول للبيانات
 ═══════════════════════════════════════════════════════════ */
+/* ── fbAuth محفوظ للاستخدام المستقبلي مع Firebase Authentication ── */
+// eslint-disable-next-line no-unused-vars
 const fbAuth = {
   // تسجيل دخول بالإيميل وكلمة المرور
   async signIn(email, password) {
