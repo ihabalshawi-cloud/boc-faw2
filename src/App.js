@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { LogIn, LogOut, FileText, Clock, Calendar, CheckCircle, ChevronLeft, User, Eye, EyeOff, AlertCircle, Printer, Users, Shield, Package, Plus, Trash2, Edit3, Save, X, ArrowRightLeft, PenTool, RefreshCw, Search, FolderOpen, Upload, Download, Layers, ClipboardList, ChevronRight, Home, Bell, ThumbsUp, ThumbsDown, Star, Target, BarChart2, CheckSquare, BookOpen, GraduationCap, BarChart, MessageCircle } from "lucide-react";
+import { LogIn, LogOut, FileText, Clock, Calendar, CheckCircle, ChevronLeft, User, Eye, EyeOff, AlertCircle, Printer, Users, Shield, Package, Plus, Trash2, Edit3, Save, X, ArrowRightLeft, PenTool, RefreshCw, Search, FolderOpen, Upload, Download, Layers, ClipboardList, ChevronRight, Home, Bell, ThumbsUp, ThumbsDown, Star, Target, BarChart2, CheckSquare, BookOpen, GraduationCap, BarChart } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════
    FIREBASE CONFIG
@@ -2504,7 +2504,7 @@ function Dashboard({ emp, onLogout }) {
               </div>
               <div>
                 <h2 className="text-base font-bold text-slate-800">التدريب والتطوير</h2>
-                <p className="text-[11px] text-slate-500">المهام التدريبية · طلبات المشاركة · إشعارات واتساب</p>
+                <p className="text-[11px] text-slate-500">المهام التدريبية · طلبات المشاركة · إعدادات الإشعارات</p>
               </div>
             </div>
             <TrainingPage emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
@@ -5113,60 +5113,58 @@ function EvaluationPage({ emp, isAdmin, allEmployees }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   WHATSAPP NOTIFICATIONS via CallMeBot (مجاني)
-   الإعداد: كل موظف يرسل "I allow callmebot to send me messages"
-   لرقم +34 623 78 64 49 على واتساب مرة واحدة
+   NOTIFICATION SERVICES — EmailJS + Telegram
 ═══════════════════════════════════════════════════════════ */
-const CALLMEBOT_API = "https://api.callmebot.com/whatsapp.php";
 
-// phone: رقم الهاتف بدون 0 في البداية مع رمز البلد مثل 9647801165298
-// apikey: يحصل عليه الموظف بعد تفعيل الخدمة
-async function sendWhatsApp(phone, apikey, message) {
-  if (!phone || !apikey) return false;
+// ── EmailJS (مجاني 200 رسالة/شهر) ──────────────────────────
+// الإعداد: emailjs.com → إنشاء حساب → Service → Template → انسخ المعرفات
+const EMAILJS_SERVICE_ID  = "service_bocfaw";
+const EMAILJS_TEMPLATE_ID = "template_bocfaw";
+const EMAILJS_PUBLIC_KEY  = "YOUR_PUBLIC_KEY"; // من emailjs.com → Account → 1TW8rl8ZkEhGXatkb
+
+async function sendEmail(toEmail, toName, subject, message) {
+  if (!toEmail || EMAILJS_PUBLIC_KEY === "YOUR_PUBLIC_KEY") return false;
   try {
-    const url = `${CALLMEBOT_API}?phone=${phone}&text=${encodeURIComponent(message)}&apikey=${apikey}`;
-    await fetch(url);
-    return true;
+    const r = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        service_id:  EMAILJS_SERVICE_ID,
+        template_id: EMAILJS_TEMPLATE_ID,
+        user_id:     EMAILJS_PUBLIC_KEY,
+        template_params: { to_email:toEmail, to_name:toName, subject, message, from_name:"نظام BOC الفاو" },
+      }),
+    });
+    return r.ok;
   } catch { return false; }
 }
 
-/* ── WhatsApp Setup Guide Modal ── */
-function WhatsAppSetupModal({ onClose }) {
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-         onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" dir="rtl"
-           onClick={e=>e.stopPropagation()}>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
-            <MessageCircle size={18} className="text-green-600"/>
-          </div>
-          <div>
-            <h3 className="font-bold text-slate-800">تفعيل إشعارات واتساب</h3>
-            <p className="text-xs text-slate-500">خدمة CallMeBot المجانية</p>
-          </div>
-        </div>
-        <div className="space-y-3 text-sm">
-          {[
-            { n:"1", t:"افتح واتساب وأضف الرقم", d:"+34 623 78 64 49" },
-            { n:"2", t:"أرسل هذه الرسالة بالضبط", d:"I allow callmebot to send me messages" },
-            { n:"3", t:"ستصلك رسالة تحتوي على API Key", d:"مثال: apikey=123456" },
-            { n:"4", t:"أدخل رقم هاتفك والـ API Key في الإعدادات", d:"رقمك مع رمز الدولة بدون + مثل: 9647801165298" },
-          ].map(s=>(
-            <div key={s.n} className="flex gap-3">
-              <span className="w-6 h-6 rounded-full bg-green-600 text-white text-xs font-bold flex items-center justify-center shrink-0">{s.n}</span>
-              <div>
-                <p className="font-semibold text-slate-700">{s.t}</p>
-                <p className="text-xs text-slate-500 font-mono mt-0.5 bg-slate-50 px-2 py-1 rounded">{s.d}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button onClick={onClose} className="w-full mt-4 py-2.5 text-sm font-bold text-white bg-green-600 rounded-xl hover:bg-green-700">فهمت</button>
-      </div>
-    </div>
-  );
+// ── Telegram Bot ────────────────────────────────────────────
+// الإعداد: BotFather على Telegram → /newbot → انسخ الـ Token
+const TELEGRAM_BOT_TOKEN = "7840356412:AAGRgU0HeHSehWZG5iaS83P7uGFgUfWUMi8";
+
+async function sendTelegram(chatId, message) {
+  if (!chatId || TELEGRAM_BOT_TOKEN.startsWith("YOUR")) return false;
+  try {
+    const r = await fetch(
+      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+      { method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ chat_id:chatId, text:message, parse_mode:"HTML" }) }
+    );
+    return r.ok;
+  } catch { return false; }
 }
+
+// ── إرسال إشعار لموظف عبر القنوات المفعّلة ──────────────────
+async function notifyEmployee(empId, subject, message) {
+  try {
+    const settings = await fb.get(`notify_settings/${empId}`);
+    if (!settings) return;
+    if (settings.email)    sendEmail(settings.email, settings.name||"", subject, message);
+    if (settings.telegram) sendTelegram(settings.telegram, `<b>🔔 ${subject}</b>\n\n${message}`);
+  } catch {}
+}
+
 
 /* ── Widget: My Pending Tasks (shown on home page) ── */
 function MyTasksWidget({ emp, onNavigate }) {
@@ -5222,6 +5220,96 @@ function MyTasksWidget({ emp, onNavigate }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   NOTIFICATION SETTINGS — إعدادات الإشعارات (كل موظف)
+═══════════════════════════════════════════════════════════ */
+function NotificationSettings({ emp, showToast }) {
+  const [settings, setSettings] = useFirebase(`notify_settings/${emp.id}`, {});
+  const [form, setForm] = useState({ email:"", telegram:"", name: emp.name });
+
+  useEffect(()=>{
+    if (settings && (settings.email||settings.telegram)) {
+      setForm(p=>({ ...p, email:settings.email||"", telegram:settings.telegram||"" }));
+    }
+  }, [settings]);
+
+  const save = async () => {
+    const updated = { email:form.email.trim(), telegram:form.telegram.trim(), name:emp.name, updatedAt:new Date().toISOString() };
+    setSettings(updated);
+
+    // Test email if provided
+    if (form.email.trim()) {
+      const ok = await sendEmail(form.email.trim(), emp.name, "✅ تم تفعيل إشعارات البريد", `مرحباً ${emp.name.split(" ")[0]}،\n\nتم ربط بريدك الإلكتروني بنظام BOC الفاو.\nستصلك الإشعارات على هذا البريد من الآن.`);
+      showToast(ok ? "✓ تم الحفظ وإرسال بريد تجريبي ✉️" : "✓ تم حفظ الإعدادات (تحقق من EmailJS)");
+    } else {
+      showToast("✓ تم حفظ الإعدادات");
+    }
+  };
+
+  const inp = "w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white";
+
+  return (
+    <div className="space-y-4">
+      {/* Email section */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+            <span className="text-lg">✉️</span>
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-800">البريد الإلكتروني</h4>
+            <p className="text-xs text-slate-500">تصلك إشعارات الموافقات والمهام على بريدك</p>
+          </div>
+          {settings?.email && <span className="mr-auto text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">✓ مفعّل</span>}
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-slate-400 mb-1">البريد الإلكتروني</label>
+          <input type="email" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))}
+            className={inp} placeholder="example@gmail.com" dir="ltr"/>
+        </div>
+      </div>
+
+      {/* Telegram section */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center shrink-0">
+            <span className="text-lg">✈️</span>
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-800">Telegram</h4>
+            <p className="text-xs text-slate-500">إشعارات فورية على تطبيق Telegram</p>
+          </div>
+          {settings?.telegram && <span className="mr-auto text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200">✓ مفعّل</span>}
+        </div>
+        <div className="bg-sky-50 border border-sky-200 rounded-xl p-3 text-xs text-sky-800 space-y-1">
+          <p className="font-bold">خطوات التفعيل:</p>
+          <p>1. افتح Telegram وابحث عن: <code className="bg-white px-1 rounded font-mono">@userinfobot</code></p>
+          <p>2. اضغط Start — سيرسل لك رقمك (Chat ID)</p>
+          <p>3. أدخله في الحقل أدناه</p>
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-slate-400 mb-1">Chat ID من @userinfobot</label>
+          <input type="text" value={form.telegram} onChange={e=>setForm(p=>({...p,telegram:e.target.value}))}
+            className={inp} placeholder="مثال: 123456789" dir="ltr"/>
+        </div>
+      </div>
+
+      {/* Save button */}
+      <button onClick={save}
+        className="w-full flex items-center justify-center gap-2 text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 px-4 py-3 rounded-xl active:scale-95 transition-all shadow-sm">
+        <Save size={14}/> حفظ إعدادات الإشعارات
+      </button>
+
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs text-slate-600 space-y-1">
+        <p className="font-bold text-slate-700">ستصلك إشعارات عند:</p>
+        {["موافقة أو رفض طلب إجازتك","إسناد مهمة تدريبية جديدة","قبول أو رفض طلب مشاركة بدورة","قرار المشرف على اعتراضك"].map(i=>(
+          <p key={i} className="flex items-center gap-1.5"><CheckCircle size={10} className="text-emerald-500 shrink-0"/>{i}</p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
    TRAINING PAGE — صفحة التدريب
 ═══════════════════════════════════════════════════════════ */
 const TRAINING_TYPES = ["تدريب ذاتي","تدريب موقعي","دورة تدريبية خارجية","ورشة عمل","تدريب إلكتروني"];
@@ -5238,8 +5326,6 @@ const TRAINING_STATUS_STYLE = {
 function TrainingPage({ emp, isAdmin, allEmployees }) {
   const [trainings,    setTrainings]    = useFirebase("training/tasks",    []);
   const [requests,     setRequests]     = useFirebase("training/requests",  []);
-  const [waSettings,   setWaSettings]   = useLocalStorage(`wa_${emp.id}`,  { phone:"", apikey:"" });
-  const [showWaSetup,  setShowWaSetup]  = useState(false);
   const [showAddForm,  setShowAddForm]  = useState(false);
   const [showReqForm,  setShowReqForm]  = useState(false);
   const [activeTab,    setActiveTab]    = useState("assigned"); // assigned | requests | settings
@@ -5279,15 +5365,9 @@ function TrainingPage({ emp, isAdmin, allEmployees }) {
       },...prev]);
     });
 
-    // WhatsApp notification to employee
+    // Email + Telegram notification to employee
     const empInfo = allEmployees.find(e=>String(e.id)===String(form.empId));
-    fb.get(`wa_${form.empId}`).then(wa=>{
-      if (wa?.phone && wa?.apikey) {
-        sendWhatsApp(wa.phone, wa.apikey,
-          `📚 مهمة تدريبية جديدة\nالعنوان: ${form.title}\nالنوع: ${form.type}\nمن المشرف: ${emp.name.split(" ").slice(0,2).join(" ")}`
-        );
-      }
-    });
+    notifyEmployee(form.empId, `📚 مهمة تدريبية جديدة: ${form.title}`, `النوع: ${form.type}\nمن المشرف: ${emp.name.split(" ").slice(0,2).join(" ")}`);
 
     setForm({ empId:"", title:"", type:"تدريب ذاتي", desc:"", startDate:"", endDate:"", provider:"", objectives:"" });
     setShowAddForm(false);
@@ -5405,11 +5485,7 @@ function TrainingPage({ emp, isAdmin, allEmployees }) {
     fb.get("notifications/1").then(ex=>{
       fb.set("notifications/1",[notif,...(Array.isArray(ex)?ex:[])]);
     });
-    fb.get("wa_1").then(wa=>{
-      if(wa?.phone&&wa?.apikey) sendWhatsApp(wa.phone,wa.apikey,
-        `📋 تحديث مهمة: ${task?.title||""}\nالموظف: ${emp.name.split(" ").slice(0,2).join(" ")}\nالإجراء: ${actionText.slice(0,80)}`
-      );
-    });
+    notifyEmployee(1, `📋 تحديث مهمة: ${task?.title||""}`, `الموظف: ${emp.name.split(" ").slice(0,2).join(" ")}\nالإجراء: ${actionText.slice(0,80)}`);
     setActionModal(null);
     showToast("✓ تم إرسال الإجراء للمشرف وتسجيله في التقرير اليومي");
   };
@@ -5429,11 +5505,7 @@ function TrainingPage({ emp, isAdmin, allEmployees }) {
     fb.get("notifications/1").then(ex=>{
       fb.set("notifications/1",[notif,...(Array.isArray(ex)?ex:[])]);
     });
-    fb.get("wa_1").then(wa=>{
-      if(wa?.phone&&wa?.apikey) sendWhatsApp(wa.phone,wa.apikey,
-        `🔔 طلب إغلاق مهمة\n${task?.title||""}\nالموظف: ${emp.name.split(" ").slice(0,2).join(" ")}`
-      );
-    });
+    notifyEmployee(1, `🔔 طلب إغلاق مهمة`, `${task?.title||""}\nالموظف: ${emp.name.split(" ").slice(0,2).join(" ")}`);
     showToast("✓ تم إشعار المشرف بطلب الإغلاق");
   };
 
@@ -5598,7 +5670,7 @@ function TrainingPage({ emp, isAdmin, allEmployees }) {
         {[
           {id:"assigned", label:"المهام التدريبية", icon:<BookOpen size={13}/>, badge: isAdmin?0:myTasks.filter(t=>t.status==="مُسندة").length},
           {id:"requests", label:"طلبات المشاركة",  icon:<GraduationCap size={13}/>, badge: isAdmin?pendingRequests:0},
-          {id:"settings", label:"إعدادات الواتساب", icon:<MessageCircle size={13}/>},
+          {id:"settings", label:"إعدادات الإشعارات", icon:<Bell size={13}/>},
         ].map(tab=>(
           <button key={tab.id} onClick={()=>setActiveTab(tab.id)}
             className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl whitespace-nowrap transition-all ${
@@ -5775,53 +5847,11 @@ function TrainingPage({ emp, isAdmin, allEmployees }) {
         </div>
       )}
 
-      {/* ── WHATSAPP SETTINGS TAB ── */}
+      {/* ── NOTIFICATION SETTINGS TAB ── */}
       {activeTab==="settings" && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
-                <MessageCircle size={18} className="text-green-600"/>
-              </div>
-              <div>
-                <h4 className="font-bold text-slate-800">إشعارات واتساب</h4>
-                <p className="text-xs text-slate-500">استقبل إشعارات المهام التدريبية والموافقات على واتساب</p>
-              </div>
-              <button onClick={()=>setShowWaSetup(true)} className="mr-auto text-xs font-bold text-green-600 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-xl">
-                دليل التفعيل
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 mb-1">رقم الهاتف (مع رمز الدولة، بدون +)</label>
-                <input value={waSettings.phone} onChange={e=>setWaSettings(p=>({...p,phone:e.target.value}))}
-                  className={inp} placeholder="مثال: 9647801165298"/>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 mb-1">API Key (من رسالة CallMeBot)</label>
-                <input value={waSettings.apikey} onChange={e=>setWaSettings(p=>({...p,apikey:e.target.value}))}
-                  className={inp} placeholder="مثال: 1234567"/>
-              </div>
-              <button onClick={async()=>{
-                if (!waSettings.phone||!waSettings.apikey) return showToast("أدخل الرقم والـ API Key أولاً");
-                fb.set(`wa_${emp.id}`, waSettings);
-                const ok = await sendWhatsApp(waSettings.phone, waSettings.apikey, "✅ تم تفعيل إشعارات واتساب لنظام BOC الفاو بنجاح!");
-                showToast(ok?"✓ تم الحفظ وإرسال رسالة تجريبية":"✓ تم الحفظ (تحقق من إعدادات CallMeBot)");
-              }} className="flex items-center gap-1.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 px-4 py-2.5 rounded-xl active:scale-95 transition-all">
-                <MessageCircle size={14}/> حفظ وإرسال رسالة تجريبية
-              </button>
-            </div>
-          </div>
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-800 space-y-1">
-            <p className="font-bold">⚠️ ملاحظات مهمة:</p>
-            <p>• كل موظف يفعّل الخدمة لحسابه الشخصي فقط</p>
-            <p>• الخدمة مجانية ولكن لها حد يومي للرسائل</p>
-            <p>• رقم الهاتف والـ API Key محفوظان على جهازك فقط</p>
-          </div>
-        </div>
+        <NotificationSettings emp={emp} showToast={showToast}/>
       )}
 
-      {showWaSetup && <WhatsAppSetupModal onClose={()=>setShowWaSetup(false)}/>}
 
       {/* Action modal */}
       {actionModal && (
