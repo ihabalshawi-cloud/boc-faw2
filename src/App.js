@@ -6722,20 +6722,6 @@ function AttendancePage({ emp, isAdmin, allEmployees }) {
     </div>
   );
 }
-  const now = new Date();
-  const [selMonth, setSelMonth] = useState(now.getMonth());
-  const [selYear,  setSelYear]  = useState(now.getFullYear());
-  const [selEmpId, setSelEmpId] = useState(isAdmin ? null : emp.id);
-  const [toast, setToast] = useState("");
-  const showToast = (m) => { setToast(m); setTimeout(()=>setToast(""),3000); };
-
-  const empTarget = selEmpId || emp.id;
-  const monthKey  = `${selYear}_${String(selMonth+1).padStart(2,"0")}`;
-  const [attendance, setAttendance] = useFirebase(`attendance/${empTarget}/${monthKey}`, {});
-
-  const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
-  const daysInMonth = new Date(selYear, selMonth+1, 0).getDate();
-  const empInfo = allEmployees.find(e=>String(e.id)===String(empTarget));
 
 /* ═══════════════════════════════════════════════════════════
    #5 — PDF REPORT GENERATOR — تقرير PDF رسمي شهري
