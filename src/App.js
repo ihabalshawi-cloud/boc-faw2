@@ -18,7 +18,7 @@ const FIREBASE_API_KEY = "AIzaSyDWb0WhoO-NVLnbE5b8un63O6x-sH0RDco";
    Cloud Messaging → Web Push certificates → Generate key pair
    انسخ المفتاح وضعه في VAPID_KEY
 ═══════════════════════════════════════════════════════════ */
-const VAPID_KEY = "BL-placeholder-get-from-firebase-cloud-messaging-settings";
+const VAPID_KEY = "BCec3tWhFyXRDzSK_zr6SRzm-omM9fkYMa87TOeGw5kl3Q_DJr7o6yIA4YhPfSKfWW11abY09qPOzbdSz6eIdCY";
 
 const fcm = {
   async requestPermission(empId) {
