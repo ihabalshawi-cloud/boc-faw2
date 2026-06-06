@@ -94,7 +94,7 @@ function useFirebase(path, initial) {
     });
   }, [path]);
 
-  // Real-time listener
+  // Real-time listener via SSE (Server-Sent Events) — فوري
   useEffect(() => {
     const unsub = fb.listen(path, (data) => {
       if (data !== null) setVal(data);
@@ -102,10 +102,19 @@ function useFirebase(path, initial) {
     return unsub;
   }, [path]);
 
+  // Polling fallback every 5s for notifications paths — ضمان وصول الإشعارات
+  useEffect(() => {
+    if (!path.startsWith("notifications") && !path.startsWith("requests") && !path.startsWith("training")) return;
+    const interval = setInterval(() => {
+      fb.get(path).then(data => { if (data !== null) setVal(data); });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [path]);
+
   const set = useCallback((v) => {
     setVal(prev => {
       const next = typeof v === "function" ? v(prev) : v;
-      fb.set(path, next); // push to Firebase immediately
+      fb.set(path, next);
       return next;
     });
   }, [path]);
@@ -4075,6 +4084,87 @@ function AdminMonthlyReport({ months, selMonth, selYear, dailyLogs, monthKey, al
           </div>
         </div>
       )}
+
+      {/* Training tasks in monthly report — with include/exclude control */}
+      <TrainingTasksMonthly
+        months={months} selMonth={selMonth} selYear={selYear}
+        allEmployees={allEmployees} showToast={showToast}
+      />
+    </div>
+  );
+}
+
+/* ── Training tasks monthly summary (for admin monthly report) ── */
+function TrainingTasksMonthly({ months, selMonth, selYear, allEmployees, showToast }) {
+  const [trainings, setTrainings] = useFirebase("training/tasks", []);
+  const tasksList = Array.isArray(trainings) ? trainings : [];
+
+  const monthStart = new Date(selYear, selMonth, 1).toISOString().slice(0,10);
+  const monthEnd   = new Date(selYear, selMonth+1, 0).toISOString().slice(0,10);
+
+  const monthTasks = tasksList.filter(t=>{
+    const d = t.completedAt || t.assignedAt || "";
+    return d >= monthStart && d <= monthEnd+"T23:59:59";
+  });
+
+  const included  = monthTasks.filter(t=>t.includeInMonthly!==false);
+  const excluded  = monthTasks.filter(t=>t.includeInMonthly===false);
+  const completed = included.filter(t=>t.status==="مكتملة");
+
+  const toggleInclude = (taskId, current) => {
+    setTrainings(tasksList.map(t=>t.id===taskId?{...t,includeInMonthly:current===false?true:false}:t));
+    showToast(current===false?"✓ تم إدراج المهمة في التقرير":"تم استثناء المهمة من التقرير");
+  };
+
+  if (monthTasks.length===0) return null;
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-slate-100 bg-violet-50 flex items-center justify-between">
+        <h4 className="font-bold text-violet-800 text-sm flex items-center gap-2">
+          <GraduationCap size={14} className="text-violet-600"/>
+          المهام التدريبية — {months[selMonth]} {selYear}
+        </h4>
+        <div className="flex gap-2 text-[10px] font-bold">
+          <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">{completed.length} مكتملة</span>
+          <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{excluded.length} مستثنى</span>
+        </div>
+      </div>
+      <div className="divide-y divide-slate-50">
+        {monthTasks.map(t=>{
+          const empInfo = allEmployees.find(e=>String(e.id)===String(t.empId));
+          const isExcluded = t.includeInMonthly===false;
+          return (
+            <div key={t.id} className={`px-4 py-3 flex items-start gap-3 ${isExcluded?"opacity-50":""}`}>
+              <div className={`w-2 h-2 rounded-full shrink-0 mt-2 ${
+                t.status==="مكتملة"?"bg-emerald-500":
+                t.status==="طلب إغلاق"?"bg-violet-500":"bg-amber-400"
+              }`}/>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-slate-800">{t.title}</p>
+                <p className="text-[10px] text-slate-500">{empInfo?.name?.split(" ").slice(0,2).join(" ")||""} · {t.type}</p>
+                {t.empAction && (
+                  <p className="text-[10px] text-emerald-700 mt-0.5 bg-emerald-50 rounded px-1.5 py-0.5 truncate">
+                    ✍️ {t.empAction.slice(0,80)}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${TRAINING_STATUS_STYLE[t.status]||""}`}>{t.status}</span>
+                <button onClick={()=>toggleInclude(t.id, t.includeInMonthly)}
+                  title={isExcluded?"إدراج في التقرير الشهري":"استثناء من التقرير الشهري"}
+                  className={`text-[9px] font-bold px-2 py-1 rounded-lg border transition-colors ${
+                    isExcluded
+                      ?"bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                      :"bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+                  }`}>
+                  {isExcluded?"+ إدراج":"— استثناء"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -4678,7 +4768,7 @@ function EvaluationPage({ emp, isAdmin, allEmployees }) {
 /* ═══════════════════════════════════════════════════════════
    WHATSAPP NOTIFICATIONS via CallMeBot (مجاني)
    الإعداد: كل موظف يرسل "I allow callmebot to send me messages"
-   لرقم +34 698 92 01 85 على واتساب مرة واحدة
+   لرقم +34 623 78 64 49 على واتساب مرة واحدة
 ═══════════════════════════════════════════════════════════ */
 const CALLMEBOT_API = "https://api.callmebot.com/whatsapp.php";
 
@@ -4711,7 +4801,7 @@ function WhatsAppSetupModal({ onClose }) {
         </div>
         <div className="space-y-3 text-sm">
           {[
-            { n:"1", t:"افتح واتساب وأضف الرقم", d:"+34 698 92 01 85" },
+            { n:"1", t:"افتح واتساب وأضف الرقم", d:"+34 623 78 64 49" },
             { n:"2", t:"أرسل هذه الرسالة بالضبط", d:"I allow callmebot to send me messages" },
             { n:"3", t:"ستصلك رسالة تحتوي على API Key", d:"مثال: apikey=123456" },
             { n:"4", t:"أدخل رقم هاتفك والـ API Key في الإعدادات", d:"رقمك مع رمز الدولة بدون + مثل: 9647801165298" },
@@ -4923,28 +5013,58 @@ function TrainingPage({ emp, isAdmin, allEmployees }) {
 
   const [actionModal, setActionModal] = useState(null); // { taskId, currentAction }
 
+  // Write action to daily report automatically
+  const writeToDailyReport = (taskTitle, actionText, taskId) => {
+    const today = new Date().toISOString().slice(0,10);
+    const now   = new Date();
+    const month = `${now.getFullYear()}_${String(now.getMonth()+1).padStart(2,"0")}`;
+    const path  = `evaluation/daily/${emp.id}/${month}`;
+    fb.get(path).then(existing => {
+      const logs = (typeof existing==="object"&&existing!==null) ? existing : {};
+      const prev = logs[today];
+      const prevText = prev?.text || "";
+      const entry = `[مهمة: ${taskTitle}] ${actionText}`;
+      const newText = prevText ? `${prevText}\n${entry}` : entry;
+      fb.set(path, {
+        ...logs,
+        [today]: {
+          text: newText,
+          savedAt: now.toISOString(),
+          author: emp.name,
+          taskRefs: [...(prev?.taskRefs||[]), taskId],
+        }
+      });
+    });
+  };
+
   const submitAction = (taskId, actionText) => {
+    if (!actionText.trim()) return showToast("اكتب الإجراء أولاً");
+    const task = tasksList.find(t=>t.id===taskId);
     setTrainings(tasksList.map(t=>t.id===taskId
       ? {...t, status:"قيد التنفيذ", empAction:actionText, actionAt:new Date().toISOString()}
       : t
     ));
-    // Notify admin
-    const task = tasksList.find(t=>t.id===taskId);
+
+    // Write to daily report automatically
+    writeToDailyReport(task?.title||"", actionText, taskId);
+
+    // Notify admin — immediate
+    const notif = {
+      id:Date.now(), type:"انجاز_مهمة",
+      title:`📋 تحديث على مهمة: ${task?.title||""}`,
+      body:`${emp.name.split(" ").slice(0,2).join(" ")}: ${actionText.slice(0,80)}`,
+      timestamp:new Date().toISOString(), read:false,
+    };
     fb.get("notifications/1").then(ex=>{
-      const prev=Array.isArray(ex)?ex:[];
-      fb.set("notifications/1",[{
-        id:Date.now(), type:"انجاز_مهمة",
-        title:`📋 تحديث على مهمة تدريبية`,
-        body:`${emp.name.split(" ").slice(0,2).join(" ")} — ${task?.title||""}: ${actionText.slice(0,60)}`,
-        timestamp:new Date().toISOString(), read:false,
-      },...prev]);
+      fb.set("notifications/1",[notif,...(Array.isArray(ex)?ex:[])]);
     });
-    // WhatsApp to admin if configured
     fb.get("wa_1").then(wa=>{
-      if(wa?.phone&&wa?.apikey) sendWhatsApp(wa.phone,wa.apikey,`📋 تحديث مهمة: ${task?.title||""}\nالموظف: ${emp.name.split(" ").slice(0,2).join(" ")}\nالإجراء: ${actionText.slice(0,80)}`);
+      if(wa?.phone&&wa?.apikey) sendWhatsApp(wa.phone,wa.apikey,
+        `📋 تحديث مهمة: ${task?.title||""}\nالموظف: ${emp.name.split(" ").slice(0,2).join(" ")}\nالإجراء: ${actionText.slice(0,80)}`
+      );
     });
     setActionModal(null);
-    showToast("✓ تم إرسال الإجراء المتخذ للمشرف");
+    showToast("✓ تم إرسال الإجراء للمشرف وتسجيله في التقرير اليومي");
   };
 
   const requestClose = (taskId) => {
@@ -4953,95 +5073,169 @@ function TrainingPage({ emp, isAdmin, allEmployees }) {
       ? {...t, status:"طلب إغلاق", closureRequestedAt:new Date().toISOString()}
       : t
     ));
+    const notif = {
+      id:Date.now(), type:"طلب_إغلاق",
+      title:`🔔 طلب إغلاق مهمة — ${task?.title||""}`,
+      body:`${emp.name.split(" ").slice(0,2).join(" ")} يطلب إغلاق المهمة. الإجراء: ${task?.empAction?.slice(0,60)||""}`,
+      timestamp:new Date().toISOString(), read:false,
+    };
     fb.get("notifications/1").then(ex=>{
-      const prev=Array.isArray(ex)?ex:[];
-      fb.set("notifications/1",[{
-        id:Date.now(), type:"طلب_إغلاق",
-        title:`✅ طلب إغلاق مهمة تدريبية`,
-        body:`${emp.name.split(" ").slice(0,2).join(" ")} أنجز: ${task?.title||""}`,
-        timestamp:new Date().toISOString(), read:false,
-      },...prev]);
+      fb.set("notifications/1",[notif,...(Array.isArray(ex)?ex:[])]);
     });
     fb.get("wa_1").then(wa=>{
-      if(wa?.phone&&wa?.apikey) sendWhatsApp(wa.phone,wa.apikey,`✅ طلب إغلاق مهمة\nالموظف: ${emp.name.split(" ").slice(0,2).join(" ")}\nالمهمة: ${task?.title||""}`);
+      if(wa?.phone&&wa?.apikey) sendWhatsApp(wa.phone,wa.apikey,
+        `🔔 طلب إغلاق مهمة\n${task?.title||""}\nالموظف: ${emp.name.split(" ").slice(0,2).join(" ")}`
+      );
     });
-    showToast("✓ تم إشعار المشرف بالإنجاز — بانتظار الإغلاق");
+    showToast("✓ تم إشعار المشرف بطلب الإغلاق");
   };
 
   const TrainingCard = ({t})=>{
-    const empInfo = allEmployees.find(e=>String(e.id)===String(t.empId));
+    const empInfo  = allEmployees.find(e=>String(e.id)===String(t.empId));
     const isMyTask = String(t.empId)===String(emp.id);
+    const [editAction, setEditAction] = useState(false);
+    const [editText,   setEditText]   = useState(t.empAction||"");
+
+    const saveEdit = () => {
+      setTrainings(tasksList.map(x=>x.id===t.id?{...x,empAction:editText,actionAt:new Date().toISOString()}:x));
+      setEditAction(false);
+      showToast("✓ تم تحديث الإجراء");
+    };
+
+    const toggleInclude = () => {
+      setTrainings(tasksList.map(x=>x.id===t.id?{...x,includeInMonthly:!t.includeInMonthly}:x));
+      showToast(t.includeInMonthly?"تم استثناء المهمة من التقرير الشهري":"✓ تم إدراج المهمة في التقرير الشهري");
+    };
+
     return (
       <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${
-        t.status==="مُسندة"?"border-amber-200 border-r-4 border-r-amber-400":
-        t.status==="قيد التنفيذ"?"border-blue-200 border-r-4 border-r-blue-400":
-        t.status==="طلب إغلاق"?"border-violet-200 border-r-4 border-r-violet-500":
-        t.status==="مكتملة"?"border-emerald-200":"border-slate-200"
+        t.status==="مُسندة"     ?"border-amber-200 border-r-4 border-r-amber-400":
+        t.status==="قيد التنفيذ"?"border-blue-200 border-r-4 border-r-blue-500":
+        t.status==="طلب إغلاق" ?"border-violet-300 border-r-4 border-r-violet-500":
+        t.status==="مكتملة"    ?"border-emerald-200 border-r-4 border-r-emerald-500":"border-slate-200"
       }`}>
         <div className="p-4">
+          {/* Header */}
           <div className="flex items-start gap-3 mb-2">
             <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
               <GraduationCap size={16} className="text-violet-600"/>
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-slate-900 text-sm">{t.title}</p>
-              {isAdmin && empInfo && <p className="text-xs text-slate-500">{empInfo.name?.split(" ").slice(0,3).join(" ")}</p>}
+              {isAdmin && empInfo && (
+                <p className="text-xs text-slate-500">{empInfo.name?.split(" ").slice(0,3).join(" ")} · {empInfo.dept}</p>
+              )}
               <div className="flex flex-wrap gap-1.5 mt-1">
                 <span className="text-[10px] font-bold bg-violet-50 text-violet-700 px-2 py-0.5 rounded-full border border-violet-100">{t.type}</span>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${TRAINING_STATUS_STYLE[t.status]||""}`}>{t.status}</span>
+                {t.includeInMonthly===false && (
+                  <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">مُستثنى من الشهري</span>
+                )}
               </div>
             </div>
           </div>
-          {t.desc && <p className="text-xs text-slate-500 mb-2 pr-12">{t.desc}</p>}
-          {t.objectives && <p className="text-xs text-blue-700 bg-blue-50 rounded-lg px-2 py-1.5 mb-2">🎯 {t.objectives}</p>}
+
+          {t.desc      && <p className="text-xs text-slate-500 mb-2 pr-12">{t.desc}</p>}
+          {t.objectives&& <p className="text-xs text-blue-700 bg-blue-50 rounded-lg px-2 py-1.5 mb-2">🎯 {t.objectives}</p>}
           <div className="flex flex-wrap gap-2 text-[10px] text-slate-400 mb-2">
             {t.startDate&&<span>📅 من: {t.startDate}</span>}
-            {t.endDate&&<span>← إلى: {t.endDate}</span>}
-            {t.provider&&<span>🏛️ {t.provider}</span>}
+            {t.endDate  &&<span>← إلى: {t.endDate}</span>}
+            {t.provider &&<span>🏛️ {t.provider}</span>}
           </div>
 
           {/* Employee action taken */}
-          {t.empAction && (
-            <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 mb-2">
-              <p className="text-[10px] font-bold text-emerald-700 mb-0.5">الإجراء المتخذ:</p>
-              <p className="text-xs text-emerald-800">{t.empAction}</p>
-              <p className="text-[9px] text-emerald-500 mt-1 font-mono">{t.actionAt ? new Date(t.actionAt).toLocaleDateString("ar-IQ") : ""}</p>
+          {t.empAction && !editAction && (
+            <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 mb-2">
+              <div className="flex items-center justify-between mb-0.5">
+                <p className="text-[10px] font-bold text-emerald-700">✍️ الإجراء المتخذ:</p>
+                {isAdmin && (
+                  <button onClick={()=>{setEditAction(true);setEditText(t.empAction||"");}}
+                    className="text-[9px] font-bold text-blue-600 hover:underline flex items-center gap-0.5">
+                    <Edit3 size={10}/> تعديل
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-emerald-800 leading-relaxed">{t.empAction}</p>
+              <p className="text-[9px] text-emerald-500 mt-1 font-mono">
+                {t.actionAt ? new Date(t.actionAt).toLocaleDateString("ar-IQ",{day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"}) : ""}
+              </p>
             </div>
           )}
 
-          {/* Employee actions (non-admin, my task) */}
+          {/* Admin edit action */}
+          {editAction && isAdmin && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-2 space-y-2">
+              <p className="text-[10px] font-bold text-blue-700">تعديل الإجراء المتخذ:</p>
+              <textarea value={editText} onChange={e=>setEditText(e.target.value)} rows={3}
+                className="w-full border border-blue-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 resize-none bg-white"/>
+              <div className="flex gap-2">
+                <button onClick={()=>setEditAction(false)} className="flex-1 py-1.5 text-xs font-semibold text-slate-600 bg-white rounded-xl border hover:bg-slate-50">إلغاء</button>
+                <button onClick={saveEdit} className="flex-1 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 flex items-center justify-center gap-1">
+                  <Save size={11}/> حفظ
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── EMPLOYEE ACTIONS ── */}
           {!isAdmin && isMyTask && t.status!=="مكتملة" && (
-            <div className="flex gap-2 mt-2 no-print flex-wrap">
+            <div className="border-t border-slate-100 pt-3 mt-2 space-y-2">
+              {/* Write/update action button */}
               {(t.status==="مُسندة"||t.status==="قيد التنفيذ") && (
                 <button onClick={()=>setActionModal({taskId:t.id, currentAction:t.empAction||""})}
-                  className="flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl border border-blue-200">
-                  <Edit3 size={12}/> كتابة الإجراء
+                  className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl border border-blue-200 transition-colors">
+                  <Edit3 size={12}/> {t.empAction ? "تحديث الإجراء المتخذ" : "كتابة الإجراء المتخذ"}
                 </button>
               )}
+              {/* Request closure */}
               {t.empAction && t.status!=="طلب إغلاق" && (
                 <button onClick={()=>requestClose(t.id)}
-                  className="flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-200">
-                  <CheckSquare size={12}/> طلب إغلاق المهمة
+                  className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-2 rounded-xl transition-colors active:scale-95">
+                  <CheckSquare size={12}/> تقديم للمشرف وطلب إغلاق المهمة
                 </button>
               )}
               {t.status==="طلب إغلاق" && (
-                <span className="text-[11px] font-bold text-violet-700 bg-violet-50 px-3 py-1.5 rounded-xl border border-violet-200">
-                  ⏳ بانتظار موافقة المشرف
-                </span>
+                <div className="text-center py-2">
+                  <span className="text-[11px] font-bold text-violet-700 bg-violet-50 px-4 py-2 rounded-full border border-violet-200">
+                    ⏳ بانتظار موافقة المشرف على الإغلاق
+                  </span>
+                </div>
               )}
             </div>
           )}
 
-          {/* Admin actions */}
+          {/* ── ADMIN ACTIONS ── */}
           {isAdmin && (
-            <div className="flex gap-2 mt-2 no-print flex-wrap">
-              {t.status==="مُسندة"&&<button onClick={()=>updateStatus(t.id,"قيد التنفيذ")} className="text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl">▶ بدء</button>}
-              {(t.status==="قيد التنفيذ"||t.status==="طلب إغلاق") && (
-                <button onClick={()=>updateStatus(t.id,"مكتملة")}
-                  className={`text-xs font-bold px-3 py-1.5 rounded-xl ${t.status==="طلب إغلاق"?"text-white bg-emerald-600 hover:bg-emerald-700 animate-pulse":"text-emerald-700 bg-emerald-50 hover:bg-emerald-100"}`}>
-                  {t.status==="طلب إغلاق"?"✅ إغلاق المهمة (مطلوب)":"✓ إكمال"}
+            <div className="border-t border-slate-100 pt-3 mt-2 space-y-2">
+              <div className="flex gap-2 flex-wrap">
+                {t.status==="مُسندة" && (
+                  <button onClick={()=>updateStatus(t.id,"قيد التنفيذ")}
+                    className="flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl">
+                    ▶ بدء التنفيذ
+                  </button>
+                )}
+                {(t.status==="قيد التنفيذ"||t.status==="طلب إغلاق") && (
+                  <button onClick={()=>updateStatus(t.id,"مكتملة")}
+                    className={`flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
+                      t.status==="طلب إغلاق"
+                        ?"text-white bg-emerald-600 hover:bg-emerald-700 shadow-md animate-pulse"
+                        :"text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                    }`}>
+                    <CheckCircle size={12}/>
+                    {t.status==="طلب إغلاق"?"✅ إغلاق المهمة (الموظف طلب ذلك)":"إغلاق المهمة"}
+                  </button>
+                )}
+                {/* Include/exclude in monthly report */}
+                <button onClick={toggleInclude}
+                  className={`flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl border transition-colors ${
+                    t.includeInMonthly===false
+                      ?"text-slate-500 bg-slate-50 border-slate-200 hover:bg-slate-100"
+                      :"text-violet-700 bg-violet-50 border-violet-200 hover:bg-violet-100"
+                  }`}>
+                  <BarChart2 size={11}/>
+                  {t.includeInMonthly===false ? "إدراج في الشهري" : "استثناء من الشهري"}
                 </button>
-              )}
+              </div>
             </div>
           )}
         </div>
@@ -5288,24 +5482,27 @@ function TrainingPage({ emp, isAdmin, allEmployees }) {
              onClick={()=>setActionModal(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" dir="rtl"
                onClick={e=>e.stopPropagation()}>
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-1">
               <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
                 <Edit3 size={16} className="text-blue-600"/>
               </div>
               <h3 className="font-bold text-slate-800">الإجراء المتخذ في المهمة</h3>
             </div>
-            <p className="text-xs text-slate-500 mb-3">اكتب ما قمت به تجاه هذه المهمة التدريبية:</p>
+            <p className="text-xs text-slate-400 mb-3 mr-11">سيُسجَّل في التقرير اليومي تلقائياً ويصل للمشرف فوراً</p>
             <textarea
               id="action_text"
               defaultValue={actionModal.currentAction}
-              rows={4}
-              placeholder="مثال: أتممت قراءة المادة التدريبية وطبّقت الخطوات على الجهاز..."
+              rows={5}
+              placeholder="اكتب ما قمت به بالتفصيل: الخطوات المنفّذة، النتائج المحققة، أي ملاحظات..."
               className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none mb-4"/>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-4 text-[11px] text-amber-800">
+              📋 سيُضاف هذا الإجراء تلقائياً لتقرير يوم {new Date().toLocaleDateString("ar-IQ",{weekday:"long",day:"numeric",month:"long"})}
+            </div>
             <div className="flex gap-2">
               <button onClick={()=>setActionModal(null)} className="flex-1 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200">إلغاء</button>
               <button onClick={()=>submitAction(actionModal.taskId, document.getElementById("action_text")?.value||"")}
-                className="flex-1 py-2.5 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 active:scale-95 transition-all">
-                إرسال للمشرف
+                className="flex-1 py-2.5 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-1.5">
+                <Save size={14}/> إرسال للمشرف
               </button>
             </div>
           </div>
