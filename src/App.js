@@ -6224,7 +6224,6 @@ function AttendancePage({ emp, isAdmin, allEmployees }) {
   const setDay = (day, status) => {
     setAttendance({ ...attendance, [day]: status });
     // Update attendance score in evaluation
-    const totalDays = Object.keys(attendance).length + 1;
     const presentDays = Object.values({...attendance, [day]: status})
       .filter(s=>s==="حاضر").length;
     const score = Math.round((presentDays / daysInMonth) * 100);
