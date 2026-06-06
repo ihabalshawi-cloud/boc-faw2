@@ -394,6 +394,88 @@ const ACCOUNTS = [
   {id:33, username:"sj.ali",     password:"3004", name:"سجاد علي راضي علي",                        jobNum:"689331", title:"عقد",           dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس", phone:"7703283076"},
 ];
 
+/* ── السواق المؤجرون (لا يسجلون دخول) ── */
+const DRIVERS = [
+  {id:"dr1", name:"محمد نعيم فاضل",  plate:"", shift:"صباحي", type:"driver"},
+  {id:"dr2", name:"علي جاسم محمد",   plate:"", shift:"صباحي", type:"driver"},
+];
+
+/* ═══════════════════════════════════════════════════════════
+   TIMESHEET CODES — رموز التايم شيت
+═══════════════════════════════════════════════════════════ */
+const TS = {
+  // حضور وعمل
+  "2":  { label:"مناوبة ثنائية",               cat:"عمل",    color:"bg-blue-600 text-white" },
+  "3":  { label:"مناوبة ثلاثية",               cat:"عمل",    color:"bg-blue-800 text-white" },
+  "O":  { label:"المقيم الصباحي",              cat:"عمل",    color:"bg-emerald-600 text-white" },
+  "V":  { label:"استراحة مقيم",                cat:"راحة",   color:"bg-teal-100 text-teal-800" },
+  // إجازات
+  "L":  { label:"إجازة اعتيادية",              cat:"إجازة",  color:"bg-blue-100 text-blue-800" },
+  "S":  { label:"إجازة مرضية",                 cat:"إجازة",  color:"bg-rose-100 text-rose-800" },
+  "T":  { label:"إجازة بدون راتب/داخل",        cat:"إجازة",  color:"bg-orange-100 text-orange-800" },
+  "H":  { label:"إجازة بدون راتب/خارج",        cat:"إجازة",  color:"bg-orange-200 text-orange-900" },
+  "7":  { label:"إجازة اعتيادية خارج العراق",  cat:"إجازة",  color:"bg-indigo-100 text-indigo-800" },
+  "M":  { label:"إجازة أمومة",                 cat:"إجازة",  color:"bg-pink-100 text-pink-800" },
+  "K":  { label:"إجازة أمومة بأمر إداري",      cat:"إجازة",  color:"bg-pink-200 text-pink-900" },
+  "D":  { label:"أيام العدة",                  cat:"إجازة",  color:"bg-pink-100 text-pink-700" },
+  "J":  { label:"مجاز دراسي",                  cat:"إجازة",  color:"bg-violet-100 text-violet-800" },
+  // إيفادات
+  "I":  { label:"إيفاد داخل العراق / دورة",    cat:"إيفاد",  color:"bg-amber-100 text-amber-800" },
+  "G":  { label:"دورة داخل محافظة البصرة",     cat:"إيفاد",  color:"bg-amber-200 text-amber-900" },
+  "P":  { label:"إيفاد خارج العراق",           cat:"إيفاد",  color:"bg-amber-300 text-amber-900" },
+  // راحات
+  "N":  { label:"استراحة مناوبة",              cat:"راحة",   color:"bg-slate-100 text-slate-600" },
+  "R":  { label:"استراحة",                     cat:"راحة",   color:"bg-slate-200 text-slate-500" },
+  // غياب وعطل
+  "X":  { label:"غياب",                        cat:"غياب",   color:"bg-red-200 text-red-900 font-bold" },
+  "Y":  { label:"عطلة رسمية",                  cat:"عطلة",   color:"bg-slate-300 text-slate-600" },
+  // متنوعة
+  "B":  { label:"أيام بقسم آخر",               cat:"متنوع",  color:"bg-purple-100 text-purple-800" },
+  "U":  { label:"تفرغ",                        cat:"متنوع",  color:"bg-teal-100 text-teal-700" },
+  "4":  { label:"العالقون في المناطق الساخنة", cat:"متنوع",  color:"bg-red-100 text-red-700" },
+  "5":  { label:"أيام الحشد الشعبي",           cat:"متنوع",  color:"bg-green-100 text-green-800" },
+  "":   { label:"—",                            cat:"",       color:"bg-slate-50 text-slate-300" },
+};
+
+/* ── ABCD Rotation Calculator ──────────────────────────────
+   مرجع: يوم الاثنين 9 يونيو 2026 = نوبة C
+   الدورة: C → D → A → B → C ...
+─────────────────────────────────────────────────────────── */
+const ROTATION_REF_DATE  = new Date(2026, 5, 9); // June 9, 2026
+const ROTATION_SEQ       = ["C","D","A","B"];
+const IRAQI_HOLIDAYS_2026 = [
+  "2026-01-01","2026-03-21","2026-04-09","2026-05-01",
+  "2026-07-14","2026-08-14","2026-10-03","2026-12-25",
+];
+
+function getWorkingGroup(date) {
+  const d = new Date(date); d.setHours(0,0,0,0);
+  const ref = new Date(ROTATION_REF_DATE); ref.setHours(0,0,0,0);
+  const diff = Math.round((d - ref) / 86400000);
+  return ROTATION_SEQ[((diff % 4) + 4) % 4];
+}
+
+function isOfficialHoliday(dateStr) {
+  return IRAQI_HOLIDAYS_2026.includes(dateStr);
+}
+
+function isWeekend(date) {
+  const d = new Date(date);
+  return d.getDay() === 5 || d.getDay() === 6; // Fri=5, Sat=6
+}
+
+function getAutoStatus(emp, dateStr) {
+  if (!emp) return "";
+  if (isOfficialHoliday(dateStr)) return "Y";
+  if (emp.shift === "مناوبة") {
+    const wg = getWorkingGroup(dateStr);
+    return wg === emp.group ? "2" : "N";
+  }
+  // صباحي وعقد
+  if (isWeekend(dateStr)) return "R";
+  return "O";
+}
+
 const LEAVE_TYPES = {
   اعتيادية: { label:"إجازة اعتيادية", color:"bg-blue-600",   light:"bg-blue-50 text-blue-700 border-blue-200",   max:30 },
   مرضية:    { label:"إجازة مرضية",    color:"bg-rose-600",   light:"bg-rose-50 text-rose-700 border-rose-200",   max:15 },
@@ -2247,6 +2329,12 @@ function Dashboard({ emp, onLogout }) {
                 }`}>
                 <ClipboardList size={14}/> سجل التعديلات
               </button>
+              <button onClick={()=>setView("excel")}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                  view==="excel" ? "bg-emerald-600 text-white" : "text-emerald-400 hover:bg-slate-800 hover:text-emerald-300"
+                }`}>
+                <Download size={14}/> تصدير Excel
+              </button>
             </div>
           )}
         </nav>
@@ -2778,6 +2866,21 @@ function Dashboard({ emp, onLogout }) {
               </div>
             </div>
             <AuditLogPage/>
+          </div>
+        )}
+
+        {view === "excel" && isAdmin && (
+          <div className="fu">
+            <div className="flex items-center gap-3 mb-4 no-print">
+              <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                <Download size={16} className="text-emerald-600"/>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">تصدير Excel</h2>
+                <p className="text-[11px] text-slate-500">تحميل البيانات بصيغة CSV تفتح في Excel</p>
+              </div>
+            </div>
+            <ExcelExportPage emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
           </div>
         )}
 
@@ -5118,12 +5221,12 @@ function EvaluationPage({ emp, isAdmin, allEmployees }) {
 
 // ── EmailJS (مجاني 200 رسالة/شهر) ──────────────────────────
 // الإعداد: emailjs.com → إنشاء حساب → Service → Template → انسخ المعرفات
-const EMAILJS_SERVICE_ID  = "service_bocfaw";
-const EMAILJS_TEMPLATE_ID = "template_bocfaw";
-const EMAILJS_PUBLIC_KEY  = "YOUR_PUBLIC_KEY"; // من emailjs.com → Account → 1TW8rl8ZkEhGXatkb
+const EMAILJS_SERVICE_ID  = "service_bocfaw";   // غيّر بعد إنشاء Service في emailjs.com
+const EMAILJS_TEMPLATE_ID = "template_bocfaw";  // غيّر بعد إنشاء Template في emailjs.com
+const EMAILJS_PUBLIC_KEY  = "1TW8rl8ZkEhGXatkb"; // Public Key من emailjs.com → Account
 
 async function sendEmail(toEmail, toName, subject, message) {
-  if (!toEmail || EMAILJS_PUBLIC_KEY === "YOUR_PUBLIC_KEY") return false;
+  if (!toEmail) return false;
   try {
     const r = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
       method: "POST",
@@ -5280,11 +5383,16 @@ function NotificationSettings({ emp, showToast }) {
           </div>
           {settings?.telegram && <span className="mr-auto text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200">✓ مفعّل</span>}
         </div>
-        <div className="bg-sky-50 border border-sky-200 rounded-xl p-3 text-xs text-sky-800 space-y-1">
-          <p className="font-bold">خطوات التفعيل:</p>
-          <p>1. افتح Telegram وابحث عن: <code className="bg-white px-1 rounded font-mono">@userinfobot</code></p>
-          <p>2. اضغط Start — سيرسل لك رقمك (Chat ID)</p>
-          <p>3. أدخله في الحقل أدناه</p>
+        <div className="bg-sky-50 border border-sky-200 rounded-xl p-3 text-xs text-sky-800 space-y-2">
+          <p className="font-bold">خطوات تفعيل Telegram (دقيقة واحدة):</p>
+          <p>1. افتح Telegram على هاتفك</p>
+          <p>2. ابحث عن: <code className="bg-white px-1.5 py-0.5 rounded font-mono font-bold">@userinfobot</code> أو اضغط الرابط:</p>
+          <a href="https://t.me/userinfobot" target="_blank" rel="noreferrer"
+            className="inline-flex items-center gap-1.5 font-bold text-white bg-sky-500 hover:bg-sky-600 px-3 py-1.5 rounded-lg no-print">
+            ✈️ فتح @userinfobot
+          </a>
+          <p>3. اضغط <strong>Start</strong> — سيرسل لك رقمك على الفور</p>
+          <p>4. انسخ الرقم (مثال: <code className="bg-white px-1 rounded font-mono">123456789</code>) وأدخله أدناه</p>
         </div>
         <div>
           <label className="block text-[10px] font-bold text-slate-400 mb-1">Chat ID من @userinfobot</label>
@@ -6299,6 +6407,322 @@ function BackupPage({ emp }) {
 ═══════════════════════════════════════════════════════════ */
 function AttendancePage({ emp, isAdmin, allEmployees }) {
   const now = new Date();
+  const [selMonth,  setSelMonth]  = useState(now.getMonth());
+  const [selYear,   setSelYear]   = useState(now.getFullYear());
+  const [selEmpId,  setSelEmpId]  = useState(isAdmin ? null : emp.id);
+  const [driverAtt, setDriverAtt] = useFirebase("attendance/drivers", {});
+  const [,setAutoFilled]= useState(false);
+  const [toast,     setToast]     = useState("");
+  const showToast = (m) => { setToast(m); setTimeout(()=>setToast(""),3000); };
+
+  const empTarget  = selEmpId || emp.id;
+  const monthKey   = `${selYear}_${String(selMonth+1).padStart(2,"0")}`;
+  const [attendance, setAttendance] = useFirebase(`attendance/${empTarget}/${monthKey}`, {});
+
+  const months      = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  const daysInMonth = new Date(selYear, selMonth+1, 0).getDate();
+  const empInfo     = allEmployees.find(e=>String(e.id)===String(empTarget));
+  const canOvertime = empInfo?.shift==="صباحي" || empInfo?.shift==="عقد" || false;
+  const att         = typeof attendance==="object"&&attendance!==null ? attendance : {};
+
+  // Auto-fill all days based on shift type
+  const autoFill = () => {
+    const filled = {};
+    for (let d=1; d<=daysInMonth; d++) {
+      const key  = String(d).padStart(2,"0");
+      const date = `${selYear}-${String(selMonth+1).padStart(2,"0")}-${key}`;
+      filled[key] = { code: getAutoStatus(empInfo, date), ot:"" };
+    }
+    setAttendance(filled);
+    setAutoFilled(true);
+    // Update score
+    const presentDays = Object.values(filled).filter(v=>v.code==="2"||v.code==="O"||v.code==="3").length;
+    const score = Math.round((presentDays/daysInMonth)*100);
+    fb.set(`evaluation/scores/${empTarget}/${monthKey}/attendance`, score);
+    showToast("✓ تم تعبئة الجدول تلقائياً حسب نوع الدوام");
+    auditLog("حضور", `تعبئة تلقائية — ${empInfo?.name?.split(" ").slice(0,2).join(" ")} — ${months[selMonth]} ${selYear}`, emp.name);
+  };
+
+  const setDay = (day, field, value) => {
+    const updated = { ...att, [day]: { ...(att[day]||{code:"",ot:""}), [field]: value } };
+    setAttendance(updated);
+    // Recalculate score
+    const presentDays = Object.values(updated).filter(v=>v.code==="2"||v.code==="O"||v.code==="3").length;
+    const score = Math.round((presentDays/daysInMonth)*100);
+    fb.set(`evaluation/scores/${empTarget}/${monthKey}/attendance`, score);
+  };
+
+  // Stats
+  const presentCodes = ["2","3","O","V"];
+  const presentDays  = Object.values(att).filter(v=>presentCodes.includes(v?.code||v)).length;
+  const absentDays   = Object.values(att).filter(v=>(v?.code||v)==="X").length;
+  const leaveDays    = Object.values(att).filter(v=>["L","S","T","H","J","M","K","D"].includes(v?.code||v)).length;
+  const score        = daysInMonth>0 ? Math.round((presentDays/daysInMonth)*100) : 0;
+  const totalOT      = Object.values(att).reduce((sum,v)=>sum+(Number(v?.ot)||0),0);
+
+  // Driver attendance helpers
+  const drKey        = `${monthKey}`;
+  const drAtt        = (driverAtt&&driverAtt[drKey]) ? driverAtt[drKey] : {};
+  const setDriverDay = (driverId, day, field, value) => {
+    const updated = { ...drAtt, [`${driverId}_${day}`]: { ...(drAtt[`${driverId}_${day}`]||{code:"",ot:""}), [field]: value } };
+    setDriverAtt({ ...driverAtt, [drKey]: updated });
+  };
+
+  // Category groupings for dropdown
+  const catGroups = [...new Set(Object.values(TS).filter(v=>v.label!=="—").map(v=>v.cat))];
+
+  const days = Array.from({length:daysInMonth},(_,i)=>i+1);
+
+  const DayCell = ({day, empObj, isDriver=false, driverId=""}) => {
+    const key  = String(day).padStart(2,"0");
+    const date = `${selYear}-${String(selMonth+1).padStart(2,"0")}-${key}`;
+    const isHoliday = isOfficialHoliday(date);
+    const isFriSat  = isWeekend(date);
+    const dayOfWeek = new Date(date).getDay(); // 0=Sun
+    const dayNames  = ["أح","إث","ثل","أر","خم","جم","سب"];
+    const predicted = getAutoStatus(empObj, date);
+    const recVal    = isDriver ? (drAtt[`${driverId}_${key}`]||{}) : (att[key]||{});
+    const code      = recVal.code ?? "";
+    const ot        = recVal.ot ?? "";
+    const style     = TS[code]?.color || TS[""].color;
+    const canOT     = (empObj?.shift==="صباحي"||empObj?.shift==="عقد"||isDriver) && !isFriSat && !isHoliday;
+
+    return (
+      <div className={`rounded-xl border overflow-hidden text-center ${isHoliday?"border-slate-300 bg-slate-100":isFriSat?"border-slate-200 bg-slate-50":"border-slate-200 bg-white"}`}>
+        <div className={`text-[9px] font-bold py-0.5 ${isHoliday?"bg-slate-300 text-slate-600":isFriSat?"bg-slate-200 text-slate-500":"bg-slate-50 text-slate-500"}`}>
+          {dayNames[dayOfWeek]} {day}
+        </div>
+        {isAdmin ? (
+          <div className="p-0.5 space-y-0.5">
+            <select
+              value={code}
+              onChange={e=>isDriver?setDriverDay(driverId,key,"code",e.target.value):setDay(key,"code",e.target.value)}
+              className={`w-full text-[10px] font-bold rounded text-center cursor-pointer focus:outline-none py-0.5 border-0 ${style}`}
+              title={TS[code]?.label||""}>
+              <option value="">—</option>
+              {catGroups.map(cat=>(
+                <optgroup key={cat} label={cat}>
+                  {Object.entries(TS).filter(([,v])=>v.cat===cat&&v.label!=="—").map(([k,v])=>(
+                    <option key={k} value={k}>{k} — {v.label}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            {canOT && (
+              <input type="number" min="0" max="12"
+                value={ot}
+                onChange={e=>isDriver?setDriverDay(driverId,key,"ot",e.target.value):setDay(key,"ot",e.target.value)}
+                placeholder="OT"
+                className="w-full text-[9px] text-center border border-slate-200 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-amber-50"/>
+            )}
+            {!code && predicted && (
+              <div className="text-[8px] text-slate-300">{predicted}</div>
+            )}
+          </div>
+        ) : (
+          <div className="p-1">
+            <div className={`text-[10px] font-bold rounded px-1 py-0.5 ${style}`} title={TS[code]?.label||""}>
+              {code||"—"}
+            </div>
+            {ot && <div className="text-[8px] text-amber-600 mt-0.5">+{ot}س</div>}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Export CSV
+  const exportCSV = () => {
+    const rows = days.map(d=>{
+      const key  = String(d).padStart(2,"0");
+      const date = `${selYear}-${String(selMonth+1).padStart(2,"0")}-${key}`;
+      const v    = att[key]||{};
+      return {
+        "التاريخ":date,
+        "اليوم":["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"][new Date(date).getDay()],
+        "الرمز":v.code||"",
+        "الوصف":TS[v.code||""]?.label||"",
+        "ساعات إضافية":v.ot||"0",
+      };
+    });
+    const headers = Object.keys(rows[0]);
+    const csv_content = [headers.join(","), ...rows.map(r=>headers.map(h=>`"${r[h]}"`).join(","))].join("\n");
+    const blob = new Blob(["\uFEFF"+csv_content],{type:"text/csv;charset=utf-8;"});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href=url; a.download=`حضور_${empInfo?.name?.split(" ")[0]||""}_${monthKey}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    showToast("✓ تم تحميل ملف الحضور");
+  };
+
+  return (
+    <div className="space-y-4 fu" dir="rtl">
+      {/* Controls */}
+      <div className="flex flex-wrap gap-2 items-center no-print">
+        <select value={selMonth} onChange={e=>{setSelMonth(Number(e.target.value));setAutoFilled(false);}}
+          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm">
+          {months.map((m,i)=><option key={i} value={i}>{m}</option>)}
+        </select>
+        <select value={selYear} onChange={e=>{setSelYear(Number(e.target.value));setAutoFilled(false);}}
+          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm">
+          {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+        </select>
+        {isAdmin && (
+          <select value={selEmpId||""} onChange={e=>{setSelEmpId(Number(e.target.value)||null);setAutoFilled(false);}}
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm flex-1 min-w-[200px]">
+            <option value="">-- اختر موظفاً --</option>
+            <optgroup label="الموظفون">
+              {allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,2).join(" ")} ({e.shift==="مناوبة"?`نوبة ${e.group}`:e.shift})</option>)}
+            </optgroup>
+          </select>
+        )}
+        {isAdmin && selEmpId && (
+          <button onClick={autoFill}
+            className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-xl shadow-sm active:scale-95 transition-all">
+            <RefreshCw size={12}/> تعبئة تلقائية
+          </button>
+        )}
+        {isAdmin && selEmpId && (
+          <button onClick={exportCSV}
+            className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl shadow-sm">
+            <Download size={12}/> CSV
+          </button>
+        )}
+        <PrintButton targetId="print-attendance" title={`كشف حضور ${months[selMonth]} ${selYear}`}/>
+      </div>
+
+      {/* Employee card + stats */}
+      {(empInfo||!isAdmin) && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-white font-bold text-base shrink-0">
+              {(empInfo||emp).name[0]}
+            </div>
+            <div className="flex-1">
+              <p className="font-bold text-slate-900">{(empInfo||emp).name.split(" ").slice(0,3).join(" ")}</p>
+              <p className="text-xs text-slate-500">{(empInfo||emp).title} · {(empInfo||emp).shift==="مناوبة"?`مناوبة — مجموعة ${(empInfo||emp).group}`:(empInfo||emp).shift}</p>
+            </div>
+            <div className="text-center shrink-0">
+              <p className={`text-3xl font-bold ${score>=85?"text-emerald-600":score>=70?"text-blue-600":score>=50?"text-amber-500":"text-red-500"}`}>{score}%</p>
+              <p className="text-[10px] text-slate-400">نسبة الحضور</p>
+            </div>
+          </div>
+
+          {/* Stats strip */}
+          <div className="grid grid-cols-4 gap-2 mb-4">
+            {[
+              {l:"حاضر",  v:presentDays, c:"text-emerald-700 bg-emerald-50 border-emerald-200"},
+              {l:"غائب",  v:absentDays,  c:"text-red-700 bg-red-50 border-red-200"},
+              {l:"إجازة", v:leaveDays,   c:"text-blue-700 bg-blue-50 border-blue-200"},
+              {l:canOvertime?"إضافي (ساعة)":"الدرجة", v:canOvertime?totalOT:`${score}/100`, c:"text-amber-700 bg-amber-50 border-amber-200"},
+            ].map(s=>(
+              <div key={s.l} className={`rounded-xl border p-2 text-center ${s.c}`}>
+                <p className="text-lg font-bold leading-tight">{s.v}</p>
+                <p className="text-[9px] leading-tight">{s.l}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Rotation info */}
+          {(empInfo||emp).shift==="مناوبة" && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-2 text-xs text-blue-800 flex items-center gap-2 mb-2">
+              <span className="font-bold">مجموعة {(empInfo||emp).group}</span>
+              <span>·</span>
+              <span>نوبة الاثنين القادم: <strong>{getWorkingGroup(new Date(2026,5,9))}</strong></span>
+              <span>·</span>
+              <span>اليوم تعمل مجموعة: <strong>{getWorkingGroup(new Date())}</strong></span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 no-print">
+        <p className="text-[10px] font-bold text-slate-500 mb-2">دليل الرموز:</p>
+        <div className="flex flex-wrap gap-1.5">
+          {Object.entries(TS).filter(([k,v])=>k&&v.label!=="—").map(([k,v])=>(
+            <span key={k} className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${v.color}`} title={v.label}>
+              {k}={v.label.slice(0,6)}{v.label.length>6?"..":""}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Calendar grid */}
+      {selEmpId || !isAdmin ? (
+        <div id="print-attendance" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="hidden print:block text-center p-4 border-b">
+            <p className="text-lg font-bold">شركة نفط البصرة — شعبة الفاو</p>
+            <p className="text-base">كشف الحضور — {(empInfo||emp).name} — {months[selMonth]} {selYear}</p>
+          </div>
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 no-print flex items-center justify-between">
+            <h3 className="font-bold text-slate-700 text-sm">جدول الحضور — {months[selMonth]} {selYear}</h3>
+            {isAdmin && <span className="text-[10px] text-slate-400">انقر خلية لتعديلها</span>}
+          </div>
+          <div className="p-3 grid gap-1.5" style={{gridTemplateColumns:"repeat(7, 1fr)"}}>
+            {days.map(day=>(
+              <DayCell key={day} day={day} empObj={empInfo||emp}/>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-10 text-center">
+          <Calendar size={28} className="text-slate-300 mx-auto mb-2"/>
+          <p className="text-sm text-slate-400">اختر موظفاً من القائمة أعلاه</p>
+        </div>
+      )}
+
+      {/* Drivers section — admin only */}
+      {isAdmin && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 bg-amber-50 flex items-center gap-2">
+            <span className="text-lg">🚗</span>
+            <h3 className="font-bold text-amber-800 text-sm">السواق المؤجرون — {months[selMonth]} {selYear}</h3>
+          </div>
+          {DRIVERS.map(driver=>{
+            const drPresent = days.filter(d=>{
+              const k = `${driver.id}_${String(d).padStart(2,"0")}`;
+              return drAtt[k]?.code==="O";
+            }).length;
+            const drOT = days.reduce((s,d)=>{
+              const k=`${driver.id}_${String(d).padStart(2,"0")}`;
+              return s+(Number(drAtt[k]?.ot)||0);
+            },0);
+            return (
+              <div key={driver.id} className="p-4 border-b border-slate-50 last:border-0">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 font-bold shrink-0">🚗</div>
+                  <div className="flex-1">
+                    <p className="font-bold text-slate-800 text-sm">{driver.name}</p>
+                    <p className="text-[10px] text-slate-400">سائق مؤجر · {drPresent} يوم حضور · {drOT} ساعة إضافية</p>
+                  </div>
+                </div>
+                <div className="grid gap-1" style={{gridTemplateColumns:"repeat(7, 1fr)"}}>
+                  {days.map(day=>(
+                    <DayCell key={day} day={day} empObj={{shift:"صباحي"}} isDriver={true} driverId={driver.id}/>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Impact note */}
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-800">
+        📊 <strong>تأثير على التقييم:</strong> نسبة الحضور ({score}%) تُحتسب تلقائياً كدرجة الحضور (وزنها 20%)
+        {canOvertime && totalOT>0 && <span className="mr-2">· إجمالي الساعات الإضافية: <strong>{totalOT} ساعة</strong></span>}
+      </div>
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl no-print">
+          <CheckCircle size={14} className="text-emerald-400"/>{toast}
+        </div>
+      )}
+    </div>
+  );
+}
+  const now = new Date();
   const [selMonth, setSelMonth] = useState(now.getMonth());
   const [selYear,  setSelYear]  = useState(now.getFullYear());
   const [selEmpId, setSelEmpId] = useState(isAdmin ? null : emp.id);
@@ -6312,147 +6736,6 @@ function AttendancePage({ emp, isAdmin, allEmployees }) {
   const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
   const daysInMonth = new Date(selYear, selMonth+1, 0).getDate();
   const empInfo = allEmployees.find(e=>String(e.id)===String(empTarget));
-
-  const STATUS = {
-    "حاضر":    { color:"bg-emerald-100 text-emerald-800", short:"✓" },
-    "غائب":    { color:"bg-red-100 text-red-800",         short:"✗" },
-    "إجازة":   { color:"bg-blue-100 text-blue-800",       short:"إج" },
-    "مرضية":   { color:"bg-amber-100 text-amber-800",     short:"م" },
-    "عطلة":    { color:"bg-slate-100 text-slate-500",     short:"ع" },
-    "":        { color:"bg-slate-50 text-slate-300",      short:"—" },
-  };
-
-  const setDay = (day, status) => {
-    setAttendance({ ...attendance, [day]: status });
-    // Update attendance score in evaluation
-    const presentDays = Object.values({...attendance, [day]: status})
-      .filter(s=>s==="حاضر").length;
-    const score = Math.round((presentDays / daysInMonth) * 100);
-    fb.set(`evaluation/scores/${empTarget}/${monthKey}/attendance`, score);
-    showToast("✓ تم حفظ الحضور");
-  };
-
-  // Stats
-  const attended = Object.values(attendance).filter(s=>s==="حاضر").length;
-  const absent   = Object.values(attendance).filter(s=>s==="غائب").length;
-  const leaves   = Object.values(attendance).filter(s=>s==="إجازة"||s==="مرضية").length;
-  const score    = daysInMonth > 0 ? Math.round((attended/daysInMonth)*100) : 0;
-
-  // Days grid
-  const days = Array.from({length: daysInMonth}, (_,i) => i+1);
-
-  return (
-    <div className="space-y-4 fu" dir="rtl">
-      {/* Controls */}
-      <div className="flex flex-wrap gap-2 items-center no-print">
-        <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))}
-          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm">
-          {months.map((m,i)=><option key={i} value={i}>{m}</option>)}
-        </select>
-        <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))}
-          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm">
-          {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
-        </select>
-        {isAdmin && (
-          <select value={selEmpId||""} onChange={e=>setSelEmpId(Number(e.target.value)||null)}
-            className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm flex-1 min-w-[180px]">
-            <option value="">-- اختر موظفاً --</option>
-            {allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,3).join(" ")}</option>)}
-          </select>
-        )}
-        <PrintButton targetId="print-attendance" title={`كشف حضور ${months[selMonth]} ${selYear}`}/>
-      </div>
-
-      {/* Employee info + score */}
-      {empInfo && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-white font-bold text-lg shrink-0">
-            {empInfo.name[0]}
-          </div>
-          <div className="flex-1">
-            <p className="font-bold text-slate-900">{empInfo.name.split(" ").slice(0,3).join(" ")}</p>
-            <p className="text-xs text-slate-500">{empInfo.title} · {empInfo.dept}</p>
-          </div>
-          <div className="text-center">
-            <p className={`text-3xl font-bold ${score>=80?"text-emerald-600":score>=60?"text-amber-500":"text-red-500"}`}>{score}%</p>
-            <p className="text-[10px] text-slate-400">نسبة الحضور</p>
-          </div>
-        </div>
-      )}
-
-      {/* Stats strip */}
-      <div className="grid grid-cols-4 gap-2">
-        {[
-          {l:"حاضر",  v:attended, c:"text-emerald-700 bg-emerald-50 border-emerald-200"},
-          {l:"غائب",  v:absent,   c:"text-red-700 bg-red-50 border-red-200"},
-          {l:"إجازة", v:leaves,   c:"text-blue-700 bg-blue-50 border-blue-200"},
-          {l:"الدرجة",v:`${score}/100`, c:"text-slate-700 bg-slate-50 border-slate-200"},
-        ].map(s=>(
-          <div key={s.l} className={`rounded-xl border p-2.5 text-center ${s.c}`}>
-            <p className="text-lg font-bold">{s.v}</p>
-            <p className="text-[10px]">{s.l}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Calendar grid */}
-      <div id="print-attendance" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="hidden print:block text-center p-4 border-b">
-          <p className="text-lg font-bold">شركة نفط البصرة — شعبة الفاو</p>
-          <p className="text-base">كشف الحضور — {empInfo?.name} — {months[selMonth]} {selYear}</p>
-        </div>
-        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 no-print">
-          <h3 className="font-bold text-slate-700 text-sm">كشف الحضور — {months[selMonth]} {selYear}</h3>
-        </div>
-        <div className="p-4">
-          {/* Status legend */}
-          <div className="flex flex-wrap gap-2 mb-4 no-print">
-            {Object.entries(STATUS).filter(([k])=>k).map(([s,v])=>(
-              <span key={s} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${v.color}`}>{s}</span>
-            ))}
-          </div>
-          {/* Days grid */}
-          <div className="grid grid-cols-7 gap-1.5">
-            {days.map(day => {
-              const key   = String(day).padStart(2,"0");
-              const status = attendance[key] || "";
-              const st     = STATUS[status] || STATUS[""];
-              return (
-                <div key={day} className="flex flex-col items-center gap-0.5">
-                  <span className="text-[9px] text-slate-400 font-mono">{day}</span>
-                  {isAdmin ? (
-                    <select value={status}
-                      onChange={e=>setDay(key, e.target.value)}
-                      className={`w-full text-[10px] font-bold rounded-lg border-0 text-center cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-400 py-1 ${st.color}`}
-                      style={{minWidth:0}}>
-                      <option value="">—</option>
-                      {Object.keys(STATUS).filter(k=>k).map(s=><option key={s} value={s}>{STATUS[s].short}</option>)}
-                    </select>
-                  ) : (
-                    <div className={`w-full text-center text-[10px] font-bold rounded-lg py-1 ${st.color}`}>
-                      {st.short}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Impact note */}
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-800">
-        📊 <strong>تأثير الحضور على التقييم:</strong> نسبة الحضور ({score}%) تُحتسب تلقائياً كدرجة الحضور في التقييم الشهري (وزنها 20%)
-      </div>
-
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl no-print">
-          <CheckCircle size={14} className="text-emerald-400"/>{toast}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ═══════════════════════════════════════════════════════════
    #5 — PDF REPORT GENERATOR — تقرير PDF رسمي شهري
@@ -6943,6 +7226,207 @@ function AuditLogPage() {
       <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 text-xs text-blue-800">
         📋 <strong>يُسجَّل تلقائياً:</strong> تعديل المخزن، إضافة/حذف موظف، موافقة/رفض الطلبات، إسناد المهام، إغلاق المهام، استعادة النسخ الاحتياطية
       </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   #14 — EXCEL EXPORT — تصدير Excel
+   يصدّر بيانات الحضور والتقييم والمهام كملف CSV يفتح في Excel
+═══════════════════════════════════════════════════════════ */
+function ExcelExportPage({ emp, isAdmin, allEmployees }) {
+  const now = new Date();
+  const [selMonth, setSelMonth] = useState(now.getMonth());
+  const [selYear,  setSelYear]  = useState(now.getFullYear());
+  const [loading,  setLoading]  = useState(false);
+  const [toast,    setToast]    = useState("");
+  const showToast = (m) => { setToast(m); setTimeout(()=>setToast(""),3000); };
+
+  const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  const monthKey = `${selYear}_${String(selMonth+1).padStart(2,"0")}`;
+  const BOM = "\uFEFF";
+
+  const downloadCSV = (content, filename) => {
+    const blob = new Blob([BOM+content],{type:"text/csv;charset=utf-8;"});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a"); a.href=url; a.download=filename; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Export 1: Attendance summary for all employees
+  const exportAttendance = async () => {
+    setLoading(true);
+    const daysInMonth = new Date(selYear, selMonth+1, 0).getDate();
+    const rows = [];
+    const dayHeaders = Array.from({length:daysInMonth},(_,i)=>String(i+1).padStart(2,"0"));
+
+    for (const emp of allEmployees) {
+      const att = await fb.get(`attendance/${emp.id}/${monthKey}`) || {};
+      const row = {
+        "الرقم الوظيفي": emp.jobNum,
+        "الاسم": emp.name.split(" ").slice(0,3).join(" "),
+        "القسم": emp.dept,
+        "نوع الدوام": emp.shift==="مناوبة"?`مناوبة ${emp.group}`:emp.shift,
+      };
+      let present=0, absent=0, leave=0, totalOT=0;
+      for (const d of dayHeaders) {
+        const v = att[d];
+        const code = v?.code||v||"";
+        row[d] = code;
+        if (["2","3","O","V"].includes(code)) present++;
+        if (code==="X") absent++;
+        if (["L","S","T","H","J","M","K","D"].includes(code)) leave++;
+        totalOT += Number(v?.ot||0);
+      }
+      row["أيام الحضور"] = present;
+      row["أيام الغياب"] = absent;
+      row["أيام الإجازة"] = leave;
+      row["نسبة الحضور"] = `${Math.round(present/daysInMonth*100)}%`;
+      row["الساعات الإضافية"] = totalOT;
+      rows.push(row);
+    }
+
+    const headers = Object.keys(rows[0]||{});
+    const content = [headers.join(","), ...rows.map(r=>headers.map(k=>`"${r[k]??""}""`).join(","))].join("\n");
+    // Fix double quotes
+    const fixed = [headers.join(","), ...rows.map(r=>headers.map(k=>`"${String(r[k]??"")}"`).join(","))].join("\n");
+    downloadCSV(fixed, `حضور_${months[selMonth]}_${selYear}.csv`);
+    setLoading(false);
+    showToast("✓ تم تحميل كشف الحضور الشهري");
+  };
+
+  // Export 2: Evaluation scores for all employees
+  const exportEvaluation = async () => {
+    setLoading(true);
+    const rows = [];
+    for (const e of allEmployees) {
+      const scores = await fb.get(`evaluation/scores/${e.id}/${monthKey}`) || {};
+      const tasks  = await fb.get(`evaluation/tasks/${e.id}/${monthKey}`)  || [];
+      const taskList = Array.isArray(tasks) ? tasks : [];
+      const completedTasks = taskList.filter(t=>t.status==="مقبولة").length;
+      rows.push({
+        "الرقم الوظيفي": e.jobNum,
+        "الاسم": e.name.split(" ").slice(0,3).join(" "),
+        "القسم": e.dept,
+        "الحضور": scores.attendance||0,
+        "المهام": scores.tasks||0,
+        "المشاركة": scores.participation||0,
+        "المبادرة": scores.initiative||0,
+        "المجموع": scores.total||0,
+        "مهام مكتملة": completedTasks,
+        "مهام معلقة": taskList.filter(t=>t.status!=="مقبولة"&&t.status!=="مرفوضة").length,
+      });
+    }
+    const headers = Object.keys(rows[0]||{});
+    const content = [headers.join(","), ...rows.map(r=>headers.map(k=>`"${String(r[k]??"")}"`).join(","))].join("\n");
+    downloadCSV(content, `تقييم_${months[selMonth]}_${selYear}.csv`);
+    setLoading(false);
+    showToast("✓ تم تحميل تقرير التقييم");
+  };
+
+  // Export 3: Leave requests
+  const exportLeaves = async () => {
+    setLoading(true);
+    const reqs = await fb.get("requests") || [];
+    const list = Array.isArray(reqs) ? reqs : [];
+    const filtered = list.filter(r=>r.submittedAt?.startsWith(`${selYear}-${String(selMonth+1).padStart(2,"0")}`));
+    const rows = filtered.map(r=>({
+      "الرقم الوظيفي": r.empJobNum||"",
+      "الاسم": r.empName?.split(" ").slice(0,3).join(" ")||"",
+      "القسم": r.empDept||"",
+      "نوع الإجازة": r.type||"",
+      "من تاريخ": r.dateFrom||"",
+      "إلى تاريخ": r.dateTo||"",
+      "عدد الأيام": r.days||"",
+      "الغرض": r.purpose||"",
+      "الحالة": r.status||"",
+      "تاريخ التقديم": r.submittedAt?.slice(0,10)||"",
+      "ملاحظة المشرف": r.adminNote||"",
+    }));
+    if (rows.length===0) { setLoading(false); showToast("لا توجد طلبات لهذا الشهر"); return; }
+    const headers = Object.keys(rows[0]);
+    const content = [headers.join(","), ...rows.map(r=>headers.map(k=>`"${String(r[k]??"")}"`).join(","))].join("\n");
+    downloadCSV(content, `إجازات_${months[selMonth]}_${selYear}.csv`);
+    setLoading(false);
+    showToast("✓ تم تحميل تقرير الإجازات");
+  };
+
+  // Export 4: Full employee list
+  const exportEmployees = () => {
+    const rows = allEmployees.map(e=>({
+      "الرقم الوظيفي": e.jobNum,
+      "الاسم الكامل": e.name,
+      "اسم المستخدم": e.username,
+      "المسمى الوظيفي": e.title,
+      "القسم": e.dept,
+      "نوع الدوام": e.shift,
+      "المجموعة": e.group||"",
+      "التحصيل الدراسي": e.edu||"",
+      "رقم الهاتف": e.phone||"",
+    }));
+    const headers = Object.keys(rows[0]);
+    const content = [headers.join(","), ...rows.map(r=>headers.map(k=>`"${String(r[k]??"")}"`).join(","))].join("\n");
+    downloadCSV(content, `كادر_الشعبة_${selYear}.csv`);
+    showToast("✓ تم تحميل قائمة الموظفين");
+  };
+
+  const ExportCard = ({icon, title, desc, color, onClick, disabled}) => (
+    <div className={`bg-white rounded-2xl border shadow-sm p-5 ${color}`}>
+      <div className="text-3xl mb-3">{icon}</div>
+      <h4 className="font-bold text-slate-800 text-sm mb-1">{title}</h4>
+      <p className="text-xs text-slate-500 mb-4">{desc}</p>
+      <button onClick={onClick} disabled={disabled||loading}
+        className="w-full flex items-center justify-center gap-2 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 px-4 py-2.5 rounded-xl active:scale-95 transition-all disabled:opacity-50 shadow-sm">
+        <Download size={13}/>
+        {loading ? "جاري التحميل..." : "تحميل CSV (Excel)"}
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4 fu" dir="rtl">
+      {/* Month selector */}
+      <div className="flex gap-2 no-print">
+        <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))}
+          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm">
+          {months.map((m,i)=><option key={i} value={i}>{m}</option>)}
+        </select>
+        <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))}
+          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer appearance-none shadow-sm">
+          {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+        </select>
+        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs font-bold text-emerald-800">
+          📊 {months[selMonth]} {selYear}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <ExportCard icon="📅" title="كشف الحضور الشهري"
+          desc={`حضور وغياب وإجازات جميع الموظفين — ${months[selMonth]} ${selYear} — مع الساعات الإضافية`}
+          color="border-blue-200" onClick={exportAttendance}/>
+        <ExportCard icon="⭐" title="تقرير التقييم الشهري"
+          desc={`درجات الحضور والمهام والمشاركة والمبادرة — ${months[selMonth]} ${selYear}`}
+          color="border-amber-200" onClick={exportEvaluation}/>
+        <ExportCard icon="📋" title="طلبات الإجازة"
+          desc={`جميع طلبات الإجازة المقدّمة في ${months[selMonth]} ${selYear} مع الحالة والملاحظات`}
+          color="border-violet-200" onClick={exportLeaves}/>
+        <ExportCard icon="👥" title="قائمة الموظفين"
+          desc="الكادر الكامل بكل بياناتهم — للأرشفة والمراجعة الإدارية"
+          color="border-emerald-200" onClick={exportEmployees}/>
+      </div>
+
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 space-y-1">
+        <p className="font-bold text-slate-700">📌 ملاحظات:</p>
+        <p>• الملفات بصيغة CSV مع ترميز UTF-8 تدعم العربية في Excel</p>
+        <p>• افتح Excel → Data → From Text/CSV → اختر الملف → Delimiter: Comma</p>
+        <p>• أو انقر مزدوجاً على الملف مباشرة في Windows</p>
+      </div>
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl">
+          <CheckCircle size={14} className="text-emerald-400"/>{toast}
+        </div>
+      )}
     </div>
   );
 }
