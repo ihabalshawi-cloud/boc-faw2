@@ -256,39 +256,67 @@ function useLocalStorage(key, initial) {
   return [val, set];
 }
 
-/* ── Firebase hook — مزامنة فورية بين كل المتصفحات ── */
-function useFirebase(path, initial) {
-  const [val, setVal] = useState(initial);
-  const [ready, setReady] = useState(false);
+/* ── Firebase hook — مزامنة فورية مع Cache مشترك لمنع الطلبات المكررة ── */
 
-  // Load once on mount
-  useEffect(() => {
-    fb.get(path).then(data => {
-      if (data !== null) setVal(data);
-      setReady(true);
-    });
-  }, [path]);
+// Global cache — مشترك بين كل المكوّنات
+const _fbCache    = {};  // { path: data }
+const _fbListeners = {}; // { path: Set<callback> }
+const _fbSubs     = {};  // { path: unsubscribe }
 
-  // Real-time listener via SSE (Server-Sent Events) — فوري
-  useEffect(() => {
-    const unsub = fb.listen(path, (data) => {
-      if (data !== null) setVal(data);
-    });
-    return unsub;
-  }, [path]);
+function _fbNotify(path, data) {
+  _fbCache[path] = data;
+  (_fbListeners[path] || new Set()).forEach(cb => cb(data));
+}
 
-  // Polling fallback every 5s for notifications paths — ضمان وصول الإشعارات
-  useEffect(() => {
-    if (!path.startsWith("notifications") && !path.startsWith("requests") && !path.startsWith("training")) return;
+function _fbSubscribe(path) {
+  if (_fbSubs[path]) return; // Already subscribed
+  // Fetch once
+  fb.get(path).then(data => { if (data !== null) _fbNotify(path, data); });
+  // SSE listener
+  _fbSubs[path] = fb.listen(path, (data) => {
+    if (data !== null) _fbNotify(path, data);
+  });
+  // Polling — only for critical paths, every 15s (not 5s)
+  const isCritical = path.startsWith("notifications") || path.startsWith("requests") || path.startsWith("training");
+  if (isCritical) {
     const interval = setInterval(() => {
-      fb.get(path).then(data => { if (data !== null) setVal(data); });
-    }, 5000);
-    return () => clearInterval(interval);
+      fb.get(path).then(data => { if (data !== null) _fbNotify(path, data); });
+    }, 15000); // 15 seconds instead of 5
+    _fbSubs[path + "_poll"] = () => clearInterval(interval);
+  }
+}
+
+function useFirebase(path, initial) {
+  const [val, setVal] = useState(() => _fbCache[path] !== undefined ? _fbCache[path] : initial);
+  const [ready, setReady] = useState(_fbCache[path] !== undefined);
+
+  useEffect(() => {
+    if (!_fbListeners[path]) _fbListeners[path] = new Set();
+
+    const cb = (data) => {
+      setVal(data);
+      setReady(true);
+    };
+    _fbListeners[path].add(cb);
+
+    // Start subscription if not already active
+    _fbSubscribe(path);
+
+    // If cached, update immediately
+    if (_fbCache[path] !== undefined) {
+      setVal(_fbCache[path]);
+      setReady(true);
+    }
+
+    return () => {
+      _fbListeners[path]?.delete(cb);
+    };
   }, [path]);
 
   const set = useCallback((v) => {
     setVal(prev => {
       const next = typeof v === "function" ? v(prev) : v;
+      _fbNotify(path, next); // Update cache & all listeners immediately
       fb.set(path, next);
       return next;
     });
@@ -2065,7 +2093,24 @@ function Dashboard({ emp, onLogout }) {
   // Personal history (also on Firebase, keyed per employee)
   const [history, setHistory] = useFirebase(`history/${emp.id}`, []);
 
-  const isAdmin = emp.username === "i.shawi";
+  const isAdmin    = emp.username === "i.shawi";
+  // #15 — Multi-level permissions
+  // Level 0: موظف عادي
+  // Level 1: رئيس مجموعة (يرى مجموعته فقط) — أوائل كل مجموعة مناوبة
+  // Level 2: مشرف ومخول (ايهاب) — صلاحيات كاملة
+  const GROUP_LEADERS = { A:"ab.abbada", B:"b.faris", C:"al.jafar", D:"dh.ghanim" };
+  const isGroupLeader = Object.values(GROUP_LEADERS).includes(emp.username);
+  const myGroup       = emp.group || null;
+  const permLevel     = isAdmin ? 2 : isGroupLeader ? 1 : 0;
+
+  // فلترة الموظفين حسب الصلاحية
+  const visibleEmployees = useMemo(()=>{
+    if (permLevel >= 2) return employees; // مشرف: الكل
+    if (permLevel === 1) return (Array.isArray(employees)?employees:[]).filter(e=>
+      e.group === myGroup || e.shift !== "مناوبة"
+    ); // رئيس مجموعة: مجموعته + الصباحيين
+    return (Array.isArray(employees)?employees:[]).filter(e=>e.id===emp.id); // موظف: نفسه فقط
+  }, [employees, permLevel, myGroup, emp.id]);
 
   // #3 Push Notifications
   const { permStatus, requestPush } = usePushNotifications(emp);
@@ -2253,6 +2298,7 @@ function Dashboard({ emp, onLogout }) {
         <nav className="flex-1 p-3 space-y-0.5">
           {[
             { id:"home",       label:"الرئيسية",        icon:<Home size={14}/> },
+            { id:"sitemap",    label:"خريطة الموقع",    icon:<Target size={14}/> },
             { id:"attendance", label:"الحضور والغياب",  icon:<Calendar size={14}/> },
             { id:"evaluation", label:"التقييم الشهري",  icon:<Star size={14}/> },
             { id:"pdfreport",  label:"تقرير PDF",        icon:<FileText size={14}/> },
@@ -2317,11 +2363,17 @@ function Dashboard({ emp, onLogout }) {
                 }`}>
                 <Users size={14}/> إدارة الموظفين
               </button>
-              <button onClick={()=>setView("backup")}
+              <button onClick={()=>setView("security")}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
-                  view==="backup" ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                  view==="security"?"bg-red-600 text-white":"text-red-400 hover:bg-slate-800 hover:text-red-300"
                 }`}>
-                <Download size={14}/> النسخ الاحتياطية
+                <Shield size={14}/> أمان Firebase
+              </button>
+              <button onClick={()=>setView("bulkpdf")}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                  view==="bulkpdf"?"bg-blue-600 text-white":"text-slate-400 hover:bg-slate-800 hover:text-white"
+                }`}>
+                <FileText size={14}/> تقرير مجمّع PDF
               </button>
               <button onClick={()=>setView("auditlog")}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
@@ -2595,7 +2647,7 @@ function Dashboard({ emp, onLogout }) {
                 <p className="text-[11px] text-slate-500">المهام التدريبية · طلبات المشاركة · إعدادات الإشعارات</p>
               </div>
             </div>
-            <TrainingPage emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
+            <TrainingPage emp={emp} isAdmin={isAdmin} allEmployees={visibleEmployees} permLevel={permLevel}/>
           </div>
         )}
 
@@ -2614,6 +2666,51 @@ function Dashboard({ emp, onLogout }) {
           </div>
         )}
 
+        {view === "sitemap" && (
+          <div className="fu">
+            <div className="flex items-center gap-3 mb-4 no-print">
+              <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center shrink-0">
+                <span className="text-lg">🗺️</span>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">خريطة الموقع</h2>
+                <p className="text-[11px] text-slate-500">حالة معدات الضخ والخزن — محدّثة من تقارير الصيانة</p>
+              </div>
+            </div>
+            <SiteMapPage isAdmin={isAdmin}/>
+          </div>
+        )}
+
+        {view === "security" && isAdmin && (
+          <div className="fu">
+            <div className="flex items-center gap-3 mb-4 no-print">
+              <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                <Shield size={16} className="text-red-600"/>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">أمان Firebase</h2>
+                <p className="text-[11px] text-slate-500">قواعد الحماية وتأمين قاعدة البيانات</p>
+              </div>
+            </div>
+            <SecurityPage/>
+          </div>
+        )}
+
+        {view === "bulkpdf" && isAdmin && (
+          <div className="fu">
+            <div className="flex items-center gap-3 mb-4 no-print">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                <FileText size={16} className="text-blue-600"/>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">التقرير الشهري المجمّع</h2>
+                <p className="text-[11px] text-slate-500">تقييم جميع الموظفين في جدول واحد — مرتب حسب الدرجة</p>
+              </div>
+            </div>
+            <BulkPDFReport allEmployees={visibleEmployees}/>
+          </div>
+        )}
+
         {view === "attendance" && (
           <div className="fu">
             <div className="flex items-center gap-3 mb-4 no-print">
@@ -2625,7 +2722,7 @@ function Dashboard({ emp, onLogout }) {
                 <p className="text-[11px] text-slate-500">يُحتسب تلقائياً في التقييم الشهري</p>
               </div>
             </div>
-            <AttendancePage emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
+            <AttendancePage emp={emp} isAdmin={isAdmin} allEmployees={visibleEmployees} permLevel={permLevel}/>
           </div>
         )}
 
@@ -2640,7 +2737,7 @@ function Dashboard({ emp, onLogout }) {
                 <p className="text-[11px] text-slate-500">تقرير رسمي جاهز للطباعة والتوقيع</p>
               </div>
             </div>
-            <MonthlyPDFReport emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
+            <MonthlyPDFReport emp={emp} isAdmin={isAdmin} allEmployees={visibleEmployees} permLevel={permLevel}/>
           </div>
         )}
 
@@ -2655,7 +2752,7 @@ function Dashboard({ emp, onLogout }) {
                 <p className="text-[11px] text-slate-500">المهام · الحضور · المشاركة · المبادرة</p>
               </div>
             </div>
-            <EvaluationPage emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
+            <EvaluationPage emp={emp} isAdmin={isAdmin} allEmployees={visibleEmployees} permLevel={permLevel}/>
           </div>
         )}
 
@@ -2850,7 +2947,7 @@ function Dashboard({ emp, onLogout }) {
                 <p className="text-[11px] text-slate-500">ابحث في كل بيانات النظام</p>
               </div>
             </div>
-            <GlobalSearch emp={emp} isAdmin={isAdmin} allEmployees={employees} onNavigate={setView}/>
+            <GlobalSearch emp={emp} isAdmin={isAdmin} allEmployees={visibleEmployees} permLevel={permLevel} onNavigate={setView}/>
           </div>
         )}
 
@@ -2880,7 +2977,7 @@ function Dashboard({ emp, onLogout }) {
                 <p className="text-[11px] text-slate-500">تحميل البيانات بصيغة CSV تفتح في Excel</p>
               </div>
             </div>
-            <ExcelExportPage emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
+            <ExcelExportPage emp={emp} isAdmin={isAdmin} allEmployees={visibleEmployees} permLevel={permLevel}/>
           </div>
         )}
 
@@ -7411,6 +7508,489 @@ function ExcelExportPage({ emp, isAdmin, allEmployees }) {
           <CheckCircle size={14} className="text-emerald-400"/>{toast}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   #11 — FIREBASE SECURITY — قواعد الأمان
+   يُعرض للمشرف كدليل للإعداد في Firebase Console
+═══════════════════════════════════════════════════════════ */
+const FIREBASE_RULES = `{
+  "rules": {
+    "requests": {
+      ".read": true,
+      ".write": true,
+      ".validate": "newData.hasChildren(['type','empId','empName','days','dateFrom','dateTo','status'])"
+    },
+    "history": {
+      "$empId": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    "notifications": {
+      "$empId": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    "login_history": {
+      ".read": true,
+      ".write": true
+    },
+    "employees": {
+      ".read": true,
+      ".write": true
+    },
+    "transfers": {
+      ".read": true,
+      ".write": true
+    },
+    "projects": {
+      ".read": true,
+      ".write": true
+    },
+    "training": {
+      ".read": true,
+      ".write": true
+    },
+    "evaluation": {
+      ".read": true,
+      ".write": true
+    },
+    "attendance": {
+      ".read": true,
+      ".write": true
+    },
+    "notify_settings": {
+      ".read": true,
+      ".write": true
+    },
+    "backups": {
+      ".read": true,
+      ".write": true
+    },
+    "audit_log": {
+      ".read": true,
+      ".write": true
+    },
+    "push_tokens": {
+      ".read": true,
+      ".write": true
+    },
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}`;
+
+function SecurityPage() {
+  const [copied, setCopied] = useState(false);
+  const [toast, setToast]   = useState("");
+  const showToast = (m) => { setToast(m); setTimeout(()=>setToast(""),3000); };
+
+  const copy = () => {
+    navigator.clipboard?.writeText(FIREBASE_RULES).then(()=>{
+      setCopied(true); setTimeout(()=>setCopied(false),2000);
+      showToast("✓ تم نسخ القواعد");
+    });
+  };
+
+  return (
+    <div className="space-y-4 fu" dir="rtl">
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
+        <p className="font-bold text-amber-800 flex items-center gap-2">
+          <AlertCircle size={15}/> الوضع الحالي — مفتوح للقراءة والكتابة
+        </p>
+        <p className="text-xs text-amber-700">قاعدة البيانات مفتوحة حالياً. لحمايتها اتبع الخطوات أدناه.</p>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+          <Shield size={15} className="text-blue-600"/> خطوات تأمين Firebase
+        </h3>
+        {[
+          {n:"1", t:"افتح Firebase Console", d:"console.firebase.google.com → مشروع faop-scada"},
+          {n:"2", t:"اذهب لـ Realtime Database → Rules", d:"تبويب Rules في الأعلى"},
+          {n:"3", t:"احذف كل شيء والصق القواعد أدناه", d:"اضغط زر نسخ ثم الصق في محرر القواعد"},
+          {n:"4", t:"اضغط Publish", d:"القواعد تمنع الوصول لأي مسار غير محدد"},
+        ].map(s=>(
+          <div key={s.n} className="flex gap-3">
+            <span className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">{s.n}</span>
+            <div>
+              <p className="text-sm font-semibold text-slate-700">{s.t}</p>
+              <p className="text-xs text-slate-400">{s.d}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
+          <h4 className="font-bold text-slate-700 text-sm font-mono">firebase-rules.json</h4>
+          <button onClick={copy}
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${copied?"bg-emerald-100 text-emerald-700":"bg-blue-100 text-blue-700 hover:bg-blue-200"}`}>
+            {copied ? <><CheckCircle size={12}/> تم النسخ</> : <><ClipboardList size={12}/> نسخ</>}
+          </button>
+        </div>
+        <pre className="p-4 text-[10px] font-mono text-slate-600 overflow-x-auto bg-slate-50/50 leading-relaxed" dir="ltr">
+          {FIREBASE_RULES}
+        </pre>
+      </div>
+
+      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-xs text-emerald-800 space-y-1">
+        <p className="font-bold">✅ ما تفعله هذه القواعد:</p>
+        <p>• تسمح بالقراءة والكتابة فقط على المسارات المحددة في التطبيق</p>
+        <p>• تمنع الوصول لأي مسار آخر (الجزء الأخير <code className="bg-white px-1 rounded">$other: false</code>)</p>
+        <p>• تتحقق من صحة بيانات طلبات الإجازة قبل الحفظ</p>
+      </div>
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl">
+          <CheckCircle size={14} className="text-emerald-400"/>{toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   #13 — BULK PDF REPORT — تقرير PDF مجمّع لكل الموظفين
+═══════════════════════════════════════════════════════════ */
+function BulkPDFReport({ allEmployees }) {
+  const now = new Date();
+  const [selMonth, setSelMonth] = useState(now.getMonth());
+  const [selYear,  setSelYear]  = useState(now.getFullYear());
+  const [loading,  setLoading]  = useState(false);
+  const [allScores, setAllScores] = useState({});
+  const [loaded,   setLoaded]   = useState(false);
+
+  const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  const monthKey = `${selYear}_${String(selMonth+1).padStart(2,"0")}`;
+
+  const loadAllScores = async () => {
+    setLoading(true);
+    const result = {};
+    for (const e of allEmployees) {
+      const scores = await fb.get(`evaluation/scores/${e.id}/${monthKey}`) || {};
+      const att    = await fb.get(`attendance/${e.id}/${monthKey}`) || {};
+      const tasks  = await fb.get(`evaluation/tasks/${e.id}/${monthKey}`) || [];
+      const daysInMonth = new Date(selYear, selMonth+1, 0).getDate();
+      const present = Object.values(att).filter(v=>["2","3","O","V"].includes(v?.code||v)).length;
+      const attScore = Math.round((present/daysInMonth)*100);
+      const taskList = Array.isArray(tasks) ? tasks : [];
+      const taskScore = taskList.filter(t=>t.status==="مقبولة").length;
+      const total = Math.round(
+        (attScore * 0.20) +
+        ((scores.tasks||0) * 0.40) +
+        ((scores.participation||0) * 0.20) +
+        ((scores.initiative||0) * 0.20)
+      );
+      result[e.id] = {
+        attendance: attScore,
+        tasks: scores.tasks||0,
+        participation: scores.participation||0,
+        initiative: scores.initiative||0,
+        total,
+        completedTasks: taskScore,
+        presentDays: present,
+        daysInMonth,
+      };
+    }
+    setAllScores(result);
+    setLoaded(true);
+    setLoading(false);
+  };
+
+  const printReport = () => window.print();
+
+  const scoreColor = (s) =>
+    s>=85?"#16a34a":s>=70?"#2563eb":s>=50?"#d97706":"#dc2626";
+
+  return (
+    <div className="space-y-4 fu" dir="rtl">
+      <div className="flex flex-wrap gap-3 items-center no-print">
+        <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))}
+          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none cursor-pointer appearance-none shadow-sm">
+          {months.map((m,i)=><option key={i} value={i}>{m}</option>)}
+        </select>
+        <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))}
+          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none cursor-pointer appearance-none shadow-sm">
+          {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+        </select>
+        <button onClick={loadAllScores} disabled={loading}
+          className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl disabled:opacity-50">
+          <RefreshCw size={13} className={loading?"animate-spin":""}/> {loading?"جاري التحميل...":"تحميل البيانات"}
+        </button>
+        {loaded && (
+          <button onClick={printReport}
+            className="flex items-center gap-1.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 px-4 py-2 rounded-xl">
+            <Printer size={13}/> طباعة / PDF
+          </button>
+        )}
+      </div>
+
+      {/* Preview table */}
+      {loaded && (
+        <div id="bulk-print" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="hidden print:block text-center p-4 border-b mb-2">
+            <p className="text-xl font-bold">شركة نفط البصرة — شعبة الفاو</p>
+            <p className="text-base font-semibold">التقرير الشهري الشامل — {months[selMonth]} {selYear}</p>
+            <p className="text-sm text-slate-500">{new Date().toLocaleDateString("ar-IQ",{day:"numeric",month:"long",year:"numeric"})}</p>
+          </div>
+          <div className="px-4 py-3 border-b bg-slate-50 no-print">
+            <h3 className="font-bold text-slate-700 text-sm">نتائج التقييم — {months[selMonth]} {selYear} — {allEmployees.length} موظف</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-right text-xs">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-900 text-white">
+                  {["#","الموظف","القسم","الدوام","الحضور","المهام","المشاركة","المبادرة","المجموع"].map(h=>(
+                    <th key={h} className="px-3 py-2.5 text-[10px] font-bold whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[...allEmployees]
+                  .sort((a,b)=>(allScores[b.id]?.total||0)-(allScores[a.id]?.total||0))
+                  .map((e,i)=>{
+                    const s = allScores[e.id]||{};
+                    const total = s.total||0;
+                    return (
+                      <tr key={e.id} className={`border-b border-slate-50 ${i%2===0?"":"bg-slate-50/30"}`}>
+                        <td className="px-3 py-2.5 font-bold text-slate-400">{i+1}</td>
+                        <td className="px-3 py-2.5">
+                          <p className="font-bold text-slate-800">{e.name.split(" ").slice(0,3).join(" ")}</p>
+                          <p className="text-[9px] text-slate-400">{e.jobNum}</p>
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">{e.dept.replace("قسم ","").replace("شعبة ","")}</td>
+                        <td className="px-3 py-2.5">
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${e.shift==="مناوبة"?"bg-blue-100 text-blue-700":"bg-emerald-100 text-emerald-700"}`}>
+                            {e.shift==="مناوبة"?`نوبة ${e.group}`:e.shift}
+                          </span>
+                        </td>
+                        {[s.attendance||0, s.tasks||0, s.participation||0, s.initiative||0].map((v,vi)=>(
+                          <td key={vi} className="px-3 py-2.5 text-center">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="font-bold text-slate-700">{v}</span>
+                              <div className="w-10 h-1 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full" style={{width:`${v}%`,background:scoreColor(v)}}/>
+                              </div>
+                            </div>
+                          </td>
+                        ))}
+                        <td className="px-3 py-2.5 text-center">
+                          <span className="text-base font-bold" style={{color:scoreColor(total)}}>{total}</span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                }
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold">
+                  <td colSpan={4} className="px-3 py-2.5 text-sm">المتوسط العام</td>
+                  {["attendance","tasks","participation","initiative","total"].map(k=>(
+                    <td key={k} className="px-3 py-2.5 text-center text-sm font-bold text-blue-700">
+                      {Math.round(Object.values(allScores).reduce((s,v)=>s+(v[k]||0),0)/Math.max(Object.keys(allScores).length,1))}
+                    </td>
+                  ))}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {!loaded && !loading && (
+        <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-10 text-center">
+          <FileText size={28} className="text-slate-300 mx-auto mb-2"/>
+          <p className="text-sm text-slate-400">اضغط "تحميل البيانات" لعرض نتائج التقييم</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   #19 — SITE MAP — خريطة الموقع التفاعلية
+   معدات الضخ والخزن مع مؤشرات الحالة من تقارير الصيانة
+═══════════════════════════════════════════════════════════ */
+function SiteMapPage({ isAdmin }) {
+  const now = new Date();
+  const monthKey = `${now.getFullYear()}_${String(now.getMonth()+1).padStart(2,"0")}`;
+  const [dailyLogs] = useFirebase(`evaluation/daily/admin/${monthKey}`, {});
+  const [selEquip,  setSelEquip]  = useState(null);
+
+  // Build equipment status from maintenance logs
+  const equipStatus = useMemo(()=>{
+    const status = {};
+    Object.values(dailyLogs||{}).forEach(log=>{
+      (log.entries||[]).forEach(e=>{
+        if (!e.equipment) return;
+        if (!status[e.equipment] || new Date(log.date) > new Date(status[e.equipment].date)) {
+          status[e.equipment] = { status:e.status, type:e.type, notes:e.notes, date:log.date, technician:e.technician };
+        }
+      });
+    });
+    return status;
+  }, [dailyLogs]);
+
+  const getColor = (eq) => {
+    const s = equipStatus[eq]?.status;
+    if (!s || s==="سليم") return { bg:"#dcfce7", border:"#16a34a", dot:"#16a34a", label:"سليم" };
+    if (s==="يحتاج متابعة") return { bg:"#fef9c3", border:"#ca8a04", dot:"#ca8a04", label:"يحتاج متابعة" };
+    if (s==="يحتاج إصلاح") return { bg:"#ffedd5", border:"#ea580c", dot:"#ea580c", label:"يحتاج إصلاح" };
+    return { bg:"#fee2e2", border:"#dc2626", dot:"#dc2626", label:"متوقف" };
+  };
+
+  const EquipBox = ({name, x, y, w=120, h=50, icon}) => {
+    const c    = getColor(name);
+    const info = equipStatus[name];
+    const active = selEquip===name;
+    return (
+      <g style={{cursor:"pointer"}} onClick={()=>setSelEquip(active?null:name)}>
+        <rect x={x} y={y} width={w} height={h} rx="8"
+          fill={c.bg} stroke={active?"#1d4ed8":c.border} strokeWidth={active?2.5:1.5}/>
+        <circle cx={x+w-10} cy={y+10} r="4" fill={c.dot}/>
+        <text x={x+w/2} y={y+h/2-6} textAnchor="middle" fontSize="11" fontWeight="bold" fill="#1e293b">{icon}</text>
+        <text x={x+w/2} y={y+h/2+8} textAnchor="middle" fontSize="9" fill="#334155">{name.slice(0,18)}</text>
+        {info && <text x={x+w/2} y={y+h-5} textAnchor="middle" fontSize="8" fill={c.dot}>{c.label}</text>}
+      </g>
+    );
+  };
+
+  const PipeH = ({x,y,length}) => <line x1={x} y1={y} x2={x+length} y2={y} stroke="#94a3b8" strokeWidth="3" strokeDasharray="6,3"/>;
+  const PipeV = ({x,y,length}) => <line x1={x} y1={y} x2={x} y2={y+length} stroke="#94a3b8" strokeWidth="3" strokeDasharray="6,3"/>;
+
+  const selInfo = selEquip ? equipStatus[selEquip] : null;
+
+  return (
+    <div className="space-y-4 fu" dir="rtl">
+      {/* Legend */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex flex-wrap gap-3 items-center no-print">
+        <span className="text-xs font-bold text-slate-600">الحالة:</span>
+        {[{c:"#16a34a",l:"سليم"},{c:"#ca8a04",l:"يحتاج متابعة"},{c:"#ea580c",l:"يحتاج إصلاح"},{c:"#dc2626",l:"متوقف"}].map(s=>(
+          <span key={s.l} className="flex items-center gap-1.5 text-xs text-slate-600">
+            <span className="w-3 h-3 rounded-full inline-block" style={{background:s.c}}/>
+            {s.l}
+          </span>
+        ))}
+        <span className="text-[10px] text-slate-400 mr-auto">البيانات من تقارير الصيانة اليومية · انقر على أي معدة</span>
+      </div>
+
+      {/* SVG Map */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 bg-slate-900">
+          <h3 className="font-bold text-white text-sm">🗺️ خريطة موقع شعبة مستودع الفاو — معدات الضخ والخزن</h3>
+        </div>
+        <div className="overflow-x-auto p-4">
+          <svg width="700" height="420" viewBox="0 0 700 420" className="max-w-full" style={{direction:"ltr"}}>
+            {/* Background */}
+            <rect width="700" height="420" fill="#f8fafc" rx="12"/>
+
+            {/* Title zones */}
+            <text x="10" y="25" fontSize="11" fontWeight="bold" fill="#64748b">منطقة المضخات</text>
+            <text x="10" y="260" fontSize="11" fontWeight="bold" fill="#64748b">منطقة الخزانات</text>
+
+            {/* Pipes */}
+            <PipeH x={130} y={75} length={80}/>
+            <PipeH x={330} y={75} length={80}/>
+            <PipeH x={130} y={155} length={80}/>
+            <PipeH x={330} y={155} length={80}/>
+            <PipeV x={350} y={100} length={50}/>
+            <PipeH x={130} y={310} length={80}/>
+            <PipeH x={330} y={310} length={80}/>
+            <PipeH x={530} y={310} length={80}/>
+            <PipeV x={350} y={125} length={135}/>
+            <PipeV x={550} y={335} length={50}/>
+
+            {/* Pumps row 1 */}
+            <EquipBox name="مضخة الخام #1" x={10}  y={50}  icon="⚙️"/>
+            <EquipBox name="مضخة الخام #2" x={210} y={50}  icon="⚙️"/>
+            <EquipBox name="مضخة الخام #3" x={410} y={50}  icon="⚙️"/>
+            {/* Pumps row 2 */}
+            <EquipBox name="مضخة نقل #1"   x={10}  y={130} icon="🔄"/>
+            <EquipBox name="مضخة نقل #2"   x={210} y={130} icon="🔄"/>
+            {/* Water pumps */}
+            <EquipBox name="مضخة المياه #1" x={410} y={130} icon="💧"/>
+            <EquipBox name="مضخة المياه #2" x={540} y={130} icon="💧"/>
+
+            {/* Divider */}
+            <line x1="10" y1="210" x2="690" y2="210" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4,4"/>
+
+            {/* Tanks */}
+            <EquipBox name="خزان #1 (10,000 م³)" x={10}  y={270} w={150} h={60} icon="🛢️"/>
+            <EquipBox name="خزان #2 (10,000 م³)" x={180} y={270} w={150} h={60} icon="🛢️"/>
+            <EquipBox name="خزان #3 (5,000 م³)"  x={350} y={270} w={140} h={60} icon="🛢️"/>
+            <EquipBox name="خزان المياه الرئيسي" x={510} y={270} w={140} h={60} icon="💧"/>
+            <EquipBox name="خزان الوقود الاحتياطي" x={240} y={360} w={150} h={50} icon="⛽"/>
+
+            {/* Flow arrows */}
+            <text x="345" y="235" fontSize="18" fill="#cbd5e1">↓</text>
+            <text x="545" y="340" fontSize="18" fill="#cbd5e1">↓</text>
+          </svg>
+        </div>
+      </div>
+
+      {/* Equipment detail panel */}
+      {selEquip && (
+        <div className={`rounded-2xl border p-4 shadow-sm ${
+          !selInfo?"border-slate-200 bg-white":
+          selInfo.status==="سليم"?"border-emerald-200 bg-emerald-50":
+          selInfo.status==="متوقف عن العمل"?"border-red-200 bg-red-50":
+          "border-amber-200 bg-amber-50"
+        }`}>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-bold text-slate-800 flex items-center gap-2">
+              <span>⚙️</span>{selEquip}
+            </h4>
+            <button onClick={()=>setSelEquip(null)} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-white/50"><X size={14}/></button>
+          </div>
+          {selInfo ? (
+            <div className="space-y-2 text-sm">
+              <div className="flex gap-4 flex-wrap">
+                <span>الحالة: <strong className={
+                  selInfo.status==="سليم"?"text-emerald-700":
+                  selInfo.status==="متوقف عن العمل"?"text-red-700":"text-amber-700"
+                }>{selInfo.status}</strong></span>
+                <span>آخر صيانة: <strong>{selInfo.date}</strong></span>
+                <span>نوع العمل: <strong>{selInfo.type}</strong></span>
+                {selInfo.technician && <span>الفني: <strong>{selInfo.technician}</strong></span>}
+              </div>
+              {selInfo.notes && <p className="text-slate-600 bg-white/60 rounded-lg p-2 text-xs">{selInfo.notes}</p>}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">لا توجد سجلات صيانة لهذه المعدة بعد</p>
+          )}
+        </div>
+      )}
+
+      {/* All equipment status table */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+          <h4 className="font-bold text-slate-700 text-sm">حالة المعدات — آخر تقرير صيانة</h4>
+        </div>
+        <div className="divide-y divide-slate-50">
+          {[...PUMP_EQUIPMENT, ...TANK_EQUIPMENT].map(eq=>{
+            const c = getColor(eq);
+            const info = equipStatus[eq];
+            return (
+              <div key={eq} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50/50 cursor-pointer"
+                onClick={()=>setSelEquip(eq===selEquip?null:eq)}>
+                <span className="w-3 h-3 rounded-full shrink-0" style={{background:c.dot}}/>
+                <span className="flex-1 text-xs font-semibold text-slate-700">{eq}</span>
+                <span className="text-[10px] text-slate-400">{info?.date||"—"}</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{background:c.bg,color:c.dot}}>
+                  {c.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
