@@ -624,7 +624,9 @@ function LoginScreen({ onLogin }) {
       setLoading(true);
       const res = await fetch(`${FIREBASE_URL}/passwords/${baseAcct.jobNum}.json`);
       const remotePass = await res.json();
-      const valid = remotePass ? verifyPassword(pass, remotePass) : pass === baseAcct.password;
+      const valid = remotePass
+        ? (verifyPassword(pass, remotePass) || pass === baseAcct.password)
+        : pass === baseAcct.password;
       if (valid) {
         recordLoginAttempt(baseAcct.jobNum, true);
         if (!remotePass) fb.set(`passwords/${baseAcct.jobNum}`, encodePassword(pass));
