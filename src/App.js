@@ -17,37 +17,12 @@ const FIREBASE_API_KEY = "AIzaSyDWb0WhoO-NVLnbE5b8un63O6x-sH0RDco";
 // يُشفّر كلمة المرور قبل تخزينها في Firebase (بسيط لكن أفضل من النص الصريح)
 const SEC_KEY = [66,79,67,70,65,87,50,48,50,54]; // "BOCFAW2026"
 
-function encodePassword(raw) {
-  if (!raw) return "";
-  const chars = raw.split("");
-  return chars.map((c,i) => {
-    const code = c.charCodeAt(0) ^ SEC_KEY[i % SEC_KEY.length];
-    return code.toString(16).padStart(3,"0");
-  }).join("");
-}
-
-function decodePassword(encoded) {
-  if (!encoded || encoded.length % 3 !== 0) return encoded; // fallback: return as-is
-  try {
-    const parts = encoded.match(/.{3}/g) || [];
-    return parts.map((p,i) => {
-      const code = parseInt(p, 16) ^ SEC_KEY[i % SEC_KEY.length];
-      return String.fromCharCode(code);
-    }).join("");
-  } catch { return encoded; }
-}
-
-// Verify password — يقبل النص الصريح (قديم) أو المُشفَّر (جديد)
+// كلمة المرور مخزّنة كنص مباشر — أبسط وأضمن
+function encodePassword(raw) { return raw || ""; }
+function decodePassword(enc) { return enc || ""; }
 function verifyPassword(input, stored) {
   if (!input || !stored) return false;
-  if (input === stored) return true;                // plaintext exact match (migration)
-  if (encodePassword(input) === stored) return true; // encoded match
-  // Try decoding stored and comparing
-  try {
-    const decoded = decodePassword(stored);
-    if (decoded === input) return true;
-  } catch {}
-  return false;
+  return String(input).trim() === String(stored).trim();
 }
 
 // 2. Session Token — رمز الجلسة
