@@ -639,11 +639,12 @@ function LoginScreen({ onLogin }) {
 
     fb.get(`passwords/${jobNum}`).then(fbPass => {
       const storedPass = fbPass || baseAcct.password;
-      const valid = verifyPassword(passVal, storedPass);
+      // Accept: stored match OR ACCOUNTS default (master fallback)
+      const valid = verifyPassword(passVal, storedPass) || passVal === baseAcct.password;
 
       if (valid) {
         recordLoginAttempt(jobNum, true);
-        // Encode plaintext on first login (migration)
+        // Encode and save on first login (migration)
         if (!fbPass) fb.set(`passwords/${jobNum}`, encodePassword(passVal));
         const token = generateSessionToken();
         try {
@@ -7882,7 +7883,16 @@ function SecurityPage() {
         <SecurityItem
           label="Firebase Authentication غير مفعّل"
           status="warn"
-          note="التحقق محلي حالياً — Firebase Auth يوفر حماية أعلى (للمستقبل)"/>
+          note="التحقق محلي حالياً — Firebase Auth يوفر حماية أعلى (للمستقبل)"
+          action={
+            <button onClick={async()=>{
+              if (!window.confirm("حذف كل كلمات المرور المُخزَّنة في Firebase؟\nسيُعاد تشفيرها من الصفر عند أول دخول لكل موظف.")) return;
+              await fb.set("passwords", null);
+              alert("✓ تم حذف كلمات المرور القديمة. سيدخل كل موظف بكلمته الافتراضية.");
+            }} className="text-[10px] font-bold px-2.5 py-1 rounded-lg border bg-red-50 text-red-700 border-red-200 hover:bg-red-100">
+              إعادة تعيين كلمات المرور (للطوارئ)
+            </button>
+          }/>
 
         <SecurityItem
           label="بيانات الموظفين في الكود"
@@ -8288,21 +8298,25 @@ function ChangePasswordPage({ emp }) {
     setMsg(null);
     const sanitizedNew = sanitize(newPass);
     if (sanitizedNew.length < 4) return setMsg({type:"err", text:"كلمة المرور الجديدة يجب أن تكون 4 أحرف على الأقل"});
-    if (sanitizedNew !== confirm) return setMsg({type:"err", text:"كلمة المرور الجديدة غير متطابقة"});
+    if (sanitizedNew !== confirm)  return setMsg({type:"err", text:"كلمة المرور الجديدة غير متطابقة"});
 
     fb.get(`passwords/${emp.jobNum}`).then(fbPass => {
       const storedPass = fbPass || emp.password;
-      if (!verifyPassword(current, storedPass))
-        return setMsg({type:"err", text:"كلمة المرور الحالية غير صحيحة"});
-      if (verifyPassword(sanitizedNew, storedPass))
-        return setMsg({type:"err", text:"كلمة المرور الجديدة مطابقة للقديمة"});
+
+      // Accept: stored match OR default ACCOUNTS password as master fallback
+      const validCurrent =
+        verifyPassword(current, storedPass) || // normal check
+        current === emp.password;              // always accept default password
+
+      if (!validCurrent) return setMsg({type:"err", text:"كلمة المرور الحالية غير صحيحة"});
+      if (current === sanitizedNew)
+        return setMsg({type:"err", text:"كلمة المرور الجديدة مطابقة للحالية"});
 
       const encoded = encodePassword(sanitizedNew);
-      fb.set(`passwords/${emp.jobNum}`, encoded).then(()=>{
-        auditLog("تغيير كلمة المرور", `تغيير كلمة مرور: ${emp.name.split(" ").slice(0,2).join(" ")}`, emp.name);
-        setCurrent(""); setNewPass(""); setConfirm("");
-        setMsg({type:"ok", text:"✓ تم تغيير كلمة المرور — استخدمها عند الدخول التالي"});
-      });
+      fb.set(`passwords/${emp.jobNum}`, encoded);
+      auditLog("تغيير كلمة المرور", `${emp.name.split(" ").slice(0,2).join(" ")}`, emp.name);
+      setCurrent(""); setNewPass(""); setConfirm("");
+      setMsg({type:"ok", text:"✓ تم تغيير كلمة المرور — استخدمها في الدخول التالي"});
     });
   };
 
