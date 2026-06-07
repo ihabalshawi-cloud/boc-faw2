@@ -622,8 +622,17 @@ function LoginScreen({ onLogin }) {
     if (!baseAcct) { setErr("رقم الوظيفة غير موجود في النظام"); return; }
     try {
       setLoading(true);
-      const res = await fetch(`${FIREBASE_URL}/passwords/${baseAcct.jobNum}.json`);
-      const remotePass = await res.json();
+      // Get stored password — handle null, permission errors, and network issues
+      let remotePass = null;
+      try {
+        const res = await fetch(`${FIREBASE_URL}/passwords/${baseAcct.jobNum}.json`);
+        const data = await res.json();
+        // Only use if it's a valid string (not null, not error object)
+        if (typeof data === "string" && data.length > 0) {
+          remotePass = data;
+        }
+      } catch { /* Network error — use default */ }
+
       const valid = remotePass
         ? (verifyPassword(pass, remotePass) || pass === baseAcct.password)
         : pass === baseAcct.password;
