@@ -8287,37 +8287,22 @@ function SiteMapPage({ isAdmin }) {
    CHANGE PASSWORD — تغيير كلمة المرور
 ═══════════════════════════════════════════════════════════ */
 function ChangePasswordPage({ emp }) {
-  const [current, setCurrent] = useState("");
   const [newPass, setNewPass] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [showC, setShowC]     = useState(false);
-  const [showN, setShowN]     = useState(false);
-  const [msg,   setMsg]       = useState(null); // {type,text}
+  const [showN,   setShowN]   = useState(false);
+  const [msg,     setMsg]     = useState(null);
 
   const save = () => {
     setMsg(null);
-    const sanitizedNew = sanitize(newPass);
-    if (sanitizedNew.length < 4) return setMsg({type:"err", text:"كلمة المرور الجديدة يجب أن تكون 4 أحرف على الأقل"});
-    if (sanitizedNew !== confirm)  return setMsg({type:"err", text:"كلمة المرور الجديدة غير متطابقة"});
+    if (newPass.length < 4)    return setMsg({type:"err", text:"كلمة المرور يجب أن تكون 4 أحرف على الأقل"});
+    if (newPass !== confirm)   return setMsg({type:"err", text:"كلمة المرور غير متطابقة"});
+    if (newPass === emp.password) return setMsg({type:"err", text:"كلمة المرور الجديدة مطابقة للافتراضية"});
 
-    fb.get(`passwords/${emp.jobNum}`).then(fbPass => {
-      const storedPass = fbPass || emp.password;
-
-      // Accept: stored match OR default ACCOUNTS password as master fallback
-      const validCurrent =
-        verifyPassword(current, storedPass) || // normal check
-        current === emp.password;              // always accept default password
-
-      if (!validCurrent) return setMsg({type:"err", text:"كلمة المرور الحالية غير صحيحة"});
-      if (current === sanitizedNew)
-        return setMsg({type:"err", text:"كلمة المرور الجديدة مطابقة للحالية"});
-
-      const encoded = encodePassword(sanitizedNew);
-      fb.set(`passwords/${emp.jobNum}`, encoded);
-      auditLog("تغيير كلمة المرور", `${emp.name.split(" ").slice(0,2).join(" ")}`, emp.name);
-      setCurrent(""); setNewPass(""); setConfirm("");
-      setMsg({type:"ok", text:"✓ تم تغيير كلمة المرور — استخدمها في الدخول التالي"});
-    });
+    const encoded = encodePassword(newPass);
+    fb.set(`passwords/${emp.jobNum}`, encoded);
+    auditLog("تغيير كلمة المرور", emp.name.split(" ").slice(0,2).join(" "), emp.name);
+    setNewPass(""); setConfirm("");
+    setMsg({type:"ok", text:`✓ تم تغيير كلمة المرور بنجاح — استخدم ${newPass} في الدخول التالي`});
   };
 
   const inp = "w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white";
@@ -8331,42 +8316,36 @@ function ChangePasswordPage({ emp }) {
           </div>
           <div>
             <h3 className="font-bold text-slate-800">تغيير كلمة المرور</h3>
-            <p className="text-xs text-slate-500">الرقم الوظيفي: {emp.jobNum}</p>
+            <p className="text-xs text-slate-500">رقمك الوظيفي: <strong>{emp.jobNum}</strong> — كلمة المرور الحالية: <strong>{emp.password}</strong></p>
           </div>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800">
+          أنت مسجّل دخولك بالفعل — فقط أدخل كلمة المرور الجديدة
         </div>
 
         <div className="space-y-3">
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 mb-1">كلمة المرور الحالية</label>
+            <label className="block text-[10px] font-bold text-slate-400 mb-1">كلمة المرور الجديدة</label>
             <div className="relative">
-              <input type={showC?"text":"password"} value={current} onChange={e=>setCurrent(e.target.value)}
-                className={inp} placeholder="أدخل كلمة المرور الحالية" dir="ltr"/>
-              <button onClick={()=>setShowC(p=>!p)} className="absolute left-3 top-2.5 text-slate-400 hover:text-slate-700">
-                {showC ? <EyeOff size={16}/> : <Eye size={16}/>}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 mb-1">كلمة المرور الجديدة (6 أحرف على الأقل)</label>
-            <div className="relative">
-              <input type={showN?"text":"password"} value={newPass} onChange={e=>setNewPass(e.target.value)}
-                className={inp} placeholder="كلمة المرور الجديدة" dir="ltr"/>
+              <input type={showN?"text":"password"} value={newPass}
+                onChange={e=>setNewPass(e.target.value)}
+                className={inp} placeholder="أدخل كلمة المرور الجديدة" dir="ltr"/>
               <button onClick={()=>setShowN(p=>!p)} className="absolute left-3 top-2.5 text-slate-400 hover:text-slate-700">
-                {showN ? <EyeOff size={16}/> : <Eye size={16}/>}
+                {showN?<EyeOff size={16}/>:<Eye size={16}/>}
               </button>
             </div>
-            {/* Strength indicator */}
+            {/* Strength */}
             {newPass && (
-              <div className="flex gap-1 mt-1.5">
+              <div className="flex gap-1 mt-1.5 items-center">
                 {[1,2,3,4].map(i=>(
                   <div key={i} className={`flex-1 h-1 rounded-full ${
                     newPass.length>=8&&i<=4?"bg-emerald-500":
                     newPass.length>=6&&i<=3?"bg-amber-400":
                     newPass.length>=4&&i<=2?"bg-orange-400":
-                    i<=1?"bg-red-400":"bg-slate-200"
-                  }`}/>
+                    i<=1?"bg-red-400":"bg-slate-200"}`}/>
                 ))}
-                <span className="text-[9px] text-slate-400 mr-1">
+                <span className="text-[9px] text-slate-400 mr-1 w-10">
                   {newPass.length>=8?"قوية":newPass.length>=6?"متوسطة":"ضعيفة"}
                 </span>
               </div>
@@ -8375,28 +8354,32 @@ function ChangePasswordPage({ emp }) {
           <div>
             <label className="block text-[10px] font-bold text-slate-400 mb-1">تأكيد كلمة المرور</label>
             <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)}
-              className={`${inp} ${confirm&&confirm!==newPass?"border-red-300 ring-1 ring-red-300":confirm&&confirm===newPass?"border-emerald-300":""}`}
-              placeholder="أعد إدخال كلمة المرور الجديدة" dir="ltr"/>
+              className={`${inp} ${confirm&&confirm!==newPass?"border-red-300":confirm&&confirm===newPass?"border-emerald-300":""}`}
+              placeholder="أعد إدخال كلمة المرور" dir="ltr"/>
+            {confirm && confirm===newPass && (
+              <p className="text-[10px] text-emerald-600 mt-1 flex items-center gap-1"><CheckCircle size={10}/> متطابقة</p>
+            )}
           </div>
         </div>
 
         {msg && (
-          <div className={`rounded-xl p-3 text-sm font-semibold ${msg.type==="ok"?"bg-emerald-50 text-emerald-800 border border-emerald-200":"bg-red-50 text-red-800 border border-red-200"}`}>
-            {msg.text}
-          </div>
+          <div className={`rounded-xl p-3 text-sm font-semibold ${
+            msg.type==="ok"?"bg-emerald-50 text-emerald-800 border border-emerald-200":"bg-red-50 text-red-800 border border-red-200"
+          }`}>{msg.text}</div>
         )}
 
         <button onClick={save}
           className="w-full flex items-center justify-center gap-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 py-3 rounded-xl active:scale-95 transition-all">
           <Save size={14}/> حفظ كلمة المرور الجديدة
         </button>
+      </div>
 
-        <div className="bg-slate-50 rounded-xl p-3 text-[10px] text-slate-500 space-y-1">
-          <p className="font-bold text-slate-600">نصائح لكلمة مرور آمنة:</p>
-          <p>• استخدم 8 أحرف على الأقل</p>
-          <p>• اجمع بين أرقام وحروف</p>
-          <p>• لا تشاركها مع أحد</p>
-        </div>
+      {/* Reset to default info */}
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 max-w-md">
+        <p className="font-bold text-slate-700 mb-1">📌 ملاحظة:</p>
+        <p>• كلمة مرورك الافتراضية هي <strong className="text-blue-700">{emp.password}</strong></p>
+        <p>• إذا نسيت كلمة مرورك الجديدة، اطلب من المشرف إعادة تعيينها</p>
+        <p>• التغيير يُطبَّق فوراً في جلسة الدخول التالية</p>
       </div>
     </div>
   );
