@@ -8286,91 +8286,78 @@ function SiteMapPage({ isAdmin }) {
 /* ═══════════════════════════════════════════════════════════
    CHANGE PASSWORD — تغيير كلمة المرور
 ═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════
+   CHANGE PASSWORD — تغيير كلمة المرور (نسخة معدلة ومصلحة)
+═══════════════════════════════════════════════════════════ */
 function ChangePasswordPage({ emp }) {
+  // استخدام useFirebase لضمان تحديث الـ State والمزامنة الفورية مع قاعدة البيانات
+  const [, setFbPassword] = useFirebase(`passwords/${emp.jobNum}`, null);
   const [newPass, setNewPass] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [showN,   setShowN]   = useState(false);
-  const [msg,     setMsg]     = useState(null);
+  const [showN, setShowN] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [loading, setLoading] = useState(false); // مؤشر حماية أثناء الرفع
 
-  const save = () => {
+  const save = async () => {
     setMsg(null);
-    if (newPass.length < 4)    return setMsg({type:"err", text:"كلمة المرور يجب أن تكون 4 أحرف على الأقل"});
-    if (newPass !== confirm)   return setMsg({type:"err", text:"كلمة المرور غير متطابقة"});
+    if (newPass.length < 4) return setMsg({type:"err", text:"كلمة المرور يجب أن تكون 4 أحرف على الأقل"});
+    if (newPass !== confirm) return setMsg({type:"err", text:"كلمة المرور غير متطابقة"});
     if (newPass === emp.password) return setMsg({type:"err", text:"كلمة المرور الجديدة مطابقة للافتراضية"});
 
-    const encoded = encodePassword(newPass);
-    fb.set(`passwords/${emp.jobNum}`, encoded);
-    auditLog("تغيير كلمة المرور", emp.name.split(" ").slice(0,2).join(" "), emp.name);
-    setNewPass(""); setConfirm("");
-    setMsg({type:"ok", text:`✓ تم تغيير كلمة المرور بنجاح — استخدم ${newPass} في الدخول التالي`});
+    try {
+      setLoading(true);
+      const encoded = encodePassword(newPass);
+      
+      // الحفظ المتزامن والمضمون عبر الهوك المحلي وبالموازاة مع قاعدة البيانات
+      await fb.set(`passwords/${emp.jobNum}`, encoded);
+      setFbPassword(encoded);
+
+      // تسجيل العملية في نظام التدقيق والمراقبة
+      auditLog("تغيير كلمة المرور", emp.name.split(" ").slice(0,2).join(" "), emp.name);
+      
+      setMsg({type:"ok", text:`✓ تم تغيير كلمة المرور بنجاح — استخدم ${newPass} في الدخول التالي`});
+      setNewPass("");
+      setConfirm("");
+    } catch (error) {
+      setMsg({type:"err", text:"فشل الاتصال بقاعدة البيانات، يرجى التحقق من الشبكة وإعادة المحاولة"});
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const inp = "w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white";
+  const inp = "w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white transition-all";
 
   return (
-    <div className="space-y-4 fu" dir="rtl">
+    <div className="space-y-4" dir="rtl">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 max-w-md">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-            <Shield size={18} className="text-blue-600"/>
-          </div>
-          <div>
-            <h3 className="font-bold text-slate-800">تغيير كلمة المرور</h3>
-            <p className="text-xs text-slate-500">رقمك الوظيفي: <strong>{emp.jobNum}</strong> — كلمة المرور الحالية: <strong>{emp.password}</strong></p>
+        <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-2">
+          <Shield size={15} className="text-blue-600"/> تغيير كلمة المرور الأمنية
+        </h3>
+
+        <div>
+          <label className="block text-xs font-bold text-slate-500 mb-1">كلمة المرور الجديدة</label>
+          <div className="relative">
+            <input type={showN ? "text" : "password"} value={newPass} onChange={e=>setNewPass(e.target.value)} disabled={loading} className={inp} placeholder="••••" />
+            <button onClick={()=>setShowN(!showN)} className="absolute left-3 top-3 text-slate-400 hover:text-slate-600">
+              {showN ? <EyeOff size={16}/> : <Eye size={16}/>}
+            </button>
           </div>
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800">
-          أنت مسجّل دخولك بالفعل — فقط أدخل كلمة المرور الجديدة
-        </div>
-
-        <div className="space-y-3">
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 mb-1">كلمة المرور الجديدة</label>
-            <div className="relative">
-              <input type={showN?"text":"password"} value={newPass}
-                onChange={e=>setNewPass(e.target.value)}
-                className={inp} placeholder="أدخل كلمة المرور الجديدة" dir="ltr"/>
-              <button onClick={()=>setShowN(p=>!p)} className="absolute left-3 top-2.5 text-slate-400 hover:text-slate-700">
-                {showN?<EyeOff size={16}/>:<Eye size={16}/>}
-              </button>
-            </div>
-            {/* Strength */}
-            {newPass && (
-              <div className="flex gap-1 mt-1.5 items-center">
-                {[1,2,3,4].map(i=>(
-                  <div key={i} className={`flex-1 h-1 rounded-full ${
-                    newPass.length>=8&&i<=4?"bg-emerald-500":
-                    newPass.length>=6&&i<=3?"bg-amber-400":
-                    newPass.length>=4&&i<=2?"bg-orange-400":
-                    i<=1?"bg-red-400":"bg-slate-200"}`}/>
-                ))}
-                <span className="text-[9px] text-slate-400 mr-1 w-10">
-                  {newPass.length>=8?"قوية":newPass.length>=6?"متوسطة":"ضعيفة"}
-                </span>
-              </div>
-            )}
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 mb-1">تأكيد كلمة المرور</label>
-            <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)}
-              className={`${inp} ${confirm&&confirm!==newPass?"border-red-300":confirm&&confirm===newPass?"border-emerald-300":""}`}
-              placeholder="أعد إدخال كلمة المرور" dir="ltr"/>
-            {confirm && confirm===newPass && (
-              <p className="text-[10px] text-emerald-600 mt-1 flex items-center gap-1"><CheckCircle size={10}/> متطابقة</p>
-            )}
-          </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-500 mb-1">تأكيد كلمة المرور الجديدة</label>
+          <input type={showN ? "text" : "password"} value={confirm} onChange={e=>setConfirm(e.target.value)} disabled={loading} className={inp} placeholder="••••" />
         </div>
 
         {msg && (
-          <div className={`rounded-xl p-3 text-sm font-semibold ${
-            msg.type==="ok"?"bg-emerald-50 text-emerald-800 border border-emerald-200":"bg-red-50 text-red-800 border border-red-200"
+          <div className={`p-3 rounded-xl text-xs font-bold border ${
+            msg.type === "ok" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-red-50 text-red-800 border-red-200"
           }`}>{msg.text}</div>
         )}
 
-        <button onClick={save}
-          className="w-full flex items-center justify-center gap-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 py-3 rounded-xl active:scale-95 transition-all">
-          <Save size={14}/> حفظ كلمة المرور الجديدة
+        <button onClick={save} disabled={loading}
+          className={`w-full flex items-center justify-center gap-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 py-3 rounded-xl active:scale-95 transition-all ${loading ? "opacity-50 cursor-not-allowed" : ""}`}>
+          <Save size={14}/> {loading ? "جاري الحفظ..." : "حفظ كلمة المرور الجديدة"}
         </button>
       </div>
 
@@ -8384,7 +8371,6 @@ function ChangePasswordPage({ emp }) {
     </div>
   );
 }
-
 /* ═══════════════════════════════════════════════════════════
    ROOT
 ═══════════════════════════════════════════════════════════ */
