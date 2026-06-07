@@ -30,9 +30,11 @@ async function hashPassword(raw) {
 // Verify password — يقبل plaintext (قديم) أو hash (جديد)
 async function verifyPassword(input, stored) {
   if (!input || !stored) return false;
-  if (input === stored) return true; // plaintext match (migration period)
+  if (input === stored) return true;            // plaintext exact match
   const hashed = await hashPassword(input);
-  return hashed === stored;
+  if (hashed === stored) return true;           // SHA-256 match
+  // Also try: stored might be a hash of a different password format
+  return false;
 }
 
 // 2. Session Token — رمز الجلسة
@@ -755,10 +757,316 @@ function LeaveForm({ emp, onSubmit, onCancel, history }) {
   const [type,     setType]    = useState("اعتيادية");
   const [dateFrom, setFrom]    = useState(today);
   const [dateTo,   setTo]      = useState(today);
+  const [hourFrom, setHourFrom]= useState("08:00");
+  const [hourTo,   setHourTo]  = useState("15:00");
   const [purpose,  setPurpose] = useState("");
   const [isAbroad, setAbroad]  = useState(false);
   const [err,      setErr]     = useState("");
   const [warnings, setWarnings]= useState([]);
+  const [sig,      setSig]     = useState(null);
+  const [showSig,  setShowSig] = useState(false);
+
+  const cfg      = LEAVE_TYPES[type];
+  const isHourly = cfg?.hourly && emp.shift === "صباحي";
+
+  // Calculate duration
+  const days = isHourly
+    ? (() => {
+        const [fh,fm] = hourFrom.split(":").map(Number);
+        const [th,tm] = hourTo.split(":").map(Number);
+        const hrs = (th*60+tm - fh*60-fm) / 60;
+        return Math.max(0, hrs);
+      })()
+    : daysBetween(dateFrom, dateTo);
+
+  const daysEquiv = isHourly ? Math.floor(days / 7) : days;
+
+  const thisMonth = new Date().getMonth();
+  const thisYear  = new Date().getFullYear();
+
+  const monthlyStats = useMemo(() => {
+    const stats = { اعتيادية:0, مرضية:0, زمنية:0, total:0 };
+    history.forEach(h => {
+      const d = new Date(h.submittedAt);
+      if (d.getMonth()===thisMonth && d.getFullYear()===thisYear) {
+        stats[h.type] = (stats[h.type]||0) + h.days;
+        stats.total   += h.days;
+      }
+    });
+    return stats;
+  }, [history, thisMonth, thisYear]);
+
+  useEffect(() => {
+    const w = [];
+    if (type==="اعتيادية" && days>3)
+      w.push({ level:"orange", icon:"⚠️", title:"يلزم موافقة مدير القسم",
+        body:`مدة الإجازة (${days} أيام) تتجاوز ٣ أيام. يجب موافقة مدير القسم.` });
+    if (isAbroad)
+      w.push({ level:"red", icon:"🛂", title:"يلزم موافقة مدير الهيأة والأمر الإداري",
+        body:"الإجازة خارج العراق تستلزم موافقة مدير الهيأة وصدور أمر إداري." });
+    if (isHourly && emp.shift !== "صباحي")
+      w.push({ level:"red", icon:"⛔", title:"الإجازة الزمنية للصباحيين فقط",
+        body:"هذا النوع من الإجازات متاح للموظفين الصباحيين فقط." });
+    setWarnings(w);
+  }, [type, days, isAbroad, isHourly, emp.shift]);
+
+  const handleSubmit = () => {
+    if (isHourly && emp.shift !== "صباحي") return setErr("الإجازة الزمنية للصباحيين فقط");
+    if (!purpose.trim()) return setErr("يرجى تحديد غرض الإجازة");
+    if (!sig) return setErr("يرجى رسم توقيعك قبل تقديم الطلب");
+    if (isHourly && days <= 0) return setErr("يرجى تحديد وقت صحيح");
+    if (!isHourly && daysEquiv > cfg.max) return setErr(`الحد الأقصى ${cfg.max} يوم`);
+    setErr("");
+    onSubmit({
+      type, dateFrom, dateTo,
+      hourFrom: isHourly ? hourFrom : null,
+      hourTo:   isHourly ? hourTo   : null,
+      hours:    isHourly ? days     : null,
+      days:     isHourly ? daysEquiv : days,
+      purpose, isAbroad,
+      empSig: sig,
+      warnings: warnings.map(w=>w.title),
+    });
+  };
+
+  const monthName = new Date().toLocaleDateString("ar-IQ",{month:"long",year:"numeric"});
+
+  return (
+    <div className="max-w-2xl mx-auto" dir="rtl">
+      <div className="flex items-center gap-3 mb-5">
+        <button onClick={onCancel} className="text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100">
+          <ChevronLeft size={18}/>
+        </button>
+        <div>
+          <h2 className="text-base font-bold text-slate-800">نموذج طلب إجازة</h2>
+          <p className="text-xs text-slate-500">{monthName}</p>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border-2 border-slate-200 overflow-hidden shadow-sm">
+        {/* Official header */}
+        <div className="border-b-2 border-slate-200">
+          <table className="w-full text-xs border-collapse">
+            <tbody>
+              <tr>
+                <td className="border border-slate-200 px-3 py-2 font-bold text-slate-700 w-32">شركة نفط البصرة</td>
+                <td className="border border-slate-200 px-3 py-2 text-slate-600">عنوان النموذج</td>
+                <td className="border border-slate-200 px-3 py-2 font-bold text-slate-800">نموذج اجازة {type}</td>
+                <td rowSpan="2" className="border border-slate-200 px-4 py-2 text-center">
+                  <div className="w-12 h-12 rounded-full border-2 border-slate-300 flex items-center justify-center mx-auto">
+                    <span className="text-slate-600 font-bold text-xs">BOC</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td className="border border-slate-200 px-3 py-2 text-slate-500">هيأة الصيانة</td>
+                <td className="border border-slate-200 px-3 py-2 text-slate-500">رقم الإصدار</td>
+                <td className="border border-slate-200 px-3 py-2 font-mono text-slate-500">BOC-P-07/F06</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Employee info */}
+          <div className="grid grid-cols-3 gap-3 bg-slate-50 rounded-xl p-3 text-xs">
+            <div><span className="text-slate-500">الاسم: </span><strong>{emp.name.split(" ").slice(0,3).join(" ")}</strong></div>
+            <div><span className="text-slate-500">الرقم: </span><strong>{emp.jobNum}</strong></div>
+            <div><span className="text-slate-500">القسم: </span><strong>{emp.dept}</strong></div>
+          </div>
+
+          {/* Monthly counter — no /max */}
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              {key:"اعتيادية",color:"bg-blue-50 border-blue-200 text-blue-700"},
+              {key:"مرضية",   color:"bg-rose-50 border-rose-200 text-rose-700"},
+              {key:"زمنية",   color:"bg-amber-50 border-amber-200 text-amber-700"},
+            ].map(t=>(
+              <div key={t.key} className={`border rounded-xl p-2.5 text-center ${t.color}`}>
+                <p className="text-[9px] font-bold">{t.key}</p>
+                <p className="text-base font-bold">{toArabicNum(monthlyStats[t.key]||0)}</p>
+                <p className="text-[9px] opacity-60">يوم هذا الشهر</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Leave type */}
+          <div>
+            <p className="text-sm font-semibold text-slate-700 mb-2">نوع الإجازة</p>
+            <div className="grid grid-cols-3 gap-2">
+              {Object.entries(LEAVE_TYPES).map(([k,v])=>(
+                <button key={k} onClick={()=>{setType(k);setErr("");}}
+                  className={`py-2.5 text-xs font-bold rounded-xl border-2 transition-all ${
+                    type===k ? v.light+" border-current shadow-sm" : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300"
+                  }`}>
+                  {v.label}
+                  {v.morningOnly && <span className="block text-[9px] opacity-60">صباحي فقط</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Duration */}
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
+            <p className="text-sm text-slate-700 font-semibold">يرجى منحي {cfg?.label} لمدة:</p>
+
+            {isHourly ? (
+              /* Hourly inputs for زمنية */
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5">في يوم</label>
+                    <input type="date" value={dateFrom} onChange={e=>setFrom(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"/>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5">نوع الدوام</label>
+                    <div className="w-full border border-amber-200 rounded-xl px-3 py-2 text-sm bg-amber-50 text-amber-800 font-semibold">
+                      صباحي — 7 ساعات/يوم
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5">من الساعة</label>
+                    <input type="time" value={hourFrom} onChange={e=>setHourFrom(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"/>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5">إلى الساعة</label>
+                    <input type="time" value={hourTo} onChange={e=>setHourTo(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"/>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between bg-white rounded-xl border border-amber-200 px-4 py-2.5">
+                  <span className="text-sm text-slate-600">مدة الإجازة</span>
+                  <div className="text-left">
+                    <span className="text-sm font-bold text-amber-700">{days.toFixed(1)} ساعة</span>
+                    {daysEquiv > 0 && <span className="text-xs text-slate-500 mr-2">= {daysEquiv} يوم</span>}
+                  </div>
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-xs text-amber-800">
+                  كل 7 ساعات تُحتسب يوماً واحداً من رصيد إجازتك الزمنية ({cfg.max} أيام)
+                </div>
+              </div>
+            ) : (
+              /* Regular date inputs */
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5">من تاريخ</label>
+                    <input type="date" value={dateFrom} onChange={e=>{setFrom(e.target.value);setErr("");}}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"/>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5">إلى تاريخ</label>
+                    <input type="date" value={dateTo} onChange={e=>{setTo(e.target.value);setErr("");}} min={dateFrom}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"/>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-4 py-2.5">
+                  <span className="text-sm text-slate-600">مدة الإجازة</span>
+                  <span className={`text-sm font-bold ${days>cfg.max?"text-red-600":"text-blue-700"}`}>
+                    {toArabicNum(days)} يوم
+                    {days>cfg.max && <span className="text-xs text-red-500 mr-2">(يتجاوز الحد الأقصى {cfg.max} يوم)</span>}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Purpose */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">لغرض</label>
+            <input value={purpose} onChange={e=>{setPurpose(e.target.value);setErr("");}}
+              placeholder="اكتب غرض الإجازة..."
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"/>
+          </div>
+
+          {/* Abroad toggle */}
+          <div onClick={()=>setAbroad(p=>!p)}
+            className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all select-none ${
+              isAbroad?"border-red-400 bg-red-50":"border-slate-200 bg-slate-50 hover:border-slate-300"
+            }`}>
+            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${isAbroad?"bg-red-500 border-red-500":"border-slate-300 bg-white"}`}>
+              {isAbroad && <span className="text-white text-xs font-bold">✓</span>}
+            </div>
+            <div>
+              <p className={`text-sm font-bold ${isAbroad?"text-red-700":"text-slate-700"}`}>🛂 الإجازة خارج العراق</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">ضع علامة إذا كنت ستسافر أو تحتاج أمر إداري</p>
+            </div>
+          </div>
+
+          {/* Warnings */}
+          {warnings.map((w,i)=>(
+            <div key={i} className={`rounded-xl border-2 p-4 space-y-1 ${w.level==="red"?"bg-red-50 border-red-300":"bg-orange-50 border-orange-300"}`}>
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{w.icon}</span>
+                <p className={`text-sm font-bold ${w.level==="red"?"text-red-800":"text-orange-800"}`}>{w.title}</p>
+              </div>
+              <p className={`text-xs pr-7 leading-relaxed ${w.level==="red"?"text-red-700":"text-orange-700"}`}>{w.body}</p>
+            </div>
+          ))}
+
+          {/* ── Electronic Signature ── */}
+          <div className="border-2 border-dashed border-blue-200 rounded-xl p-4 space-y-3 bg-blue-50/30">
+            <p className="text-sm font-bold text-slate-700 flex items-center gap-2">
+              <PenTool size={14} className="text-blue-600"/> توقيع مقدم الطلب
+              <span className="text-red-500 text-xs">*مطلوب</span>
+            </p>
+            {sig ? (
+              <div className="space-y-2">
+                <div className="bg-white border border-slate-200 rounded-xl p-2 flex items-center justify-center">
+                  <img src={sig} alt="توقيع" className="h-16 w-48 object-contain"/>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={()=>{setSig(null);setShowSig(false);}}
+                    className="text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl border border-red-200">
+                    إعادة الرسم
+                  </button>
+                  <span className="text-[11px] text-emerald-700 flex items-center gap-1">
+                    <CheckCircle size={12}/> تم توقيع الطلب
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div>
+                {!showSig ? (
+                  <button onClick={()=>setShowSig(true)}
+                    className="w-full flex items-center justify-center gap-2 py-3 text-sm font-bold text-blue-700 bg-white border-2 border-blue-300 rounded-xl hover:bg-blue-50 transition-all">
+                    <PenTool size={15}/> اضغط للتوقيع الإلكتروني
+                  </button>
+                ) : (
+                  <SignaturePad onSave={s=>{setSig(s);setShowSig(false);}} storageKey={`leave_sig_${emp.id}`}/>
+                )}
+              </div>
+            )}
+          </div>
+
+          {err && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+              <AlertCircle size={14} className="text-red-500 shrink-0"/>
+              <p className="text-red-600 text-xs">{err}</p>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-2">
+            <button onClick={onCancel}
+              className="flex-1 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200">
+              إلغاء
+            </button>
+            <button onClick={handleSubmit}
+              className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl shadow-md active:scale-95 transition-all"
+              style={{background:`linear-gradient(135deg, ${type==="اعتيادية"?"#2563eb,#1d4ed8":type==="مرضية"?"#dc2626,#b91c1c":"#d97706,#b45309"})`}}>
+              تقديم الطلب
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
   const days = daysBetween(dateFrom, dateTo);
   const cfg  = LEAVE_TYPES[type];
@@ -841,7 +1149,7 @@ function LeaveForm({ emp, onSubmit, onCancel, history }) {
             return (
               <div key={t.key} className={`border rounded-xl p-3 ${t.color}`}>
                 <p className="text-[10px] font-bold mb-1">{t.label}</p>
-                <p className="text-lg font-bold leading-none">{toArabicNum(used)}<span className="text-[10px] font-normal opacity-60"> / {t.max}</span></p>
+                <p className="text-lg font-bold leading-none">{toArabicNum(used)}</p>
                 <div className="mt-2 h-1.5 bg-white/60 rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all duration-500"
                        style={{width:`${pct}%`, background:"currentColor", opacity:0.6}}/>
@@ -952,77 +1260,6 @@ function LeaveForm({ emp, onSubmit, onCancel, history }) {
               placeholder="اكتب غرض الإجازة..."
               className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"/>
           </div>
-
-          {/* Abroad toggle */}
-          <div
-            onClick={()=>setAbroad(p=>!p)}
-            className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all select-none ${
-              isAbroad ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50 hover:border-slate-300"
-            }`}>
-            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
-              isAbroad ? "bg-red-500 border-red-500" : "border-slate-300 bg-white"
-            }`}>
-              {isAbroad && <span className="text-white text-xs font-bold">✓</span>}
-            </div>
-            <div>
-              <p className={`text-sm font-bold ${isAbroad?"text-red-700":"text-slate-700"}`}>🛂 الإجازة خارج العراق / تتضمن موافقة سفر</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">ضع علامة إذا كنت ستسافر خارج العراق أو تحتاج إلى أمر إداري للسفر</p>
-            </div>
-          </div>
-
-          {/* ── WARNINGS ── */}
-          {warnings.map((w, i) => (
-            <div key={i} className={`rounded-xl border-2 p-4 space-y-1 ${
-              w.level === "red"
-                ? "bg-red-50 border-red-300"
-                : "bg-orange-50 border-orange-300"
-            }`}>
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{w.icon}</span>
-                <p className={`text-sm font-bold ${w.level==="red"?"text-red-800":"text-orange-800"}`}>{w.title}</p>
-              </div>
-              <p className={`text-xs leading-relaxed pr-7 ${w.level==="red"?"text-red-700":"text-orange-700"}`}>{w.body}</p>
-            </div>
-          ))}
-
-          {err && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
-              <AlertCircle size={14} className="text-red-500 shrink-0"/>
-              <p className="text-red-600 text-xs">{err}</p>
-            </div>
-          )}
-
-          {/* Signatures */}
-          <div className="flex justify-between pt-2">
-            <div className="text-center">
-              <p className="text-xs text-slate-500 mb-6">توقيع المخول</p>
-              <div className="w-32 border-t border-slate-300"/>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-slate-500 mb-6">توقيع صاحب الإجازة</p>
-              <div className="w-32 border-t border-slate-300"/>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3 pt-2">
-            <button onClick={onCancel}
-              className="flex-1 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors">
-              إلغاء
-            </button>
-            <button onClick={handleSubmit}
-              className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2"
-              style={{background:"linear-gradient(135deg,#1d4ed8,#1e40af)"}}>
-              <FileText size={15}/>
-              تقديم الطلب
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ═══════════════════════════════════════════════════════════
    LEAVE RECEIPT (printable preview)
 ═══════════════════════════════════════════════════════════ */
@@ -5694,7 +5931,9 @@ const TRAINING_STATUS_STYLE = {
   "طلب مشاركة — مرفوض": "bg-red-100 text-red-800 border-red-200",
 };
 
-function TrainingPage({ emp, isAdmin, allEmployees }) {
+function TrainingPage({ emp, isAdmin, allEmployees, permLevel }) {
+  const isAttendanceAdm = ["689766","690174","689331"].includes(emp.jobNum);
+  const canApproveTraining = isAdmin || isAttendanceAdm;
   const [trainings,    setTrainings]    = useFirebase("training/tasks",    []);
   const [requests,     setRequests]     = useFirebase("training/requests",  []);
   const [showAddForm,  setShowAddForm]  = useState(false);
@@ -5788,22 +6027,33 @@ function TrainingPage({ emp, isAdmin, allEmployees }) {
     showToast("✓ تم تحديث الحالة");
   };
 
-  // Admin: resolve training request
+  // Resolve training request — admin or attendance_admin
   const resolveRequest = (id, approved) => {
     const req = requestsList.find(r=>r.id===id);
-    setRequests(requestsList.map(r=>r.id===id?{...r,status:approved?"طلب مشاركة — مقبول":"طلب مشاركة — مرفوض",resolvedAt:new Date().toISOString(),resolvedBy:emp.name}:r));
+    setRequests(requestsList.map(r=>r.id===id?{
+      ...r,
+      status: approved?"طلب مشاركة — مقبول":"طلب مشاركة — مرفوض",
+      resolvedAt: new Date().toISOString(),
+      resolvedBy: emp.name,
+    }:r));
     if (req) {
+      const notif = {
+        id:Date.now(), type:approved?"موافقة":"رفض",
+        title: approved?"✅ تمت الموافقة على طلب مشاركتك بالدورة":"❌ تم رفض طلب مشاركتك بالدورة",
+        body:`الدورة: ${req.courseName}`,
+        timestamp:new Date().toISOString(), read:false,
+      };
       fb.get(`notifications/${req.empId}`).then(ex=>{
-        const prev=Array.isArray(ex)?ex:[];
-        fb.set(`notifications/${req.empId}`,[{
-          id:Date.now(), type:approved?"موافقة":"رفض",
-          title:approved?"✅ تمت الموافقة على طلب مشاركتك بالدورة":"❌ تم رفض طلب مشاركتك بالدورة",
-          body:`الدورة: ${req.courseName}`,
-          timestamp:new Date().toISOString(), read:false,
-        },...prev]);
+        fb.set(`notifications/${req.empId}`,[notif,...(Array.isArray(ex)?ex:[])]);
       });
+      // Email + Telegram
+      notifyEmployee(req.empId,
+        approved?"✅ قُبل طلب مشاركتك بالدورة التدريبية":"❌ رُفض طلب مشاركتك بالدورة التدريبية",
+        `الدورة: ${req.courseName}\nبواسطة: ${emp.name.split(" ").slice(0,2).join(" ")}`
+      );
+      auditLog(approved?"موافقة":"رفض", `طلب دورة: ${req.courseName} — ${req.empName?.split(" ").slice(0,2).join(" ")}`, emp.name);
     }
-    showToast(approved?"✓ تمت الموافقة على الطلب":"✓ تم رفض الطلب");
+    showToast(approved?"✓ تمت الموافقة وإشعار الموظف":"✓ تم الرفض وإشعار الموظف");
   };
 
   const inp = "w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white";
@@ -6203,7 +6453,16 @@ function TrainingPage({ emp, isAdmin, allEmployees }) {
                 </div>
                 <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border shrink-0 ${TRAINING_STATUS_STYLE[req.status]||""}`}>{req.status}</span>
               </div>
-              {isAdmin && req.status==="طلب مشاركة" && (
+              {canApproveTraining && req.status==="طلب مشاركة" && (
+                <div className="flex gap-2 mt-2 no-print">
+                  <button onClick={()=>resolveRequest(req.id,true)} className="flex items-center gap-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-xl">
+                    <ThumbsUp size={12}/> قبول
+                  </button>
+                  <button onClick={()=>resolveRequest(req.id,false)} className="flex items-center gap-1 text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-xl">
+                    <ThumbsDown size={12}/> رفض
+                  </button>
+                </div>
+              )}
                 <div className="flex gap-2 mt-2 no-print">
                   <button onClick={()=>resolveRequest(req.id,true)} className="flex items-center gap-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-xl">
                     <ThumbsUp size={12}/> قبول
