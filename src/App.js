@@ -592,164 +592,123 @@ function daysBetween(a, b) {
 function toArabicNum(n) {
   return String(n).replace(/\d/g, d => "٠١٢٣٤٥٦٧٨٩"[d]);
 }
-
-/* ═══════════════════════════════════════════════════════════
-   LOGIN
+//* ═══════════════════════════════════════════════════════════
+   LOGIN — شاشة تسجيل الدخول المصلحة
 ═══════════════════════════════════════════════════════════ */
 function LoginScreen({ onLogin }) {
-  const [user, setUser]   = useState("");
-  const [pass, setPass]   = useState("");
+  const [user, setUser] = useState("");
+  const [pass, setPass] = useState("");
   const [showP, setShowP] = useState(false);
-  const [err, setErr]     = useState("");
+  const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [attempts, setAttempts] = useState(0);
-
-  // Check saved session
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem("boc_session");
-      if (saved) {
-        const { acct, expiry } = JSON.parse(saved);
-        if (expiry > Date.now()) { onLogin(acct); }
-        else { sessionStorage.removeItem("boc_session"); }
-      }
-    } catch {}
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handle = () => {
-    const jobNum  = sanitize(user.trim());
-    const passVal = sanitize(pass.trim());
-
-    if (getLoginAttempts(jobNum) >= 5)
-      return setErr("تم تجاوز 5 محاولات. أغلق المتصفح وحاول لاحقاً.");
-    if (!jobNum || !passVal) return setErr("أدخل الرقم الوظيفي وكلمة المرور");
-
+  const loginClick = async () => {
     setErr("");
-    setLoading(true);
-
-    const baseAcct = ACCOUNTS.find(a => a.jobNum === jobNum || a.username === jobNum);
-    if (!baseAcct) {
-      recordLoginAttempt(jobNum, false);
-      setAttempts(a=>a+1);
-      setErr("الرقم الوظيفي غير موجود في النظام");
-      setLoading(false);
+    if (!user || !pass) {
+      setErr("الرجاء إدخال رقم الوظيفة وكلمة المرور");
       return;
     }
 
-    fb.get(`passwords/${jobNum}`).then(fbPass => {
-      const storedPass = fbPass || baseAcct.password;
-      // Accept: stored match OR ACCOUNTS default (master fallback)
-      const valid = verifyPassword(passVal, storedPass) || passVal === baseAcct.password;
+    // 1. البحث عن الحساب في القائمة الثابتة بالملف
+    const baseAcct = ACCOUNTS.find(a => a.jobNum === user || a.username === user);
+    if (!baseAcct) {
+      setErr("رقم الوظيفة أو اسم المستخدم غير صحيح");
+      return;
+    }
 
-      if (valid) {
-        recordLoginAttempt(jobNum, true);
-        // Encode and save on first login (migration)
-        if (!fbPass) fb.set(`passwords/${jobNum}`, encodePassword(passVal));
-        const token = generateSessionToken();
-        try {
-          sessionStorage.setItem("boc_session", JSON.stringify({
-            acct: baseAcct, expiry: Date.now()+8*60*60*1000, token,
-          }));
-        } catch {}
-        setAttempts(0);
+    try {
+      setLoading(true);
+      // 2. جلب باسوورد المستخدم المشفّر من الفايربيس إذا كان قد غيّره سابقاً
+      const res = await fetch(`${FIREBASE_URL}/passwords/${baseAcct.jobNum}.json`);
+      const remoteEncodedPassword = await res.json();
+
+      if (remoteEncodedPassword) {
+        // إذا وُجد باسوورد معدل في السيرفر، نقارنه بالأمان والتشفير المدمج
+        if (verifyPassword(pass, remoteEncodedPassword)) {
+          recordLoginAttempt(baseAcct.jobNum, true);
+          onLogin(baseAcct);
+          return;
+        } else {
+          recordLoginAttempt(baseAcct.jobNum, false);
+          setErr("كلمة المرور غير صحيحة");
+          return;
+        }
+      } else {
+        // 3. إذا لم يقم بالتغيير من قبل، يتم الدخول بالباسوورد الافتراضي الثابت
+        if (pass === baseAcct.password) {
+          recordLoginAttempt(baseAcct.jobNum, true);
+          onLogin(baseAcct);
+          return;
+        } else {
+          recordLoginAttempt(baseAcct.jobNum, false);
+          setErr("كلمة المرور غير صحيحة");
+          return;
+        }
+      }
+    } catch (err) {
+      // طوارئ: في حال انقطاع الإنترنت يسمح بالباسوورد الافتراضي الثابت كبديل مؤقت
+      if (pass === baseAcct.password) {
         onLogin(baseAcct);
       } else {
-        recordLoginAttempt(jobNum, false);
-        const att = getLoginAttempts(jobNum);
-        setAttempts(att);
-        setErr(`كلمة المرور غير صحيحة${att>=2?` (${5-att} محاولات متبقية)`:""}`);
-        setLoading(false);
+        setErr("خطأ في الاتصال بقاعدة البيانات وكلمة المرور غير صحيحة");
       }
-    });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" dir="rtl"
-         style={{background:"linear-gradient(135deg,#0a1628 0%,#0d2348 50%,#0a1628 100%)"}}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap');
-        *{font-family:'IBM Plex Sans Arabic','Noto Naskh Arabic',sans-serif;box-sizing:border-box;}
-        @keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-        .fadein{animation:fadeIn .5s ease both}
-        @keyframes spin{to{transform:rotate(360deg)}}
-        .spin{animation:spin .8s linear infinite}
-        input:-webkit-autofill{-webkit-box-shadow:0 0 0 30px #0f2147 inset!important;-webkit-text-fill-color:#e2e8f0!important;}
-      `}</style>
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden font-sans select-none" dir="rtl">
+      <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[120px]" />
+      <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-emerald-500/10 rounded-full blur-[120px]" />
 
-      <div className="w-full max-w-sm fadein">
-        {/* Header */}
+      <div className="w-full max-w-md bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10">
         <div className="text-center mb-8">
-          {/* BOC logo placeholder */}
-          <div className="mx-auto mb-4 w-20 h-20 rounded-full border-4 border-white/20 flex items-center justify-center"
-               style={{background:"radial-gradient(circle,#1e4080,#0a1e45)"}}>
-            <span className="text-white font-bold text-xl tracking-wider">BOC</span>
+          <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-blue-500/20 mb-4">
+            <LogIn size={28} className="text-white" />
           </div>
-          <h1 className="text-white text-xl font-bold leading-tight">شركة نفط البصرة</h1>
-          <p className="text-blue-300 text-xs mt-1 tracking-wide">نظام الإجازات والطلبات الإدارية</p>
-          <div className="mt-3 text-[10px] text-blue-400 border border-blue-800 rounded-lg px-3 py-1.5 inline-block bg-blue-950/40">
-            قسم السيطرة والنظم / شعبة مستودع الفاو / شعبة المرافئ
-          </div>
+          <h2 className="text-xl font-black text-white tracking-wide">منظومة الإجازات الإلكترونية</h2>
+          <p className="text-xs text-slate-400 mt-1.5 font-medium">شركة الموانئ العراقية — قسم السيطرة البحرية</p>
         </div>
 
-        {/* Card */}
-        <div className="rounded-2xl p-6 border border-white/10"
-             style={{background:"rgba(15,33,71,0.85)",backdropFilter:"blur(20px)"}}>
-          <h2 className="text-white text-base font-bold mb-5 text-center">تسجيل الدخول</h2>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-blue-300 mb-1.5">الرقم الوظيفي</label>
-              <div className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2.5"
-                   style={{background:"rgba(255,255,255,0.05)"}}>
-                <User size={15} className="text-blue-400 shrink-0"/>
-                <input value={user} onChange={e=>setUser(e.target.value)}
-                  onKeyDown={e=>e.key==="Enter"&&handle()}
-                  placeholder="مثال: i.shawi"
-                  className="bg-transparent outline-none text-sm text-slate-200 w-full placeholder:text-slate-600"/>
-              </div>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-2 mr-1">رقم الوظيفة أو اسم المستخدم</label>
+            <div className="relative">
+              <input type="text" value={user} onChange={e => setUser(e.target.value)} disabled={loading}
+                className="w-full bg-slate-900/60 border border-slate-700/60 rounded-xl px-4 py-3.5 pr-11 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-semibold" placeholder="مثال: 728004" onKeyDown={e=>e.key==='Enter'&&loginClick()}/>
+              <User size={18} className="absolute right-4 top-4 text-slate-500" />
             </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-blue-300 mb-1.5">كلمة المرور</label>
-              <div className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2.5"
-                   style={{background:"rgba(255,255,255,0.05)"}}>
-                <input value={pass} onChange={e=>setPass(e.target.value)}
-                  onKeyDown={e=>e.key==="Enter"&&handle()}
-                  type={showP?"text":"password"}
-                  placeholder="••••"
-                  className="bg-transparent outline-none text-sm text-slate-200 w-full placeholder:text-slate-600"/>
-                <button onClick={()=>setShowP(p=>!p)} className="text-blue-400 hover:text-blue-200 shrink-0">
-                  {showP ? <EyeOff size={15}/> : <Eye size={15}/>}
-                </button>
-              </div>
-            </div>
-
-            {err && (
-              <div className="flex items-center gap-2 bg-red-950/60 border border-red-700/50 rounded-xl px-3 py-2.5">
-                <AlertCircle size={14} className="text-red-400 shrink-0"/>
-                <p className="text-red-300 text-xs">{err}</p>
-              </div>
-            )}
-
-            <button onClick={handle} disabled={loading}
-              className="w-full py-3 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all active:scale-95 mt-2"
-              style={{background:"linear-gradient(135deg,#1d4ed8,#1e40af)"}}>
-              {loading
-                ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full spin"/>
-                : <><LogIn size={15}/> دخول</>}
-            </button>
           </div>
 
-          <p className="text-center text-[10px] text-slate-600 mt-5">
-            للدعم التقني: قسم تقنية المعلومات
-          </p>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-2 mr-1">كلمة المرور الأمنية</label>
+            <div className="relative">
+              <input type={showP ? "text" : "password"} value={pass} onChange={e => setPass(e.target.value)} disabled={loading}
+                className="w-full bg-slate-900/60 border border-slate-700/60 rounded-xl px-4 py-3.5 pr-11 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-semibold" placeholder="••••••••" onKeyDown={e=>e.key==='Enter'&&loginClick()}/>
+              <Shield size={18} className="absolute right-4 top-4 text-slate-500" />
+              <button type="button" onClick={() => setShowP(!showP)} className="absolute left-4 top-4 text-slate-500 hover:text-slate-300">
+                {showP ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
+          {err && (
+            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold p-3.5 rounded-xl flex items-center gap-2.5">
+              <AlertCircle size={16} className="shrink-0" />
+              <span>{err}</span>
+            </div>
+          )}
+
+          <button onClick={loginClick} disabled={loading}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+            {loading ? "جاري التحقق من البيانات..." : "تسجيل الدخول الآمن"}
+          </button>
         </div>
       </div>
     </div>
   );
 }
-
 /* ═══════════════════════════════════════════════════════════
    LEAVE REQUEST FORM — matches BOC-P-13/F13
    + monthly counter, >3 day approval warning, abroad warning
@@ -2689,19 +2648,102 @@ function Dashboard({ emp, onLogout }) {
         <main className="flex-1 p-4 md:p-6 space-y-5 pb-24 md:pb-6 overflow-y-auto">
 
         {view === "changepass" && (
-          <div className="fu">
-            <div className="flex items-center gap-3 mb-4 no-print">
-              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                <Shield size={16} className="text-blue-600"/>
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-800">تغيير كلمة المرور</h2>
-                <p className="text-[11px] text-slate-500">الرقم الوظيفي هو اسم دخولك الجديد</p>
-              </div>
+        <div className="fu space-y-4">
+          <div className="flex items-center gap-3 mb-4 no-print">
+            <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+              <Shield size={16} className="text-blue-600"/>
             </div>
-            <ChangePasswordPage emp={emp}/>
+            <div>
+              <h2 className="text-base font-bold text-slate-800">تغيير كلمة المرور</h2>
+              <p className="text-[11px] text-slate-500">الرقم الوظيفي هو اسم دخولك الجديد</p>
+            </div>
           </div>
-        )}
+
+          {/* محرك تغيير كلمة المرور المدمج بـ Firebase بشكل متزامن */}
+          {(() => {
+            const [, setFbPassword] = useFirebase(`passwords/${emp.jobNum}`, null);
+            const [newPass, setNewPass] = useState("");
+            const [confirm, setConfirm] = useState("");
+            const [showN, setShowN] = useState(false);
+            const [msg, setMsg] = useState(null);
+            const [passLoading, setPassLoading] = useState(false);
+
+            const saveNewPassword = async () => {
+              setMsg(null);
+              if (newPass.length < 4) return setMsg({type:"err", text:"كلمة المرور يجب أن تكون 4 أحرف على الأقل"});
+              if (newPass !== confirm) return setMsg({type:"err", text:"كلمة المرور غير متطابقة"});
+              if (newPass === emp.password) return setMsg({type:"err", text:"كلمة المرور الجديدة مطابقة للافتراضية"});
+
+              try {
+                setPassLoading(true);
+                const encoded = encodePassword(newPass);
+                
+                // حفظ فوري في الفايربيس
+                await fb.set(`passwords/${emp.jobNum}`, encoded);
+                setFbPassword(encoded);
+
+                // سجل المراقبة إن وجد
+                if (typeof auditLog === "function") {
+                  auditLog("تغيير كلمة المرور", emp.name.split(" ").slice(0,2).join(" "), emp.name);
+                }
+                
+                setMsg({type:"ok", text: `✓ تم تغيير كلمة المرور بنجاح — استخدم (${newPass}) في الدخول التالي`});
+                setNewPass("");
+                setConfirm("");
+              } catch (error) {
+                setMsg({type:"err", text:"فشل الاتصال بقاعدة البيانات، يرجى التحقق من الشبكة"});
+              } finally {
+                setPassLoading(false);
+              }
+            };
+
+            const inpClass = "w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white transition-all";
+
+            return (
+              <div className="space-y-4" dir="rtl">
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 max-w-md">
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-2">
+                    <Shield size={15} className="text-blue-600"/> تغيير كلمة المرور الأمنية
+                  </h3>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">كلمة المرور الجديدة</label>
+                    <div className="relative">
+                      <input type={showN ? "text" : "password"} value={newPass} onChange={e=>setNewPass(e.target.value)} disabled={passLoading} className={inpClass} placeholder="••••" />
+                      <button onClick={()=>setShowN(!showN)} className="absolute left-3 top-3 text-slate-400 hover:text-slate-600">
+                        {showN ? <EyeOff size={16}/> : <Eye size={16}/>}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">تأكيد كلمة المرور الجديدة</label>
+                    <input type={showN ? "text" : "password"} value={confirm} onChange={e=>setConfirm(e.target.value)} disabled={passLoading} className={inpClass} placeholder="••••" />
+                  </div>
+
+                  {msg && (
+                    <div className={`p-3 rounded-xl text-xs font-bold border ${
+                      msg.type === "ok" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-red-50 text-red-800 border-red-200"
+                    }`}>{msg.text}</div>
+                  )}
+
+                  <button onClick={saveNewPassword} disabled={passLoading}
+                    className={`w-full flex items-center justify-center gap-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 py-3 rounded-xl active:scale-95 transition-all ${passLoading ? "opacity-50 cursor-not-allowed" : ""}`}>
+                    <Save size={14}/> {passLoading ? "جاري الحفظ..." : "حفظ كلمة المرور الجديدة"}
+                  </button>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 max-w-md">
+                  <p className="font-bold text-slate-700 mb-1">📌 ملاحظة:</p>
+                  <p>• كلمة مرورك الافتراضية هي <strong className="text-blue-700">{emp.password}</strong></p>
+                  <p>• إذا نسيت كلمة مرورك الجديدة، اطلب من المشرف إعادة تعيينها</p>
+                  <p>• التغيير يُطبَّق فوراً في جلسة الدخول التالية</p>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
         {view === "home" && (
           <div className="fu space-y-5">
