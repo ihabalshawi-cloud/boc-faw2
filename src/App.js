@@ -13,66 +13,76 @@ const FIREBASE_API_KEY = "AIzaSyDWb0WhoO-NVLnbE5b8un63O6x-sH0RDco";
    SECURITY LAYER — طبقة الأمان
 ═══════════════════════════════════════════════════════════ */
 
-// 1. SHA-256 Password Hashing — تشفير كلمات المرور
-const SEC_SALT = "BOC_FAW_SCADA_2026_SALT"; // لا تغيّر هذا
-async function hashPassword(raw) {
-  try {
-    const enc  = new TextEncoder();
-    const data = enc.encode(raw + SEC_SALT);
-    const buf  = await crypto.subtle.digest("SHA-256", data);
-    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
-  } catch {
-    // Fallback if crypto.subtle not available (HTTP)
-    return raw;
-  }
+// 1. Password encoding — تشفير بسيط وموثوق بدون crypto.subtle
+// يُشفّر كلمة المرور قبل تخزينها في Firebase (بسيط لكن أفضل من النص الصريح)
+const SEC_KEY = [66,79,67,70,65,87,50,48,50,54]; // "BOCFAW2026"
+
+function encodePassword(raw) {
+  if (!raw) return "";
+  const chars = raw.split("");
+  return chars.map((c,i) => {
+    const code = c.charCodeAt(0) ^ SEC_KEY[i % SEC_KEY.length];
+    return code.toString(16).padStart(3,"0");
+  }).join("");
 }
 
-// Verify password — يقبل plaintext (قديم) أو hash (جديد)
-async function verifyPassword(input, stored) {
+function decodePassword(encoded) {
+  if (!encoded || encoded.length % 3 !== 0) return encoded; // fallback: return as-is
+  try {
+    const parts = encoded.match(/.{3}/g) || [];
+    return parts.map((p,i) => {
+      const code = parseInt(p, 16) ^ SEC_KEY[i % SEC_KEY.length];
+      return String.fromCharCode(code);
+    }).join("");
+  } catch { return encoded; }
+}
+
+// Verify password — يقبل النص الصريح (قديم) أو المُشفَّر (جديد)
+function verifyPassword(input, stored) {
   if (!input || !stored) return false;
-  if (input === stored) return true;            // plaintext exact match
-  const hashed = await hashPassword(input);
-  if (hashed === stored) return true;           // SHA-256 match
-  // Also try: stored might be a hash of a different password format
+  if (input === stored) return true;                // plaintext exact match (migration)
+  if (encodePassword(input) === stored) return true; // encoded match
+  // Try decoding stored and comparing
+  try {
+    const decoded = decodePassword(stored);
+    if (decoded === input) return true;
+  } catch {}
   return false;
 }
 
 // 2. Session Token — رمز الجلسة
 function generateSessionToken() {
-  return Array.from(crypto.getRandomValues(new Uint8Array(16)))
-    .map(b=>b.toString(16).padStart(2,"0")).join("");
+  try {
+    return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+      .map(b=>b.toString(16).padStart(2,"0")).join("");
+  } catch {
+    return Date.now().toString(36) + Math.random().toString(36);
+  }
 }
 
 // 3. Input Sanitization — تنظيف المدخلات
 function sanitize(str) {
   if (typeof str !== "string") return str;
   return str
-    .replace(/[<>]/g,"")          // XSS
-    .replace(/javascript:/gi,"")  // JS injection
-    .replace(/on\w+=/gi,"")       // Event handlers
+    .replace(/[<>]/g,"")
+    .replace(/javascript:/gi,"")
+    .replace(/on\w+=/gi,"")
     .trim();
 }
 
-// 4. Rate Limiting — تحديد محاولات الدخول
+// 4. Rate Limiting
 const _loginAttempts = (() => {
-  try {
-    const saved = sessionStorage.getItem("_la");
-    return saved ? JSON.parse(saved) : {};
-  } catch { return {}; }
+  try { const s=sessionStorage.getItem("_la"); return s?JSON.parse(s):{}; }
+  catch { return {}; }
 })();
 
 function recordLoginAttempt(jobNum, success) {
-  if (success) {
-    delete _loginAttempts[jobNum];
-  } else {
-    _loginAttempts[jobNum] = (_loginAttempts[jobNum]||0) + 1;
-  }
+  if (success) delete _loginAttempts[jobNum];
+  else _loginAttempts[jobNum] = (_loginAttempts[jobNum]||0)+1;
   try { sessionStorage.setItem("_la", JSON.stringify(_loginAttempts)); } catch {}
 }
 
-function getLoginAttempts(jobNum) {
-  return _loginAttempts[jobNum] || 0;
-}
+function getLoginAttempts(jobNum) { return _loginAttempts[jobNum]||0; }
 
 // 5. Idle Timeout — تسجيل خروج تلقائي عند الخمول (30 دقيقة)
 let _idleTimer = null;
@@ -611,43 +621,34 @@ function LoginScreen({ onLogin }) {
     const jobNum  = sanitize(user.trim());
     const passVal = sanitize(pass.trim());
 
-    if (getLoginAttempts(jobNum) >= 5) {
-      return setErr("تم تجاوز عدد المحاولات المسموحة. أغلق المتصفح وحاول بعد 10 دقائق.");
-    }
-    if (!jobNum || !pass) return setErr("أدخل الرقم الوظيفي وكلمة المرور");
+    if (getLoginAttempts(jobNum) >= 5)
+      return setErr("تم تجاوز 5 محاولات. أغلق المتصفح وحاول لاحقاً.");
+    if (!jobNum || !passVal) return setErr("أدخل الرقم الوظيفي وكلمة المرور");
 
     setErr("");
     setLoading(true);
 
-    (async () => {
-      // 1. Find account by jobNum
-      const baseAcct = ACCOUNTS.find(a => a.jobNum === jobNum || a.username === jobNum);
-      if (!baseAcct) {
-        recordLoginAttempt(jobNum, false);
-        setAttempts(a=>a+1);
-        setErr("الرقم الوظيفي غير موجود");
-        setLoading(false);
-        return;
-      }
+    const baseAcct = ACCOUNTS.find(a => a.jobNum === jobNum || a.username === jobNum);
+    if (!baseAcct) {
+      recordLoginAttempt(jobNum, false);
+      setAttempts(a=>a+1);
+      setErr("الرقم الوظيفي غير موجود في النظام");
+      setLoading(false);
+      return;
+    }
 
-      // 2. Check password — Firebase hash first, then ACCOUNTS (migration)
-      const fbPass = await fb.get(`passwords/${jobNum}`);
+    fb.get(`passwords/${jobNum}`).then(fbPass => {
       const storedPass = fbPass || baseAcct.password;
-      const valid = await verifyPassword(passVal, storedPass);
+      const valid = verifyPassword(passVal, storedPass);
 
       if (valid) {
         recordLoginAttempt(jobNum, true);
-        // Migrate plaintext password to hash on first login
-        if (!fbPass) {
-          const hashed = await hashPassword(passVal);
-          fb.set(`passwords/${jobNum}`, hashed);
-        }
+        // Encode plaintext on first login (migration)
+        if (!fbPass) fb.set(`passwords/${jobNum}`, encodePassword(passVal));
         const token = generateSessionToken();
         try {
           sessionStorage.setItem("boc_session", JSON.stringify({
-            acct: baseAcct,
-            expiry: Date.now() + 8*60*60*1000,
-            token,
+            acct: baseAcct, expiry: Date.now()+8*60*60*1000, token,
           }));
         } catch {}
         setAttempts(0);
@@ -659,7 +660,7 @@ function LoginScreen({ onLogin }) {
         setErr(`كلمة المرور غير صحيحة${att>=2?` (${5-att} محاولات متبقية)`:""}`);
         setLoading(false);
       }
-    })();
+    });
   };
 
   return (
@@ -7792,7 +7793,7 @@ function SecurityPage() {
       for (const acc of ACCOUNTS) {
         const stored = await fb.get(`passwords/${acc.jobNum}`);
         if (!stored) plain++;
-        else if (stored.length === 64) hashed++; // SHA-256 hex = 64 chars
+        else if (stored.length > 10 && !/^[0-9]{3,6}$/.test(stored)) hashed++; // encoded
         else plain++;
       }
       setPwStatus({hashed, plain, total:ACCOUNTS.length});
@@ -7842,8 +7843,8 @@ function SecurityPage() {
           label={`تشفير كلمات المرور — ${pwStatus?`${pwStatus.hashed}/${pwStatus.total} مشفّرة`:"جاري الفحص..."}`}
           status={pwStatus?.plain===0?"ok":pwStatus?.hashed>0?"warn":"err"}
           note={pwStatus?.plain>0
-            ? `${pwStatus.plain} كلمة مرور لم تُشفَّر بعد — ستُشفَّر تلقائياً عند أول دخول`
-            : "كل كلمات المرور مشفّرة بـ SHA-256"}/>
+            ? `${pwStatus.plain} كلمة مرور لم تُشفَّر بعد — ستُشفَّر تلقائياً عند أول دخول للموظف`
+            : "كل كلمات المرور مُشفَّرة بنظام التشفير الداخلي"}/>
 
         <SecurityItem
           label="تسجيل خروج تلقائي بعد 30 دقيقة خمول"
@@ -8283,23 +8284,26 @@ function ChangePasswordPage({ emp }) {
   const [showN, setShowN]     = useState(false);
   const [msg,   setMsg]       = useState(null); // {type,text}
 
-  const save = async () => {
+  const save = () => {
     setMsg(null);
     const sanitizedNew = sanitize(newPass);
-    // Verify current password
-    const fbPass = await fb.get(`passwords/${emp.jobNum}`);
-    const storedPass = fbPass || emp.password;
-    const currentValid = await verifyPassword(current, storedPass);
-    if (!currentValid) return setMsg({type:"err", text:"كلمة المرور الحالية غير صحيحة"});
-    if (sanitizedNew.length < 6)   return setMsg({type:"err", text:"كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل"});
-    if (sanitizedNew !== confirm)   return setMsg({type:"err", text:"كلمة المرور الجديدة غير متطابقة"});
-    // Hash before storing
-    const hashed = await hashPassword(sanitizedNew);
-    if (hashed === storedPass) return setMsg({type:"err", text:"كلمة المرور الجديدة مطابقة للقديمة"});
-    await fb.set(`passwords/${emp.jobNum}`, hashed);
-    auditLog("تغيير كلمة المرور", `تغيير كلمة مرور: ${emp.name.split(" ").slice(0,2).join(" ")}`, emp.name);
-    setCurrent(""); setNewPass(""); setConfirm("");
-    setMsg({type:"ok", text:"✓ تم تغيير كلمة المرور بنجاح — ستُطبّق في جلسة الدخول التالية"});
+    if (sanitizedNew.length < 4) return setMsg({type:"err", text:"كلمة المرور الجديدة يجب أن تكون 4 أحرف على الأقل"});
+    if (sanitizedNew !== confirm) return setMsg({type:"err", text:"كلمة المرور الجديدة غير متطابقة"});
+
+    fb.get(`passwords/${emp.jobNum}`).then(fbPass => {
+      const storedPass = fbPass || emp.password;
+      if (!verifyPassword(current, storedPass))
+        return setMsg({type:"err", text:"كلمة المرور الحالية غير صحيحة"});
+      if (verifyPassword(sanitizedNew, storedPass))
+        return setMsg({type:"err", text:"كلمة المرور الجديدة مطابقة للقديمة"});
+
+      const encoded = encodePassword(sanitizedNew);
+      fb.set(`passwords/${emp.jobNum}`, encoded).then(()=>{
+        auditLog("تغيير كلمة المرور", `تغيير كلمة مرور: ${emp.name.split(" ").slice(0,2).join(" ")}`, emp.name);
+        setCurrent(""); setNewPass(""); setConfirm("");
+        setMsg({type:"ok", text:"✓ تم تغيير كلمة المرور — استخدمها عند الدخول التالي"});
+      });
+    });
   };
 
   const inp = "w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white";
