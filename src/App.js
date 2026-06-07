@@ -592,9 +592,9 @@ function daysBetween(a, b) {
 function toArabicNum(n) {
   return String(n).replace(/\d/g, d => "٠١٢٣٤٥٦٧٨٩"[d]);
 }
-//* ═══════════════════════════════════════════════════════════
-   LOGIN — شاشة تسجيل الدخول المصلحة
-═══════════════════════════════════════════════════════════ */
+/* ===========================================================
+   LOGIN - شاشة تسجيل الدخول المصلحة
+=========================================================== */
 function LoginScreen({ onLogin }) {
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
@@ -609,7 +609,6 @@ function LoginScreen({ onLogin }) {
       return;
     }
 
-    // 1. البحث عن الحساب في القائمة الثابتة بالملف
     const baseAcct = ACCOUNTS.find(a => a.jobNum === user || a.username === user);
     if (!baseAcct) {
       setErr("رقم الوظيفة أو اسم المستخدم غير صحيح");
@@ -618,12 +617,10 @@ function LoginScreen({ onLogin }) {
 
     try {
       setLoading(true);
-      // 2. جلب باسوورد المستخدم المشفّر من الفايربيس إذا كان قد غيّره سابقاً
       const res = await fetch(`${FIREBASE_URL}/passwords/${baseAcct.jobNum}.json`);
       const remoteEncodedPassword = await res.json();
 
       if (remoteEncodedPassword) {
-        // إذا وُجد باسوورد معدل في السيرفر، نقارنه بالأمان والتشفير المدمج
         if (verifyPassword(pass, remoteEncodedPassword)) {
           recordLoginAttempt(baseAcct.jobNum, true);
           onLogin(baseAcct);
@@ -634,7 +631,6 @@ function LoginScreen({ onLogin }) {
           return;
         }
       } else {
-        // 3. إذا لم يقم بالتغيير من قبل، يتم الدخول بالباسوورد الافتراضي الثابت
         if (pass === baseAcct.password) {
           recordLoginAttempt(baseAcct.jobNum, true);
           onLogin(baseAcct);
@@ -646,7 +642,6 @@ function LoginScreen({ onLogin }) {
         }
       }
     } catch (err) {
-      // طوارئ: في حال انقطاع الإنترنت يسمح بالباسوورد الافتراضي الثابت كبديل مؤقت
       if (pass === baseAcct.password) {
         onLogin(baseAcct);
       } else {
@@ -668,7 +663,7 @@ function LoginScreen({ onLogin }) {
             <LogIn size={28} className="text-white" />
           </div>
           <h2 className="text-xl font-black text-white tracking-wide">منظومة الإجازات الإلكترونية</h2>
-          <p className="text-xs text-slate-400 mt-1.5 font-medium">شركة الموانئ العراقية — قسم السيطرة البحرية</p>
+          <p className="text-xs text-slate-400 mt-1.5 font-medium">شركة الموانئ العراقية - قسم السيطرة البحرية</p>
         </div>
 
         <div className="space-y-4">
@@ -709,6 +704,7 @@ function LoginScreen({ onLogin }) {
     </div>
   );
 }
+
 /* ═══════════════════════════════════════════════════════════
    LEAVE REQUEST FORM — matches BOC-P-13/F13
    + monthly counter, >3 day approval warning, abroad warning
@@ -2646,8 +2642,7 @@ function Dashboard({ emp, onLogout }) {
 
         {/* ── MAIN CONTENT ── */}
         <main className="flex-1 p-4 md:p-6 space-y-5 pb-24 md:pb-6 overflow-y-auto">
-
-        {view === "changepass" && (
+{view === "changepass" && (
         <div className="fu space-y-4">
           <div className="flex items-center gap-3 mb-4 no-print">
             <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
@@ -2659,7 +2654,6 @@ function Dashboard({ emp, onLogout }) {
             </div>
           </div>
 
-          {/* محرك تغيير كلمة المرور المدمج بـ Firebase بشكل متزامن */}
           {(() => {
             const [, setFbPassword] = useFirebase(`passwords/${emp.jobNum}`, null);
             const [newPass, setNewPass] = useState("");
@@ -2678,16 +2672,14 @@ function Dashboard({ emp, onLogout }) {
                 setPassLoading(true);
                 const encoded = encodePassword(newPass);
                 
-                // حفظ فوري في الفايربيس
                 await fb.set(`passwords/${emp.jobNum}`, encoded);
                 setFbPassword(encoded);
 
-                // سجل المراقبة إن وجد
                 if (typeof auditLog === "function") {
                   auditLog("تغيير كلمة المرور", emp.name.split(" ").slice(0,2).join(" "), emp.name);
                 }
                 
-                setMsg({type:"ok", text: `✓ تم تغيير كلمة المرور بنجاح — استخدم (${newPass}) في الدخول التالي`});
+                setMsg({type:"ok", text: `تم تغيير كلمة المرور بنجاح استخدم ${newPass} في الدخول التالي`});
                 setNewPass("");
                 setConfirm("");
               } catch (error) {
@@ -2734,17 +2726,16 @@ function Dashboard({ emp, onLogout }) {
                 </div>
 
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 max-w-md">
-                  <p className="font-bold text-slate-700 mb-1">📌 ملاحظة:</p>
+                  <p className="font-bold text-slate-700 mb-1">ملاحظة:</p>
                   <p>• كلمة مرورك الافتراضية هي <strong className="text-blue-700">{emp.password}</strong></p>
                   <p>• إذا نسيت كلمة مرورك الجديدة، اطلب من المشرف إعادة تعيينها</p>
-                  <p>• التغيير يُطبَّق فوراً في جلسة الدخول التالية</p>
+                  <p>• التغيير يطبق فورا في جلسة الدخول التالية</p>
                 </div>
               </div>
             );
           })()}
         </div>
       )}
-
         {view === "home" && (
           <div className="fu space-y-5">
 
