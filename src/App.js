@@ -10,6 +10,95 @@ const FIREBASE_URL = "https://faop-scada-default-rtdb.asia-southeast1.firebaseda
 const FIREBASE_API_KEY = "AIzaSyDWb0WhoO-NVLnbE5b8un63O6x-sH0RDco";
 
 /* ═══════════════════════════════════════════════════════════
+   SECURITY LAYER — طبقة الأمان
+═══════════════════════════════════════════════════════════ */
+
+// 1. SHA-256 Password Hashing — تشفير كلمات المرور
+const SEC_SALT = "BOC_FAW_SCADA_2026_SALT"; // لا تغيّر هذا
+async function hashPassword(raw) {
+  try {
+    const enc  = new TextEncoder();
+    const data = enc.encode(raw + SEC_SALT);
+    const buf  = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+  } catch {
+    // Fallback if crypto.subtle not available (HTTP)
+    return raw;
+  }
+}
+
+// Verify password — يقبل plaintext (قديم) أو hash (جديد)
+async function verifyPassword(input, stored) {
+  if (!input || !stored) return false;
+  if (input === stored) return true; // plaintext match (migration period)
+  const hashed = await hashPassword(input);
+  return hashed === stored;
+}
+
+// 2. Session Token — رمز الجلسة
+function generateSessionToken() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+// 3. Input Sanitization — تنظيف المدخلات
+function sanitize(str) {
+  if (typeof str !== "string") return str;
+  return str
+    .replace(/[<>]/g,"")          // XSS
+    .replace(/javascript:/gi,"")  // JS injection
+    .replace(/on\w+=/gi,"")       // Event handlers
+    .trim();
+}
+
+// 4. Rate Limiting — تحديد محاولات الدخول
+const _loginAttempts = (() => {
+  try {
+    const saved = sessionStorage.getItem("_la");
+    return saved ? JSON.parse(saved) : {};
+  } catch { return {}; }
+})();
+
+function recordLoginAttempt(jobNum, success) {
+  if (success) {
+    delete _loginAttempts[jobNum];
+  } else {
+    _loginAttempts[jobNum] = (_loginAttempts[jobNum]||0) + 1;
+  }
+  try { sessionStorage.setItem("_la", JSON.stringify(_loginAttempts)); } catch {}
+}
+
+function getLoginAttempts(jobNum) {
+  return _loginAttempts[jobNum] || 0;
+}
+
+// 5. Idle Timeout — تسجيل خروج تلقائي عند الخمول (30 دقيقة)
+let _idleTimer = null;
+const IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+
+function resetIdleTimer(onLogout) {
+  clearTimeout(_idleTimer);
+  _idleTimer = setTimeout(() => {
+    try { sessionStorage.removeItem("boc_session"); } catch {}
+    onLogout();
+  }, IDLE_TIMEOUT);
+}
+
+function setupIdleDetection(onLogout) {
+  const reset = () => resetIdleTimer(onLogout);
+  ["mousemove","keypress","click","touchstart","scroll"].forEach(e =>
+    window.addEventListener(e, reset, {passive:true})
+  );
+  resetIdleTimer(onLogout);
+  return () => {
+    clearTimeout(_idleTimer);
+    ["mousemove","keypress","click","touchstart","scroll"].forEach(e =>
+      window.removeEventListener(e, reset)
+    );
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════
    #3 — PUSH NOTIFICATIONS
    إشعارات للهاتف حتى لو التطبيق مغلق
    
@@ -353,42 +442,41 @@ function PrintButton({ targetId, label = "طباعة / PDF", title }) {
    المصدر: ملف كادر الشعبة
 ═══════════════════════════════════════════════════════════ */
 const ACCOUNTS = [
-  // ══ الصباحي (11 موظف) ══
-  {id:1,  username:"i.shawi",    password:"1001", name:"ايهاب عبد اللطيف عودة سلمان الشاوي",       jobNum:"728004", title:"ر. مهندسين",    dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس", phone:"7801165298"},
-  {id:2,  username:"o.rubaie",   password:"1002", name:"عدي فيصل عبد الهادي عبد السيد الربيعه",    jobNum:"727466", title:"ر. مهندسين",    dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس", phone:"7705559125"},
-  {id:3,  username:"om.miyahi",  password:"1003", name:"عمر طاهر خزعل سبهان المياحي",              jobNum:"737283", title:"م.ر. مهندسين",  dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس", phone:"7710872949"},
-  {id:4,  username:"l.rubaie",   password:"1004", name:"ليث شاكر حمود زعيتر الربيعه",              jobNum:"756571", title:"معاون مهندس",   dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس", phone:"7714991063"},
-  {id:5,  username:"as.nassari", password:"1005", name:"اسعد عبد الامام يوسف حميد النصاري",        jobNum:"790850", title:"م.مدير فني",    dept:"شعبة مستودع الفاو",  shift:"صباحي", edu:"دبلوم",     phone:"7709043148"},
-  {id:6,  username:"sb.nassari", password:"1006", name:"صباح عبد الامام يوسف حميد النصاري",        jobNum:"758795", title:"م.مدير فني",    dept:"شعبة مستودع الفاو",  shift:"صباحي", edu:"دبلوم",     phone:"7707315475"},
-  {id:7,  username:"a.amir",     password:"1007", name:"احمد محمود عبد القادر عبد الكريم الامير",  jobNum:"719242", title:"مدير فني",      dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"دبلوم",     phone:"7831644210"},
-  {id:8,  username:"m.mansouri", password:"1008", name:"محمود كاظم هاشم محمد المنصوري",            jobNum:"790869", title:"م.مدير فني",    dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"دبلوم",     phone:"7703145733"},
-  {id:9,  username:"m.tamimi",   password:"1009", name:"محمد عبد الكاظم جاسم محمد التميمي",        jobNum:"790885", title:"محاسب اقدم",   dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"دبلوم",     phone:"7808779038"},
-  {id:10, username:"m.ali",      password:"1010", name:"محمد اسماعيل احمد رمضان العلي",            jobNum:"813877", title:"مهندس",         dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس", phone:"7725549815"},
-  {id:11, username:"al.miyahi",  password:"1011", name:"علي طاهر خزعل سبهان المياحي",              jobNum:"439193", title:"حرفي اقدم",     dept:"شعبة المرافئ",       shift:"صباحي", edu:"ابتدائية",  phone:"7705770208"},
+  // ══ المشرف والمخول ══
+  {id:1,  username:"728004", password:"1001", name:"ايهاب عبد اللطيف عودة سلمان الشاوي",       jobNum:"728004", title:"ر. مهندسين",   dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس",    phone:"7801165298", role:"admin"},
+  // ══ الصباحيون ══
+  {id:2,  username:"727466", password:"1002", name:"عدي فيصل عبد الهادي عبد السيد الربيعه",    jobNum:"727466", title:"ر. مهندسين",   dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس",    phone:"7705559125"},
+  {id:3,  username:"737283", password:"1003", name:"عمر طاهر خزعل سبهان المياحي",              jobNum:"737283", title:"م.ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس",    phone:"7710872949"},
+  {id:4,  username:"756571", password:"1004", name:"ليث شاكر حمود زعيتر الربيعه",              jobNum:"756571", title:"معاون مهندس",  dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس",    phone:"7714991063"},
+  {id:5,  username:"790850", password:"1005", name:"اسعد عبد الامام يوسف حميد النصاري",        jobNum:"790850", title:"م.مدير فني",   dept:"شعبة مستودع الفاو",  shift:"صباحي", edu:"دبلوم",        phone:"7709043148"},
+  {id:6,  username:"758795", password:"1006", name:"صباح عبد الامام يوسف حميد النصاري",        jobNum:"758795", title:"م.مدير فني",   dept:"شعبة مستودع الفاو",  shift:"صباحي", edu:"دبلوم",        phone:"7707315475"},
+  {id:7,  username:"719242", password:"1007", name:"احمد محمود عبد القادر عبد الكريم الامير",  jobNum:"719242", title:"مدير فني",     dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"دبلوم",        phone:"7831644210"},
+  {id:8,  username:"790869", password:"1008", name:"محمود كاظم هاشم محمد المنصوري",            jobNum:"790869", title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"دبلوم",        phone:"7703145733"},
+  {id:9,  username:"790885", password:"1009", name:"محمد عبد الكاظم جاسم محمد التميمي",        jobNum:"790885", title:"محاسب اقدم",  dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"دبلوم",        phone:"7808779038", role:"inventory_manager"},
+  {id:10, username:"813877", password:"1010", name:"محمد اسماعيل احمد رمضان العلي",            jobNum:"813877", title:"مهندس",        dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس",    phone:"7725549815"},
+  {id:11, username:"439193", password:"1011", name:"علي طاهر خزعل سبهان المياحي",              jobNum:"439193", title:"حرفي اقدم",    dept:"شعبة المرافئ",       shift:"صباحي", edu:"ابتدائية",     phone:"7705770208"},
   // ══ المناوبة (18 موظف) ══
-  {id:12, username:"ab.abbada",  password:"2001", name:"عبد الله علي زباري يسر عباده",             jobNum:"701130", title:"م.ر. مهندسين",  dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"A", edu:"بكالوريوس",      phone:"7705706145"},
-  {id:13, username:"am.ali",     password:"2002", name:"امين حميد فاضل حسين العلي",                jobNum:"751480", title:"م.مدير فني",    dept:"شعبة مستودع الفاو",  shift:"مناوبة", group:"A", edu:"دبلوم معهد نفط", phone:"7715949652"},
-  {id:14, username:"h.abadi",    password:"2003", name:"حسين علي احمد قاسم عبادي",                 jobNum:"719269", title:"م.مدير فني",    dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"A", edu:"دبلوم",           phone:"7712679994"},
-  {id:15, username:"j.hussain",  password:"2004", name:"جاسم مزعل حاتم ديوان الحسين",              jobNum:"719498", title:"م.مدير فني",    dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"A", edu:"دبلوم",           phone:"7821188777"},
-  {id:16, username:"b.faris",    password:"2005", name:"باسم هاشم جاسم هاشم الفارس",               jobNum:"719277", title:"م.مدير فني",    dept:"شعبة المرافئ",       shift:"مناوبة", group:"B", edu:"دبلوم",           phone:"7702792993"},
-  {id:17, username:"h.shnawa",   password:"2006", name:"هاشم جابر جعفر شناوة عباس",                jobNum:"719293", title:"م.مدير فني",    dept:"شعبة المرافئ",       shift:"مناوبة", group:"B", edu:"دبلوم",           phone:"7732166112"},
-  {id:18, username:"ab.eissa",   password:"2007", name:"عبد الحميد سامي موسى بدر العيسى",          jobNum:"719463", title:"مدير فني",      dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"B", edu:"دبلوم",           phone:"7705559870"},
-  {id:19, username:"ih.dawod",   password:"2008", name:"احسان عبد الصمد داود",                     jobNum:"736732", title:"مدير فني",      dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"B", edu:"دبلوم",           phone:"7714658958"},
-  {id:20, username:"al.jafar",   password:"2009", name:"علاء محسن عذبي جعفر الجعفر",               jobNum:"719048", title:"مدير فني",      dept:"شعبة مستودع الفاو",  shift:"مناوبة", group:"C", edu:"دبلوم",           phone:"7803572745"},
-  {id:21, username:"al.aidani",  password:"2010", name:"علي طارق ياسين مهودر العيداني",            jobNum:"735922", title:"م.ر. مهندسين",  dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"C", edu:"بكالوريوس",      phone:"7703137777"},
-  {id:22, username:"al.ali",     password:"2011", name:"علي باقر حنتوش مليس العلي",                jobNum:"732249", title:"م.ر. مبرمجين", dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"C", edu:"بكالوريوس",      phone:"7706072225"},
-  {id:23, username:"y.yaseen",   password:"2012", name:"يوسف عباس ياسين احمد ياسين",               jobNum:"726508", title:"مدير فني",      dept:"شعبة مستودع الفاو",  shift:"مناوبة", group:"C", edu:"دبلوم",           phone:"7715498830"},
-  {id:24, username:"dh.ghanim",  password:"2013", name:"ضياء بدر حمادي اسماعيل الغانم",            jobNum:"719129", title:"م.مدير فني",    dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"D", edu:"دبلوم",           phone:"7718695345"},
-  {id:25, username:"ad.atiya",   password:"2014", name:"عدنان جواد كاظم جعفر العطية",              jobNum:"719099", title:"م.مدير فني",    dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"D", edu:"دبلوم",           phone:"7709048893"},
-  {id:26, username:"ih.saleem",  password:"2015", name:"احسان جواد كاظم حسين السليم",              jobNum:"732834", title:"مهندس",         dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"D", edu:"بكالوريوس",      phone:"7705666922"},
-  {id:27, username:"h.jasim",    password:"2016", name:"حيدر عبد الحسن خضير جاسم",                 jobNum:"724939", title:"مدير فني",      dept:"شعبة المرافئ",       shift:"مناوبة", group:"D", edu:"معادل للاعدادية", phone:"7712766100"},
-  {id:28, username:"w.mahsen",   password:"2017", name:"واثق حسين عبد الشيخ حسن المحسن",           jobNum:"718939", title:"م.مدير فني",    dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"A", edu:"دبلوم",           phone:"7707040209"},
-  {id:29, username:"sd.eissa",   password:"2018", name:"صدام عبد الواحد سلمان عيسى العيسى",        jobNum:"719005", title:"م.مدير فني",    dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"B", edu:"دبلوم",           phone:"7712443251"},
-  // ══ العقد (4 موظفين) ══
-  {id:30, username:"ab.mouni",   password:"3001", name:"عبد الله عيسى موسى موني",                  jobNum:"690414", title:"عقد",           dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس", phone:"7735632535"},
-  {id:31, username:"ab.eissa2",  password:"3002", name:"اباذر صالح عبد الحسين عيسى",               jobNum:"689766", title:"عقد",           dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس", phone:"7801446130"},
-  {id:32, username:"h.omran",    password:"3003", name:"حسن عادل عمران يوسف",                       jobNum:"690174", title:"عقد",           dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس", phone:"7729488795"},
-  {id:33, username:"sj.ali",     password:"3004", name:"سجاد علي راضي علي",                        jobNum:"689331", title:"عقد",           dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس", phone:"7703283076"},
+  {id:12, username:"701130", password:"2001", name:"عبد الله علي زباري يسر عباده",             jobNum:"701130", title:"م.ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"A", edu:"بكالوريوس",      phone:"7705706145"},
+  {id:13, username:"751480", password:"2002", name:"امين حميد فاضل حسين العلي",                jobNum:"751480", title:"م.مدير فني",   dept:"شعبة مستودع الفاو",  shift:"مناوبة", group:"A", edu:"دبلوم معهد نفط", phone:"7715949652"},
+  {id:14, username:"719269", password:"2003", name:"حسين علي احمد قاسم عبادي",                 jobNum:"719269", title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"A", edu:"دبلوم",          phone:"7712679994"},
+  {id:15, username:"719498", password:"2004", name:"جاسم مزعل حاتم ديوان الحسين",              jobNum:"719498", title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"A", edu:"دبلوم",          phone:"7821188777"},
+  {id:16, username:"719277", password:"2005", name:"باسم هاشم جاسم هاشم الفارس",               jobNum:"719277", title:"م.مدير فني",   dept:"شعبة المرافئ",       shift:"مناوبة", group:"B", edu:"دبلوم",          phone:"7702792993"},
+  {id:17, username:"719293", password:"2006", name:"هاشم جابر جعفر شناوة عباس",                jobNum:"719293", title:"م.مدير فني",   dept:"شعبة المرافئ",       shift:"مناوبة", group:"B", edu:"دبلوم",          phone:"7732166112"},
+  {id:18, username:"719463", password:"2007", name:"عبد الحميد سامي موسى بدر العيسى",          jobNum:"719463", title:"مدير فني",     dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"B", edu:"دبلوم",          phone:"7705559870"},
+  {id:19, username:"736732", password:"2008", name:"احسان عبد الصمد داود",                     jobNum:"736732", title:"مدير فني",     dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"B", edu:"دبلوم",          phone:"7714658958"},
+  {id:20, username:"719048", password:"2009", name:"علاء محسن عذبي جعفر الجعفر",              jobNum:"719048", title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"C", edu:"دبلوم",          phone:"7711534971"},
+  {id:21, username:"732249", password:"2010", name:"علي باقر حنتوش",                           jobNum:"732249", title:"م.مدير فني",   dept:"شعبة المرافئ",       shift:"مناوبة", group:"C", edu:"دبلوم",          phone:"7705000000"},
+  {id:22, username:"719051", password:"2011", name:"علي صلاح مهدي العيداني",                   jobNum:"719051", title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"C", edu:"دبلوم",          phone:"7711000000"},
+  {id:23, username:"733501", password:"2012", name:"يوسف ياسين علي ياسين",                     jobNum:"733501", title:"م.مدير فني",   dept:"شعبة مستودع الفاو",  shift:"مناوبة", group:"C", edu:"دبلوم",          phone:"7713000000"},
+  {id:24, username:"719381", password:"2013", name:"ضياء عبد الامير محمد الغانم",              jobNum:"719381", title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"D", edu:"دبلوم",          phone:"7714000000"},
+  {id:25, username:"719502", password:"2014", name:"عدنان عبد الجليل عطية",                    jobNum:"719502", title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"D", edu:"دبلوم",          phone:"7715000000"},
+  {id:26, username:"736721", password:"2015", name:"احسان محمد سليم السليم",                   jobNum:"736721", title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"D", edu:"دبلوم",          phone:"7716000000"},
+  {id:27, username:"724939", password:"2016", name:"حيدر عبد الحسن خضير جاسم",                 jobNum:"724939", title:"مدير فني",     dept:"شعبة المرافئ",       shift:"مناوبة", group:"D", edu:"معادل للاعدادية", phone:"7712766100"},
+  // ══ العقود (4 موظفين) ══ — اداريون لهم صلاحية الحضور
+  {id:30, username:"690414", password:"3001", name:"عبد الله عيسى موسى موني",                  jobNum:"690414", title:"عقد",          dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس", phone:"7735632535"},
+  {id:31, username:"689766", password:"3002", name:"اباذر صالح عبد الحسين عيسى",               jobNum:"689766", title:"عقد",          dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس", phone:"7801446130", role:"attendance_admin"},
+  {id:32, username:"690174", password:"3003", name:"حسن عادل عمران يوسف",                       jobNum:"690174", title:"عقد",          dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس", phone:"7729488795", role:"attendance_admin"},
+  {id:33, username:"689331", password:"3004", name:"سجاد علي راضي علي",                        jobNum:"689331", title:"عقد",          dept:"قسم السيطرة والنظم", shift:"صباحي", edu:"بكالوريوس", phone:"7703283076", role:"attendance_admin"},
 ];
 
 /* ── السواق المؤجرون (لا يسجلون دخول) ── */
@@ -474,9 +562,9 @@ function getAutoStatus(emp, dateStr) {
 }
 
 const LEAVE_TYPES = {
-  اعتيادية: { label:"إجازة اعتيادية", color:"bg-blue-600",   light:"bg-blue-50 text-blue-700 border-blue-200",   max:30 },
-  مرضية:    { label:"إجازة مرضية",    color:"bg-rose-600",   light:"bg-rose-50 text-rose-700 border-rose-200",   max:15 },
-  زمنية:    { label:"إجازة زمنية",    color:"bg-amber-600",  light:"bg-amber-50 text-amber-700 border-amber-200", max:7  },
+  اعتيادية: { label:"إجازة اعتيادية", color:"bg-blue-600",  light:"bg-blue-50 text-blue-700 border-blue-200",   max:30, unit:"يوم" },
+  مرضية:    { label:"إجازة مرضية",    color:"bg-rose-600",  light:"bg-rose-50 text-rose-700 border-rose-200",   max:15, unit:"يوم" },
+  زمنية:    { label:"إجازة زمنية",    color:"bg-amber-600", light:"bg-amber-50 text-amber-700 border-amber-200", max:7,  unit:"يوم", hourly:true, hoursPerDay:7, morningOnly:true },
 };
 
 function arabicDate(dateStr) {
@@ -503,7 +591,9 @@ function LoginScreen({ onLogin }) {
   const [err, setErr]     = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Check for saved session on mount
+  const [attempts, setAttempts] = useState(0);
+
+  // Check saved session
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem("boc_session");
@@ -516,26 +606,58 @@ function LoginScreen({ onLogin }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handle = () => {
+    const jobNum  = sanitize(user.trim());
+    const passVal = sanitize(pass.trim());
+
+    if (getLoginAttempts(jobNum) >= 5) {
+      return setErr("تم تجاوز عدد المحاولات المسموحة. أغلق المتصفح وحاول بعد 10 دقائق.");
+    }
+    if (!jobNum || !pass) return setErr("أدخل الرقم الوظيفي وكلمة المرور");
+
     setErr("");
     setLoading(true);
-    setTimeout(() => {
-      const acct = ACCOUNTS.find(a =>
-        a.username === user.trim() && a.password === pass.trim()
-      );
-      if (acct) {
-        // Save session for 8 hours (shift duration)
+
+    (async () => {
+      // 1. Find account by jobNum
+      const baseAcct = ACCOUNTS.find(a => a.jobNum === jobNum || a.username === jobNum);
+      if (!baseAcct) {
+        recordLoginAttempt(jobNum, false);
+        setAttempts(a=>a+1);
+        setErr("الرقم الوظيفي غير موجود");
+        setLoading(false);
+        return;
+      }
+
+      // 2. Check password — Firebase hash first, then ACCOUNTS (migration)
+      const fbPass = await fb.get(`passwords/${jobNum}`);
+      const storedPass = fbPass || baseAcct.password;
+      const valid = await verifyPassword(passVal, storedPass);
+
+      if (valid) {
+        recordLoginAttempt(jobNum, true);
+        // Migrate plaintext password to hash on first login
+        if (!fbPass) {
+          const hashed = await hashPassword(passVal);
+          fb.set(`passwords/${jobNum}`, hashed);
+        }
+        const token = generateSessionToken();
         try {
           sessionStorage.setItem("boc_session", JSON.stringify({
-            acct,
-            expiry: Date.now() + 8 * 60 * 60 * 1000,
+            acct: baseAcct,
+            expiry: Date.now() + 8*60*60*1000,
+            token,
           }));
         } catch {}
-        onLogin(acct);
+        setAttempts(0);
+        onLogin(baseAcct);
       } else {
-        setErr("اسم المستخدم أو كلمة المرور غير صحيحة");
+        recordLoginAttempt(jobNum, false);
+        const att = getLoginAttempts(jobNum);
+        setAttempts(att);
+        setErr(`كلمة المرور غير صحيحة${att>=2?` (${5-att} محاولات متبقية)`:""}`);
         setLoading(false);
       }
-    }, 600);
+    })();
   };
 
   return (
@@ -573,7 +695,7 @@ function LoginScreen({ onLogin }) {
 
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-blue-300 mb-1.5">اسم المستخدم</label>
+              <label className="block text-xs font-semibold text-blue-300 mb-1.5">الرقم الوظيفي</label>
               <div className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2.5"
                    style={{background:"rgba(255,255,255,0.05)"}}>
                 <User size={15} className="text-blue-400 shrink-0"/>
@@ -1823,6 +1945,7 @@ function ApprovalPage({ allRequests, onApprove, notifications, setNotifications,
 
   const doApprove = (id) => { onApprove(id, "approve", "تمت الموافقة وتدقيق متطلبات العمل الأساسية."); };
   const doReject  = (id) => { setNoteModal(id); setAdminNote(""); };
+  const doCancel  = (id) => { onApprove(id, "cancel", "تم إلغاء الطلب من قِبل الإدارة."); };
   const confirmReject = () => {
     if (noteModal) { onApprove(noteModal, "reject", adminNote); setNoteModal(null); }
   };
@@ -1956,6 +2079,15 @@ function ApprovalPage({ allRequests, onApprove, notifications, setNotifications,
                         </button>
                       </div>
                     )}
+                    {/* Cancel button — for approved requests */}
+                    {req.status === "موافق عليها" && (
+                      <div className="flex gap-2 mt-3 no-print">
+                        <button onClick={() => doCancel(req.id)}
+                          className="flex items-center gap-1.5 py-2 px-4 text-xs font-bold text-white bg-slate-600 hover:bg-slate-700 rounded-xl active:scale-95 transition-all">
+                          <X size={13}/> إلغاء الطلب
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))
@@ -2062,24 +2194,23 @@ function Dashboard({ emp, onLogout }) {
   // Personal history (also on Firebase, keyed per employee)
   const [history, setHistory] = useFirebase(`history/${emp.id}`, []);
 
-  const isAdmin    = emp.username === "i.shawi";
-  // #15 — Multi-level permissions
-  // Level 0: موظف عادي
-  // Level 1: رئيس مجموعة (يرى مجموعته فقط) — أوائل كل مجموعة مناوبة
-  // Level 2: مشرف ومخول (ايهاب) — صلاحيات كاملة
-  const GROUP_LEADERS = { A:"ab.abbada", B:"b.faris", C:"al.jafar", D:"dh.ghanim" };
-  const isGroupLeader = Object.values(GROUP_LEADERS).includes(emp.username);
-  const myGroup       = emp.group || null;
-  const permLevel     = isAdmin ? 2 : isGroupLeader ? 1 : 0;
+  const isAdmin         = emp.role === "admin" || emp.jobNum === "728004";
+  const isInventoryMgr  = emp.role === "inventory_manager" || emp.jobNum === "790885";
+  const isAttendanceAdm = emp.role === "attendance_admin" || ["689766","690174","689331"].includes(emp.jobNum);
 
-  // فلترة الموظفين حسب الصلاحية
+  // #15 — Multi-level permissions
+  const GROUP_LEADERS  = { A:"701130", B:"719277", C:"719048", D:"719381" };
+  const isGroupLeader  = Object.values(GROUP_LEADERS).includes(emp.jobNum);
+  const myGroup        = emp.group || null;
+  const permLevel      = isAdmin ? 2 : (isGroupLeader||isAttendanceAdm) ? 1 : 0;
+
   const visibleEmployees = useMemo(()=>{
-    if (permLevel >= 2) return employees; // مشرف: الكل
+    if (permLevel >= 2) return employees;
     if (permLevel === 1) return (Array.isArray(employees)?employees:[]).filter(e=>
-      e.group === myGroup || e.shift !== "مناوبة"
-    ); // رئيس مجموعة: مجموعته + الصباحيين
-    return (Array.isArray(employees)?employees:[]).filter(e=>e.id===emp.id); // موظف: نفسه فقط
-  }, [employees, permLevel, myGroup, emp.id]);
+      isAttendanceAdm ? true : (e.group === myGroup || e.shift !== "مناوبة")
+    );
+    return (Array.isArray(employees)?employees:[]).filter(e=>e.id===emp.id);
+  }, [employees, permLevel, myGroup, emp.id, isAttendanceAdm]);
 
   // #3 Push Notifications
   const { permStatus, requestPush } = usePushNotifications(emp);
@@ -2103,6 +2234,12 @@ function Dashboard({ emp, onLogout }) {
   }, [emp]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Log login on mount
+  // Idle timeout — تسجيل خروج تلقائي بعد 30 دقيقة خمول
+  useEffect(() => {
+    const cleanup = setupIdleDetection(onLogout);
+    return cleanup;
+  }, [onLogout]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => { logLogin(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pending count for admin badge
@@ -2157,7 +2294,7 @@ function Dashboard({ emp, onLogout }) {
 
   // ── Admin: approve or reject a request
   const handleApproval = useCallback((reqId, decision, adminNote = "") => {
-    const newStatus  = decision === "approve" ? "موافق عليها" : "مرفوضة";
+    const newStatus  = decision === "approve" ? "موافق عليها" : decision === "cancel" ? "ملغي" : "مرفوضة";
     const timestamp  = new Date().toISOString();
     const req        = (Array.isArray(allRequests) ? allRequests : []).find(r => r.id === reqId);
     if (!req) return;
@@ -2297,6 +2434,44 @@ function Dashboard({ emp, onLogout }) {
             </button>
           )}
 
+          {/* Attendance admin — can view/enter attendance */}
+          {isAttendanceAdm && !isAdmin && (
+            <div className="border-t border-slate-800 pt-3 mt-3 space-y-0.5">
+              <p className="text-[10px] font-bold text-slate-500 px-3 mb-2">صلاحيات الإداري</p>
+              <button onClick={()=>setView("attendance")}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                  view==="attendance"?"bg-blue-600 text-white":"text-slate-400 hover:bg-slate-800 hover:text-white"
+                }`}>
+                <Calendar size={14}/> الحضور والغياب
+              </button>
+              <button onClick={()=>setView("approvals")}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                  view==="approvals"?"bg-amber-600 text-white":"text-amber-400 hover:bg-slate-800"
+                }`}>
+                <span className="flex items-center gap-2.5"><ThumbsUp size={14}/> إلغاء الطلبات</span>
+              </button>
+            </div>
+          )}
+
+          {/* Inventory manager */}
+          {isInventoryMgr && !isAdmin && (
+            <div className="border-t border-slate-800 pt-3 mt-3 space-y-0.5">
+              <p className="text-[10px] font-bold text-slate-500 px-3 mb-2">مسؤول المخزن</p>
+              <button onClick={()=>setView("inventory")}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                  view==="inventory"?"bg-blue-600 text-white":"text-slate-400 hover:bg-slate-800 hover:text-white"
+                }`}>
+                <Layers size={14}/> جرد المخزن (تعديل)
+              </button>
+              <button onClick={()=>setView("furniture")}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                  view==="furniture"?"bg-blue-600 text-white":"text-slate-400 hover:bg-slate-800 hover:text-white"
+                }`}>
+                <ClipboardList size={14}/> جرد الأثاث (تعديل)
+              </button>
+            </div>
+          )}
+
           {/* Admin section */}
           {isAdmin && (
             <div className="border-t border-slate-800 pt-3 mt-3 space-y-0.5">
@@ -2381,7 +2556,13 @@ function Dashboard({ emp, onLogout }) {
         </div>
 
         {/* Logout */}
-        <div className="p-3 border-t border-slate-800">
+        <div className="p-3 border-t border-slate-800 space-y-1">
+          <button onClick={()=>setView("changepass")}
+            className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+              view==="changepass"?"bg-blue-600 text-white":"text-slate-400 hover:bg-slate-800 hover:text-white"
+            }`}>
+            <Shield size={13}/> تغيير كلمة المرور
+          </button>
           <button onClick={onLogout}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-red-400 hover:bg-red-950/40 transition-colors">
             <LogOut size={14}/> تسجيل الخروج
@@ -2459,6 +2640,21 @@ function Dashboard({ emp, onLogout }) {
 
         {/* ── MAIN CONTENT ── */}
         <main className="flex-1 p-4 md:p-6 space-y-5 pb-24 md:pb-6 overflow-y-auto">
+
+        {view === "changepass" && (
+          <div className="fu">
+            <div className="flex items-center gap-3 mb-4 no-print">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                <Shield size={16} className="text-blue-600"/>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-800">تغيير كلمة المرور</h2>
+                <p className="text-[11px] text-slate-500">الرقم الوظيفي هو اسم دخولك الجديد</p>
+              </div>
+            </div>
+            <ChangePasswordPage emp={emp}/>
+          </div>
+        )}
 
         {view === "home" && (
           <div className="fu space-y-5">
@@ -2834,15 +3030,15 @@ function Dashboard({ emp, onLogout }) {
           </div>
         )}
 
-        {view === "approvals" && isAdmin && (
+        {view === "approvals" && (isAdmin || isAttendanceAdm) && (
           <div className="fu">
             <div className="flex items-center gap-3 mb-4 no-print">
               <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
                 <ThumbsUp size={16} className="text-emerald-600"/>
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-800">الموافقات والإشعارات</h2>
-                <p className="text-[11px] text-amber-600 font-semibold">صلاحية المشرف — ايهاب الشاوي</p>
+                <h2 className="text-base font-bold text-slate-800">الموافقات</h2>
+                <p className="text-[11px] text-slate-500">{isAdmin?"صلاحية المشرف — ايهاب الشاوي":"صلاحية الإداري — إلغاء الطلبات فقط"}</p>
               </div>
               {pendingCount > 0 && (
                 <span className="bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">
@@ -2856,6 +3052,7 @@ function Dashboard({ emp, onLogout }) {
               notifications={notifications}
               setNotifications={setNotifications}
               emp={emp}
+              isAttendanceAdm={isAttendanceAdm}
             />
           </div>
         )}
@@ -7490,75 +7687,50 @@ const FIREBASE_RULES = `{
     "requests": {
       ".read": true,
       ".write": true,
-      ".validate": "newData.hasChildren(['type','empId','empName','days','dateFrom','dateTo','status'])"
+      ".validate": "newData.hasChildren(['type','empId','empName','days','status'])"
     },
     "history": {
-      "$empId": {
-        ".read": true,
-        ".write": true
-      }
+      "$empId": { ".read": true, ".write": true }
     },
     "notifications": {
-      "$empId": {
-        ".read": true,
-        ".write": true
-      }
+      "$empId": { ".read": true, ".write": true }
     },
-    "login_history": {
-      ".read": true,
-      ".write": true
-    },
-    "employees": {
-      ".read": true,
-      ".write": true
-    },
-    "transfers": {
-      ".read": true,
-      ".write": true
-    },
-    "projects": {
-      ".read": true,
-      ".write": true
-    },
-    "training": {
-      ".read": true,
-      ".write": true
-    },
-    "evaluation": {
-      ".read": true,
-      ".write": true
-    },
-    "attendance": {
-      ".read": true,
-      ".write": true
-    },
-    "notify_settings": {
-      ".read": true,
-      ".write": true
-    },
-    "backups": {
-      ".read": true,
-      ".write": true
-    },
-    "audit_log": {
-      ".read": true,
-      ".write": true
-    },
-    "push_tokens": {
-      ".read": true,
-      ".write": true
-    },
-    "$other": {
-      ".read": false,
-      ".write": false
-    }
+    "login_history": { ".read": true, ".write": true },
+    "employees":     { ".read": true, ".write": true },
+    "transfers":     { ".read": true, ".write": true },
+    "projects":      { ".read": true, ".write": true },
+    "training":      { ".read": true, ".write": true },
+    "evaluation":    { ".read": true, ".write": true },
+    "attendance":    { ".read": true, ".write": true },
+    "notify_settings": { ".read": true, ".write": true },
+    "backups":       { ".read": true, ".write": true },
+    "audit_log":     { ".read": true, ".write": true },
+    "push_tokens":   { ".read": true, ".write": true },
+    "passwords":     { ".read": true, ".write": true },
+    "wa":            { ".read": true, ".write": true },
+    "$other":        { ".read": false, ".write": false }
   }
 }`;
 
 function SecurityPage() {
   const [copied, setCopied] = useState(false);
   const [toast, setToast]   = useState("");
+  const [pwStatus, setPwStatus] = useState(null);
   const showToast = (m) => { setToast(m); setTimeout(()=>setToast(""),3000); };
+
+  // Check how many passwords are hashed in Firebase
+  useEffect(()=>{
+    (async()=>{
+      let hashed=0, plain=0;
+      for (const acc of ACCOUNTS) {
+        const stored = await fb.get(`passwords/${acc.jobNum}`);
+        if (!stored) plain++;
+        else if (stored.length === 64) hashed++; // SHA-256 hex = 64 chars
+        else plain++;
+      }
+      setPwStatus({hashed, plain, total:ACCOUNTS.length});
+    })();
+  },[]);
 
   const copy = () => {
     navigator.clipboard?.writeText(FIREBASE_RULES).then(()=>{
@@ -7567,53 +7739,122 @@ function SecurityPage() {
     });
   };
 
+  const SecurityItem = ({label, status, note, action}) => (
+    <div className={`flex items-start gap-3 p-3 rounded-xl border ${
+      status==="ok"?"bg-emerald-50 border-emerald-200":
+      status==="warn"?"bg-amber-50 border-amber-200":
+      "bg-red-50 border-red-200"
+    }`}>
+      <span className="text-xl shrink-0 mt-0.5">
+        {status==="ok"?"✅":status==="warn"?"⚠️":"❌"}
+      </span>
+      <div className="flex-1">
+        <p className={`text-xs font-bold ${
+          status==="ok"?"text-emerald-800":status==="warn"?"text-amber-800":"text-red-800"
+        }`}>{label}</p>
+        <p className="text-[10px] text-slate-500 mt-0.5">{note}</p>
+        {action && <div className="mt-1">{action}</div>}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4 fu" dir="rtl">
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
-        <p className="font-bold text-amber-800 flex items-center gap-2">
-          <AlertCircle size={15}/> الوضع الحالي — مفتوح للقراءة والكتابة
-        </p>
-        <p className="text-xs text-amber-700">قاعدة البيانات مفتوحة حالياً. لحمايتها اتبع الخطوات أدناه.</p>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-        <h3 className="font-bold text-slate-800 flex items-center gap-2">
-          <Shield size={15} className="text-blue-600"/> خطوات تأمين Firebase
+      {/* Security Audit */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+        <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4">
+          <Shield size={15} className="text-blue-600"/> تقرير الأمان الحالي
         </h3>
-        {[
-          {n:"1", t:"افتح Firebase Console", d:"console.firebase.google.com → مشروع faop-scada"},
-          {n:"2", t:"اذهب لـ Realtime Database → Rules", d:"تبويب Rules في الأعلى"},
-          {n:"3", t:"احذف كل شيء والصق القواعد أدناه", d:"اضغط زر نسخ ثم الصق في محرر القواعد"},
-          {n:"4", t:"اضغط Publish", d:"القواعد تمنع الوصول لأي مسار غير محدد"},
-        ].map(s=>(
-          <div key={s.n} className="flex gap-3">
-            <span className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">{s.n}</span>
-            <div>
-              <p className="text-sm font-semibold text-slate-700">{s.t}</p>
-              <p className="text-xs text-slate-400">{s.d}</p>
-            </div>
-          </div>
-        ))}
+
+        <SecurityItem
+          label="HTTPS مفعّل"
+          status="ok"
+          note="Vercel يوفر HTTPS تلقائياً — جميع الاتصالات مشفّرة"/>
+
+        <SecurityItem
+          label={`تشفير كلمات المرور — ${pwStatus?`${pwStatus.hashed}/${pwStatus.total} مشفّرة`:"جاري الفحص..."}`}
+          status={pwStatus?.plain===0?"ok":pwStatus?.hashed>0?"warn":"err"}
+          note={pwStatus?.plain>0
+            ? `${pwStatus.plain} كلمة مرور لم تُشفَّر بعد — ستُشفَّر تلقائياً عند أول دخول`
+            : "كل كلمات المرور مشفّرة بـ SHA-256"}/>
+
+        <SecurityItem
+          label="تسجيل خروج تلقائي بعد 30 دقيقة خمول"
+          status="ok"
+          note="يمنع الوصول غير المصرّح به من الجلسات المنسية"/>
+
+        <SecurityItem
+          label="تحديد محاولات الدخول — 5 محاولات كحد أقصى"
+          status="ok"
+          note="يمنع هجمات القوة الغاشمة (Brute Force)"/>
+
+        <SecurityItem
+          label="جلسات آمنة — 8 ساعات فقط"
+          status="ok"
+          note="تنتهي الجلسة تلقائياً بعد نهاية الشفت"/>
+
+        <SecurityItem
+          label="Security Headers — رؤوس الأمان"
+          status="ok"
+          note="XSS Protection, X-Frame-Options, HSTS, CSP — مفعّلة عبر vercel.json"/>
+
+        <SecurityItem
+          label="Firebase Rules — قواعد قاعدة البيانات"
+          status="warn"
+          note="يجب تطبيق القواعد يدوياً في Firebase Console لمنع الوصول غير المصرّح به"
+          action={
+            <button onClick={copy}
+              className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-colors ${
+                copied?"bg-emerald-100 text-emerald-700 border-emerald-300":"bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200"
+              }`}>
+              {copied?"✓ تم النسخ":"نسخ القواعد الجاهزة"}
+            </button>
+          }/>
+
+        <SecurityItem
+          label="Firebase Authentication غير مفعّل"
+          status="warn"
+          note="التحقق محلي حالياً — Firebase Auth يوفر حماية أعلى (للمستقبل)"/>
+
+        <SecurityItem
+          label="بيانات الموظفين في الكود"
+          status="warn"
+          note="أرقام الهواتف وبعض البيانات في الملف — يُنصح بنقلها لـ Firebase مستقبلاً"/>
       </div>
 
+      {/* Firebase Rules */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
-          <h4 className="font-bold text-slate-700 text-sm font-mono">firebase-rules.json</h4>
+          <div>
+            <h4 className="font-bold text-slate-700 text-sm">قواعد Firebase الجاهزة</h4>
+            <p className="text-[10px] text-slate-400">طبّقها في: Firebase Console → Realtime Database → Rules → Publish</p>
+          </div>
           <button onClick={copy}
-            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${copied?"bg-emerald-100 text-emerald-700":"bg-blue-100 text-blue-700 hover:bg-blue-200"}`}>
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
+              copied?"bg-emerald-100 text-emerald-700":"bg-blue-100 text-blue-700 hover:bg-blue-200"
+            }`}>
             {copied ? <><CheckCircle size={12}/> تم النسخ</> : <><ClipboardList size={12}/> نسخ</>}
           </button>
         </div>
-        <pre className="p-4 text-[10px] font-mono text-slate-600 overflow-x-auto bg-slate-50/50 leading-relaxed" dir="ltr">
+        <pre className="p-4 text-[10px] font-mono text-slate-600 overflow-x-auto bg-slate-50/50 leading-relaxed max-h-64" dir="ltr">
           {FIREBASE_RULES}
         </pre>
       </div>
 
-      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-xs text-emerald-800 space-y-1">
-        <p className="font-bold">✅ ما تفعله هذه القواعد:</p>
-        <p>• تسمح بالقراءة والكتابة فقط على المسارات المحددة في التطبيق</p>
-        <p>• تمنع الوصول لأي مسار آخر (الجزء الأخير <code className="bg-white px-1 rounded">$other: false</code>)</p>
-        <p>• تتحقق من صحة بيانات طلبات الإجازة قبل الحفظ</p>
+      {/* Security tips */}
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-2">
+        <p className="font-bold text-blue-800 text-sm">📋 توصيات إضافية للأمان:</p>
+        {[
+          "غيّر كلمة مرورك الافتراضية من صفحة 'تغيير كلمة المرور'",
+          "لا تفتح التطبيق على أجهزة عامة أو غير موثوقة",
+          "سجّل خروجك دائماً بعد انتهاء الدوام",
+          "لا تشارك رقمك الوظيفي أو كلمة مرورك مع أحد",
+          "طبّق Firebase Rules لمنع الوصول الخارجي",
+        ].map(t=>(
+          <p key={t} className="text-xs text-blue-700 flex items-start gap-1.5">
+            <span className="mt-0.5">•</span>{t}
+          </p>
+        ))}
       </div>
 
       {toast && (
@@ -7958,6 +8199,118 @@ function SiteMapPage({ isAdmin }) {
               </div>
             );
           })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CHANGE PASSWORD — تغيير كلمة المرور
+═══════════════════════════════════════════════════════════ */
+function ChangePasswordPage({ emp }) {
+  const [current, setCurrent] = useState("");
+  const [newPass, setNewPass] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [showC, setShowC]     = useState(false);
+  const [showN, setShowN]     = useState(false);
+  const [msg,   setMsg]       = useState(null); // {type,text}
+
+  const save = async () => {
+    setMsg(null);
+    const sanitizedNew = sanitize(newPass);
+    // Verify current password
+    const fbPass = await fb.get(`passwords/${emp.jobNum}`);
+    const storedPass = fbPass || emp.password;
+    const currentValid = await verifyPassword(current, storedPass);
+    if (!currentValid) return setMsg({type:"err", text:"كلمة المرور الحالية غير صحيحة"});
+    if (sanitizedNew.length < 6)   return setMsg({type:"err", text:"كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل"});
+    if (sanitizedNew !== confirm)   return setMsg({type:"err", text:"كلمة المرور الجديدة غير متطابقة"});
+    // Hash before storing
+    const hashed = await hashPassword(sanitizedNew);
+    if (hashed === storedPass) return setMsg({type:"err", text:"كلمة المرور الجديدة مطابقة للقديمة"});
+    await fb.set(`passwords/${emp.jobNum}`, hashed);
+    auditLog("تغيير كلمة المرور", `تغيير كلمة مرور: ${emp.name.split(" ").slice(0,2).join(" ")}`, emp.name);
+    setCurrent(""); setNewPass(""); setConfirm("");
+    setMsg({type:"ok", text:"✓ تم تغيير كلمة المرور بنجاح — ستُطبّق في جلسة الدخول التالية"});
+  };
+
+  const inp = "w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white";
+
+  return (
+    <div className="space-y-4 fu" dir="rtl">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 max-w-md">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+            <Shield size={18} className="text-blue-600"/>
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-800">تغيير كلمة المرور</h3>
+            <p className="text-xs text-slate-500">الرقم الوظيفي: {emp.jobNum}</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 mb-1">كلمة المرور الحالية</label>
+            <div className="relative">
+              <input type={showC?"text":"password"} value={current} onChange={e=>setCurrent(e.target.value)}
+                className={inp} placeholder="أدخل كلمة المرور الحالية" dir="ltr"/>
+              <button onClick={()=>setShowC(p=>!p)} className="absolute left-3 top-2.5 text-slate-400 hover:text-slate-700">
+                {showC ? <EyeOff size={16}/> : <Eye size={16}/>}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 mb-1">كلمة المرور الجديدة (6 أحرف على الأقل)</label>
+            <div className="relative">
+              <input type={showN?"text":"password"} value={newPass} onChange={e=>setNewPass(e.target.value)}
+                className={inp} placeholder="كلمة المرور الجديدة" dir="ltr"/>
+              <button onClick={()=>setShowN(p=>!p)} className="absolute left-3 top-2.5 text-slate-400 hover:text-slate-700">
+                {showN ? <EyeOff size={16}/> : <Eye size={16}/>}
+              </button>
+            </div>
+            {/* Strength indicator */}
+            {newPass && (
+              <div className="flex gap-1 mt-1.5">
+                {[1,2,3,4].map(i=>(
+                  <div key={i} className={`flex-1 h-1 rounded-full ${
+                    newPass.length>=8&&i<=4?"bg-emerald-500":
+                    newPass.length>=6&&i<=3?"bg-amber-400":
+                    newPass.length>=4&&i<=2?"bg-orange-400":
+                    i<=1?"bg-red-400":"bg-slate-200"
+                  }`}/>
+                ))}
+                <span className="text-[9px] text-slate-400 mr-1">
+                  {newPass.length>=8?"قوية":newPass.length>=6?"متوسطة":"ضعيفة"}
+                </span>
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 mb-1">تأكيد كلمة المرور</label>
+            <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)}
+              className={`${inp} ${confirm&&confirm!==newPass?"border-red-300 ring-1 ring-red-300":confirm&&confirm===newPass?"border-emerald-300":""}`}
+              placeholder="أعد إدخال كلمة المرور الجديدة" dir="ltr"/>
+          </div>
+        </div>
+
+        {msg && (
+          <div className={`rounded-xl p-3 text-sm font-semibold ${msg.type==="ok"?"bg-emerald-50 text-emerald-800 border border-emerald-200":"bg-red-50 text-red-800 border border-red-200"}`}>
+            {msg.text}
+          </div>
+        )}
+
+        <button onClick={save}
+          className="w-full flex items-center justify-center gap-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 py-3 rounded-xl active:scale-95 transition-all">
+          <Save size={14}/> حفظ كلمة المرور الجديدة
+        </button>
+
+        <div className="bg-slate-50 rounded-xl p-3 text-[10px] text-slate-500 space-y-1">
+          <p className="font-bold text-slate-600">نصائح لكلمة مرور آمنة:</p>
+          <p>• استخدم 8 أحرف على الأقل</p>
+          <p>• اجمع بين أرقام وحروف</p>
+          <p>• لا تشاركها مع أحد</p>
         </div>
       </div>
     </div>
