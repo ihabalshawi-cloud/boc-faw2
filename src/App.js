@@ -86,19 +86,6 @@ function verifyPassword(a,b) { return String(a).trim()===String(b).trim(); }
 
 // 5. Idle Timeout — تسجيل خروج تلقائي عند الخمول (30 دقيقة)
 
-function setupIdleDetection(onLogout) {
-  const reset = () => resetIdleTimer(onLogout);
-  ["mousemove","keypress","click","touchstart","scroll"].forEach(e =>
-    window.addEventListener(e, reset, {passive:true})
-  );
-  resetIdleTimer(onLogout);
-  return () => {
-    clearTimeout(_idleTimer);
-    ["mousemove","keypress","click","touchstart","scroll"].forEach(e =>
-      window.removeEventListener(e, reset)
-    );
-  };
-}
 
 /* ═══════════════════════════════════════════════════════════
    #3 — PUSH NOTIFICATIONS
