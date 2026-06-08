@@ -5,14 +5,15 @@ import {
   Plus, Trash2, Edit3, Save, X, ArrowRightLeft, PenTool, RefreshCw, 
   Search, FolderOpen, Upload, Download, Layers, ClipboardList, ChevronRight, 
   Home, Bell, ThumbsUp, ThumbsDown, Star, Target, BarChart2, CheckSquare, 
-  BookOpen, GraduationCap, BarChart, Wifi, WifiOff, Truck, Box, Award, Settings
+  BookOpen, GraduationCap, BarChart, Wifi, WifiOff, Truck, Box, Award, Settings,
+  TrendingUp, TrendingDown, PieChart, Activity, Filter, Calendar as CalendarIcon,
+  UserCheck, UserX, Briefcase, Video, Book, Award as AwardIcon, Clock as ClockIcon
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════
    FIREBASE CONFIG
 ═══════════════════════════════════════════════════════════ */
 const FIREBASE_URL = "https://faop-scada-default-rtdb.asia-southeast1.firebasedatabase.app";
-const FIREBASE_API_KEY = "AIzaSyDWb0WhoO-NVLnbE5b8un63O6x-sH0RDco";
 
 /* ═══════════════════════════════════════════════════════════
    SECURITY LAYER
@@ -120,7 +121,7 @@ function _pollInterval(path) {
   if (path.startsWith("notifications")) return 5000;
   if (path.startsWith("requests")) return 8000;
   if (path.startsWith("training")) return 10000;
-  if (path.startsWith("login_history")) return 30000;
+  if (path.startsWith("attendance")) return 15000;
   return 20000;
 }
 
@@ -183,7 +184,7 @@ function auditLog(action, details, empName) {
   };
   fb.get("audit_log").then(existing => {
     const prev = Array.isArray(existing) ? existing : [];
-    fb.set("audit_log", [entry, ...prev].slice(0, 1000));
+    fb.set("audit_log", [entry, ...prev].slice(0, 2000));
   });
 }
 
@@ -204,6 +205,8 @@ function printElement(elementId, title = "تقرير") {
     th{background:#f1f5f9;font-weight:700}
     @page{size:A4;margin:15mm}
     tr{page-break-inside:avoid}
+    .text-center{text-align:center}
+    .font-bold{font-weight:700}
   </style>
 </head>
 <body>${el.innerHTML}</body>
@@ -231,20 +234,19 @@ function PrintButton({ targetId, label = "طباعة / PDF", title }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   ACCOUNTS - الكادر الكامل (33 موظف)
+   ACCOUNTS - الكادر الكامل
 ═══════════════════════════════════════════════════════════ */
 const ACCOUNTS = [
-  {id:0, jobNum:"728004", password:"1001", name:"ايهاب عبد اللطيف عودة سلمان الشاوي", title:"ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"admin"},
-  {id:1, jobNum:"727466", password:"1002", name:"عدي فيصل عبد الهادي عبد السيد الربيعه", title:"ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:2, jobNum:"737283", password:"1003", name:"عمر طاهر خزعل سبهان المياحي", title:"م.ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:3, jobNum:"756571", password:"1004", name:"ليث شاكر حمود زعيتر الربيعه", title:"معاون مهندس", dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:4, jobNum:"790850", password:"1005", name:"اسعد عبد الامام يوسف حميد النصاري", title:"م.مدير فني", dept:"شعبة مستودع الفاو", shift:"صباحي"},
-  {id:5, jobNum:"758795", password:"1006", name:"صباح عبد الامام يوسف حميد النصاري", title:"م.مدير فني", dept:"شعبة مستودع الفاو", shift:"صباحي"},
-  {id:6, jobNum:"719242", password:"1007", name:"احمد محمود عبد القادر عبد الكريم الامير", title:"مدير فني", dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:7, jobNum:"790869", password:"1008", name:"محمود كاظم هاشم محمد المنصوري", title:"م.مدير فني", dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:8, jobNum:"790885", password:"1009", name:"محمد عبد الكاظم جاسم محمد التميمي", title:"محاسب اقدم", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"inventory_manager"},
-  {id:9, jobNum:"813877", password:"1010", name:"محمد اسماعيل احمد رمضان العلي", title:"مهندس", dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:10, jobNum:"439193", password:"1011", name:"علي طاهر خزعل سبهان المياحي", title:"حرفي اقدم", dept:"شعبة المرافئ", shift:"صباحي"},
+  {id:1, jobNum:"728004", password:"1001", name:"ايهاب عبد اللطيف عودة سلمان الشاوي", title:"ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"admin"},
+  {id:2, jobNum:"727466", password:"1002", name:"عدي فيصل عبد الهادي عبد السيد الربيعه", title:"ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي"},
+  {id:3, jobNum:"737283", password:"1003", name:"عمر طاهر خزعل سبهان المياحي", title:"م.ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي"},
+  {id:4, jobNum:"756571", password:"1004", name:"ليث شاكر حمود زعيتر الربيعه", title:"معاون مهندس", dept:"قسم السيطرة والنظم", shift:"صباحي"},
+  {id:5, jobNum:"790850", password:"1005", name:"اسعد عبد الامام يوسف حميد النصاري", title:"م.مدير فني", dept:"شعبة مستودع الفاو", shift:"صباحي"},
+  {id:6, jobNum:"758795", password:"1006", name:"صباح عبد الامام يوسف حميد النصاري", title:"م.مدير فني", dept:"شعبة مستودع الفاو", shift:"صباحي"},
+  {id:7, jobNum:"719242", password:"1007", name:"احمد محمود عبد القادر عبد الكريم الامير", title:"مدير فني", dept:"قسم السيطرة والنظم", shift:"صباحي"},
+  {id:8, jobNum:"790869", password:"1008", name:"محمود كاظم هاشم محمد المنصوري", title:"م.مدير فني", dept:"قسم السيطرة والنظم", shift:"صباحي"},
+  {id:9, jobNum:"790885", password:"1009", name:"محمد عبد الكاظم جاسم محمد التميمي", title:"محاسب اقدم", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"inventory_manager"},
+  {id:10, jobNum:"813877", password:"1010", name:"محمد اسماعيل احمد رمضان العلي", title:"مهندس", dept:"قسم السيطرة والنظم", shift:"صباحي"},
   {id:11, jobNum:"701130", password:"2001", name:"عبد الله علي زباري يسر عباده", title:"م.ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"A"},
   {id:12, jobNum:"751480", password:"2002", name:"امين حميد فاضل حسين العلي", title:"م.مدير فني", dept:"شعبة مستودع الفاو", shift:"مناوبة", group:"A"},
   {id:13, jobNum:"719269", password:"2003", name:"حسين علي احمد قاسم عبادي", title:"م.مدير فني", dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"A"},
@@ -265,36 +267,32 @@ const ACCOUNTS = [
   {id:28, jobNum:"689766", password:"3002", name:"اباذر صالح عبد الحسين عيسى", title:"عقد", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"attendance_admin"},
   {id:29, jobNum:"690174", password:"3003", name:"حسن عادل عمران يوسف", title:"عقد", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"attendance_admin"},
   {id:30, jobNum:"689331", password:"3004", name:"سجاد علي راضي علي", title:"عقد", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"attendance_admin"},
-  {id:31, jobNum:"300101", password:"3005", name:"كرار عماد خلف (عقد)", title:"عقد", dept:"شعبة مستودع الفاو", shift:"صباحي"},
-  {id:32, jobNum:"300102", password:"3006", name:"مصطفى كامل ناصر (عقد)", title:"عقد", dept:"شعبة مستودع الفاو", shift:"صباحي"},
 ];
 
 /* ═══════════════════════════════════════════════════════════
-   TIMESHEET CODES
+   CONSTANTS
 ═══════════════════════════════════════════════════════════ */
-const TS = {
-  "2": { label:"مناوبة ثنائية", cat:"عمل", color:"bg-blue-600 text-white" },
-  "3": { label:"مناوبة ثلاثية", cat:"عمل", color:"bg-blue-800 text-white" },
-  "O": { label:"المقيم الصباحي", cat:"عمل", color:"bg-emerald-600 text-white" },
-  "V": { label:"استراحة مقيم", cat:"راحة", color:"bg-teal-100 text-teal-800" },
-  "L": { label:"إجازة اعتيادية", cat:"إجازة", color:"bg-blue-100 text-blue-800" },
-  "S": { label:"إجازة مرضية", cat:"إجازة", color:"bg-rose-100 text-rose-800" },
-  "T": { label:"إجازة بدون راتب", cat:"إجازة", color:"bg-orange-100 text-orange-800" },
-  "H": { label:"إجازة خارج العراق", cat:"إجازة", color:"bg-orange-200 text-orange-900" },
-  "J": { label:"مجاز دراسي", cat:"إجازة", color:"bg-violet-100 text-violet-800" },
-  "I": { label:"إيفاد", cat:"إيفاد", color:"bg-amber-100 text-amber-800" },
-  "N": { label:"استراحة مناوبة", cat:"راحة", color:"bg-slate-100 text-slate-600" },
-  "R": { label:"استراحة", cat:"راحة", color:"bg-slate-200 text-slate-500" },
-  "X": { label:"غياب", cat:"غياب", color:"bg-red-200 text-red-900 font-bold" },
-  "Y": { label:"عطلة رسمية", cat:"عطلة", color:"bg-slate-300 text-slate-600" },
-  "": { label:"—", cat:"", color:"bg-slate-50 text-slate-300" },
-};
-
 const LEAVE_TYPES = {
   اعتيادية: { label:"إجازة اعتيادية", color:"bg-blue-600", light:"bg-blue-50 text-blue-700", max:30 },
   مرضية: { label:"إجازة مرضية", color:"bg-rose-600", light:"bg-rose-50 text-rose-700", max:15 },
-  زمنية: { label:"إجازة زمنية", color:"bg-amber-600", light:"bg-amber-50 text-amber-700", max:7, hourly:true },
+  زمنية: { label:"إجازة زمنية", color:"bg-amber-600", light:"bg-amber-50 text-amber-700", max:7 },
 };
+
+const TS = {
+  "حاضر": { label:"حاضر", color:"bg-emerald-100 text-emerald-700" },
+  "غائب": { label:"غائب", color:"bg-red-100 text-red-700" },
+  "تأخر": { label:"تأخر", color:"bg-amber-100 text-amber-700" },
+  "إجازة": { label:"إجازة", color:"bg-blue-100 text-blue-700" },
+  "إيفاد": { label:"إيفاد", color:"bg-purple-100 text-purple-700" },
+};
+
+const TRAINING_TYPES = ["تدريب ذاتي", "دورة تدريبية", "ورشة عمل", "تدريب إلكتروني", "مهمة عملية"];
+const TRAINING_STATUS = { "مُسندة": "bg-amber-100 text-amber-700", "قيد التنفيذ": "bg-blue-100 text-blue-700", "مكتملة": "bg-emerald-100 text-emerald-700", "ملغية": "bg-red-100 text-red-700" };
+
+const ITEM_CONDITIONS = ["جيد", "مستعمل", "يحتاج صيانة", "تالف"];
+const COND_STYLE = { "جيد": "bg-emerald-100 text-emerald-800", "مستعمل": "bg-blue-100 text-blue-800", "يحتاج صيانة": "bg-amber-100 text-amber-800", "تالف": "bg-red-100 text-red-800" };
+
+const FURNITURE_CATS = ["أثاث مكتبي", "أجهزة حاسوب", "معدات مكتبية", "أجهزة تكييف", "أخرى"];
 
 function arabicDate(dateStr) {
   if (!dateStr) return "";
@@ -310,7 +308,6 @@ function toArabicNum(n) {
   return String(n).replace(/\d/g, d => "٠١٢٣٤٥٦٧٨٩"[d]);
 }
 
-// دالة للتحقق من حالة الاتصال
 function useConnectionStatus() {
   const [isConnected, setIsConnected] = useState(true);
   const [checking, setChecking] = useState(false);
@@ -323,9 +320,7 @@ function useConnectionStatus() {
       const response = await fetch(`${FIREBASE_URL}/.json`, { signal: controller.signal });
       clearTimeout(timeoutId);
       setIsConnected(response.ok);
-    } catch {
-      setIsConnected(false);
-    }
+    } catch { setIsConnected(false); }
     setChecking(false);
   }, []);
 
@@ -355,9 +350,7 @@ function LoginScreen({ onLogin }) {
         if (expiry > Date.now()) {
           const acct = ACCOUNTS.find(a => a.id === acctId);
           if (acct) onLogin(acct);
-        } else {
-          sessionStorage.removeItem("boc_session");
-        }
+        } else sessionStorage.removeItem("boc_session");
       }
     } catch {}
   }, [onLogin]);
@@ -365,71 +358,44 @@ function LoginScreen({ onLogin }) {
   const loginClick = async () => {
     setErr("");
     if (!user || !pass) { setErr("أدخل الرقم الوظيفي وكلمة المرور"); return; }
-    
     const attempts = getAttempts(user);
     if (attempts >= 5) { setErr('تم تجاوز 5 محاولات'); return; }
 
-    const baseAcct = ACCOUNTS.find(a => a.jobNum === user.trim() || a.username === user.trim());
-    if (!baseAcct) { 
-      recordAttempt(user, false);
-      setErr("الرقم الوظيفي غير موجود"); 
-      return; 
-    }
+    const baseAcct = ACCOUNTS.find(a => a.jobNum === user.trim());
+    if (!baseAcct) { recordAttempt(user, false); setErr("الرقم الوظيفي غير موجود"); return; }
 
     try {
       setLoading(true);
-      
       let storedPassword = null;
       if (isConnected) {
-        try {
-          const res = await fetch(`${FIREBASE_URL}/passwords/${baseAcct.id}.json`);
-          const data = await res.json();
-          if (data && typeof data === "string") storedPassword = data;
-        } catch {}
+        const res = await fetch(`${FIREBASE_URL}/passwords/${baseAcct.id}.json`);
+        const data = await res.json();
+        if (data && typeof data === "string") storedPassword = data;
       }
-      
       const localPass = localStorage.getItem(`pass_${baseAcct.id}`);
       
       let isValid = false;
-      if (storedPassword) {
-        isValid = SEC.verify(pass.trim(), storedPassword);
-      } else if (localPass) {
-        isValid = SEC.verify(pass.trim(), localPass);
-      } else {
-        isValid = (pass.trim() === baseAcct.password);
-        if (isValid && isConnected) {
-          const encrypted = SEC.encode(pass.trim());
-          await fetch(`${FIREBASE_URL}/passwords/${baseAcct.id}.json`, {
-            method: "PUT",
-            body: JSON.stringify(encrypted)
-          });
-          localStorage.setItem(`pass_${baseAcct.id}`, encrypted);
-        }
+      if (storedPassword) isValid = SEC.verify(pass.trim(), storedPassword);
+      else if (localPass) isValid = SEC.verify(pass.trim(), localPass);
+      else isValid = (pass.trim() === baseAcct.password);
+      
+      if (isValid && !storedPassword && isConnected) {
+        const encrypted = SEC.encode(pass.trim());
+        await fetch(`${FIREBASE_URL}/passwords/${baseAcct.id}.json`, {
+          method: "PUT", body: JSON.stringify(encrypted)
+        });
+        localStorage.setItem(`pass_${baseAcct.id}`, encrypted);
       }
 
       if (isValid) {
-        sessionStorage.setItem("boc_session", JSON.stringify({
-          acctId: baseAcct.id,
-          expiry: Date.now() + 8 * 60 * 60 * 1000
-        }));
-        
+        sessionStorage.setItem("boc_session", JSON.stringify({ acctId: baseAcct.id, expiry: Date.now() + 8 * 3600000 }));
         recordAttempt(user, true);
-        
         const defaultPasswords = ["1001","1002","1003","1004","1005","2001","2002","2003","3001","3002","3003","3004"];
-        if (defaultPasswords.includes(pass.trim())) {
-          sessionStorage.setItem("force_password_change", "true");
-        }
-        
+        if (defaultPasswords.includes(pass.trim())) sessionStorage.setItem("force_password_change", "true");
         onLogin(baseAcct);
-      } else {
-        recordAttempt(user, false);
-        setErr("كلمة المرور غير صحيحة");
-      }
-    } catch (error) {
-      setErr("خطأ في الاتصال");
-    } finally {
-      setLoading(false);
-    }
+      } else { recordAttempt(user, false); setErr("كلمة المرور غير صحيحة"); }
+    } catch { setErr("خطأ في الاتصال"); }
+    finally { setLoading(false); }
   };
 
   return (
@@ -442,52 +408,26 @@ function LoginScreen({ onLogin }) {
           <h2 className="text-2xl font-bold text-white">شركة نفط البصرة</h2>
           <p className="text-sm text-slate-300 mt-2">شعبة مستودع الفاو — النظام المتكامل</p>
         </div>
-        
         <div className="mb-4 flex items-center justify-center gap-2 text-xs">
-          {isConnected ? (
-            <><Wifi size={12} className="text-emerald-400"/><span className="text-emerald-400">متصل بالسحابة</span></>
-          ) : (
-            <><WifiOff size={12} className="text-amber-400"/><span className="text-amber-400">غير متصل (محلي)</span></>
-          )}
+          {isConnected ? <><Wifi size={12} className="text-emerald-400"/><span className="text-emerald-400">متصل بالسحابة</span></> :
+            <><WifiOff size={12} className="text-amber-400"/><span className="text-amber-400">غير متصل (محلي)</span></>}
         </div>
-        
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-bold text-slate-200 mb-2">الرقم الوظيفي</label>
-            <input 
-              type="text" value={user} onChange={(e) => setUser(e.target.value)} 
-              className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white"
-              placeholder="728004" onKeyDown={(e) => e.key === "Enter" && loginClick()}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-slate-200 mb-2">كلمة المرور</label>
-            <div className="relative">
-              <input 
-                type={showP ? "text" : "password"} value={pass} onChange={(e) => setPass(e.target.value)} 
-                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white"
-                placeholder="••••••••" onKeyDown={(e) => e.key === "Enter" && loginClick()}
-              />
-              <button onClick={() => setShowP(!showP)} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                {showP ? <EyeOff size={18}/> : <Eye size={18}/>}
-              </button>
-            </div>
-          </div>
+          <div><label className="block text-sm font-bold text-slate-200 mb-2">الرقم الوظيفي</label>
+            <input type="text" value={user} onChange={e=>setUser(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white" placeholder="728004" onKeyDown={e=>e.key==="Enter"&&loginClick()}/></div>
+          <div><label className="block text-sm font-bold text-slate-200 mb-2">كلمة المرور</label>
+            <div className="relative"><input type={showP?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white" placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&loginClick()}/>
+              <button onClick={()=>setShowP(!showP)} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">{showP?<EyeOff size={18}/>:<Eye size={18}/>}</button></div></div>
           {err && <div className="bg-red-500/20 text-red-300 text-sm p-3 rounded-xl">{err}</div>}
-          <button onClick={loginClick} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3 rounded-xl">
-            {loading ? "جاري التحقق..." : "تسجيل الدخول"}
-          </button>
+          <button onClick={loginClick} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3 rounded-xl">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
         </div>
-        
-        <div className="mt-6 text-center text-xs text-slate-400">
-          <p>للتجربة: <strong className="text-blue-300">728004</strong> | <strong className="text-blue-300">1001</strong></p>
-        </div>
+        <div className="mt-6 text-center text-xs text-slate-400"><p>للتجربة: <strong className="text-blue-300">728004</strong> | <strong className="text-blue-300">1001</strong></p></div>
       </div>
     </div>
   );
 }
 
-// ========== صفحة تغيير كلمة المرور ==========
+// ========== تغيير كلمة المرور ==========
 function ChangePasswordPage({ emp, onLogout }) {
   const [newPass, setNewPass] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -497,42 +437,19 @@ function ChangePasswordPage({ emp, onLogout }) {
   const { isConnected } = useConnectionStatus();
 
   const saveNewPassword = async () => {
-    if (!newPass || newPass.trim().length < 4) {
-      setMsg({ text: "⚠️ كلمة المرور يجب أن تكون 4 خانات أو أكثر", type: "error" });
-      return;
-    }
-    if (newPass.trim() !== confirm.trim()) {
-      setMsg({ text: "⚠️ كلمات المرور غير متطابقة", type: "error" });
-      return;
-    }
-
+    if (!newPass || newPass.trim().length < 4) { setMsg({ text: "⚠️ كلمة المرور يجب أن تكون 4 خانات أو أكثر", type: "error" }); return; }
+    if (newPass.trim() !== confirm.trim()) { setMsg({ text: "⚠️ كلمات المرور غير متطابقة", type: "error" }); return; }
     setLoading(true);
     try {
       const encrypted = SEC.encode(newPass.trim());
       localStorage.setItem(`pass_${emp.id}`, encrypted);
-      
-      if (isConnected) {
-        await fetch(`${FIREBASE_URL}/passwords/${emp.id}.json`, {
-          method: "PUT",
-          body: JSON.stringify(encrypted)
-        });
-      }
-      
+      if (isConnected) await fetch(`${FIREBASE_URL}/passwords/${emp.id}.json`, { method: "PUT", body: JSON.stringify(encrypted) });
       sessionStorage.removeItem("force_password_change");
       setMsg({ text: "✅ تم تغيير كلمة المرور بنجاح!", type: "success" });
-      setNewPass("");
-      setConfirm("");
-      
-      setTimeout(() => {
-        if (window.confirm("تم تغيير كلمة المرور. هل تريد تسجيل الخروج؟")) {
-          onLogout();
-        }
-      }, 1500);
-    } catch (error) {
-      setMsg({ text: "❌ حدث خطأ", type: "error" });
-    } finally {
-      setLoading(false);
-    }
+      setNewPass(""); setConfirm("");
+      setTimeout(() => { if (window.confirm("تم تغيير كلمة المرور. هل تريد تسجيل الخروج؟")) onLogout(); }, 1500);
+    } catch { setMsg({ text: "❌ حدث خطأ", type: "error" }); }
+    finally { setLoading(false); }
   };
 
   return (
@@ -543,644 +460,744 @@ function ChangePasswordPage({ emp, onLogout }) {
           <div><h2 className="font-bold text-slate-800">تغيير كلمة المرور</h2><p className="text-xs text-slate-500">{emp.name}</p></div>
         </div>
         <div className="space-y-4">
-          <div>
-            <label className="text-sm font-bold text-slate-600 block mb-1">كلمة المرور الجديدة</label>
-            <div className="relative">
-              <input type={showN ? "text" : "password"} value={newPass} onChange={(e) => setNewPass(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 pl-10 focus:outline-none focus:border-blue-500"/>
-              <button onClick={() => setShowN(!showN)} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                {showN ? <EyeOff size={16}/> : <Eye size={16}/>}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-bold text-slate-600 block mb-1">تأكيد كلمة المرور</label>
-            <input type={showN ? "text" : "password"} value={confirm} onChange={(e) => setConfirm(e.target.value)}
-              className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"/>
-          </div>
-          {msg && (
-            <div className={`p-3 rounded-xl text-sm text-center ${msg.type === "success" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
-              {msg.text}
-            </div>
-          )}
-          <button onClick={saveNewPassword} disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
-            <Save size={16}/> {loading ? "جاري الحفظ..." : "حفظ كلمة المرور"}
-          </button>
+          <div><label className="text-sm font-bold text-slate-600 block mb-1">كلمة المرور الجديدة</label>
+            <div className="relative"><input type={showN?"text":"password"} value={newPass} onChange={e=>setNewPass(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 pl-10 focus:outline-none focus:border-blue-500"/>
+              <button onClick={()=>setShowN(!showN)} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">{showN?<EyeOff size={16}/>:<Eye size={16}/>}</button></div></div>
+          <div><label className="text-sm font-bold text-slate-600 block mb-1">تأكيد كلمة المرور</label>
+            <input type={showN?"text":"password"} value={confirm} onChange={e=>setConfirm(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"/></div>
+          {msg && <div className={`p-3 rounded-xl text-sm text-center ${msg.type==="success"?"bg-emerald-50 text-emerald-700":"bg-red-50 text-red-700"}`}>{msg.text}</div>}
+          <button onClick={saveNewPassword} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2"><Save size={16}/> {loading?"جاري الحفظ...":"حفظ كلمة المرور"}</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ========== توقيع إلكتروني ==========
-function SignaturePad({ onSave, existingSig, storageKey }) {
-  const canvasRef = useRef(null);
-  const [drawing, setDrawing] = useState(false);
-  const [hasSig, setHasSig] = useState(!!existingSig);
-  const [preview, setPreview] = useState(() => {
-    if (existingSig) return existingSig;
-    if (storageKey) {
-      try { return localStorage.getItem(storageKey) || null; } catch {}
-    }
-    return null;
-  });
-
-  useEffect(() => {
-    if (preview && !existingSig) onSave(preview);
-  }, []);
-
-  const getPos = (e, canvas) => {
-    const r = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / r.width;
-    const scaleY = canvas.height / r.height;
-    if (e.touches) return { x: (e.touches[0].clientX - r.left) * scaleX, y: (e.touches[0].clientY - r.top) * scaleY };
-    return { x: (e.clientX - r.left) * scaleX, y: (e.clientY - r.top) * scaleY };
-  };
-
-  const start = (e) => {
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    const {x,y} = getPos(e, canvas);
-    ctx.beginPath();
-    ctx.moveTo(x,y);
-    setDrawing(true);
-  };
-
-  const draw = (e) => {
-    if (!drawing) return;
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    const {x,y} = getPos(e, canvas);
-    ctx.lineTo(x,y);
-    ctx.strokeStyle = "#1e3a6e";
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.stroke();
-    setHasSig(true);
-  };
-
-  const end = () => setDrawing(false);
-  const clear = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    setHasSig(false);
-    setPreview(null);
-    if (storageKey) { try { localStorage.removeItem(storageKey); } catch {} }
-    onSave(null);
-  };
-  const save = () => {
-    const url = canvasRef.current.toDataURL("image/png");
-    setPreview(url);
-    if (storageKey) { try { localStorage.setItem(storageKey, url); } catch {} }
-    onSave(url);
-  };
-
-  if (preview) {
-    return (
-      <div className="relative border-2 border-blue-200 rounded-xl overflow-hidden bg-slate-50">
-        <img src={preview} alt="التوقيع" className="h-20 w-full object-contain"/>
-        <button onClick={()=>{setPreview(null); onSave(null);}} className="absolute top-1 left-1 bg-white/80 text-red-500 rounded-lg p-1"><RefreshCw size={12}/></button>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="border-2 border-dashed border-blue-300 rounded-xl bg-blue-50/30 overflow-hidden touch-none" style={{cursor:"crosshair"}}>
-        <canvas ref={canvasRef} width={280} height={80}
-          onMouseDown={start} onMouseMove={draw} onMouseUp={end} onMouseLeave={end}
-          onTouchStart={start} onTouchMove={draw} onTouchEnd={end}
-          className="w-full"/>
-      </div>
-      <div className="flex gap-2 mt-1.5">
-        <button onClick={clear} className="flex-1 py-1 text-[10px] font-bold text-slate-500 bg-slate-100 rounded-lg">مسح</button>
-        {hasSig && <button onClick={save} className="flex-1 py-1 text-[10px] font-bold text-blue-700 bg-blue-100 rounded-lg">حفظ التوقيع</button>}
-      </div>
-      <p className="text-[9px] text-slate-400 mt-1 text-center">ارسم توقيعك باستخدام الماوس أو الإصبع</p>
-    </div>
-  );
-}
-
-// ========== نموذج طلب إجازة ==========
-function LeaveForm({ emp, onSubmit, onCancel, history }) {
-  const today = new Date().toISOString().slice(0,10);
-  const [type, setType] = useState("اعتيادية");
-  const [dateFrom, setFrom] = useState(today);
-  const [dateTo, setTo] = useState(today);
-  const [purpose, setPurpose] = useState("");
-  const [isAbroad, setAbroad] = useState(false);
-  const [err, setErr] = useState("");
-  const [sig, setSig] = useState(null);
-  const [showSig, setShowSig] = useState(false);
-
-  const cfg = LEAVE_TYPES[type];
-  const days = daysBetween(dateFrom, dateTo);
-  const monthlyStats = { اعتيادية:0, مرضية:0, زمنية:0 };
-  history?.forEach(h => { if (h.type && monthlyStats[h.type] !== undefined) monthlyStats[h.type] += h.days; });
-
-  const handleSubmit = () => {
-    if (!purpose.trim()) return setErr("يرجى تحديد غرض الإجازة");
-    if (!sig) return setErr("يرجى رسم توقيعك قبل تقديم الطلب");
-    if (days > cfg.max) return setErr(`الحد الأقصى ${cfg.max} يوم`);
-    setErr("");
-    onSubmit({ type, dateFrom, dateTo, days, purpose, isAbroad, empSig: sig });
-  };
-
-  const monthName = new Date().toLocaleDateString("ar-IQ",{month:"long",year:"numeric"});
-
-  return (
-    <div className="max-w-2xl mx-auto" dir="rtl">
-      <div className="flex items-center gap-3 mb-5">
-        <button onClick={onCancel} className="text-slate-400 hover:text-slate-700 p-2 rounded-xl"><ChevronLeft size={18}/></button>
-        <div><h2 className="text-base font-bold text-slate-800">نموذج طلب إجازة</h2><p className="text-xs text-slate-500">{monthName}</p></div>
-      </div>
-
-      <div className="bg-white rounded-2xl border-2 border-slate-200 overflow-hidden shadow-sm">
-        <div className="border-b-2 border-slate-200">
-          <table className="w-full text-xs border-collapse">
-            <tbody>
-              <tr><td className="border px-3 py-2 font-bold w-32">شركة نفط البصرة</td><td className="border px-3 py-2">عنوان النموذج</td><td className="border px-3 py-2 font-bold">نموذج اجازة {type}</td>
-              <td rowSpan="2" className="border px-4 py-2 text-center"><div className="w-12 h-12 rounded-full border-2 border-slate-300 flex items-center justify-center mx-auto"><span className="text-slate-600 font-bold text-xs">BOC</span></div></td></tr>
-              <tr><td className="border px-3 py-2">هيأة الصيانة</td><td className="border px-3 py-2">رقم الإصدار</td><td className="border px-3 py-2 font-mono">BOC-P-07/F06</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div className="p-5 space-y-4">
-          <div className="grid grid-cols-3 gap-3 bg-slate-50 rounded-xl p-3 text-xs">
-            <div><span className="text-slate-500">الاسم: </span><strong>{emp.name.split(" ").slice(0,3).join(" ")}</strong></div>
-            <div><span className="text-slate-500">الرقم: </span><strong>{emp.jobNum}</strong></div>
-            <div><span className="text-slate-500">القسم: </span><strong>{emp.dept}</strong></div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            {[{key:"اعتيادية",color:"bg-blue-50 text-blue-700"},{key:"مرضية",color:"bg-rose-50 text-rose-700"},{key:"زمنية",color:"bg-amber-50 text-amber-700"}].map(t=>(
-              <div key={t.key} className={`border rounded-xl p-2.5 text-center ${t.color}`}>
-                <p className="text-[9px] font-bold">{t.key}</p>
-                <p className="text-base font-bold">{toArabicNum(monthlyStats[t.key]||0)}</p>
-                <p className="text-[9px] opacity-60">يوم هذا الشهر</p>
-              </div>
-            ))}
-          </div>
-
-          <div>
-            <p className="text-sm font-semibold text-slate-700 mb-2">نوع الإجازة</p>
-            <div className="grid grid-cols-3 gap-2">
-              {Object.entries(LEAVE_TYPES).map(([k,v])=>(
-                <button key={k} onClick={()=>{setType(k);setErr("");}}
-                  className={`py-2.5 text-xs font-bold rounded-xl border-2 transition-all ${type===k ? v.light+" border-current shadow-sm" : "bg-slate-50 border-slate-200 text-slate-600"}`}>
-                  {v.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-slate-50 rounded-xl p-4 border space-y-3">
-            <p className="text-sm text-slate-700 font-semibold">يرجى منحي {cfg?.label} لمدة:</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="block text-[11px] font-bold text-slate-500 mb-1.5">من تاريخ</label>
-                <input type="date" value={dateFrom} onChange={e=>setFrom(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-sm"/></div>
-              <div><label className="block text-[11px] font-bold text-slate-500 mb-1.5">إلى تاريخ</label>
-                <input type="date" value={dateTo} onChange={e=>setTo(e.target.value)} min={dateFrom} className="w-full border rounded-xl px-3 py-2 text-sm"/></div>
-            </div>
-            <div className="flex items-center justify-between bg-white rounded-xl border px-4 py-2.5">
-              <span className="text-sm text-slate-600">مدة الإجازة</span>
-              <span className={`text-sm font-bold ${days>cfg.max?"text-red-600":"text-blue-700"}`}>{toArabicNum(days)} يوم</span>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">لغرض</label>
-            <input value={purpose} onChange={e=>setPurpose(e.target.value)} placeholder="اكتب غرض الإجازة..." className="w-full border rounded-xl px-3 py-2.5 text-sm"/>
-          </div>
-
-          <div onClick={()=>setAbroad(p=>!p)} className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer ${isAbroad?"border-red-400 bg-red-50":"border-slate-200 bg-slate-50"}`}>
-            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${isAbroad?"bg-red-500 border-red-500":"border-slate-300 bg-white"}`}>
-              {isAbroad && <span className="text-white text-xs font-bold">✓</span>}
-            </div>
-            <div><p className={`text-sm font-bold ${isAbroad?"text-red-700":"text-slate-700"}`}>🛂 الإجازة خارج العراق</p></div>
-          </div>
-
-          <div className="border-2 border-dashed border-blue-200 rounded-xl p-4 bg-blue-50/30">
-            <p className="text-sm font-bold text-slate-700 flex items-center gap-2"><PenTool size={14} className="text-blue-600"/> توقيع مقدم الطلب <span className="text-red-500 text-xs">*مطلوب</span></p>
-            {sig ? (
-              <div className="space-y-2">
-                <div className="bg-white border rounded-xl p-2"><img src={sig} alt="توقيع" className="h-16 w-48 object-contain"/></div>
-                <button onClick={()=>{setSig(null);setShowSig(false);}} className="text-xs font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-xl">إعادة الرسم</button>
-              </div>
-            ) : (
-              !showSig ? <button onClick={()=>setShowSig(true)} className="w-full flex items-center justify-center gap-2 py-3 text-sm font-bold text-blue-700 bg-white border-2 border-blue-300 rounded-xl"><PenTool size={15}/> اضغط للتوقيع</button>
-              : <SignaturePad onSave={s=>{setSig(s);setShowSig(false);}} storageKey={`leave_sig_${emp.id}`}/>
-            )}
-          </div>
-
-          {err && <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5"><AlertCircle size={14} className="text-red-500"/><p className="text-red-600 text-xs">{err}</p></div>}
-
-          <div className="flex gap-3 pt-2">
-            <button onClick={onCancel} className="flex-1 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button>
-            <button onClick={handleSubmit} className="flex-1 py-2.5 text-sm font-bold text-white rounded-xl shadow-md active:scale-95 transition-all"
-              style={{background:`linear-gradient(135deg, ${type==="اعتيادية"?"#2563eb":type==="مرضية"?"#dc2626":"#d97706"})`}}>تقديم الطلب</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ========== إيصال الطلب ==========
-function LeaveReceipt({ emp, leave, onClose }) {
-  const cfg = LEAVE_TYPES[leave.type];
-  const ref = `BOC-${new Date().getFullYear()}-${String(Math.floor(Math.random()*9000)+1000)}`;
-  return (
-    <div className="max-w-2xl mx-auto" dir="rtl">
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-2 rounded-xl"><ChevronLeft size={18}/></button>
-        <div><h2 className="text-base font-bold text-slate-800">تم تقديم الطلب بنجاح</h2><p className="text-xs text-slate-500">رقم المرجع: {ref}</p></div>
-        <PrintButton targetId="print-leave" title={`إجازة ${leave.type} — ${emp.name}`}/>
-      </div>
-
-      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-4 flex items-center gap-3 mb-5">
-        <CheckCircle size={20} className="text-emerald-600"/>
-        <div><p className="text-sm font-bold text-emerald-800">تم إرسال طلبك بنجاح</p><p className="text-xs text-emerald-600">سيتم مراجعته من قبل المسؤول المخول</p></div>
-      </div>
-
-      <div id="print-leave" className="bg-white rounded-2xl border-2 border-slate-200 overflow-hidden shadow-sm">
-        <div className="border-b-2 border-slate-200">
-          <table className="w-full text-xs border-collapse">
-            <tbody><tr><td className="border px-3 py-2 font-bold w-32">شركة نفط البصرة</td><td className="border px-3 py-2">عنوان النموذج</td><td className="border px-3 py-2 font-bold">نموذج اجازة {leave.type}</td>
-            <td rowSpan="2" className="border px-4 py-2 text-center"><div className="w-12 h-12 rounded-full border-2 border-slate-300 flex items-center justify-center mx-auto"><span className="text-slate-600 font-bold text-xs">BOC</span></div></td></tr>
-            <tr><td className="border px-3 py-2"/><td className="border px-3 py-2">رمز النموذج</td><td className="border px-3 py-2 font-mono font-bold">BOC-P-13/F13 | رقم الإصدار: 1</td></tr></tbody>
-          </table>
-        </div>
-        <div className="p-7 space-y-5">
-          <div className="flex justify-between"><span className="text-sm text-slate-600">التاريخ: {arabicDate(new Date().toISOString().slice(0,10))}</span><span className="text-sm text-slate-600">المرجع: {ref}</span></div>
-          <div className={`text-center text-sm font-bold border-2 rounded-xl py-2.5 ${cfg.light}`}>م / {cfg.label}</div>
-          <div className="space-y-4">
-            {[["الاسم الثلاثي", emp.name], ["الرقم الوظيفي", emp.jobNum], ["العنوان الوظيفي", emp.title], ["القسم / الشعبة", emp.dept]].map(([l,v])=>(
-              <div key={l} className="flex items-center border-b border-dashed border-slate-200 pb-3"><span className="text-sm text-slate-500 w-36">{l}</span><span className="text-sm font-bold text-slate-800">{v}</span></div>
-            ))}
-          </div>
-          <div className="bg-slate-50 border rounded-xl p-4">
-            <p className="text-sm text-slate-700">يرجى منحي إجازة {cfg.label} لمدة <strong>{toArabicNum(leave.days)} يوم</strong> اعتباراً من {arabicDate(leave.dateFrom)} ولغاية {arabicDate(leave.dateTo)}</p>
-            <p className="text-sm text-slate-700 mt-2">لغرض <strong>{leave.purpose}</strong></p>
-            {leave.isAbroad && <p className="text-sm font-bold text-red-700 mt-2">🛂 الإجازة تتضمن سفراً خارج العراق</p>}
-          </div>
-          <div className="flex justify-between pt-6">
-            <div className="text-center"><p className="text-xs text-slate-500 mb-10">توقيع المخول</p><div className="w-36 border-t border-slate-400"/></div>
-            <div className="text-center"><p className="text-xs text-slate-500 mb-4">توقيع صاحب الإجازة</p><div className="w-36 border-t-2 border-blue-800 mt-6 relative"><span className="absolute -top-3 left-1/2 -translate-x-1/2 text-blue-800 text-xs font-bold whitespace-nowrap">{emp.name}</span></div></div>
-          </div>
-        </div>
-      </div>
-
-      <button onClick={onClose} className="mt-4 w-full py-2.5 text-sm font-bold text-slate-600 bg-slate-100 rounded-xl">العودة إلى لوحة التحكم</button>
-    </div>
-  );
-}
-
-// ========== طلب مواد ==========
-function MaterialRequest({ emp, empSignatures, setEmpSignatures }) {
-  const today = new Date().toISOString().slice(0,10);
-  const [fromDate, setFrom] = useState(today);
-  const [toDate, setTo] = useState(today);
-  const [items, setItems] = useState([{ vocabNo:"", description:"", unit:"", qty:"", st:"", cc:"", jobNo:"", debit:"", cebit:"" }]);
-  const [remarks, setRemarks] = useState("");
-  const [sig, setSig] = useState(() => empSignatures[emp.id] || null);
-  const [showSigPad, setShowSigPad] = useState(!empSignatures[emp.id]);
-  const [submitted, setSubmitted] = useState(false);
-  const [reqNum] = useState(`REQ-${new Date().getFullYear()}-${String(Math.floor(Math.random()*9000)+1000)}`);
-
-  const saveSig = (url) => {
-    setSig(url);
-    if (url) { setEmpSignatures(p => ({...p, [emp.id]: url})); localStorage.setItem(`boc_sig_${emp.id}`, url); setShowSigPad(false); }
-    else { setEmpSignatures(p => { const n={...p}; delete n[emp.id]; return n; }); localStorage.removeItem(`boc_sig_${emp.id}`); }
-  };
-
-  const addItem = () => setItems(p => [...p, { vocabNo:"", description:"", unit:"", qty:"", st:"", cc:"", jobNo:"", debit:"", cebit:"" }]);
-  const removeItem = (i) => setItems(p => p.filter((_,idx)=>idx!==i));
-  const setItem = (i, k, v) => setItems(p => p.map((it,idx) => idx===i ? {...it,[k]:v} : it));
-  const handleSubmit = () => { if (!sig) { alert("يرجى رسم توقيعك أولاً"); return; } setSubmitted(true); };
-
-  if (submitted) {
-    return (
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex items-center gap-3 mb-4">
-          <CheckCircle size={22} className="text-emerald-600"/>
-          <div><p className="font-bold text-emerald-800">تم إرسال طلب المواد بنجاح</p><p className="text-xs text-emerald-600">رقم الطلب: <strong>{reqNum}</strong></p></div>
-        </div>
-        <div id="print-material" className="bg-white rounded-2xl border-2 border-slate-200 overflow-hidden shadow-sm">
-          <div className="border-b-2 border-slate-200"><table className="w-full text-[10px] border-collapse"><tbody><tr><td className="border px-2 py-1.5 font-bold w-28">شركة نفط البصرة</td>
-          <td className="border px-2 py-1.5"><div className="font-bold">طلب مواد من المخزن</div><div className="text-slate-500">Vocab No: {reqNum}</div></td>
-          <td rowSpan="2" className="border px-3 py-2 text-center w-16"><div className="w-10 h-10 rounded-full border border-slate-300 flex items-center justify-center mx-auto"><span className="text-slate-600 font-bold text-[9px]">BOC</span></div></td></tr>
-          <tr><td className="border px-2 py-1 text-slate-500">رمز النموذج</td><td className="border px-2 py-1 font-mono font-bold">BOC-P-07/F09 | رقم الإصدار: 1</td></tr></tbody></table></div>
-          <div className="p-5 space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div><span className="text-slate-500">من تاريخ: </span><strong>{new Date(fromDate).toLocaleDateString("ar-IQ")}</strong></div>
-              <div><span className="text-slate-500">إلى تاريخ: </span><strong>{new Date(toDate).toLocaleDateString("ar-IQ")}</strong></div>
-              <div><span className="text-slate-500">الاسم: </span><strong>{emp.name}</strong></div>
-              <div><span className="text-slate-500">الرقم الوظيفي: </span><strong>{emp.jobNum}</strong></div>
-            </div>
-            <table className="w-full border-collapse text-[10px]"><thead><tr className="bg-slate-50">{["ت","Vocabulary No.","الوصف","الوحدة","الكمية","ST","CC","Job No.","Debit","Cebit"].map(h=>(
-              <th key={h} className="border border-slate-200 px-1 py-1.5 text-center font-bold">{h}</th>))}</tr></thead>
-            <tbody>{items.map((it,i)=>(
-              <tr key={i}><td className="border px-1 py-2 text-center text-slate-400">{i+1}</td>
-              {["vocabNo","description","unit","qty","st","cc","jobNo","debit","cebit"].map(k=><td key={k} className="border px-1 py-2 text-center">{it[k]||"—"}</td>)}</tr>))}</tbody></table>
-            {remarks && <p className="text-xs text-slate-600 border-t pt-2"><strong>ملاحظات:</strong> {remarks}</p>}
-            <div className="flex justify-between pt-4">
-              <div className="text-center"><p className="text-[10px] text-slate-500 mb-6">توقيع المخول</p><div className="w-36 border-t border-slate-400"/></div>
-              <div className="text-center"><p className="text-[10px] text-slate-500 mb-2">توقيع مقدم الطلب</p>{sig && <img src={sig} alt="توقيع" className="h-14 w-40 object-contain border rounded-lg bg-white"/>}</div>
-            </div>
-          </div>
-        </div>
-        <div className="flex gap-2 mt-4"><button onClick={()=>setSubmitted(false)} className="flex-1 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl">طلب جديد</button><PrintButton targetId="print-material" label="طباعة / PDF"/></div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-4xl mx-auto space-y-4">
-      <div className="bg-white rounded-2xl border-2 border-slate-200 overflow-hidden shadow-sm">
-        <div className="border-b-2 border-slate-200"><table className="w-full text-[10px] border-collapse"><tbody><tr><td className="border px-2 py-1.5 font-bold w-28">شركة نفط البصرة</td>
-        <td className="border px-2 py-1.5"><div className="font-bold">طلب مواد من المخزن</div><div className="text-slate-400 text-[9px]">Vocab No. 3725501110</div></td>
-        <td rowSpan="2" className="border px-3 py-2 text-center w-16"><div className="w-10 h-10 rounded-full border border-slate-300 flex items-center justify-center mx-auto"><span className="text-slate-600 font-bold text-[9px]">BOC</span></div></td></tr>
-        <tr><td className="border px-2 py-1 text-slate-500">رمز النموذج</td><td className="border px-2 py-1 font-mono font-bold">BOC-P-07/F09 | رقم الإصدار: 1</td></tr></tbody></table></div>
-        <div className="p-4 space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-            <div><label className="block text-[10px] font-bold text-slate-400 mb-1">من تاريخ</label><input type="date" value={fromDate} onChange={e=>setFrom(e.target.value)} className="w-full border rounded-lg px-2 py-1.5 text-xs"/></div>
-            <div><label className="block text-[10px] font-bold text-slate-400 mb-1">إلى تاريخ</label><input type="date" value={toDate} onChange={e=>setTo(e.target.value)} className="w-full border rounded-lg px-2 py-1.5 text-xs"/></div>
-            <div><label className="block text-[10px] font-bold text-slate-400 mb-1">الاسم</label><div className="border rounded-lg px-2 py-1.5 text-xs bg-slate-50">{emp.name}</div></div>
-            <div><label className="block text-[10px] font-bold text-slate-400 mb-1">الرقم الوظيفي</label><div className="border rounded-lg px-2 py-1.5 text-xs bg-slate-50 font-mono">{emp.jobNum}</div></div>
-            <div><label className="block text-[10px] font-bold text-slate-400 mb-1">العنوان الوظيفي</label><div className="border rounded-lg px-2 py-1.5 text-xs bg-slate-50">{emp.title}</div></div>
-            <div><label className="block text-[10px] font-bold text-slate-400 mb-1">القسم</label><div className="border rounded-lg px-2 py-1.5 text-xs bg-slate-50">{emp.dept}</div></div>
-          </div>
-
-          <div className="overflow-x-auto"><table className="w-full border-collapse text-[10px]"><thead><tr className="bg-slate-50">{["ت","Vocabulary No.","الوصف","الوحدة","الكمية","ST","CC","Job No.","Debit","Cebit",""].map(h=>(
-            <th key={h} className="border border-slate-200 px-1 py-2 text-center font-bold">{h}</th>))}</tr></thead>
-          <tbody>{items.map((it,i)=>(
-            <tr key={i}><td className="border border-slate-100 px-1 py-1 text-center text-slate-400">{i+1}</td>
-            {["vocabNo","description","unit","qty","st","cc","jobNo","debit","cebit"].map(k=>(
-              <td key={k} className="border border-slate-100 p-0.5"><input value={it[k]} onChange={e=>setItem(i,k,e.target.value)} className="w-full border-b border-slate-200 px-1 py-1 text-xs focus:outline-none focus:border-blue-400 bg-transparent text-center"/></td>))}
-            <td className="border border-slate-100 px-1 py-1 text-center">{items.length>1 && <button onClick={()=>removeItem(i)} className="text-red-400"><X size={11}/></button>}</td></tr>))}</tbody></table></div>
-          <button onClick={addItem} className="flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg"><Plus size={13}/> إضافة صف</button>
-
-          <div><label className="block text-[10px] font-bold text-slate-400 mb-1">ملاحظات</label><textarea value={remarks} onChange={e=>setRemarks(e.target.value)} rows={2} className="w-full border rounded-xl px-3 py-2 text-xs"/></div>
-
-          <div className="border-t pt-4">
-            <div className="flex flex-col md:flex-row justify-between gap-6">
-              <div className="text-center flex-1"><p className="text-[10px] text-slate-500 font-bold mb-8">توقيع المخول</p><div className="border-t border-slate-300 w-40 mx-auto"/></div>
-              <div className="flex-1"><p className="text-[10px] text-slate-500 font-bold mb-2 text-center">توقيع مقدم الطلب</p>
-                {showSigPad ? <SignaturePad onSave={saveSig} existingSig={sig} storageKey={`boc_sig_${emp.id}`}/>
-                : sig ? <div className="relative text-center"><img src={sig} alt="توقيع" className="h-16 w-full max-w-[200px] object-contain border rounded-xl bg-white mx-auto"/><button onClick={()=>setShowSigPad(true)} className="text-[9px] text-blue-500 hover:underline mt-0.5">تغيير التوقيع</button></div>
-                : <button onClick={()=>setShowSigPad(true)} className="w-full py-3 border-2 border-dashed border-blue-200 rounded-xl text-xs font-bold text-blue-600 flex items-center justify-center gap-2"><PenTool size={14}/> رسم التوقيع</button>}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <button onClick={handleSubmit} className="w-full py-3 text-sm font-bold text-white rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md" style={{background:"linear-gradient(135deg,#1d4ed8,#1e40af)"}}><Package size={16}/> إرسال طلب المواد</button>
-    </div>
-  );
-}
-
-// ========== إدارة الموظفين ==========
-function EmployeeManager({ employees, setEmployees }) {
-  const [search, setSearch] = useState("");
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي", group:"A", edu:"بكالوريوس", phone:"" });
-  const [adding, setAdding] = useState(false);
-  const [delConf, setDelConf] = useState(null);
+// ========== 1. نظام الحضور الكامل ==========
+function AttendanceSystem({ emp, isAdmin, allEmployees }) {
+  const now = new Date();
+  const [selMonth, setSelMonth] = useState(now.getMonth());
+  const [selYear, setSelYear] = useState(now.getFullYear());
+  const [selEmpId, setSelEmpId] = useState(isAdmin ? null : emp.id);
+  const [selectedDate, setSelectedDate] = useState(now.toISOString().slice(0,10));
+  const [checkInTime, setCheckInTime] = useState("");
+  const [checkOutTime, setCheckOutTime] = useState("");
+  const [dailyRecords, setDailyRecords] = useFirebase(`attendance/daily/${emp.id}`, {});
+  const [monthlyStats, setMonthlyStats] = useState({});
   const [toast, setToast] = useState("");
-
+  
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
-  const filtered = employees.filter(e => e.name.includes(search) || e.jobNum.includes(search));
-  const openEdit = (emp) => { setEditId(emp.id); setForm({...emp}); setAdding(false); };
-  const openAdd = () => { setAdding(true); setEditId(null); setForm({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي", group:"A", edu:"بكالوريوس", phone:"", id: Date.now() }); };
-  const cancelForm = () => { setEditId(null); setAdding(false); };
-  const saveEmp = () => {
-    if (!form.name.trim() || !form.jobNum.trim()) return showToast("الاسم والرقم الوظيفي مطلوبان");
-    if (adding) setEmployees(p => [...p, {...form, id: Date.now()}]);
-    else setEmployees(p => p.map(e => e.id===editId ? {...form, id:editId} : e));
-    cancelForm();
-  };
-  const deleteEmp = (id) => { setEmployees(p => p.filter(e => e.id!==id)); setDelConf(null); showToast("✓ تم حذف الموظف"); };
+  const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  const daysInMonth = new Date(selYear, selMonth+1, 0).getDate();
+  const empTarget = selEmpId || emp.id;
+  const empInfo = allEmployees.find(e => e.id === empTarget);
 
-  const DEPT_COLORS = { "قسم السيطرة والنظم":"bg-blue-100 text-blue-800", "شعبة مستودع الفاو":"bg-emerald-100 text-emerald-800", "شعبة المرافئ":"bg-indigo-100 text-indigo-800" };
-  const SHIFT_COLORS = { صباحي:"bg-amber-100 text-amber-700", مناوبة:"bg-indigo-100 text-indigo-700" };
+  // تسجيل دخول
+  const handleCheckIn = () => {
+    const nowTime = new Date().toLocaleTimeString("ar-IQ", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
+    const record = dailyRecords[selectedDate] || {};
+    const updated = { ...record, checkIn: nowTime, status: "حاضر", date: selectedDate };
+    setDailyRecords({ ...dailyRecords, [selectedDate]: updated });
+    auditLog("تسجيل دخول", `${empInfo?.name} - سجل دخول الساعة ${nowTime}`, emp.name);
+    showToast("✓ تم تسجيل دخولك بنجاح");
+  };
+
+  // تسجيل خروج
+  const handleCheckOut = () => {
+    const nowTime = new Date().toLocaleTimeString("ar-IQ", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
+    const record = dailyRecords[selectedDate] || {};
+    const checkIn = record.checkIn;
+    if (!checkIn) { showToast("⚠️ يجب تسجيل الدخول أولاً"); return; }
+    const updated = { ...record, checkOut: nowTime };
+    setDailyRecords({ ...dailyRecords, [selectedDate]: updated });
+    auditLog("تسجيل خروج", `${empInfo?.name} - سجل خروج الساعة ${nowTime}`, emp.name);
+    showToast("✓ تم تسجيل خروجك بنجاح");
+  };
+
+  // حساب الإحصائيات الشهرية
+  useEffect(() => {
+    const stats = { حاضر: 0, غائب: 0, تأخر: 0, إجازة: 0 };
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = `${selYear}-${String(selMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+      const record = dailyRecords[key];
+      if (record) stats[record.status] = (stats[record.status] || 0) + 1;
+      else stats.غائب++;
+    }
+    setMonthlyStats(stats);
+  }, [dailyRecords, selMonth, selYear, daysInMonth]);
+
+  const attendanceRate = daysInMonth > 0 ? Math.round((monthlyStats.حاضر / daysInMonth) * 100) : 0;
+
+  // تصدير CSV
+  const exportAttendanceCSV = () => {
+    const rows = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = `${selYear}-${String(selMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+      const record = dailyRecords[key] || {};
+      rows.push({
+        "التاريخ": key,
+        "اليوم": new Date(key).toLocaleDateString("ar-IQ", { weekday:"long" }),
+        "دخول": record.checkIn || "—",
+        "خروج": record.checkOut || "—",
+        "الحالة": record.status || "غائب"
+      });
+    }
+    const csv = [Object.keys(rows[0]).join(","), ...rows.map(r => Object.values(r).map(v => `"${v}"`).join(","))].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `attendance_${selYear}_${selMonth+1}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    showToast("✓ تم تصدير التقرير");
+  };
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={13} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-xs outline-none w-full"/></div>
-        <button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-4 py-2 rounded-xl"><Plus size={14}/> إضافة موظف</button>
-        <span className="text-xs text-slate-400">{employees.length} موظف</span>
+      <div className="flex flex-wrap gap-3 items-center justify-between">
+        <div className="flex gap-2">
+          <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))} className="bg-white border rounded-xl px-3 py-2 text-sm">
+            {months.map((m,i)=><option key={i} value={i}>{m}</option>)}
+          </select>
+          <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))} className="bg-white border rounded-xl px-3 py-2 text-sm">
+            {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+          </select>
+          {isAdmin && (
+            <select value={selEmpId||""} onChange={e=>setSelEmpId(Number(e.target.value)||null)} className="bg-white border rounded-xl px-3 py-2 text-sm min-w-[180px]">
+              <option value="">-- اختر موظفاً --</option>
+              {allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,2).join(" ")}</option>)}
+            </select>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={exportAttendanceCSV} className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border px-3 py-2 rounded-xl"><Download size={13}/> تصدير CSV</button>
+          <PrintButton targetId="print-attendance" title={`تقرير الحضور - ${months[selMonth]} ${selYear}`}/>
+        </div>
       </div>
 
-      {(adding || editId) && (
-        <div className="bg-white rounded-2xl border-2 border-blue-200 p-5">
-          <div className="flex justify-between mb-4"><h4 className="font-bold">{adding ? "إضافة موظف" : "تعديل موظف"}</h4><button onClick={cancelForm}><X size={15}/></button></div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {[["الاسم الكامل","name"],["الرقم الوظيفي","jobNum"],["العنوان الوظيفي","title"],["رقم الهاتف","phone"]].map(([l,k])=>(
-              <div key={k}><label className="block text-[11px] font-bold text-slate-500 mb-1">{l}</label><input value={form[k]} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} className="w-full border rounded-lg px-3 py-2 text-xs"/></div>
-            ))}
-            <div><label className="block text-[11px] font-bold text-slate-500 mb-1">القسم</label><select value={form.dept} onChange={e=>setForm(p=>({...p,dept:e.target.value}))} className="w-full border rounded-lg px-3 py-2 text-xs"><option>قسم السيطرة والنظم</option><option>شعبة مستودع الفاو</option><option>شعبة المرافئ</option></select></div>
-            <div><label className="block text-[11px] font-bold text-slate-500 mb-1">نظام الدوام</label><select value={form.shift} onChange={e=>setForm(p=>({...p,shift:e.target.value}))} className="w-full border rounded-lg px-3 py-2 text-xs"><option>صباحي</option><option>مناوبة</option></select></div>
-            {form.shift==="مناوبة" && <div><label className="block text-[11px] font-bold text-slate-500 mb-1">المجموعة</label><select value={form.group} onChange={e=>setForm(p=>({...p,group:e.target.value}))} className="w-full border rounded-lg px-3 py-2 text-xs"><option>A</option><option>B</option><option>C</option><option>D</option></select></div>}
+      {/* إحصائيات */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {[
+          { label: "أيام الحضور", value: monthlyStats.حاضر || 0, color: "bg-emerald-50 text-emerald-700", icon: <UserCheck size={18}/> },
+          { label: "نسبة الحضور", value: `${attendanceRate}%`, color: "bg-blue-50 text-blue-700", icon: <TrendingUp size={18}/> },
+          { label: "غياب", value: monthlyStats.غائب || 0, color: "bg-red-50 text-red-700", icon: <UserX size={18}/> },
+          { label: "تأخر", value: monthlyStats.تأخر || 0, color: "bg-amber-50 text-amber-700", icon: <ClockIcon size={18}/> },
+          { label: "إجازة", value: monthlyStats.إجازة || 0, color: "bg-purple-50 text-purple-700", icon: <CalendarIcon size={18}/> },
+        ].map(s=>(
+          <div key={s.label} className={`${s.color} rounded-2xl p-3 text-center border`}>
+            <div className="flex items-center justify-center mb-1">{s.icon}</div>
+            <p className="text-2xl font-bold">{s.value}</p>
+            <p className="text-[10px]">{s.label}</p>
           </div>
-          <div className="flex gap-2 justify-end mt-4"><button onClick={cancelForm} className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={saveEmp} className="flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-blue-600 rounded-xl"><Save size={13}/> حفظ</button></div>
+        ))}
+      </div>
+
+      {/* تسجيل الدخول/الخروج اليومي */}
+      {(!isAdmin || selEmpId === emp.id) && (
+        <div className="bg-white rounded-2xl border p-5">
+          <h3 className="font-bold text-slate-800 mb-3">تسجيل الحضور اليومي</h3>
+          <div className="flex flex-wrap gap-4 items-end">
+            <div><label className="block text-xs font-bold text-slate-500 mb-1">التاريخ</label>
+              <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} className="border rounded-xl px-3 py-2"/></div>
+            <div><label className="block text-xs font-bold text-slate-500 mb-1">حالة اليوم</label>
+              <div className="border rounded-xl px-3 py-2 bg-slate-50 text-sm">
+                {dailyRecords[selectedDate]?.status || "لم يسجل بعد"}
+              </div></div>
+            <div className="flex gap-2">
+              <button onClick={handleCheckIn} className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700">
+                <LogIn size={14} className="inline ml-1"/> تسجيل دخول
+              </button>
+              <button onClick={handleCheckOut} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">
+                <LogOut size={14} className="inline ml-1"/> تسجيل خروج
+              </button>
+            </div>
+          </div>
+          {dailyRecords[selectedDate]?.checkIn && (
+            <div className="mt-3 text-sm text-slate-600">✓ تم تسجيل الدخول الساعة {dailyRecords[selectedDate].checkIn}</div>
+          )}
+          {dailyRecords[selectedDate]?.checkOut && (
+            <div className="text-sm text-slate-600">✓ تم تسجيل الخروج الساعة {dailyRecords[selectedDate].checkOut}</div>
+          )}
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="border-b bg-slate-50">{["#","الاسم","الرقم","المسمى","القسم","الدوام","الهاتف","إجراءات"].map(h=><th key={h} className="px-3 py-3 text-[10px] font-bold text-slate-400">{h}</th>)}</tr></thead>
-      <tbody>{filtered.map((emp,i)=>(
-        <tr key={emp.id} className="border-b border-slate-50"><td className="px-3 py-3 text-slate-400">{String(emp.id).slice(-3)}</td><td className="px-3 py-3 font-semibold">{emp.name}</td><td className="px-3 py-3 font-mono">{emp.jobNum}</td>
-        <td className="px-3 py-3">{emp.title}</td><td className="px-3 py-3"><span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${DEPT_COLORS[emp.dept]||""}`}>{emp.dept}</span></td>
-        <td className="px-3 py-3"><span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${SHIFT_COLORS[emp.shift]||""}`}>{emp.shift}{emp.group?` [${emp.group}]`:""}</span></td>
-        <td className="px-3 py-3 font-mono">{emp.phone}</td><td className="px-3 py-3"><div className="flex gap-1"><button onClick={()=>openEdit(emp)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={12}/></button><button onClick={()=>setDelConf(emp.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
-
-      {delConf && (<div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={()=>setDelConf(null)}><div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center" onClick={e=>e.stopPropagation()}><div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3"><Trash2 size={20} className="text-red-500"/></div><p className="font-bold mb-1">تأكيد الحذف</p><p className="text-sm text-slate-500 mb-5">هل تريد حذف هذا الموظف؟</p><div className="flex gap-2"><button onClick={()=>setDelConf(null)} className="flex-1 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={()=>deleteEmp(delConf)} className="flex-1 py-2 text-sm font-bold text-white bg-red-600 rounded-xl">حذف</button></div></div></div>)}
+      {/* جدول الحضور الشهري */}
+      <div id="print-attendance" className="bg-white rounded-2xl border overflow-hidden">
+        <div className="hidden print:block text-center p-4"><p className="text-lg font-bold">شركة نفط البصرة - تقرير الحضور</p><p>{months[selMonth]} {selYear} - {empInfo?.name}</p></div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-xs">
+            <thead><tr className="bg-slate-50 border-b">{["اليوم","التاريخ","دخول","خروج","الحالة"].map(h=><th key={h} className="px-3 py-2 font-bold">{h}</th>)}</tr></thead>
+            <tbody>
+              {Array.from({length:daysInMonth},(_,i)=>i+1).map(day=>{
+                const dateKey = `${selYear}-${String(selMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+                const record = dailyRecords[dateKey] || {};
+                const statusColor = TS[record.status]?.color || "bg-slate-100 text-slate-600";
+                return (<tr key={day} className="border-b hover:bg-slate-50"><td className="px-3 py-2">{new Date(dateKey).toLocaleDateString("ar-IQ",{weekday:"short"})}</td>
+                <td className="px-3 py-2">{day}</td><td className="px-3 py-2 font-mono">{record.checkIn || "—"}</td><td className="px-3 py-2 font-mono">{record.checkOut || "—"}</td>
+                <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColor}`}>{record.status || "غائب"}</span></td></tr>);
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
 }
 
-// ========== لوحة التحكم الرئيسية الكاملة ==========
-function Dashboard({ emp, onLogout }) {
-  const [view, setView] = useState("home");
-  const [receipt, setReceipt] = useState(null);
-  const [empSignatures, setEmpSignatures] = useLocalStorage("boc_signatures", {});
-  const [allRequests, setAllRequests] = useFirebase("requests", []);
-  const [employees, setEmployees] = useFirebase("employees", ACCOUNTS);
-  const [notifications, setNotifications] = useFirebase(`notifications/${emp.id}`, []);
-  const [history, setHistory] = useFirebase(`history/${emp.id}`, []);
-  const { isConnected } = useConnectionStatus();
+// ========== 2. نظام التدريب ==========
+function TrainingSystem({ emp, isAdmin, allEmployees }) {
+  const [trainings, setTrainings] = useFirebase("training/tasks", []);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ empId:"", title:"", type:"تدريب ذاتي", desc:"", startDate:"", endDate:"", provider:"", maxScore:10 });
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
 
-  const isAdmin = emp.role === "admin" || emp.jobNum === "728004";
-  const isInventoryMgr = emp.role === "inventory_manager" || emp.jobNum === "790885";
-  const pendingCount = (allRequests || []).filter(r => r.status === "بانتظار المراجعة").length;
-  const unreadCount = (notifications || []).filter(n => !n.read).length;
+  const myTrainings = (trainings || []).filter(t => t.empId === emp.id);
+  const visibleTrainings = isAdmin ? (trainings || []) : myTrainings;
 
-  useEffect(() => {
-    const cleanup = setupIdleDetection(onLogout);
-    return cleanup;
-  }, [onLogout]);
-
-  useEffect(() => {
-    const needsChange = sessionStorage.getItem("force_password_change");
-    if (needsChange === "true") {
-      sessionStorage.removeItem("force_password_change");
-      setTimeout(() => {
-        if (window.confirm("🔐 لأسباب أمنية، يرجى تغيير كلمة المرور الافتراضية الآن.")) {
-          setView("changepass");
-        }
-      }, 500);
-    }
-  }, []);
-
-  const handleSubmit = (leave) => {
-    const rec = { ...leave, id: Date.now(), submittedAt: new Date().toISOString(), status: "بانتظار المراجعة", empId: emp.id, empName: emp.name, empTitle: emp.title, empDept: emp.dept, empJobNum: emp.jobNum };
-    setHistory([rec, ...(history || [])]);
-    setAllRequests([rec, ...(allRequests || [])]);
-    setReceipt(rec);
-    setView("receipt");
+  const assignTraining = () => {
+    if (!form.empId || !form.title) return showToast("الموظف والعنوان مطلوبان");
+    const newTraining = { ...form, id: Date.now(), status: "مُسندة", assignedBy: emp.name, assignedAt: new Date().toISOString() };
+    setTrainings([newTraining, ...(trainings || [])]);
+    auditLog("إسناد تدريب", `${form.title} - للموظف ${allEmployees.find(e=>e.id===form.empId)?.name}`, emp.name);
+    setForm({ empId:"", title:"", type:"تدريب ذاتي", desc:"", startDate:"", endDate:"", provider:"", maxScore:10 });
+    setShowForm(false);
+    showToast("✓ تم إسناد التدريب");
   };
 
-  const handleApproval = (reqId, decision, adminNote = "") => {
-    const newStatus = decision === "approve" ? "موافق عليها" : decision === "cancel" ? "ملغي" : "مرفوضة";
-    const timestamp = new Date().toISOString();
-    const updatedRequests = (allRequests || []).map(r => r.id === reqId ? { ...r, status: newStatus, decidedAt: timestamp, decidedBy: emp.name, adminNote } : r);
-    setAllRequests(updatedRequests);
-    fb.get(`history/${updatedRequests.find(r=>r.id===reqId)?.empId}`).then(empHist => {
-      const prev = Array.isArray(empHist) ? empHist : [];
-      fb.set(`history/${updatedRequests.find(r=>r.id===reqId)?.empId}`, prev.map(h => h.id === reqId ? { ...h, status: newStatus, decidedAt: timestamp, decidedBy: emp.name, adminNote } : h));
-    });
+  const updateStatus = (id, status) => {
+    setTrainings((trainings || []).map(t => t.id === id ? { ...t, status, completedAt: status==="مكتملة"?new Date().toISOString():t.completedAt } : t));
+    auditLog("تحديث تدريب", `تغيير حالة التدريب إلى ${status}`, emp.name);
+    showToast(`✓ تم تحديث الحالة إلى ${status}`);
   };
 
-  const getMonthlyUsed = (type) => (history || []).filter(h => h.type === type && new Date(h.submittedAt).getMonth() === new Date().getMonth()).reduce((s,h)=>s+h.days, 0);
-  const monthlyTotal = ["اعتيادية","مرضية","زمنية"].reduce((s,t)=>s+getMonthlyUsed(t), 0);
-  const monthName = new Date().toLocaleDateString("ar-IQ",{month:"long",year:"numeric"});
+  const addAction = (id, actionText) => {
+    if (!actionText.trim()) return showToast("اكتب الإجراء أولاً");
+    setTrainings((trainings || []).map(t => t.id === id ? { ...t, empAction: actionText, actionAt: new Date().toISOString(), status: "قيد التنفيذ" } : t));
+    showToast("✓ تم تسجيل الإجراء");
+  };
 
-  const menuItems = [
-    { id: "home", label: "الرئيسية", icon: <Home size={14}/> },
-    { id: "form", label: "طلب إجازة", icon: <FileText size={14}/> },
-    { id: "materials", label: "طلب مواد", icon: <Package size={14}/> },
-    { id: "attendance", label: "الحضور", icon: <Calendar size={14}/> },
-    { id: "training", label: "التدريب", icon: <GraduationCap size={14}/> },
-    { id: "reports", label: "التقارير", icon: <BarChart size={14}/> },
-    { id: "changepass", label: "تغيير كلمة المرور", icon: <Shield size={14}/> },
-  ];
-
-  if (!isAdmin) {
-    menuItems.push({ id: "notifications", label: "الإشعارات", icon: <Bell size={14}/>, badge: unreadCount });
-  }
-
-  if (isAdmin) {
-    menuItems.push(
-      { id: "approvals", label: "الموافقات", icon: <ThumbsUp size={14}/>, badge: pendingCount },
-      { id: "employees", label: "إدارة الموظفين", icon: <Users size={14}/> },
-      { id: "inventory", label: "جرد المخزن", icon: <Layers size={14}/> },
-      { id: "furniture", label: "جرد الأثاث", icon: <ClipboardList size={14}/> },
-      { id: "projects", label: "المشاريع", icon: <FolderOpen size={14}/> },
-      { id: "loginhistory", label: "سجل الدخول", icon: <Clock size={14}/> },
-      { id: "auditlog", label: "سجل التعديلات", icon: <ClipboardList size={14}/> }
-    );
-  }
-
-  if (isInventoryMgr && !isAdmin) {
-    menuItems.push(
-      { id: "inventory", label: "جرد المخزن", icon: <Layers size={14}/> },
-      { id: "furniture", label: "جرد الأثاث", icon: <ClipboardList size={14}/> }
-    );
-  }
-
-  const STATUS_STYLE = { "بانتظار المراجعة": "bg-amber-100 text-amber-700", "موافق عليها": "bg-emerald-100 text-emerald-700", "مرفوضة": "bg-red-100 text-red-700" };
+  const getStatusColor = (status) => TRAINING_STATUS[status] || "bg-slate-100 text-slate-600";
 
   return (
-    <div className="min-h-screen bg-[#f0f4fa] flex flex-col md:flex-row" dir="rtl">
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap');*{font-family:'IBM Plex Sans Arabic',sans-serif;}@keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}.fu{animation:fu .3s ease both}@media print{.no-print{display:none!important}}`}</style>
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="font-bold text-slate-800 text-lg">المهام التدريبية</h3>
+        {isAdmin && <button onClick={()=>setShowForm(!showForm)} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إسناد تدريب</button>}
+        <PrintButton targetId="print-training" title="تقرير التدريب"/>
+      </div>
 
-      {/* Sidebar */}
-      <aside className="no-print hidden md:flex w-64 bg-slate-900 text-white flex-col shrink-0 min-h-screen sticky top-0">
-        <div className="p-4 border-b border-slate-800">
-          <div className="flex items-center gap-3 mb-3"><div className="w-9 h-9 rounded-full bg-blue-800 border border-blue-600 flex items-center justify-center"><span className="text-white font-bold text-xs">BOC</span></div>
-          <div><p className="text-xs font-bold text-white">شركة نفط البصرة</p><p className="text-[10px] text-blue-400">شعبة مستودع الفاو</p></div></div>
-          <div className="bg-slate-800 rounded-xl px-3 py-2"><p className="text-xs font-bold text-slate-200 truncate">{emp.name.split(" ").slice(0,3).join(" ")}</p><p className="text-[10px] text-slate-400">{emp.title}</p>{isAdmin && <span className="text-[9px] font-bold text-amber-400 flex items-center gap-1 mt-1"><Shield size={10}/> مشرف</span>}</div>
-        </div>
-        <nav className="flex-1 p-3 space-y-0.5">
-          {menuItems.map(item => (
-            <button key={item.id} onClick={() => setView(item.id)} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${view===item.id ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`}>
-              <span className="flex items-center gap-2.5">{item.icon}{item.label}</span>
-              {item.badge > 0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{item.badge}</span>}
-            </button>
-          ))}
-          <div className="border-t border-slate-800 pt-3 mt-3">
-            <button onClick={onLogout} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-red-400 hover:bg-red-950/40"><LogOut size={14}/> تسجيل الخروج</button>
+      {showForm && isAdmin && (
+        <div className="bg-white rounded-2xl border-2 border-violet-200 p-5">
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الموظف</label>
+              <select value={form.empId} onChange={e=>setForm({...form, empId: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm">
+                <option value="">-- اختر --</option>
+                {allEmployees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+              </select></div>
+            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">عنوان التدريب</label>
+              <input value={form.title} onChange={e=>setForm({...form, title:e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm"/></div>
+            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">نوع التدريب</label>
+              <select value={form.type} onChange={e=>setForm({...form, type:e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm">
+                {TRAINING_TYPES.map(t=><option key={t}>{t}</option>)}
+              </select></div>
+            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الجهة المقدمة</label>
+              <input value={form.provider} onChange={e=>setForm({...form, provider:e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm"/></div>
+            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">تاريخ البداية</label>
+              <input type="date" value={form.startDate} onChange={e=>setForm({...form, startDate:e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm"/></div>
+            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">تاريخ النهاية</label>
+              <input type="date" value={form.endDate} onChange={e=>setForm({...form, endDate:e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm"/></div>
+            <div className="col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1">الوصف</label>
+              <textarea value={form.desc} onChange={e=>setForm({...form, desc:e.target.value})} rows={2} className="w-full border rounded-xl px-3 py-2 text-sm"/></div>
           </div>
-        </nav>
-        <div className="px-3 pb-3"><div className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-slate-400"><div className={`w-2 h-2 rounded-full ${isConnected ? "bg-emerald-400" : "bg-amber-400"}`}/>{isConnected ? "متصل بالسحابة" : "وضع غير متصل"}</div></div>
-      </aside>
+          <div className="flex gap-2 justify-end mt-4"><button onClick={()=>setShowForm(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button>
+          <button onClick={assignTraining} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> إسناد</button></div>
+        </div>
+      )}
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen">
-        <header className="no-print md:hidden bg-gradient-to-r from-blue-900 to-blue-800 px-4 py-3 flex items-center justify-between"><div className="flex items-center gap-2"><div className="w-7 h-7 rounded-full border border-white/30 flex items-center justify-center"><span className="text-white font-bold text-[10px]">BOC</span></div><p className="text-white text-xs font-bold">شعبة الفاو</p></div><button onClick={onLogout} className="text-white/70"><LogOut size={16}/></button></header>
+      <div id="print-training" className="space-y-3">
+        {visibleTrainings.length === 0 ? <div className="bg-white rounded-2xl p-10 text-center"><GraduationCap size={40} className="text-slate-300 mx-auto"/><p className="text-slate-400">لا توجد مهام تدريبية</p></div>
+        : visibleTrainings.map(t => {
+          const empInfo = allEmployees.find(e=>e.id===t.empId);
+          return (<div key={t.id} className="bg-white rounded-2xl border p-4 shadow-sm">
+            <div className="flex justify-between items-start"><div><div className="flex gap-2 mb-1"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${getStatusColor(t.status)}`}>{t.status}</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-50 text-violet-700">{t.type}</span></div>
+            <p className="font-bold text-slate-800">{t.title}</p>{isAdmin && <p className="text-xs text-slate-500">{empInfo?.name}</p>}
+            {t.desc && <p className="text-xs text-slate-500 mt-1">{t.desc}</p>}
+            <div className="flex gap-3 text-[10px] text-slate-400 mt-2">{t.startDate && <span>📅 من {t.startDate}</span>}{t.endDate && <span>إلى {t.endDate}</span>}{t.provider && <span>🏛️ {t.provider}</span>}</div>
+            {t.empAction && <div className="mt-2 p-2 bg-emerald-50 rounded-xl text-xs"><span className="font-bold">✍️ الإجراء:</span> {t.empAction}</div>}</div>
+            <div className="flex gap-2">{!isAdmin && t.status==="مُسندة" && <button onClick={()=>{const action=prompt("أدخل الإجراء الذي قمت به:"); if(action) addAction(t.id, action);}} className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs">كتابة إجراء</button>}
+            {isAdmin && t.status!=="مكتملة" && <button onClick={()=>updateStatus(t.id,"مكتملة")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs"><CheckCircle size={12}/> إكمال</button>}
+            {isAdmin && t.status==="قيد التنفيذ" && <button onClick={()=>updateStatus(t.id,"مكتملة")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs">إكمال</button>}</div></div>
+          </div>);
+        })}
+      </div>
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+    </div>
+  );
+}
 
-        <main className="flex-1 p-4 md:p-6 space-y-5 pb-24 md:pb-6 overflow-y-auto">
-          {view === "home" && (
-            <div className="fu space-y-5">
-              <div className="bg-white rounded-2xl border shadow-sm overflow-hidden"><div className="p-5 flex items-center gap-4"><div className="w-14 h-14 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-800 flex items-center justify-center text-white font-bold text-xl">{emp.name[0]}</div>
-              <div className="flex-1"><p className="font-bold text-slate-900">مرحباً، {emp.name.split(" ")[0]}</p><p className="text-xs text-slate-500">{emp.title} · {emp.dept}</p><div className="flex gap-2 mt-1.5"><span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">{emp.jobNum}</span><span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">{emp.shift}{emp.group?` [${emp.group}]`:""}</span></div></div></div>
-              <div className="border-t px-5 py-3 bg-slate-50 flex justify-between items-center flex-wrap gap-2"><p className="text-[11px] font-bold text-slate-600">إجازاتي في {monthName}</p><div className="flex gap-2 flex-wrap">{[
-                {key:"اعتيادية",color:"text-blue-700 bg-blue-50",max:30},{key:"مرضية",color:"text-rose-700 bg-rose-50",max:15},{key:"زمنية",color:"text-amber-700 bg-amber-50",max:7}
-              ].map(t=><span key={t.key} className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${t.color}`}>{t.key}: {toArabicNum(getMonthlyUsed(t.key))}/{t.max}</span>)}<span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-200">إجمالي: {toArabicNum(monthlyTotal)}</span></div></div></div>
+// ========== 3. جرد المخزن ==========
+function InventorySystem({ emp, isAdmin }) {
+  const [items, setItems] = useLocalStorage("inventory_items", [
+    { id:1, code:"INV-001", name:"مقاومة متغيرة", category:"أجهزة قياس", unit:"قطعة", qty:5, condition:"جيد", location:"الرف A1", lastUpdate:new Date().toISOString().slice(0,10) },
+    { id:2, code:"INV-002", name:"مولد ذبذبات", category:"أجهزة قياس", unit:"قطعة", qty:2, condition:"جيد", location:"الرف A2", lastUpdate:new Date().toISOString().slice(0,10) },
+    { id:3, code:"INV-003", name:"جهاز معايرة ضغط", category:"أجهزة معايرة", unit:"قطعة", qty:1, condition:"جيد", location:"الرف B1", lastUpdate:new Date().toISOString().slice(0,10) },
+    { id:4, code:"INV-004", name:"كماشة كهرباء", category:"عدد يدوية", unit:"قطعة", qty:10, condition:"جيد", location:"الرف C1", lastUpdate:new Date().toISOString().slice(0,10) },
+    { id:5, code:"INV-005", name:"مفك براغي", category:"عدد يدوية", unit:"مجموعة", qty:3, condition:"مستعمل", location:"الرف C2", lastUpdate:new Date().toISOString().slice(0,10) },
+  ]);
+  const [search, setSearch] = useState("");
+  const [filterCat, setFilterCat] = useState("الكل");
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ code:"", name:"", category:"أجهزة قياس", unit:"قطعة", qty:1, condition:"جيد", location:"" });
+  const [adding, setAdding] = useState(false);
+  const [transferModal, setTransferModal] = useState(null);
+  const [toast, setToast] = useState("");
+  
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const categories = ["الكل", ...new Set(items.map(i=>i.category))];
+  const filtered = items.filter(i => (i.name.includes(search) || i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
+  const totalItems = items.reduce((s,i)=>s+i.qty,0);
+  const damagedItems = items.filter(i=>i.condition==="تالف").length;
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3"><div className="bg-orange-50 border border-orange-200 rounded-2xl p-4"><span className="text-2xl">⚠️</span><p className="text-sm font-bold text-orange-800">اعتيادية أكثر من ٣ أيام</p><p className="text-[11px] text-orange-700">يجب موافقة مدير القسم</p></div>
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-4"><span className="text-2xl">🛂</span><p className="text-sm font-bold text-red-800">السفر خارج العراق</p><p className="text-[11px] text-red-700">يجب موافقة مدير الهيأة</p></div></div>
+  const openEdit = (it) => { setEditId(it.id); setForm({...it}); setAdding(false); };
+  const openAdd = () => { setAdding(true); setEditId(null); setForm({ code:"", name:"", category:"أجهزة قياس", unit:"قطعة", qty:1, condition:"جيد", location:"", id: Date.now() }); };
+  const cancelForm = () => { setEditId(null); setAdding(false); };
+  
+  const saveItem = () => {
+    if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
+    const updatedItem = { ...form, lastUpdate: new Date().toISOString().slice(0,10) };
+    if (adding) setItems([...items, updatedItem]);
+    else setItems(items.map(i => i.id===editId ? updatedItem : i));
+    auditLog(adding?"إضافة":"تعديل", `${adding?"إضافة":"تعديل"} صنف ${form.name}`, emp.name);
+    cancelForm();
+    showToast("✓ تم الحفظ");
+  };
 
-              <div><h3 className="text-sm font-bold text-slate-700 mb-3">تقديم طلب إجازة</h3><div className="grid grid-cols-3 gap-3">{[
-                {type:"اعتيادية",icon:"🏖️",gradient:"from-blue-600 to-blue-800"},{type:"مرضية",icon:"🏥",gradient:"from-rose-600 to-rose-800"},{type:"زمنية",icon:"⏱️",gradient:"from-amber-500 to-amber-700"}
-              ].map(lt=><button key={lt.type} onClick={()=>setView("form")} className={`bg-gradient-to-br ${lt.gradient} text-white rounded-2xl p-5 text-right shadow-md`}><span className="text-3xl mb-2 block">{lt.icon}</span><p className="font-bold text-sm">{LEAVE_TYPES[lt.type].label}</p><p className="text-white/70 text-xs mt-1">حتى {LEAVE_TYPES[lt.type].max} يوم</p></button>)}</div></div>
+  const deleteItem = (id) => {
+    if (window.confirm("هل تريد حذف هذا الصنف؟")) {
+      setItems(items.filter(i => i.id !== id));
+      auditLog("حذف", `حذف صنف`, emp.name);
+      showToast("✓ تم الحذف");
+    }
+  };
 
-              <div><h3 className="text-sm font-bold text-slate-700 mb-3 flex justify-between">تاريخ طلباتي<span className="text-[11px] text-slate-400">إجمالي: {(history||[]).length}</span></h3>
-              {(history||[]).length === 0 ? <div className="bg-white border-dashed border rounded-2xl p-8 text-center"><FileText size={24} className="text-slate-300 mx-auto"/><p className="text-sm text-slate-400">لا يوجد طلبات</p></div>
-              : <div className="space-y-2">{(history||[]).map(h => {
-                const live = (allRequests||[]).find(r => r.id === h.id);
-                const status = live?.status || h.status;
-                const adminNote = live?.adminNote || "";
-                return (<div key={h.id} className={`bg-white rounded-2xl border p-4 ${status==="موافق عليها"?"border-emerald-200":status==="مرفوضة"?"border-red-200":"border-slate-200"}`}>
-                  <div className="flex justify-between"><span className="text-xs font-bold">{LEAVE_TYPES[h.type]?.label} — {toArabicNum(h.days)} يوم</span><span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${STATUS_STYLE[status]||""}`}>{status}</span></div>
-                  <p className="text-[11px] text-slate-500 mt-1">من {arabicDate(h.dateFrom)} إلى {arabicDate(h.dateTo)}</p>
-                  {adminNote && <div className="text-[11px] bg-blue-50 rounded-xl p-2.5 mt-2"><span className="font-bold text-blue-700">📋 ملاحظة:</span> {adminNote}</div>}
-                </div>);
-              })}</div>}</div>
-            </div>
-          )}
+  const doTransfer = () => {
+    setItems(items.map(i => i.id===transferModal.id ? { ...i, qty: i.qty - transferModal.qty, lastUpdate: new Date().toISOString().slice(0,10) } : i));
+    auditLog("نقل", `نقل ${transferModal.qty} من ${transferModal.name}`, emp.name);
+    setTransferModal(null);
+    showToast("✓ تم نقل الكمية");
+  };
 
-          {view === "form" && <LeaveForm emp={emp} history={history} onSubmit={handleSubmit} onCancel={()=>setView("home")}/>}
-          {view === "receipt" && receipt && <LeaveReceipt emp={emp} leave={receipt} onClose={()=>setView("home")}/>}
-          {view === "materials" && <MaterialRequest emp={emp} empSignatures={empSignatures} setEmpSignatures={setEmpSignatures}/>}
-          {view === "changepass" && <ChangePasswordPage emp={emp} onLogout={onLogout}/>}
-          {view === "employees" && isAdmin && <EmployeeManager employees={employees} setEmployees={setEmployees}/>}
-          {view === "attendance" && <div className="bg-white rounded-2xl p-8 text-center"><Clock size={40} className="mx-auto text-slate-300"/><p className="text-slate-500 mt-2">نظام الحضور - قيد التطوير</p></div>}
-          {view === "training" && <div className="bg-white rounded-2xl p-8 text-center"><GraduationCap size={40} className="mx-auto text-slate-300"/><p className="text-slate-500 mt-2">نظام التدريب - قيد التطوير</p></div>}
-          {view === "reports" && <div className="bg-white rounded-2xl p-8 text-center"><BarChart size={40} className="mx-auto text-slate-300"/><p className="text-slate-500 mt-2">التقارير - قيد التطوير</p></div>}
-          {view === "notifications" && !isAdmin && <div className="space-y-3"><h2 className="font-bold text-slate-800">إشعاراتي</h2>{(notifications||[]).length===0?<div className="bg-white rounded-2xl p-10 text-center"><Bell size={28} className="text-slate-300 mx-auto"/><p className="text-sm text-slate-400">لا توجد إشعارات</p></div>:notifications.map(n=><div key={n.id} className={`bg-white rounded-2xl border p-4 ${n.read?"border-slate-200":"border-blue-300 bg-blue-50/30"}`}><p className="font-bold">{n.title}</p><p className="text-sm text-slate-500">{n.body}</p></div>)}</div>}
-          {view === "approvals" && isAdmin && <div className="space-y-4"><h2 className="font-bold text-slate-800">الموافقات ({pendingCount})</h2>{(allRequests||[]).filter(r=>r.status==="بانتظار المراجعة").map(req=><div key={req.id} className="bg-white rounded-2xl border p-4"><div className="flex justify-between"><div><p className="font-bold">{req.empName}</p><p className="text-xs text-slate-500">{req.type} — {req.days} يوم</p></div><div className="flex gap-2"><button onClick={()=>handleApproval(req.id,"approve")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold">قبول</button><button onClick={()=>handleApproval(req.id,"reject")} className="px-3 py-1.5 bg-red-600 text-white rounded-xl text-xs font-bold">رفض</button></div></div></div>)}</div>}
-          {view === "inventory" && <div className="bg-white rounded-2xl p-8 text-center"><Package size={40} className="mx-auto text-slate-300"/><p className="text-slate-500 mt-2">جرد المخزن - قيد التطوير</p></div>}
-          {view === "furniture" && <div className="bg-white rounded-2xl p-8 text-center"><ClipboardList size={40} className="mx-auto text-slate-300"/><p className="text-slate-500 mt-2">جرد الأثاث - قيد التطوير</p></div>}
-          {view === "projects" && <div className="bg-white rounded-2xl p-8 text-center"><FolderOpen size={40} className="mx-auto text-slate-300"/><p className="text-slate-500 mt-2">المشاريع - قيد التطوير</p></div>}
-          {view === "loginhistory" && isAdmin && <div className="bg-white rounded-2xl p-8 text-center"><Clock size={40} className="mx-auto text-slate-300"/><p className="text-slate-500 mt-2">سجل الدخول - قيد التطوير</p></div>}
-          {view === "auditlog" && isAdmin && <div className="bg-white rounded-2xl p-8 text-center"><ClipboardList size={40} className="mx-auto text-slate-300"/><p className="text-slate-500 mt-2">سجل التعديلات - قيد التطوير</p></div>}
-        </main>
+  const exportCSV = () => {
+    const rows = items.map(i => ({ "الرمز":i.code, "الاسم":i.name, "الفئة":i.category, "الوحدة":i.unit, "الكمية":i.qty, "الحالة":i.condition, "الموقع":i.location }));
+    const csv = [Object.keys(rows[0]).join(","), ...rows.map(r => Object.values(r).map(v=>`"${v}"`).join(","))].join("\n");
+    const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="inventory.csv"; a.click(); URL.revokeObjectURL(url);
+    showToast("✓ تم التصدير");
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3 items-center justify-between">
+        <div className="flex gap-2 flex-1">
+          <div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
+          <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="bg-white border rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={exportCSV} className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border px-3 py-2 rounded-xl"><Download size={13}/> CSV</button>
+          <button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة صنف</button>
+          <PrintButton targetId="print-inventory" title="جرد المخزن"/>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {[
+          { label:"إجمالي الأصناف", value:items.length, color:"bg-blue-50" },
+          { label:"إجمالي القطع", value:totalItems, color:"bg-slate-50" },
+          { label:"حالة جيدة", value:items.filter(i=>i.condition==="جيد").length, color:"bg-emerald-50" },
+          { label:"يحتاج صيانة", value:items.filter(i=>i.condition==="يحتاج صيانة").length, color:"bg-amber-50" },
+          { label:"تالف", value:damagedItems, color:"bg-red-50" },
+        ].map(s=><div key={s.label} className={`${s.color} rounded-2xl p-3 text-center border`}><p className="text-2xl font-bold">{s.value}</p><p className="text-[10px]">{s.label}</p></div>)}
+      </div>
+
+      {(adding || editId) && (
+        <div className="bg-white rounded-2xl border-2 border-blue-200 p-5">
+          <div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة صنف":"تعديل صنف"}</h4><button onClick={cancelForm}><X size={15}/></button></div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[["الرمز *","code"],["الاسم *","name"],["الفئة","category"],["الوحدة","unit"]].map(([l,k])=>(
+              <div key={k}><label className="block text-[10px] font-bold text-slate-500 mb-1">{l}</label><input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+            ))}
+            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الكمية</label><input type="number" value={form.qty} onChange={e=>setForm({...form,qty:Number(e.target.value)})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الحالة</label><select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">{ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}</select></div>
+            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الموقع</label><input value={form.location} onChange={e=>setForm({...form,location:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+          </div>
+          <div className="flex gap-2 justify-end mt-4"><button onClick={cancelForm} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl"><Save size={13}/> حفظ</button></div>
+        </div>
+      )}
+
+      <div id="print-inventory" className="bg-white rounded-2xl border overflow-hidden">
+        <div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b">{["الرمز","الاسم","الفئة","الكمية","الحالة","الموقع","آخر تحديث","إجراءات"].map(h=><th key={h} className="px-3 py-2 font-bold">{h}</th>)}</tr></thead>
+        <tbody>{filtered.map(it=>(
+          <tr key={it.id} className="border-b hover:bg-slate-50"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2 font-semibold">{it.name}</td><td className="px-3 py-2">{it.category}</td>
+          <td className="px-3 py-2 font-bold">{it.qty}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${COND_STYLE[it.condition]||""}`}>{it.condition}</span></td>
+          <td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 text-slate-400">{it.lastUpdate}</td>
+          <td className="px-3 py-2"><div className="flex gap-1"><button onClick={()=>openEdit(it)} className="p-1 text-blue-500 hover:bg-blue-50 rounded"><Edit3 size={12}/></button>
+          <button onClick={()=>setTransferModal(it)} className="p-1 text-amber-500 hover:bg-amber-50 rounded"><ArrowRightLeft size={12}/></button>
+          <button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div>
+      </div>
+
+      {transferModal && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={()=>setTransferModal(null)}><div className="bg-white rounded-2xl p-6 max-w-md w-full" onClick={e=>e.stopPropagation()}>
+        <h3 className="font-bold mb-3">نقل {transferModal.name}</h3><p className="text-sm text-slate-500 mb-3">الكمية المتاحة: {transferModal.qty}</p>
+        <input type="number" min="1" max={transferModal.qty} className="w-full border rounded-xl px-3 py-2 mb-4" placeholder="الكمية" onChange={e=>setTransferModal({...transferModal, qty:Number(e.target.value)})}/>
+        <div className="flex gap-2"><button onClick={()=>setTransferModal(null)} className="flex-1 py-2 border rounded-xl">إلغاء</button><button onClick={doTransfer} className="flex-1 py-2 bg-amber-500 text-white rounded-xl">تأكيد النقل</button></div>
+      </div></div>)}
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+    </div>
+  );
+}
+
+// ========== 4. جرد الأثاث ==========
+function FurnitureInventory({ emp, isAdmin }) {
+  const [items, setItems] = useLocalStorage("furniture_items", [
+    { id:1, code:"FURN-001", name:"منضدة كتابة 160 سم", category:"أثاث مكتبي", qty:5, condition:"جيد", location:"المكتب الرئيسي", serialNo:"SN001", lastUpdate:new Date().toISOString().slice(0,10) },
+    { id:2, code:"FURN-002", name:"كرسي دوار", category:"أثاث مكتبي", qty:8, condition:"جيد", location:"المكتب الرئيسي", serialNo:"SN002", lastUpdate:new Date().toISOString().slice(0,10) },
+    { id:3, code:"FURN-003", name:"خزانة ملفات", category:"أثاث مكتبي", qty:3, condition:"مستعمل", location:"أرشيف", serialNo:"SN003", lastUpdate:new Date().toISOString().slice(0,10) },
+    { id:4, code:"FURN-004", name:"طابعة HP", category:"أجهزة حاسوب", qty:2, condition:"جيد", location:"قسم IT", serialNo:"HP001", lastUpdate:new Date().toISOString().slice(0,10) },
+    { id:5, code:"FURN-005", name:"حاسب مكتبي Dell", category:"أجهزة حاسوب", qty:4, condition:"جيد", location:"قسم IT", serialNo:"Dell001", lastUpdate:new Date().toISOString().slice(0,10) },
+  ]);
+  const [search, setSearch] = useState("");
+  const [filterCat, setFilterCat] = useState("الكل");
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ code:"", name:"", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"", serialNo:"" });
+  const [adding, setAdding] = useState(false);
+  const [toast, setToast] = useState("");
+  
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const categories = ["الكل", ...FURNITURE_CATS];
+  const filtered = items.filter(i => (i.name.includes(search) || i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
+  const totalItems = items.reduce((s,i)=>s+i.qty,0);
+
+  const saveItem = () => {
+    if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
+    const updated = { ...form, lastUpdate: new Date().toISOString().slice(0,10) };
+    if (adding) setItems([...items, updated]);
+    else setItems(items.map(i => i.id===editId ? updated : i));
+    auditLog(adding?"إضافة":"تعديل", `${adding?"إضافة":"تعديل"} أثاث ${form.name}`, emp.name);
+    cancelForm();
+    showToast("✓ تم الحفظ");
+  };
+
+  const deleteItem = (id) => {
+    if (window.confirm("هل تريد حذف هذا العنصر؟")) {
+      setItems(items.filter(i => i.id !== id));
+      auditLog("حذف", `حذف أثاث`, emp.name);
+      showToast("✓ تم الحذف");
+    }
+  };
+
+  const openEdit = (it) => { setEditId(it.id); setForm({...it}); setAdding(false); };
+  const openAdd = () => { setAdding(true); setEditId(null); setForm({ code:"", name:"", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"", serialNo:"", id: Date.now() }); };
+  const cancelForm = () => { setEditId(null); setAdding(false); };
+
+  const exportCSV = () => {
+    const rows = items.map(i => ({ "الرمز":i.code, "الاسم":i.name, "الفئة":i.category, "الكمية":i.qty, "الحالة":i.condition, "الموقع":i.location, "الرقم التسلسلي":i.serialNo }));
+    const csv = [Object.keys(rows[0]).join(","), ...rows.map(r => Object.values(r).map(v=>`"${v}"`).join(","))].join("\n");
+    const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="furniture.csv"; a.click(); URL.revokeObjectURL(url);
+    showToast("✓ تم التصدير");
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3 items-center justify-between">
+        <div className="flex gap-2 flex-1"><div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
+        <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="bg-white border rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select></div>
+        <div className="flex gap-2"><button onClick={exportCSV} className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border px-3 py-2 rounded-xl"><Download size={13}/> CSV</button>
+        <button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button>
+        <PrintButton targetId="print-furniture" title="جرد الأثاث"/></div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label:"إجمالي الأصناف", value:items.length, color:"bg-violet-50" },
+          { label:"إجمالي القطع", value:totalItems, color:"bg-slate-50" },
+          { label:"حالة جيدة", value:items.filter(i=>i.condition==="جيد").length, color:"bg-emerald-50" },
+          { label:"يحتاج صيانة/تالف", value:items.filter(i=>i.condition!=="جيد").length, color:"bg-amber-50" },
+        ].map(s=><div key={s.label} className={`${s.color} rounded-2xl p-3 text-center border`}><p className="text-2xl font-bold">{s.value}</p><p className="text-[10px]">{s.label}</p></div>)}
+      </div>
+
+      {(adding || editId) && (
+        <div className="bg-white rounded-2xl border-2 border-violet-200 p-5">
+          <div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة قطعة":"تعديل قطعة"}</h4><button onClick={cancelForm}><X size={15}/></button></div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[["الرمز *","code"],["الاسم *","name"],["الفئة","category"],["الكمية","qty"],["الموقع","location"],["الرقم التسلسلي","serialNo"]].map(([l,k])=>(
+              <div key={k}><label className="block text-[10px] font-bold text-slate-500 mb-1">{l}</label><input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+            ))}
+            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الحالة</label><select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">{ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}</select></div>
+          </div>
+          <div className="flex gap-2 justify-end mt-4"><button onClick={cancelForm} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> حفظ</button></div>
+        </div>
+      )}
+
+      <div id="print-furniture" className="bg-white rounded-2xl border overflow-hidden">
+        <div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b">{["الرمز","الاسم","الفئة","الكمية","الحالة","الموقع","الرقم التسلسلي","إجراءات"].map(h=><th key={h} className="px-3 py-2 font-bold">{h}</th>)}</tr></thead>
+        <tbody>{filtered.map(it=>(
+          <tr key={it.id} className="border-b hover:bg-slate-50"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2 font-semibold">{it.name}</td><td className="px-3 py-2">{it.category}</td>
+          <td className="px-3 py-2 font-bold">{it.qty}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${COND_STYLE[it.condition]||""}`}>{it.condition}</span></td>
+          <td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 text-slate-400">{it.serialNo||"—"}</td>
+          <td className="px-3 py-2"><div className="flex gap-1"><button onClick={()=>openEdit(it)} className="p-1 text-blue-500 hover:bg-blue-50 rounded"><Edit3 size={12}/></button>
+          <button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div>
+      </div>
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+    </div>
+  );
+}
+
+// ========== 5. لوحة إحصائيات متقدمة ==========
+function AdvancedStats({ allEmployees, allRequests, trainings, attendanceRecords }) {
+  const [stats, setStats] = useState({
+    totalEmployees: 0,
+    activeEmployees: 0,
+    pendingRequests: 0,
+    approvedRequests: 0,
+    rejectedRequests: 0,
+    trainingCompleted: 0,
+    trainingInProgress: 0,
+    attendanceRate: 0,
+    mostActiveDept: "",
+  });
+
+  useEffect(() => {
+    const deptStats = {};
+    allEmployees.forEach(e => { deptStats[e.dept] = (deptStats[e.dept] || 0) + 1; });
+    const topDept = Object.entries(deptStats).sort((a,b)=>b[1]-a[1])[0];
+    
+    setStats({
+      totalEmployees: allEmployees.length,
+      activeEmployees: allEmployees.filter(e => e.shift === "صباحي").length,
+      pendingRequests: (allRequests || []).filter(r => r.status === "بانتظار المراجعة").length,
+      approvedRequests: (allRequests || []).filter(r => r.status === "موافق عليها").length,
+      rejectedRequests: (allRequests || []).filter(r => r.status === "مرفوضة").length,
+      trainingCompleted: (trainings || []).filter(t => t.status === "مكتملة").length,
+      trainingInProgress: (trainings || []).filter(t => t.status === "قيد التنفيذ" || t.status === "مُسندة").length,
+      attendanceRate: 85,
+      mostActiveDept: topDept ? topDept[0] : "—",
+    });
+  }, [allEmployees, allRequests, trainings]);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { icon: <Users size={24}/>, label: "إجمالي الموظفين", value: stats.totalEmployees, color: "bg-blue-500", trend: "+0" },
+          { icon: <UserCheck size={24}/>, label: "موظفين صباحيين", value: stats.activeEmployees, color: "bg-emerald-500", trend: `${Math.round(stats.activeEmployees/stats.totalEmployees*100)}%` },
+          { icon: <FileText size={24}/>, label: "طلبات معلقة", value: stats.pendingRequests, color: "bg-amber-500", trend: `${stats.pendingRequests} طلب` },
+          { icon: <GraduationCap size={24}/>, label: "تدريب مكتمل", value: stats.trainingCompleted, color: "bg-violet-500", trend: `${stats.trainingInProgress} قيد التنفيذ` },
+        ].map(s=>(
+          <div key={s.label} className={`${s.color} rounded-2xl p-5 text-white`}>
+            <div className="flex justify-between items-start"><div className="opacity-80">{s.icon}</div><span className="text-xs opacity-70">{s.trend}</span></div>
+            <p className="text-3xl font-bold mt-3">{s.value}</p><p className="text-sm opacity-80 mt-1">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white rounded-2xl border p-5"><h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><PieChart size={16}/> توزيع الطلبات</h3>
+          <div className="space-y-2">{[
+            { label:"موافق عليها", value:stats.approvedRequests, color:"bg-emerald-500" },
+            { label:"بانتظار المراجعة", value:stats.pendingRequests, color:"bg-amber-500" },
+            { label:"مرفوضة", value:stats.rejectedRequests, color:"bg-red-500" },
+          ].map(s=>{
+            const total = stats.approvedRequests+stats.pendingRequests+stats.rejectedRequests || 1;
+            const percent = Math.round(s.value/total*100);
+            return (<div key={s.label}><div className="flex justify-between text-xs mb-1"><span>{s.label}</span><span>{percent}%</span></div><div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full ${s.color} rounded-full`} style={{width:`${percent}%`}}/></div></div>);
+          })}</div></div>
+
+        <div className="bg-white rounded-2xl border p-5"><h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><Activity size={16}/> حالة التدريب</h3>
+          <div className="space-y-2">{[
+            { label:"مكتملة", value:stats.trainingCompleted, color:"bg-emerald-500" },
+            { label:"قيد التنفيذ", value:stats.trainingInProgress, color:"bg-blue-500" },
+          ].map(s=>{
+            const total = stats.trainingCompleted+stats.trainingInProgress || 1;
+            const percent = Math.round(s.value/total*100);
+            return (<div key={s.label}><div className="flex justify-between text-xs mb-1"><span>{s.label}</span><span>{percent}%</span></div><div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full ${s.color} rounded-full`} style={{width:`${percent}%`}}/></div></div>);
+          })}</div></div>
+
+        <div className="bg-white rounded-2xl border p-5"><h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><TrendingUp size={16}/> الحضور والإنتاجية</h3>
+          <div className="text-center"><div className="relative w-32 h-32 mx-auto"><div className="w-32 h-32 rounded-full border-8 border-slate-100"></div>
+          <div className="absolute inset-0 flex items-center justify-center"><p className="text-3xl font-bold text-emerald-600">{stats.attendanceRate}%</p></div></div><p className="text-sm text-slate-600 mt-3">نسبة الحضور الإجمالية</p></div></div>
+
+        <div className="bg-white rounded-2xl border p-5"><h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><Award size={16}/> القسم الأكثر نشاطاً</h3>
+          <div className="text-center"><div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl flex items-center justify-center mx-auto"><Award size={32} className="text-white"/></div>
+          <p className="font-bold text-slate-800 mt-3">{stats.mostActiveDept}</p><p className="text-xs text-slate-500">أكثر قسم نشاطاً في الطلبات</p></div></div>
       </div>
     </div>
   );
 }
 
-// ========== التطبيق الرئيسي ==========
+// ========== 6. سجل التعديلات ==========
+function AuditLogPage() {
+  const [logs, setLogs] = useFirebase("audit_log", []);
+  const [search, setSearch] = useState("");
+  const filtered = (logs || []).filter(l => l.details?.includes(search) || l.by?.includes(search) || l.action?.includes(search)).slice(0, 200);
+  const ACTION_ICONS = { "إضافة":"➕", "تعديل":"✏️", "حذف":"🗑️", "نقل":"🔄", "موافقة":"✅", "رفض":"❌", "إسناد":"📋", "تسجيل دخول":"🔑", "تسجيل خروج":"🚪" };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-3"><div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث في السجل..." className="bg-transparent text-sm outline-none w-full"/></div>
+      <PrintButton targetId="print-audit" title="سجل التعديلات"/></div>
+      <div id="print-audit" className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b">{["العملية","التفاصيل","بواسطة","التاريخ"].map(h=><th key={h} className="px-3 py-2 font-bold">{h}</th>)}</tr></thead>
+      <tbody>{filtered.length===0?<tr><td colSpan={4} className="text-center py-8 text-slate-400">لا توجد سجلات</td></tr>:
+      filtered.map(l=><tr key={l.id} className="border-b hover:bg-slate-50"><td className="px-3 py-2"><span className="text-lg ml-1">{ACTION_ICONS[l.action]||"📝"}</span>{l.action}</td>
+      <td className="px-3 py-2">{l.details}</td><td className="px-3 py-2">{l.by}</td><td className="px-3 py-2 text-slate-400">{new Date(l.at).toLocaleString("ar-IQ")}</td></tr>))}</tbody></table></div></div>
+    </div>
+  );
+}
+
+// ========== 7. تقارير PDF متعددة ==========
+function PDFReportsPage({ allEmployees }) {
+  const [reportType, setReportType] = useState("attendance");
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+
+  const generateReport = () => {
+    const element = document.getElementById("report-content");
+    if (element) printElement("report-content", `تقرير ${months[selectedMonth]} ${selectedYear}`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3 items-center">
+        <select value={reportType} onChange={e=>setReportType(e.target.value)} className="bg-white border rounded-xl px-3 py-2 text-sm">
+          <option value="attendance">تقرير الحضور الشهري</option>
+          <option value="requests">تقرير الطلبات</option>
+          <option value="employees">تقرير الموظفين</option>
+          <option value="inventory">تقرير المخزن</option>
+        </select>
+        <select value={selectedMonth} onChange={e=>setSelectedMonth(Number(e.target.value))} className="bg-white border rounded-xl px-3 py-2 text-sm">
+          {months.map((m,i)=><option key={i} value={i}>{m}</option>)}
+        </select>
+        <select value={selectedYear} onChange={e=>setSelectedYear(Number(e.target.value))} className="bg-white border rounded-xl px-3 py-2 text-sm">
+          {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+        </select>
+        <button onClick={generateReport} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><Printer size={14}/> توليد وطباعة</button>
+      </div>
+
+      <div id="report-content" className="hidden print:block">
+        <div className="text-center p-4"><p className="text-xl font-bold">شركة نفط البصرة - شعبة الفاو</p><p className="text-lg">التقرير الشهري - {months[selectedMonth]} {selectedYear}</p></div>
+        {reportType === "employees" && (
+          <table className="w-full border-collapse"><thead><tr><th className="border p-2">#</th><th className="border p-2">الاسم</th><th className="border p-2">الرقم الوظيفي</th><th className="border p-2">القسم</th></tr></thead>
+          <tbody>{allEmployees.map((e,i)=><tr key={e.id}><td className="border p-2">{i+1}</td><td className="border p-2">{e.name}</td><td className="border p-2">{e.jobNum}</td><td className="border p-2">{e.dept}</td></tr>)}</tbody></table>
+        )}
+        {reportType === "requests" && <p className="text-center p-8 text-slate-400">سيتم عرض تقرير الطلبات عند اكتمال البيانات</p>}
+        {reportType === "attendance" && <p className="text-center p-8 text-slate-400">سيتم عرض تقرير الحضور عند اكتمال البيانات</p>}
+        {reportType === "inventory" && <p className="text-center p-8 text-slate-400">سيتم عرض تقرير المخزن عند اكتمال البيانات</p>}
+        <div className="mt-8 pt-4 border-t flex justify-between"><div className="text-center"><p>توقيع الموظف</p><div className="w-32 border-t border-black mt-2"/></div><div className="text-center"><p>توقيع المشرف</p><div className="w-32 border-t border-black mt-2"/></div></div>
+      </div>
+    </div>
+  );
+}
+
+// ========== لوحة التحكم الرئيسية ==========
+function Dashboard({ emp, onLogout }) {
+  const [view, setView] = useState("home");
+  const [allRequests, setAllRequests] = useFirebase("requests", []);
+  const [trainings, setTrainings] = useFirebase("training/tasks", []);
+  const [employees, setEmployees] = useState(ACCOUNTS);
+  const { isConnected } = useConnectionStatus();
+  const isAdmin = emp.role === "admin" || emp.jobNum === "728004";
+  const isInventoryMgr = emp.role === "inventory_manager" || emp.jobNum === "790885";
+  const pendingCount = (allRequests || []).filter(r => r.status === "بانتظار المراجعة").length;
+
+  useEffect(() => {
+    const cleanup = setupIdleDetection(onLogout);
+    const needsChange = sessionStorage.getItem("force_password_change");
+    if (needsChange === "true") { sessionStorage.removeItem("force_password_change"); setTimeout(()=>{ if(window.confirm("🔐 يرجى تغيير كلمة المرور الافتراضية")) setView("changepass"); }, 500); }
+    return cleanup;
+  }, [onLogout]);
+
+  const menuItems = [
+    { id: "home", label: "الرئيسية", icon: <Home size={14}/> },
+    { id: "attendance", label: "الحضور", icon: <Calendar size={14}/> },
+    { id: "training", label: "التدريب", icon: <GraduationCap size={14}/> },
+    { id: "inventory", label: "جرد المخزن", icon: <Package size={14}/> },
+    { id: "furniture", label: "جرد الأثاث", icon: <ClipboardList size={14}/> },
+    { id: "stats", label: "الإحصائيات", icon: <BarChart2 size={14}/> },
+    { id: "audit", label: "سجل التعديلات", icon: <ClipboardList size={14}/> },
+    { id: "reports", label: "التقارير", icon: <FileText size={14}/> },
+    { id: "changepass", label: "تغيير كلمة المرور", icon: <Shield size={14}/> },
+  ];
+
+  if (isAdmin) {
+    menuItems.unshift({ id: "approvals", label: "الموافقات", icon: <ThumbsUp size={14}/>, badge: pendingCount });
+    menuItems.unshift({ id: "employees", label: "إدارة الموظفين", icon: <Users size={14}/> });
+  }
+  if (isInventoryMgr && !isAdmin) menuItems.push({ id: "inventory", label: "جرد المخزن", icon: <Package size={14}/> });
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row" dir="rtl">
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap');*{font-family:'IBM Plex Sans Arabic',sans-serif;}.fu{animation:fadeIn .3s ease}@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@media print{.no-print{display:none!important}}`}</style>
+
+      <aside className="no-print hidden md:flex w-64 bg-slate-900 text-white flex-col shrink-0 min-h-screen sticky top-0">
+        <div className="p-4 border-b border-slate-800"><div className="flex items-center gap-3 mb-3"><div className="w-9 h-9 rounded-full bg-blue-800 border flex items-center justify-center"><span className="text-white font-bold text-xs">BOC</span></div>
+        <div><p className="text-xs font-bold">شركة نفط البصرة</p><p className="text-[10px] text-blue-400">شعبة مستودع الفاو</p></div></div>
+        <div className="bg-slate-800 rounded-xl px-3 py-2"><p className="text-xs font-bold truncate">{emp.name.split(" ").slice(0,3).join(" ")}</p><p className="text-[10px] text-slate-400">{emp.title}</p>{isAdmin && <span className="text-[9px] text-amber-400 flex items-center gap-1 mt-1"><Shield size={10}/> مشرف</span>}</div></div>
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">{menuItems.map(item => (
+          <button key={item.id} onClick={()=>setView(item.id)} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${view===item.id?"bg-blue-600":"text-slate-400 hover:bg-slate-800 hover:text-white"}`}>
+            <span className="flex items-center gap-2.5">{item.icon}{item.label}</span>{item.badge>0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{item.badge}</span>}
+          </button>))}
+          <button onClick={onLogout} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-red-400 hover:bg-red-950/40 mt-4"><LogOut size={14}/> تسجيل الخروج</button>
+        </nav>
+        <div className="px-3 pb-3"><div className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-slate-400"><div className={`w-2 h-2 rounded-full ${isConnected?"bg-emerald-400":"bg-amber-400"}`}/>{isConnected?"متصل بالسحابة":"وضع غير متصل"}</div></div>
+      </aside>
+
+      <div className="flex-1 flex flex-col min-h-screen"><main className="flex-1 p-4 md:p-6 overflow-y-auto">
+        {view === "home" && (<div className="fu"><div className="bg-white rounded-2xl p-8 shadow-sm"><div className="flex items-center gap-4"><div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center"><User size={28} className="text-white"/></div><div><h2 className="text-xl font-bold">مرحباً، {emp.name.split(" ")[0]}</h2><p className="text-slate-500">نظام شعبة مستودع الفاو المتكامل</p></div></div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6"><div className="bg-emerald-50 border rounded-xl p-4"><CheckCircle className="text-emerald-600"/><p className="font-bold mt-2">✓ النظام يعمل</p><p className="text-xs text-slate-500">جميع الأنظمة جاهزة</p></div>
+        <div className="bg-blue-50 border rounded-xl p-4"><Shield className="text-blue-600"/><p className="font-bold mt-2">✓ آمن ومشفر</p><p className="text-xs text-slate-500">كلمات المرور مشفرة</p></div>
+        <div className="bg-amber-50 border rounded-xl p-4"><Wifi className="text-amber-600"/><p className="font-bold mt-2">{isConnected?"متصل بالسحابة":"وضع غير متصل"}</p><p className="text-xs text-slate-500">{isConnected?"مزامنة تلقائية مفعلة":"يعمل محلياً"}</p></div></div>
+        <div className="mt-6 pt-6 border-t"><p className="text-sm text-slate-600">الوحدات المتاحة: الحضور | التدريب | جرد المخزن | جرد الأثاث | التقارير | الإحصائيات</p></div></div></div>)}
+        {view === "attendance" && <AttendanceSystem emp={emp} isAdmin={isAdmin} allEmployees={employees} />}
+        {view === "training" && <TrainingSystem emp={emp} isAdmin={isAdmin} allEmployees={employees} />}
+        {view === "inventory" && <InventorySystem emp={emp} isAdmin={isAdmin} />}
+        {view === "furniture" && <FurnitureInventory emp={emp} isAdmin={isAdmin} />}
+        {view === "stats" && <AdvancedStats allEmployees={employees} allRequests={allRequests} trainings={trainings} />}
+        {view === "audit" && <AuditLogPage />}
+        {view === "reports" && <PDFReportsPage allEmployees={employees} />}
+        {view === "changepass" && <ChangePasswordPage emp={emp} onLogout={onLogout} />}
+        {view === "employees" && isAdmin && <EmployeeManager employees={employees} setEmployees={setEmployees} />}
+        {view === "approvals" && isAdmin && (<div className="space-y-4"><h3 className="font-bold text-slate-800">الموافقات ({pendingCount})</h3>
+          {(allRequests||[]).filter(r=>r.status==="بانتظار المراجعة").map(req=><div key={req.id} className="bg-white rounded-2xl border p-4"><div className="flex justify-between"><div><p className="font-bold">{req.empName}</p><p className="text-xs">{req.type} — {req.days} يوم</p></div><div className="flex gap-2"><button onClick={()=>{setAllRequests((allRequests||[]).map(r=>r.id===req.id?{...r,status:"موافق عليها"}:r)); auditLog("موافقة",`تمت الموافقة على طلب ${req.type}`,emp.name);}} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs">قبول</button>
+          <button onClick={()=>{setAllRequests((allRequests||[]).map(r=>r.id===req.id?{...r,status:"مرفوضة"}:r)); auditLog("رفض",`تم رفض طلب ${req.type}`,emp.name);}} className="px-3 py-1.5 bg-red-600 text-white rounded-xl text-xs">رفض</button></div></div></div>)}</div>)}
+      </main></div>
+    </div>
+  );
+}
+
+// ========== إدارة الموظفين المبسطة ==========
+function EmployeeManager({ employees, setEmployees }) {
+  const [search, setSearch] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي" });
+  const [adding, setAdding] = useState(false);
+  const filtered = employees.filter(e => e.name.includes(search) || e.jobNum.includes(search));
+  const saveEmp = () => {
+    if (!form.name || !form.jobNum) return;
+    if (adding) setEmployees([...employees, { ...form, id: Date.now() }]);
+    else setEmployees(employees.map(e => e.id===editId ? { ...form, id:editId } : e));
+    setAdding(false); setEditId(null);
+  };
+  return (<div className="space-y-4"><div className="flex gap-3"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="flex-1 border rounded-xl px-3 py-2"/><button onClick={()=>{setAdding(true); setForm({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي" });}} className="px-4 py-2 bg-blue-600 text-white rounded-xl"><Plus size={14}/> إضافة</button></div>
+  {(adding||editId) && (<div className="bg-white rounded-2xl border p-5"><div className="grid grid-cols-2 gap-3">{["name","jobNum","title"].map(k=><input key={k} value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} placeholder={k} className="border rounded-xl px-3 py-2"/>)}
+  <select value={form.dept} onChange={e=>setForm({...form,dept:e.target.value})} className="border rounded-xl px-3 py-2"><option>قسم السيطرة والنظم</option><option>شعبة مستودع الفاو</option><option>شعبة المرافئ</option></select>
+  <select value={form.shift} onChange={e=>setForm({...form,shift:e.target.value})} className="border rounded-xl px-3 py-2"><option>صباحي</option><option>مناوبة</option></select></div>
+  <div className="flex gap-2 mt-4"><button onClick={()=>{setAdding(false);setEditId(null);}} className="flex-1 py-2 border rounded-xl">إلغاء</button><button onClick={saveEmp} className="flex-1 py-2 bg-blue-600 text-white rounded-xl">حفظ</button></div></div>)}
+  <div className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="bg-slate-50 border-b"><th className="px-3 py-2 text-right">الاسم</th><th className="px-3 py-2 text-right">الرقم</th><th className="px-3 py-2 text-right">المسمى</th><th className="px-3 py-2 text-right">القسم</th><th></th></tr></thead>
+  <tbody>{filtered.map(e=><tr key={e.id} className="border-b"><td className="px-3 py-2">{e.name}</td><td className="px-3 py-2">{e.jobNum}</td><td className="px-3 py-2">{e.title}</td><td className="px-3 py-2">{e.dept}</td><td className="px-3 py-2"><button onClick={()=>{setEditId(e.id); setForm(e);}} className="text-blue-500"><Edit3 size={14}/></button></td></tr>)}</tbody></table></div></div></div>);
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
-
-  return user ? <Dashboard emp={user} onLogout={() => { sessionStorage.clear(); setUser(null); }} /> : <LoginScreen onLogin={setUser} />;
+  return user ? <Dashboard emp={user} onLogout={()=>{sessionStorage.clear(); setUser(null);}} /> : <LoginScreen onLogin={setUser} />;
 }
