@@ -8294,54 +8294,72 @@ function SiteMapPage({ isAdmin }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   CHANGE PASSWORD — تغيير كلمة المرور
+   CHANGE PASSWORD — تغيير كلمة المرور (نسخة مصلحة لـ Vercel)
 ═══════════════════════════════════════════════════════════ */
-function ChangePasswordPage({ emp }) {
-  const [, setFbPassword] = useFirebase(`passwords/${emp.jobNum}`, null);
+function ChangePasswordPage({ emp, setUser }) {
+  // استخدام cardId بدلاً من jobNum للتوافق مع الرقم الوظيفي الجديد
+  const [, setFbPassword] = useFirebase(`employees/${emp.id}/password`, null);
   const [newPass,     setNewPass]     = useState("");
   const [confirm,     setConfirm]     = useState("");
-  const [showN,       setShowN]       = useState(false);
-  const [msg,         setMsg]         = useState(null);
+  const [showN,        setShowN]       = useState(false);
+  const [msg,          setMsg]         = useState(null); // هنا المعرّف الفعلي هو setMsg
   const [passLoading, setPassLoading] = useState(false);
 
   const saveNewPassword = async () => {
-  if (!newPass.trim()) {
-    setPassMsg({ text: "الرجاء إدخال كلمة مرور صالحة", type: "error" });
-    return;
-  }
-  if (newPass.trim().length < 4) {
-    setPassMsg({ text: "كلمة المرور يجب أن تكون من 4 خانات أو أكثر", type: "error" });
-    return;
-  }
-  
-  setPassLoading(true);
-  try {
-    // تشفير كلمة المرور الجديدة
-    const encryptedPassword = SEC.encode(newPass.trim());
-    
-    const response = await fetch(`${FIREBASE_URL}/employees/${emp.id}/password.json?auth=${FIREBASE_API_KEY}`, {
-      method: 'PUT',
-      body: JSON.stringify(encryptedPassword)
-    });
-
-    if (!response.ok) throw new Error("فشل الاستجابة من السيرفر");
-
-    setPassMsg({ text: "تم تغيير كلمة المرور بنجاح!", type: "success" });
-    setNewPass("");
-    
-    // تحديث كلمة السر في الجلسة الحالية فوراً
-    emp.password = encryptedPassword; 
-    if (setUser) {
-      setUser(prev => prev ? { ...prev, password: encryptedPassword } : prev);
+    if (!newPass || !newPass.trim()) {
+      setMsg({ text: "الرجاء إدخال كلمة مرور صالحة", type: "error" });
+      return;
+    }
+    if (newPass.trim().length < 4) {
+      setMsg({ text: "كلمة المرور يجب أن تكون من 4 خانات أو أكثر", type: "error" });
+      return;
+    }
+    if (newPass.trim() !== confirm.trim()) {
+      setMsg({ text: "كلمات المرور غير متطابقة", type: "error" });
+      return;
     }
 
-  } catch (error) {
-    console.error(error);
-    setPassMsg({ text: "فشل الاتصال بقاعدة البيانات", type: "error" });
-  } finally {
-    setPassLoading(false);
-  }
-};
+    setPassLoading(true);
+    setMsg(null);
+
+    try {
+      // تشفير كلمة المرور الجديدة عبر دالة الأمان الخاصة بك
+      const encryptedPassword = SEC.encode(newPass.trim());
+
+      // حفظها مباشرة في مسار الموظف الصحيح بـ Firebase
+      const response = await fetch(`${FIREBASE_URL}/employees/${emp.id}/password.json?auth=${FIREBASE_API_KEY}`, {
+        method: 'PUT',
+        body: JSON.stringify(encryptedPassword)
+      });
+
+      if (!response.ok) throw new Error("فشل الاستجابة من السيرفر");
+
+      // تحديث حالة السيرفر الداخلي للـ hook المخصص لديك
+      if (typeof setFbPassword === 'function') {
+        setFbPassword(encryptedPassword);
+      }
+
+      setMsg({ text: "تم تغيير كلمة المرور بنجاح!", type: "success" });
+      setNewPass("");
+      setConfirm("");
+
+      // تحديث بيانات الموظف في الجلسة المفتوحة حالياً فوراً دون تسجيل خروج
+      if (emp) {
+        emp.password = encryptedPassword;
+      }
+      if (typeof setUser === 'function') {
+        setUser(prev => prev ? { ...prev, password: encryptedPassword } : prev);
+      }
+
+    } catch (error) {
+      console.error(error);
+      setMsg({ text: "فشل الاتصال بقاعدة البيانات، حاول مجدداً", type: "error" });
+    } finally {
+      setPassLoading(false);
+    }
+  };
+
+  // تأكد من أن بقية الـ return الخاصة بالصفحة تستخدم {msg && ...} لعرض الرسالة أسفل الزر
 
   const inp = "w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white transition-all";
 
