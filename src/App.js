@@ -85,16 +85,6 @@ function verifyPassword(a,b) { return String(a).trim()===String(b).trim(); }
 
 
 // 5. Idle Timeout — تسجيل خروج تلقائي عند الخمول (30 دقيقة)
-let _idleTimer = null;
-const IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-
-function resetIdleTimer(onLogout) {
-  clearTimeout(_idleTimer);
-  _idleTimer = setTimeout(() => {
-    try { sessionStorage.removeItem("boc_session"); } catch {}
-    onLogout();
-  }, IDLE_TIMEOUT);
-}
 
 function setupIdleDetection(onLogout) {
   const reset = () => resetIdleTimer(onLogout);
