@@ -90,10 +90,12 @@ export function useDataInitializer() {
       };
 
       try {
-        await fetch(`${FIREBASE_URL}/employees.json?auth=${FIREBASE_API_KEY}`, {
+        const r = await fetch(`${FIREBASE_URL}/employees.json`, {
           method: "PUT",
+          headers: {"Content-Type":"application/json"},
           body: JSON.stringify(completeKashf)
         });
+        if (r.ok) console.log("✓ 33 employees uploaded to Firebase");
         console.log("تم تحديث قاعدة البيانات بنجاح لـ 33 موظفاً بالكامل!");
       } catch (e) {
         console.error(e);
@@ -353,19 +355,13 @@ async function restoreBackup(date) {
   }
 }
 
-/* ── Firebase REST helpers — مع Auth Token ── */
+/* ── Firebase REST helpers ── */
 const fb = {
-  _url(path) {
-    const t = _idToken;
-    return t ? `${FIREBASE_URL}/${path}.json?auth=${t}` : `${FIREBASE_URL}/${path}.json`;
-  },
   async get(path) {
     try {
-      const tok = await getToken();
-      const url = tok ? `${FIREBASE_URL}/${path}.json?auth=${tok}` : `${FIREBASE_URL}/${path}.json`;
       const ctrl = new AbortController();
       const t = setTimeout(()=>ctrl.abort(), 8000);
-      const r = await fetch(url, {signal:ctrl.signal});
+      const r = await fetch(`${FIREBASE_URL}/${path}.json`, {signal:ctrl.signal});
       clearTimeout(t);
       if (!r.ok) return null;
       const d = await r.json();
@@ -375,24 +371,24 @@ const fb = {
   },
   async set(path, data) {
     try {
-      const tok = await getToken();
-      const url = tok ? `${FIREBASE_URL}/${path}.json?auth=${tok}` : `${FIREBASE_URL}/${path}.json`;
-      await fetch(url, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) });
+      await fetch(`${FIREBASE_URL}/${path}.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data)
+      });
     } catch {}
   },
   async push(path, data) {
     try {
-      const tok = await getToken();
-      const url = tok ? `${FIREBASE_URL}/${path}.json?auth=${tok}` : `${FIREBASE_URL}/${path}.json`;
-      const r = await fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) });
+      const r = await fetch(`${FIREBASE_URL}/${path}.json`, {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data)
+      });
       return (await r.json())?.name;
     } catch { return null; }
   },
   async patch(path, data) {
     try {
-      const tok = await getToken();
-      const url = tok ? `${FIREBASE_URL}/${path}.json?auth=${tok}` : `${FIREBASE_URL}/${path}.json`;
-      await fetch(url, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) });
+      await fetch(`${FIREBASE_URL}/${path}.json`, {
+        method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data)
+      });
     } catch {}
   },
   listen() { return ()=>{}; },
@@ -707,8 +703,9 @@ function LoginScreen({ onLogin }) {
       let stored = null;
       try {
         const res = await fetch(`${FIREBASE_URL}/passwords/${baseAcct.jobNum}.json`);
-        const val = await res.json();
-        if (typeof val === "string" && val.length > 0) stored = val;
+        const raw = await res.json();
+        if (raw && typeof raw === "string" && raw.length > 0) stored = raw;
+        else if (raw && typeof raw === "object" && !raw.error) stored = null;
       } catch {}
 
       // SEC.verify يقبل كلمة مرور قديمة (نص صريح) أو جديدة (مُشفَّرة)
@@ -8324,7 +8321,7 @@ function ChangePasswordPage({ emp, setUser }) {
       // تشفير كلمة المرور الآمنة
       const encryptedPassword = SEC.encode(newPass.trim());
 
-      const response = await fetch(`${FIREBASE_URL}/employees/${emp.id}/password.json?auth=${FIREBASE_API_KEY}`, {
+      const response = await fetch(`${FIREBASE_URL}/employees/${emp.id}/password.json`, {
         method: 'PUT',
         body: JSON.stringify(encryptedPassword)
       });
@@ -8431,46 +8428,96 @@ export default function LeaveSystem() {
     setLoginError("");
 
     try {
-      // جلب البيانات من شجرة الموظفين في Firebase
-      const response = await fetch(`${FIREBASE_URL}/employees.json?auth=${FIREBASE_API_KEY}`);
-      if (!response.ok) throw new Error("فشل الاتصال بقاعدة البيانات");
-      
-      const employeesData = await response.json();
-      if (!employeesData) {
-        setLoginError("قاعدة البيانات فارغة، يرجى تهيئة الحسابات");
-        return;
+      // ── 1. جلب كلمة المرور المُخزَّنة من Firebase ──
+      let storedPassword = null;
+      try {
+        const pwRes = await fetch(`${FIREBASE_URL}/passwords/${String(enteredCardId).trim()}.json`);
+        const pwVal = await pwRes.json();
+        if (pwVal && typeof pwVal === "string") storedPassword = pwVal;
+      } catch {}
+
+      // ── 2. التحقق من كلمة المرور ──
+      let passwordValid = false;
+      if (storedPassword) {
+        // كلمة مرور محفوظة في Firebase (مُشفَّرة أو نص)
+        passwordValid = SEC.verify(enteredPassword.trim(), storedPassword);
+      } else {
+        // fallback: استخدام ACCOUNTS المحلية
+        const acct = ACCOUNTS.find(a =>
+          String(a.jobNum).trim() === String(enteredCardId).trim() ||
+          String(a.username).trim() === String(enteredCardId).trim()
+        );
+        if (acct) passwordValid = enteredPassword.trim() === acct.password;
       }
 
-      // البحث عن الموظف بمطابقة الرقم الوظيفي المخزن (cardId)
-      const foundEmployee = Object.values(employeesData).find(
-        (emp) => emp && String(emp.cardId).trim() === String(enteredCardId).trim()
-      );
-
-      if (!foundEmployee) {
-        setLoginError("الرقم الوظيفي غير مسجل في النظام");
-        return;
-      }
-
-      // فك تشفير كلمة المرور الآمنة ومقارنتها بالمدخلة
-      const decryptedPass = SEC.decode(foundEmployee.password);
-      if (decryptedPass !== enteredPassword.trim()) {
+      if (!passwordValid) {
         setLoginError("كلمة المرور غير صحيحة");
         return;
       }
 
-      // نجاح تسجيل الدخول وحفظ البيانات في الجلسة
-      setUser(foundEmployee);
-      
-      // تشغيل نسخة احتياطية تلقائية إذا كان الموظف هو الأستاذ إيهاب (المشرف العام)
-      if (String(foundEmployee.cardId) === "728004") {
-        if (typeof takeBackup === "function") {
-          setTimeout(() => takeBackup(foundEmployee.name), 3000);
+      // ── 3. جلب بيانات الموظف ──
+      let foundEmployee = null;
+
+      // أولاً: جرّب Firebase employees
+      try {
+        const empRes = await fetch(`${FIREBASE_URL}/employees.json`);
+        const empData = await empRes.json();
+        if (empData && typeof empData === "object" && !empData.error) {
+          const vals = Array.isArray(empData) ? empData : Object.values(empData);
+          foundEmployee = vals.find(e =>
+            e && (String(e.cardId||e.jobNum||e.id).trim() === String(enteredCardId).trim())
+          );
         }
+      } catch {}
+
+      // ثانياً: fallback إلى ACCOUNTS
+      if (!foundEmployee) {
+        const acct = ACCOUNTS.find(a =>
+          String(a.jobNum).trim() === String(enteredCardId).trim() ||
+          String(a.username).trim() === String(enteredCardId).trim()
+        );
+        if (acct) foundEmployee = { ...acct, cardId: acct.jobNum };
+      }
+
+      if (!foundEmployee) {
+        setLoginError("الرقم الوظيفي غير موجود في النظام");
+        return;
+      }
+
+      // ── 4. نجاح الدخول ──
+      // حفظ كلمة المرور في Firebase إذا لم تكن موجودة
+      if (!storedPassword) {
+        try {
+          await fetch(`${FIREBASE_URL}/passwords/${String(enteredCardId).trim()}.json`, {
+            method:"PUT", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify(SEC.encode(enteredPassword.trim()))
+          });
+        } catch {}
+      }
+
+      try {
+        sessionStorage.setItem("boc_session", JSON.stringify({
+          acct: foundEmployee, expiry: Date.now() + 8*60*60*1000
+        }));
+      } catch {}
+
+      setUser(foundEmployee);
+      if (String(foundEmployee.cardId||foundEmployee.jobNum) === "728004") {
+        if (typeof takeBackup === "function") setTimeout(() => takeBackup(foundEmployee.name), 3000);
       }
 
     } catch (error) {
       console.error(error);
-      setLoginError("حدث خطأ في الاتصال بالسيرفر، حاول مجدداً");
+      // Final fallback: ACCOUNTS only
+      const acct = ACCOUNTS.find(a =>
+        (String(a.jobNum).trim() === String(enteredCardId).trim()) &&
+        enteredPassword.trim() === a.password
+      );
+      if (acct) {
+        setUser({...acct, cardId: acct.jobNum});
+      } else {
+        setLoginError("خطأ في الاتصال — تحقق من الشبكة");
+      }
     } finally {
       setLoginLoading(false);
     }
