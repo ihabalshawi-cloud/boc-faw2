@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+
+    <!-- ══ Viewport — موبايل PWA ══ -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <!-- ══ PWA Manifest (مرة واحدة فقط) ══ -->
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+
+    <!-- ══ Theme Color ══ -->
+    <meta name="theme-color" content="#0d2348" />
+
+    <!-- ══ iOS PWA ══ -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="BOC الفاو" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+
+    <!-- ══ Favicon ══ -->
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+
+    <!-- ══ SEO / Description ══ -->
+    <meta name="description" content="نظام إدارة الإجازات والمخازن والمشاريع — شركة نفط البصرة، شعبة مستودع الفاو" />
+    <meta name="application-name" content="BOC الفاو" />
+
+    <!-- ══ Arabic Font ══ -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- ══ Service Worker registration ══ -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('%PUBLIC_URL%/sw.js')
+            .then(function (reg) { console.log('SW registered:', reg.scope); })
+            .catch(function (err) { console.warn('SW registration failed:', err); });
+        });
+      }
+    </script>
+
+    <title>BOC الفاو — شركة نفط البصرة</title>
+  </head>
+  <body>
+    <noscript>يجب تفعيل JavaScript لتشغيل هذا التطبيق.</noscript>
+    <div id="root"></div>
+  </body>
+</html>
