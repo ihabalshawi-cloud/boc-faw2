@@ -26,9 +26,7 @@ let _tokenExpiry  = 0;
 
 // الحصول على token صالح (يُجدَّد تلقائياً)
 async function getToken() {
-  // لا يزال صالحاً (مع هامش دقيقة)
   if (_idToken && Date.now() < _tokenExpiry - 60000) return _idToken;
-  // تجديد باستخدام refreshToken
   if (_refreshTk) {
     try {
       const r = await fetch(`${FB_TOKEN}/token?key=${FIREBASE_API_KEY}`, {
@@ -46,6 +44,64 @@ async function getToken() {
     } catch {}
   }
   return null;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   تجهيز الكشف الكامل الفعلي لشعبة مستودع الفاو (33 موظفاً)
+═══════════════════════════════════════════════════════════ */
+// دالة الرفع التلقائية بالرقم الوظيفي لتصفير الـ null
+export function useDataInitializer() {
+  useEffect(() => {
+    const uploadKashf33ToFirebase = async () => {
+      const completeKashf = {
+        "0": { id: "0", cardId: "728004", username: "i.shawi", password: "1001", name: "ايهاب عبد اللطيف عودة سلمان الشاوي", role: "مشرف / مخول", department: "قسم السيطرة والنظم" },
+        "1": { id: "1", cardId: "727466", username: "o.rubaie", password: "1002", name: "عدي فيصل عبد الهادي عبد السيد الربيعه", role: "موظف", department: "قسم السيطرة والنظم" },
+        "2": { id: "2", cardId: "737283", username: "om.miyahi", password: "1003", name: "عمر طاهر خزعل سبهان المياحي", role: "موظف", department: "قسم السيطرة والنظم" },
+        "3": { id: "3", cardId: "756571", username: "l.rubaie", password: "1004", name: "ليث شاكر حمود زعيتر الربيعه", role: "موظف", department: "قسم السيطرة والنظم" },
+        "4": { id: "4", cardId: "790850", username: "as.nassari", password: "1005", name: "اسعد عبد الامام يوسف حميد النصاري", role: "موظف", department: "شعبة مستودع الفاو" },
+        "5": { id: "5", cardId: "719113", username: "sb.nassari", password: "1006", name: "صباح عبد الامام يوسف حميد النصاري", role: "موظف", department: "شعبة مستودع الفاو" },
+        "6": { id: "6", cardId: "736990", username: "m.shawi", password: "1007", name: "محمد عبد اللطيف عودة سلمان الشاوي", role: "موظف", department: "شعبة مستودع الفاو" },
+        "7": { id: "7", cardId: "736502", username: "m.khairullah", password: "1008", name: "مصطفى خير الله خفي جاسم خير الله", role: "موظف", department: "شعبة مستودع الفاو" },
+        "8": { id: "8", cardId: "735956", username: "m.kanan", password: "1009", name: "مرتضى كنعان عبد الزهرة لازم كنعان", role: "موظف", department: "شعبة مستودع الفاو" },
+        "9": { id: "9", cardId: "735878", username: "h.asadi", password: "1010", name: "حيدر علي جاسم محمد الاسدي", role: "موظف", department: "قسم السيطرة والنظم" },
+        "10": { id: "10", cardId: "736200", username: "h.kaabi", password: "1011", name: "حسن هادي لفته حسن الكعبي", role: "موظف", department: "قسم السيطرة والنظم" },
+        "11": { id: "11", cardId: "732001", username: "m.khalaf", password: "2001", name: "محمد جاسم خلف", role: "موظف", department: "شعبة مستودع الفاو" },
+        "12": { id: "12", cardId: "732002", username: "ah.ali", password: "2002", name: "احمد علي حسين", role: "موظف", department: "شعبة مستودع الفاو" },
+        "13": { id: "13", cardId: "731110", username: "m.fadhil", password: "2003", name: "محمد فاضل عباس علي ثامر", role: "موظف", department: "قسم السيطرة والنظم" },
+        "14": { id: "14", cardId: "732288", username: "j.bedan", password: "2004", name: "جعفر جاسم بدان ثامر البدان", role: "موظف", department: "قسم السيطرة والنظم" },
+        "15": { id: "15", cardId: "726927", username: "am.khalaf", password: "2005", name: "امين عبد الجبار خلف محمد جاسم", role: "موظف", department: "شعبة مستودع الفاو" },
+        "16": { id: "16", cardId: "736450", username: "m.shihab", password: "2006", name: "مرتضى شهاب احمد محمد البدر", role: "موظف", department: "شعبة مستودع الفاو" },
+        "17": { id: "17", cardId: "736053", username: "s.ismail", password: "2007", name: "سجاد اسماعيل خليل ابراهيم الصالح", role: "موظف", department: "شعبة مستودع الفاو" },
+        "18": { id: "18", cardId: "736732", username: "m.dawood", password: "2008", name: "مرتضى محمد داود سلمان سلمان داود", role: "موظف", department: "قسم السيطرة والنظم" },
+        "19": { id: "19", cardId: "719048", username: "al.jafar", password: "2009", name: "علاء محسن عذبي جعفر الجعفر", role: "موظف", department: "شعبة مستودع الفاو" },
+        "20": { id: "20", cardId: "735922", username: "al.aidani", password: "2010", name: "علي طارق ياسين مهودر العيداني", role: "موظف", department: "قسم السيطرة والنظم" },
+        "21": { id: "21", cardId: "732249", username: "al.ali", password: "2011", name: "علي باقر حنتوش مليس العلي", role: "موظف", department: "قسم السيطرة والنظم" },
+        "22": { id: "22", cardId: "726508", username: "y.yaseen", password: "2012", name: "يوسف عباس ياسين احمد ياسين", role: "موظف", department: "شعبة مستودع الفاو" },
+        "23": { id: "23", cardId: "719129", username: "dh.ghanim", password: "2013", name: "ضياء بدر حمادي اسماعيل الغانم", role: "موظف", department: "قسم السيطرة والنظم" },
+        "24": { id: "24", cardId: "719099", username: "ad.atiya", password: "2014", name: "عدنان جواد كاظم جعفر العطية", role: "موظف", department: "قسم السيطرة والنظم" },
+        "25": { id: "25", cardId: "732837", username: "ih.saleem", password: "2015", name: "احسان جواد كاظم حسين السليم", role: "موظف", department: "شعبة مستودع الفاو" },
+        "26": { id: "26", cardId: "735948", username: "m.sabah", password: "2016", name: "مصطفى صباح نوري جاسم جاسم", role: "موظف", department: "شعبة مستودع الفاو" },
+        "27": { id: "27", cardId: "736340", username: "h.yaseen", password: "2017", name: "حيدر عباس ياسين احمد ياسين", role: "موظف", department: "شعبة مستودع الفاو" },
+        "28": { id: "28", cardId: "732152", username: "h.khalaf", password: "2018", name: "حسن طاهر خلف محمد جاسم", role: "موظف", department: "شعبة مستودع الفاو" },
+        "29": { id: "29", cardId: "300101", username: "k.contract", password: "3001", name: "كرار عماد خلف (عقد)", role: "موظف", department: "شعبة مستودع الفاو" },
+        "30": { id: "30", cardId: "300102", username: "m.contract", password: "3002", name: "مصطفى كامل ناصر (عقد)", role: "موظف", department: "شعبة مستودع الفاو" },
+        "31": { id: "31", cardId: "300103", username: "a.contract", password: "3003", name: "احمد نجاح عبود (عقد)", role: "موظف", department: "شعبة مستودع الفاو" },
+        "32": { id: "32", cardId: "300104", username: "h.contract", password: "3004", name: "حسين علي خضير (عقد)", role: "موظف", department: "شعبة مستودع الفاو" }
+      };
+
+      try {
+        await fetch(`${FIREBASE_URL}/employees.json?auth=${FIREBASE_API_KEY}`, {
+          method: "PUT",
+          body: JSON.stringify(completeKashf)
+        });
+        console.log("تم تحديث قاعدة البيانات بنجاح لـ 33 موظفاً بالكامل!");
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    uploadKashf33ToFirebase();
+  }, []);
 }
 
 // Firebase Auth reserved for future use
@@ -77,6 +133,10 @@ function setupIdleDetection(onLogout) {
   reset();
   return ()=>{ clearTimeout(_idleTimer); ["mousemove","keypress","click","touchstart"].forEach(e=>window.removeEventListener(e,reset)); };
 }
+
+
+
+
 
 /* ═══════════════════════════════════════════════════════════
    SECURITY LAYER — طبقة الأمان المطورة والمؤمنة
@@ -8245,26 +8305,43 @@ function ChangePasswordPage({ emp }) {
   const [passLoading, setPassLoading] = useState(false);
 
   const saveNewPassword = async () => {
-    setMsg(null);
-    if (newPass.length < 4) return setMsg({type:"err", text:"كلمة المرور 4 أحرف على الأقل"});
-    if (newPass !== confirm) return setMsg({type:"err", text:"كلمة المرور غير متطابقة"});
-    try {
-      setPassLoading(true);
-      // حفظ مُشفَّر في Firebase
-      const encoded = SEC.encode(newPass.trim());
-      const res = await fetch(`${FIREBASE_URL}/passwords/${emp.jobNum}.json`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(encoded)
-      });
-      if (!res.ok) throw new Error("Firebase error");
-      if (typeof auditLog === "function") auditLog("تغيير كلمة المرور", emp.name.split(" ").slice(0,2).join(" "), emp.name);
-      setMsg({type:"ok", text:`✓ تم الحفظ — كلمة مرورك الجديدة: "${newPass}"`});
-      setNewPass(""); setConfirm("");
-    } catch {
-      setMsg({type:"err", text:"فشل الحفظ — تحقق من الشبكة"});
-    } finally { setPassLoading(false); }
-  };
+  if (!newPass.trim()) {
+    setPassMsg({ text: "الرجاء إدخال كلمة مرور صالحة", type: "error" });
+    return;
+  }
+  if (newPass.trim().length < 4) {
+    setPassMsg({ text: "كلمة المرور يجب أن تكون من 4 خانات أو أكثر", type: "error" });
+    return;
+  }
+  
+  setPassLoading(true);
+  try {
+    // تشفير كلمة المرور الجديدة
+    const encryptedPassword = SEC.encode(newPass.trim());
+    
+    const response = await fetch(`${FIREBASE_URL}/employees/${emp.id}/password.json?auth=${FIREBASE_API_KEY}`, {
+      method: 'PUT',
+      body: JSON.stringify(encryptedPassword)
+    });
+
+    if (!response.ok) throw new Error("فشل الاستجابة من السيرفر");
+
+    setPassMsg({ text: "تم تغيير كلمة المرور بنجاح!", type: "success" });
+    setNewPass("");
+    
+    // تحديث كلمة السر في الجلسة الحالية فوراً
+    emp.password = encryptedPassword; 
+    if (setUser) {
+      setUser(prev => prev ? { ...prev, password: encryptedPassword } : prev);
+    }
+
+  } catch (error) {
+    console.error(error);
+    setPassMsg({ text: "فشل الاتصال بقاعدة البيانات", type: "error" });
+  } finally {
+    setPassLoading(false);
+  }
+};
 
   const inp = "w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white transition-all";
 
@@ -8322,28 +8399,87 @@ function ChangePasswordPage({ emp }) {
     </div>
   );
 }
-
 /* ═══════════════════════════════════════════════════════════
-   ROOT
+   ROOT — نظام التحكم وإدارة الدخول بالرقم الوظيفي
 ═══════════════════════════════════════════════════════════ */
 export default function LeaveSystem() {
   const [user, setUser] = useState(null);
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
 
-  const handleLogin = (acct) => {
-    setUser(acct);
-    if (acct.jobNum === "728004") {
-      setTimeout(() => takeBackup(acct.name), 3000);
+  // دالة جلب الموظف والمطابقة بالرقم الوظيفي (cardId)
+  const handleLoginSubmit = async (enteredCardId, enteredPassword) => {
+    if (!enteredCardId.trim() || !enteredPassword.trim()) {
+      setLoginError("الرجاء إدخال الرقم الوظيفي وكلمة المرور");
+      return;
+    }
+
+    setLoginLoading(true);
+    setLoginError("");
+
+    try {
+      // جلب البيانات من شجرة الموظفين في Firebase
+      const response = await fetch(`${FIREBASE_URL}/employees.json?auth=${FIREBASE_API_KEY}`);
+      if (!response.ok) throw new Error("فشل الاتصال بقاعدة البيانات");
+      
+      const employeesData = await response.json();
+      if (!employeesData) {
+        setLoginError("قاعدة البيانات فارغة، يرجى تهيئة الحسابات");
+        return;
+      }
+
+      // البحث عن الموظف بمطابقة الرقم الوظيفي المخزن (cardId)
+      const foundEmployee = Object.values(employeesData).find(
+        (emp) => emp && String(emp.cardId).trim() === String(enteredCardId).trim()
+      );
+
+      if (!foundEmployee) {
+        setLoginError("الرقم الوظيفي غير مسجل في النظام");
+        return;
+      }
+
+      // فك تشفير كلمة المرور الآمنة ومقارنتها بالمدخلة
+      const decryptedPass = SEC.decode(foundEmployee.password);
+      if (decryptedPass !== enteredPassword.trim()) {
+        setLoginError("كلمة المرور غير صحيحة");
+        return;
+      }
+
+      // نجاح تسجيل الدخول وحفظ البيانات في الجلسة
+      setUser(foundEmployee);
+      
+      // تشغيل نسخة احتياطية تلقائية إذا كان الموظف هو الأستاذ إيهاب (المشرف العام)
+      if (String(foundEmployee.cardId) === "728004") {
+        if (typeof takeBackup === "function") {
+          setTimeout(() => takeBackup(foundEmployee.name), 3000);
+        }
+      }
+
+    } catch (error) {
+      console.error(error);
+      setLoginError("حدث خطأ في الاتصال بالسيرفر، حاول مجدداً");
+    } finally {
+      setLoginLoading(false);
     }
   };
 
   const handleLogout = () => {
-    fbAuth.clearTokens();
-    try { sessionStorage.removeItem("boc_session"); } catch {}
+    if (typeof fbAuth !== 'undefined' && fbAuth.clearTokens) {
+      fbAuth.clearTokens();
+    }
+    try { 
+      sessionStorage.removeItem("boc_session"); 
+    } catch (e) {}
     setUser(null);
   };
 
-  return user
-    ? <Dashboard emp={user} onLogout={handleLogout}/>
-    : <LoginScreen onLogin={handleLogin}/>;
+  return user ? (
+    <Dashboard emp={user} onLogout={handleLogout} />
+  ) : (
+    <LoginScreen 
+      onLogin={handleLoginSubmit} 
+      loginError={loginError} 
+      loginLoading={loginLoading} 
+    />
+  );
 }
-
