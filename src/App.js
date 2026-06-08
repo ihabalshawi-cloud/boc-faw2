@@ -8292,17 +8292,15 @@ function SiteMapPage({ isAdmin }) {
     </div>
   );
 }
-
 /* ═══════════════════════════════════════════════════════════
-   CHANGE PASSWORD — تغيير كلمة المرور (نسخة مصلحة لـ Vercel)
+   CHANGE PASSWORD — تغيير كلمة المرور (النسخة النهائية المصلحة لـ Vercel)
 ═══════════════════════════════════════════════════════════ */
 function ChangePasswordPage({ emp, setUser }) {
-  // استخدام cardId بدلاً من jobNum للتوافق مع الرقم الوظيفي الجديد
   const [, setFbPassword] = useFirebase(`employees/${emp.id}/password`, null);
   const [newPass,     setNewPass]     = useState("");
   const [confirm,     setConfirm]     = useState("");
   const [showN,        setShowN]       = useState(false);
-  const [msg,          setMsg]         = useState(null); // هنا المعرّف الفعلي هو setMsg
+  const [msg,          setMsg]         = useState(null); 
   const [passLoading, setPassLoading] = useState(false);
 
   const saveNewPassword = async () => {
@@ -8323,10 +8321,9 @@ function ChangePasswordPage({ emp, setUser }) {
     setMsg(null);
 
     try {
-      // تشفير كلمة المرور الجديدة عبر دالة الأمان الخاصة بك
+      // تشفير كلمة المرور الآمنة
       const encryptedPassword = SEC.encode(newPass.trim());
 
-      // حفظها مباشرة في مسار الموظف الصحيح بـ Firebase
       const response = await fetch(`${FIREBASE_URL}/employees/${emp.id}/password.json?auth=${FIREBASE_API_KEY}`, {
         method: 'PUT',
         body: JSON.stringify(encryptedPassword)
@@ -8334,7 +8331,6 @@ function ChangePasswordPage({ emp, setUser }) {
 
       if (!response.ok) throw new Error("فشل الاستجابة من السيرفر");
 
-      // تحديث حالة السيرفر الداخلي للـ hook المخصص لديك
       if (typeof setFbPassword === 'function') {
         setFbPassword(encryptedPassword);
       }
@@ -8343,10 +8339,12 @@ function ChangePasswordPage({ emp, setUser }) {
       setNewPass("");
       setConfirm("");
 
-      // تحديث بيانات الموظف في الجلسة المفتوحة حالياً فوراً دون تسجيل خروج
+      // تحديث كلمة المرور في الكائن الحالي فوراً
       if (emp) {
         emp.password = encryptedPassword;
       }
+      
+      // تحديث حالة المستخدم في النظام دون الحاجة لتسجيل الخروج
       if (typeof setUser === 'function') {
         setUser(prev => prev ? { ...prev, password: encryptedPassword } : prev);
       }
@@ -8359,60 +8357,57 @@ function ChangePasswordPage({ emp, setUser }) {
     }
   };
 
-  // تأكد من أن بقية الـ return الخاصة بالصفحة تستخدم {msg && ...} لعرض الرسالة أسفل الزر
-
-  const inp = "w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white transition-all";
-
   return (
-    <div className="space-y-4" dir="rtl">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 max-w-md">
-        <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-2">
-          <Shield size={15} className="text-blue-600"/> تغيير كلمة المرور
-        </h3>
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800">
-          أنت مسجّل دخولك — أدخل كلمة المرور الجديدة مباشرة
+    <div className="flex flex-col gap-6 items-center justify-center min-h-[60vh] p-4 animate-fade-in">
+      <div className="bg-white border border-slate-100 shadow-xl rounded-3xl p-6 w-full max-w-md flex flex-col gap-4">
+        <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+          <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+            <Shield size={20}/>
+          </div>
+          <div>
+            <h2 className="font-bold text-slate-800">تغيير كلمة المرور</h2>
+            <p className="text-xs text-slate-500">قم بتأمين حسابك بكلمة مرور جديدة</p>
+          </div>
         </div>
-        <div>
-          <label className="block text-[10px] font-bold text-slate-400 mb-1">كلمة المرور الجديدة</label>
-          <div className="relative">
-            <input type={showN?"text":"password"} value={newPass} onChange={e=>setNewPass(e.target.value)}
-              disabled={passLoading} className={inp} placeholder="••••" dir="ltr"/>
-            <button onClick={()=>setShowN(!showN)} className="absolute left-3 top-3 text-slate-400 hover:text-slate-600">
-              {showN?<EyeOff size={16}/>:<Eye size={16}/>}
+
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-bold text-slate-600">كلمة المرور الجديدة</label>
+          <div className="relative flex items-center">
+            <input type={showN ? "text" : "password"} value={newPass} onChange={e => setNewPass(e.target.value)}
+              placeholder="••••••••" disabled={passLoading}
+              className="w-full text-sm bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 outline-none focus:border-blue-500 focus:bg-white transition-all text-center font-mono"/>
+            <button onClick={() => setShowN(!showN)} className="absolute left-3 text-slate-400 hover:text-slate-600 p-1">
+              {showN ? <EyeOff size={16}/> : <Eye size={16}/>}
             </button>
           </div>
-          {newPass && (
-            <div className="flex gap-1 mt-1.5 items-center">
-              {[1,2,3,4].map(i=>(
-                <div key={i} className={`flex-1 h-1 rounded-full ${newPass.length>=8&&i<=4?"bg-emerald-500":newPass.length>=6&&i<=3?"bg-amber-400":newPass.length>=4&&i<=2?"bg-orange-400":i<=1?"bg-red-400":"bg-slate-200"}`}/>
-              ))}
-              <span className="text-[9px] text-slate-400 mr-1">{newPass.length>=8?"قوية":newPass.length>=6?"متوسطة":"ضعيفة"}</span>
-            </div>
-          )}
         </div>
-        <div>
-          <label className="block text-[10px] font-bold text-slate-400 mb-1">تأكيد كلمة المرور</label>
-          <input type={showN?"text":"password"} value={confirm} onChange={e=>setConfirm(e.target.value)}
-            disabled={passLoading}
-            className={`${inp} ${confirm&&confirm!==newPass?"border-red-300":confirm&&confirm===newPass?"border-emerald-300":""}`}
-            placeholder="••••" dir="ltr"/>
-          {confirm&&confirm===newPass&&<p className="text-[10px] text-emerald-600 mt-1 flex items-center gap-1"><CheckCircle size={10}/> متطابقة</p>}
+
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-bold text-slate-600">تأكيد كلمة المرور</label>
+          <div className="relative flex items-center">
+            <input type={showN ? "text" : "password"} value={confirm} onChange={e => setConfirm(e.target.value)}
+              placeholder="••••••••" disabled={passLoading}
+              className="w-full text-sm bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 outline-none focus:border-blue-500 focus:bg-white transition-all text-center font-mono"/>
+          </div>
         </div>
+
         {msg && (
-          <div className={`p-3 rounded-xl text-xs font-bold border ${msg.type==="ok"?"bg-emerald-50 text-emerald-800 border-emerald-200":"bg-red-50 text-red-800 border-red-200"}`}>
+          <div className={`p-3 rounded-xl text-xs font-bold text-center border ${msg.type === "success" ? "bg-emerald-50 border-emerald-100 text-emerald-700" : "bg-rose-50 border-rose-100 text-rose-700"}`}>
             {msg.text}
           </div>
         )}
+
         <button onClick={saveNewPassword} disabled={passLoading}
           className="w-full flex items-center justify-center gap-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 py-3 rounded-xl active:scale-95 transition-all disabled:opacity-50">
-          <Save size={14}/> {passLoading?"جاري الحفظ...":"حفظ كلمة المرور الجديدة"}
+          <Save size={14}/> {passLoading ? "جاري الحفظ..." : "حفظ كلمة المرور الجديدة"}
         </button>
       </div>
+      
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 max-w-md">
         <p className="font-bold text-slate-700 mb-1">📌 ملاحظة:</p>
-        <p>• كلمة مرورك الافتراضية: <strong className="text-blue-700">{emp.password}</strong></p>
-        <p>• إذا نسيت كلمة مرورك، اطلب من المشرف إعادة تعيينها</p>
-        <p>• التغيير يُطبَّق فوراً في جلسة الدخول التالية</p>
+        <p>• سيتم اعتماد الرقم الوظيفي كاسم مستخدم رسمي لك في عمليات الدخول التالية.</p>
+        <p>• إذا نسيت كلمة مرورك، اطلب من المشرف إعادة تعيينها.</p>
+        <p>• التغيير يُطبَّق فوراً في جلسة الدخول التالية.</p>
       </div>
     </div>
   );
