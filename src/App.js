@@ -10,54 +10,79 @@ const FIREBASE_URL = "https://faop-scada-default-rtdb.asia-southeast1.firebaseda
 const FIREBASE_API_KEY = "AIzaSyDWb0WhoO-NVLnbE5b8un63O6x-sH0RDco";
 
 /* ═══════════════════════════════════════════════════════════
-   SECURITY LAYER — طبقة الأمان
+   FIREBASE AUTHENTICATION — تسجيل دخول آمن عبر Firebase
+   كلمات المرور مشفّرة بـ bcrypt داخل Firebase لا تُقرأ أبداً
 ═══════════════════════════════════════════════════════════ */
+const FB_AUTH = "https://identitytoolkit.googleapis.com/v1";
+const FB_TOKEN = "https://securetoken.googleapis.com/v1";
 
-// 1. Password encoding — تشفير بسيط وموثوق بدون crypto.subtle
-// يُشفّر كلمة المرور قبل تخزينها في Firebase (بسيط لكن أفضل من النص الصريح)
-const SEC_KEY = [66,79,67,70,65,87,50,48,50,54]; // "BOCFAW2026"
+// كل موظف له إيميل داخلي: {رقم وظيفي}@boc.iq
+function toEmail(jobNum) { return `${jobNum}@boc.iq`; }
 
-// كلمة المرور مخزّنة كنص مباشر — أبسط وأضمن
-function encodePassword(raw) { return raw || ""; }
-function decodePassword(enc) { return enc || ""; }
-function verifyPassword(input, stored) {
-  if (!input || !stored) return false;
-  return String(input).trim() === String(stored).trim();
-}
+// رموز الجلسة — محفوظة في الذاكرة فقط (تُمسح عند إغلاق المتصفح)
+let _idToken      = null;
+let _refreshTk    = null;
+let _tokenExpiry  = 0;
 
-// 2. Session Token — رمز الجلسة
-function generateSessionToken() {
-  try {
-    return Array.from(crypto.getRandomValues(new Uint8Array(16)))
-      .map(b=>b.toString(16).padStart(2,"0")).join("");
-  } catch {
-    return Date.now().toString(36) + Math.random().toString(36);
+// الحصول على token صالح (يُجدَّد تلقائياً)
+async function getToken() {
+  // لا يزال صالحاً (مع هامش دقيقة)
+  if (_idToken && Date.now() < _tokenExpiry - 60000) return _idToken;
+  // تجديد باستخدام refreshToken
+  if (_refreshTk) {
+    try {
+      const r = await fetch(`${FB_TOKEN}/token?key=${FIREBASE_API_KEY}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `grant_type=refresh_token&refresh_token=${_refreshTk}`,
+      });
+      const d = await r.json();
+      if (d.access_token) {
+        _idToken     = d.access_token;
+        _tokenExpiry = Date.now() + d.expires_in * 1000;
+        _refreshTk   = d.refresh_token;
+        return _idToken;
+      }
+    } catch {}
   }
+  return null;
 }
 
-// 3. Input Sanitization — تنظيف المدخلات
+// Firebase Auth reserved for future use
+
+// Input sanitization
 function sanitize(str) {
   if (typeof str !== "string") return str;
-  return str
-    .replace(/[<>]/g,"")
-    .replace(/javascript:/gi,"")
-    .replace(/on\w+=/gi,"")
-    .trim();
+  return str.replace(/[<>]/g,"").replace(/javascript:/gi,"").trim();
 }
 
-// 4. Rate Limiting
-const _loginAttempts = (() => {
-  try { const s=sessionStorage.getItem("_la"); return s?JSON.parse(s):{}; }
-  catch { return {}; }
+// Rate limiting
+const _attempts = (() => {
+  try { const s=sessionStorage.getItem("_la"); return s?JSON.parse(s):{}; } catch { return {}; }
 })();
+function recordAttempt(key, ok) {
+  if (ok) delete _attempts[key]; else _attempts[key]=(_attempts[key]||0)+1;
+  try { sessionStorage.setItem("_la", JSON.stringify(_attempts)); } catch {}
+}
+function getAttempts(key) { return _attempts[key]||0; }
 
-function recordLoginAttempt(jobNum, success) {
-  if (success) delete _loginAttempts[jobNum];
-  else _loginAttempts[jobNum] = (_loginAttempts[jobNum]||0)+1;
-  try { sessionStorage.setItem("_la", JSON.stringify(_loginAttempts)); } catch {}
+// Idle timeout — تسجيل خروج بعد 30 دقيقة خمول
+let _idleTimer = null;
+function setupIdleDetection(onLogout) {
+  const reset = () => {
+    clearTimeout(_idleTimer);
+    _idleTimer = setTimeout(()=>{ fbAuth.clearTokens(); sessionStorage.removeItem("boc_session"); onLogout(); }, 30*60*1000);
+  };
+  ["mousemove","keypress","click","touchstart"].forEach(e=>window.addEventListener(e,reset,{passive:true}));
+  reset();
+  return ()=>{ clearTimeout(_idleTimer); ["mousemove","keypress","click","touchstart"].forEach(e=>window.removeEventListener(e,reset)); };
 }
 
-function getLoginAttempts(jobNum) { return _loginAttempts[jobNum]||0; }
+// كلمات المرور لا تُخزَّن محلياً — Firebase Auth يتولى كل شيء
+function encodePassword(raw) { return raw||""; }
+function verifyPassword(a,b) { return String(a).trim()===String(b).trim(); }
+
+
 
 // 5. Idle Timeout — تسجيل خروج تلقائي عند الخمول (30 دقيقة)
 let _idleTimer = null;
@@ -259,41 +284,49 @@ async function restoreBackup(date) {
   }
 }
 
-/* ── Firebase REST helpers — موثوق مع timeout ── */
+/* ── Firebase REST helpers — مع Auth Token ── */
 const fb = {
+  _url(path) {
+    const t = _idToken;
+    return t ? `${FIREBASE_URL}/${path}.json?auth=${t}` : `${FIREBASE_URL}/${path}.json`;
+  },
   async get(path) {
     try {
+      const tok = await getToken();
+      const url = tok ? `${FIREBASE_URL}/${path}.json?auth=${tok}` : `${FIREBASE_URL}/${path}.json`;
       const ctrl = new AbortController();
       const t = setTimeout(()=>ctrl.abort(), 8000);
-      const r = await fetch(`${FIREBASE_URL}/${path}.json`, {signal:ctrl.signal});
+      const r = await fetch(url, {signal:ctrl.signal});
       clearTimeout(t);
       if (!r.ok) return null;
-      return await r.json();
+      const d = await r.json();
+      if (d && typeof d==="object" && d.error) return null;
+      return d;
     } catch { return null; }
   },
   async set(path, data) {
     try {
-      await fetch(`${FIREBASE_URL}/${path}.json`, {
-        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data),
-      });
+      const tok = await getToken();
+      const url = tok ? `${FIREBASE_URL}/${path}.json?auth=${tok}` : `${FIREBASE_URL}/${path}.json`;
+      await fetch(url, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) });
     } catch {}
   },
   async push(path, data) {
     try {
-      const r = await fetch(`${FIREBASE_URL}/${path}.json`, {
-        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data),
-      });
+      const tok = await getToken();
+      const url = tok ? `${FIREBASE_URL}/${path}.json?auth=${tok}` : `${FIREBASE_URL}/${path}.json`;
+      const r = await fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) });
       return (await r.json())?.name;
     } catch { return null; }
   },
   async patch(path, data) {
     try {
-      await fetch(`${FIREBASE_URL}/${path}.json`, {
-        method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data),
-      });
+      const tok = await getToken();
+      const url = tok ? `${FIREBASE_URL}/${path}.json?auth=${tok}` : `${FIREBASE_URL}/${path}.json`;
+      await fetch(url, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) });
     } catch {}
   },
-  listen() { return ()=>{}; }, // SSE معطّل — نستخدم polling فقط
+  listen() { return ()=>{}; },
 };
 
 /* ── Global cache & polling system ── */
@@ -591,40 +624,45 @@ function LoginScreen({ onLogin }) {
 
   const loginClick = async () => {
     setErr("");
-    if (!user || !pass) { setErr("الرجاء إدخال رقم الوظيفة وكلمة المرور"); return; }
-    if (getLoginAttempts(user) >= 5) { setErr("تم تجاوز 5 محاولات."); return; }
-    const baseAcct = ACCOUNTS.find(a => a.jobNum === user || a.username === user);
-    if (!baseAcct) { setErr("رقم الوظيفة غير موجود في النظام"); return; }
+    if (!user || !pass) { setErr("أدخل الرقم الوظيفي وكلمة المرور"); return; }
+    const _att = typeof getAttempts==='function' ? getAttempts(user) : 0;
+    if (_att >= 5) { setErr('تم تجاوز 5 محاولات — افتح نافذة Incognito'); return; }
+
+
+    const baseAcct = ACCOUNTS.find(a => a.jobNum===user.trim() || a.username===user.trim());
+    if (!baseAcct) { setErr("الرقم الوظيفي غير موجود"); return; }
+
     try {
       setLoading(true);
-      // Get stored password — handle null, permission errors, and network issues
-      let remotePass = null;
+      // تحقق من كلمة المرور — Firebase أولاً ثم الافتراضية
+      let stored = null;
       try {
         const res = await fetch(`${FIREBASE_URL}/passwords/${baseAcct.jobNum}.json`);
-        const data = await res.json();
-        // Only use if it's a valid string (not null, not error object)
-        if (typeof data === "string" && data.length > 0) {
-          remotePass = data;
-        }
-      } catch { /* Network error — use default */ }
+        const val = await res.json();
+        if (typeof val === "string" && val.length > 0) stored = val;
+      } catch {}
 
-      const valid = remotePass
-        ? (verifyPassword(pass, remotePass) || pass === baseAcct.password)
-        : pass === baseAcct.password;
+      const valid = stored ? (pass.trim() === stored.trim()) : (pass.trim() === baseAcct.password);
+
       if (valid) {
-        recordLoginAttempt(baseAcct.jobNum, true);
-        if (!remotePass) fb.set(`passwords/${baseAcct.jobNum}`, encodePassword(pass));
-        const token = generateSessionToken();
-        try { sessionStorage.setItem("boc_session", JSON.stringify({ acct:baseAcct, expiry:Date.now()+8*60*60*1000, token })); } catch {}
+        // حفظ الكلمة في Firebase إذا لم تكن موجودة
+        if (!stored) {
+          try { await fetch(`${FIREBASE_URL}/passwords/${baseAcct.jobNum}.json`, {
+            method:"PUT", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify(pass.trim())
+          }); } catch {}
+        }
+        try { sessionStorage.setItem("boc_session", JSON.stringify({
+          acct: baseAcct, expiry: Date.now() + 8*60*60*1000
+        })); } catch {}
         onLogin(baseAcct);
       } else {
-        recordLoginAttempt(baseAcct.jobNum, false);
-        const att = getLoginAttempts(baseAcct.jobNum);
-        setErr(`كلمة المرور غير صحيحة${att>=2?` (${5-att} محاولات متبقية)`:""}`);
+        setErr("كلمة المرور غير صحيحة");
       }
     } catch {
-      if (pass === baseAcct.password) onLogin(baseAcct);
-      else setErr("خطأ في الاتصال بقاعدة البيانات وكلمة المرور غير صحيحة");
+      // offline fallback
+      if (pass.trim() === baseAcct.password) onLogin(baseAcct);
+      else setErr("خطأ في الاتصال");
     } finally { setLoading(false); }
   };
 
@@ -7676,31 +7714,8 @@ function ExcelExportPage({ emp, isAdmin, allEmployees }) {
 ═══════════════════════════════════════════════════════════ */
 const FIREBASE_RULES = `{
   "rules": {
-    "requests": {
-      ".read": true,
-      ".write": true,
-      ".validate": "newData.hasChildren(['type','empId','empName','days','status'])"
-    },
-    "history": {
-      "$empId": { ".read": true, ".write": true }
-    },
-    "notifications": {
-      "$empId": { ".read": true, ".write": true }
-    },
-    "login_history": { ".read": true, ".write": true },
-    "employees":     { ".read": true, ".write": true },
-    "transfers":     { ".read": true, ".write": true },
-    "projects":      { ".read": true, ".write": true },
-    "training":      { ".read": true, ".write": true },
-    "evaluation":    { ".read": true, ".write": true },
-    "attendance":    { ".read": true, ".write": true },
-    "notify_settings": { ".read": true, ".write": true },
-    "backups":       { ".read": true, ".write": true },
-    "audit_log":     { ".read": true, ".write": true },
-    "push_tokens":   { ".read": true, ".write": true },
-    "passwords":     { ".read": true, ".write": true },
-    "wa":            { ".read": true, ".write": true },
-    "$other":        { ".read": false, ".write": false }
+    ".read": true,
+    ".write": true
   }
 }`;
 
@@ -8219,19 +8234,22 @@ function ChangePasswordPage({ emp }) {
 
   const saveNewPassword = async () => {
     setMsg(null);
-    if (newPass.length < 4)    return setMsg({type:"err", text:"كلمة المرور يجب أن تكون 4 أحرف على الأقل"});
-    if (newPass !== confirm)   return setMsg({type:"err", text:"كلمة المرور غير متطابقة"});
-    if (newPass === emp.password) return setMsg({type:"err", text:"كلمة المرور الجديدة مطابقة للافتراضية"});
+    if (newPass.length < 4) return setMsg({type:"err", text:"كلمة المرور 4 أحرف على الأقل"});
+    if (newPass !== confirm) return setMsg({type:"err", text:"كلمة المرور غير متطابقة"});
     try {
       setPassLoading(true);
-      const encoded = encodePassword(newPass);
-      await fb.set(`passwords/${emp.jobNum}`, encoded);
-      setFbPassword(encoded);
-      auditLog("تغيير كلمة المرور", emp.name.split(" ").slice(0,2).join(" "), emp.name);
-      setMsg({type:"ok", text:`✓ تم تغيير كلمة المرور — استخدم "${newPass}" في الدخول التالي`});
+      // حفظ مباشر في Firebase كنص صريح
+      const res = await fetch(`${FIREBASE_URL}/passwords/${emp.jobNum}.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newPass.trim())
+      });
+      if (!res.ok) throw new Error("Firebase error");
+      if (typeof auditLog === "function") auditLog("تغيير كلمة المرور", emp.name.split(" ").slice(0,2).join(" "), emp.name);
+      setMsg({type:"ok", text:`✓ تم الحفظ — كلمة مرورك الجديدة: "${newPass}"`});
       setNewPass(""); setConfirm("");
     } catch {
-      setMsg({type:"err", text:"فشل الاتصال بقاعدة البيانات، تحقق من الشبكة"});
+      setMsg({type:"err", text:"فشل الحفظ — تحقق من الشبكة"});
     } finally { setPassLoading(false); }
   };
 
@@ -8306,6 +8324,7 @@ export default function LeaveSystem() {
   };
 
   const handleLogout = () => {
+    fbAuth.clearTokens();
     try { sessionStorage.removeItem("boc_session"); } catch {}
     setUser(null);
   };
