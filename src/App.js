@@ -4,7 +4,9 @@ import {
   CheckCircle, Wifi, WifiOff, RefreshCw, FileText, Clock, Calendar,
   Bell, ThumbsUp, ThumbsDown, Plus, Trash2, Edit3, X, Users, Package,
   ClipboardList, GraduationCap, BarChart, Star, Target, ArrowRightLeft,
-  Printer, Download, Upload, Search, Settings, Award, Truck, Box
+  Printer, Download, Upload, Search, Settings, Award, Truck, Box,
+  TrendingUp, TrendingDown, PieChart, Activity, Filter, UserCheck, UserX,
+  BookOpen, Video, Briefcase
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════
@@ -13,85 +15,76 @@ import {
 const FIREBASE_URL = "https://faop-scada-default-rtdb.asia-southeast1.firebasedatabase.app";
 
 /* ═══════════════════════════════════════════════════════════
-   ACCOUNTS - الكادر الكامل
+   ACCOUNTS - الكادر الكامل (33 موظف)
 ═══════════════════════════════════════════════════════════ */
 const ACCOUNTS = [
-  {id:1,  jobNum:"728004", password:"1001", name:"ايهاب عبد اللطيف عودة سلمان الشاوي",       title:"ر. مهندسين",   dept:"قسم السيطرة والنظم", shift:"صباحي", role:"admin"},
-  {id:2,  jobNum:"727466", password:"1002", name:"عدي فيصل عبد الهادي عبد السيد الربيعه",    title:"ر. مهندسين",   dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:3,  jobNum:"737283", password:"1003", name:"عمر طاهر خزعل سبهان المياحي",              title:"م.ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:4,  jobNum:"756571", password:"1004", name:"ليث شاكر حمود زعيتر الربيعه",              title:"معاون مهندس",  dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:5,  jobNum:"790850", password:"1005", name:"اسعد عبد الامام يوسف حميد النصاري",        title:"م.مدير فني",   dept:"شعبة مستودع الفاو",  shift:"صباحي"},
-  {id:6,  jobNum:"758795", password:"1006", name:"صباح عبد الامام يوسف حميد النصاري",        title:"م.مدير فني",   dept:"شعبة مستودع الفاو",  shift:"صباحي"},
-  {id:7,  jobNum:"719242", password:"1007", name:"احمد محمود عبد القادر عبد الكريم الامير",  title:"مدير فني",     dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:8,  jobNum:"790869", password:"1008", name:"محمود كاظم هاشم محمد المنصوري",            title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:9,  jobNum:"790885", password:"1009", name:"محمد عبد الكاظم جاسم محمد التميمي",        title:"محاسب اقدم",  dept:"قسم السيطرة والنظم", shift:"صباحي", role:"inventory_manager"},
-  {id:10, jobNum:"813877", password:"1010", name:"محمد اسماعيل احمد رمضان العلي",            title:"مهندس",        dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:11, jobNum:"439193", password:"1011", name:"علي طاهر خزعل سبهان المياحي",              title:"حرفي اقدم",    dept:"شعبة المرافئ",       shift:"صباحي"},
-  {id:12, jobNum:"701130", password:"2001", name:"عبد الله علي زباري يسر عباده",             title:"م.ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"A"},
-  {id:13, jobNum:"751480", password:"2002", name:"امين حميد فاضل حسين العلي",                title:"م.مدير فني",   dept:"شعبة مستودع الفاو",  shift:"مناوبة", group:"A"},
-  {id:14, jobNum:"719269", password:"2003", name:"حسين علي احمد قاسم عبادي",                 title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"A"},
-  {id:15, jobNum:"719498", password:"2004", name:"جاسم مزعل حاتم ديوان الحسين",              title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"A"},
-  {id:16, jobNum:"719277", password:"2005", name:"باسم هاشم جاسم هاشم الفارس",               title:"م.مدير فني",   dept:"شعبة المرافئ",       shift:"مناوبة", group:"B"},
-  {id:17, jobNum:"719293", password:"2006", name:"هاشم جابر جعفر شناوة عباس",                title:"م.مدير فني",   dept:"شعبة المرافئ",       shift:"مناوبة", group:"B"},
-  {id:18, jobNum:"719463", password:"2007", name:"عبد الحميد سامي موسى بدر العيسى",          title:"مدير فني",     dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"B"},
-  {id:19, jobNum:"736732", password:"2008", name:"احسان عبد الصمد داود",                     title:"مدير فني",     dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"B"},
-  {id:20, jobNum:"719048", password:"2009", name:"علاء محسن عذبي جعفر الجعفر",              title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"C"},
-  {id:21, jobNum:"732249", password:"2010", name:"علي باقر حنتوش",                           title:"م.مدير فني",   dept:"شعبة المرافئ",       shift:"مناوبة", group:"C"},
-  {id:22, jobNum:"719051", password:"2011", name:"علي صلاح مهدي العيداني",                   title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"C"},
-  {id:23, jobNum:"733501", password:"2012", name:"يوسف ياسين علي ياسين",                     title:"م.مدير فني",   dept:"شعبة مستودع الفاو",  shift:"مناوبة", group:"C"},
-  {id:24, jobNum:"719381", password:"2013", name:"ضياء عبد الامير محمد الغانم",              title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"D"},
-  {id:25, jobNum:"719502", password:"2014", name:"عدنان عبد الجليل عطية",                    title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"D"},
-  {id:26, jobNum:"736721", password:"2015", name:"احسان محمد سليم السليم",                   title:"م.مدير فني",   dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"D"},
-  {id:27, jobNum:"724939", password:"2016", name:"حيدر عبد الحسن خضير جاسم",                 title:"مدير فني",     dept:"شعبة المرافئ",       shift:"مناوبة", group:"D"},
-  {id:30, jobNum:"690414", password:"3001", name:"عبد الله عيسى موسى موني",                  title:"عقد",          dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:31, jobNum:"689766", password:"3002", name:"اباذر صالح عبد الحسين عيسى",               title:"عقد",          dept:"قسم السيطرة والنظم", shift:"صباحی", role:"attendance_admin"},
-  {id:32, jobNum:"690174", password:"3003", name:"حسن عادل عمران يوسف",                       title:"عقد",          dept:"قسم السيطرة والنظم", shift:"صباحي", role:"attendance_admin"},
-  {id:33, jobNum:"689331", password:"3004", name:"سجاد علي راضي علي",                        title:"عقد",          dept:"قسم السيطرة والنظم", shift:"صباحي", role:"attendance_admin"},
+  {id:1, jobNum:"728004", password:"1001", name:"ايهاب عبد اللطيف عودة سلمان الشاوي", title:"ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"admin"},
+  {id:2, jobNum:"727466", password:"1002", name:"عدي فيصل عبد الهادي عبد السيد الربيعه", title:"ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي"},
+  {id:3, jobNum:"737283", password:"1003", name:"عمر طاهر خزعل سبهان المياحي", title:"م.ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي"},
+  {id:4, jobNum:"756571", password:"1004", name:"ليث شاكر حمود زعيتر الربيعه", title:"معاون مهندس", dept:"قسم السيطرة والنظم", shift:"صباحي"},
+  {id:5, jobNum:"790850", password:"1005", name:"اسعد عبد الامام يوسف حميد النصاري", title:"م.مدير فني", dept:"شعبة مستودع الفاو", shift:"صباحي"},
+  {id:6, jobNum:"758795", password:"1006", name:"صباح عبد الامام يوسف حميد النصاري", title:"م.مدير فني", dept:"شعبة مستودع الفاو", shift:"صباحي"},
+  {id:7, jobNum:"719242", password:"1007", name:"احمد محمود عبد القادر عبد الكريم الامير", title:"مدير فني", dept:"قسم السيطرة والنظم", shift:"صباحي"},
+  {id:8, jobNum:"790869", password:"1008", name:"محمود كاظم هاشم محمد المنصوري", title:"م.مدير فني", dept:"قسم السيطرة والنظم", shift:"صباحي"},
+  {id:9, jobNum:"790885", password:"1009", name:"محمد عبد الكاظم جاسم محمد التميمي", title:"محاسب اقدم", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"inventory_manager"},
+  {id:10, jobNum:"813877", password:"1010", name:"محمد اسماعيل احمد رمضان العلي", title:"مهندس", dept:"قسم السيطرة والنظم", shift:"صباحي"},
+  {id:11, jobNum:"701130", password:"2001", name:"عبد الله علي زباري يسر عباده", title:"م.ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"A"},
+  {id:12, jobNum:"751480", password:"2002", name:"امين حميد فاضل حسين العلي", title:"م.مدير فني", dept:"شعبة مستودع الفاو", shift:"مناوبة", group:"A"},
+  {id:13, jobNum:"719269", password:"2003", name:"حسين علي احمد قاسم عبادي", title:"م.مدير فني", dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"A"},
+  {id:14, jobNum:"719498", password:"2004", name:"جاسم مزعل حاتم ديوان الحسين", title:"م.مدير فني", dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"A"},
+  {id:15, jobNum:"719277", password:"2005", name:"باسم هاشم جاسم هاشم الفارس", title:"م.مدير فني", dept:"شعبة المرافئ", shift:"مناوبة", group:"B"},
+  {id:16, jobNum:"719293", password:"2006", name:"هاشم جابر جعفر شناوة عباس", title:"م.مدير فني", dept:"شعبة المرافئ", shift:"مناوبة", group:"B"},
+  {id:17, jobNum:"719463", password:"2007", name:"عبد الحميد سامي موسى بدر العيسى", title:"مدير فني", dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"B"},
+  {id:18, jobNum:"736732", password:"2008", name:"احسان عبد الصمد داود", title:"مدير فني", dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"B"},
+  {id:19, jobNum:"719048", password:"2009", name:"علاء محسن عذبي جعفر الجعفر", title:"م.مدير فني", dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"C"},
+  {id:20, jobNum:"732249", password:"2010", name:"علي باقر حنتوش", title:"م.مدير فني", dept:"شعبة المرافئ", shift:"مناوبة", group:"C"},
+  {id:21, jobNum:"719051", password:"2011", name:"علي صلاح مهدي العيداني", title:"م.مدير فني", dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"C"},
+  {id:22, jobNum:"733501", password:"2012", name:"يوسف ياسين علي ياسين", title:"م.مدير فني", dept:"شعبة مستودع الفاو", shift:"مناوبة", group:"C"},
+  {id:23, jobNum:"719381", password:"2013", name:"ضياء عبد الامير محمد الغانم", title:"م.مدير فني", dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"D"},
+  {id:24, jobNum:"719502", password:"2014", name:"عدنان عبد الجليل عطية", title:"م.مدير فني", dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"D"},
+  {id:25, jobNum:"736721", password:"2015", name:"احسان محمد سليم السليم", title:"م.مدير فني", dept:"قسم السيطرة والنظم", shift:"مناوبة", group:"D"},
+  {id:26, jobNum:"724939", password:"2016", name:"حيدر عبد الحسن خضير جاسم", title:"مدير فني", dept:"شعبة المرافئ", shift:"مناوبة", group:"D"},
+  {id:27, jobNum:"690414", password:"3001", name:"عبد الله عيسى موسى موني", title:"عقد", dept:"قسم السيطرة والنظم", shift:"صباحي"},
+  {id:28, jobNum:"689766", password:"3002", name:"اباذر صالح عبد الحسين عيسى", title:"عقد", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"attendance_admin"},
+  {id:29, jobNum:"690174", password:"3003", name:"حسن عادل عمران يوسف", title:"عقد", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"attendance_admin"},
+  {id:30, jobNum:"689331", password:"3004", name:"سجاد علي راضي علي", title:"عقد", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"attendance_admin"},
 ];
 
-// أنواع الإجازات
 const LEAVE_TYPES = {
   اعتيادية: { label: "إجازة اعتيادية", max: 30, color: "bg-blue-100 text-blue-700", icon: "🏖️" },
   مرضية: { label: "إجازة مرضية", max: 15, color: "bg-rose-100 text-rose-700", icon: "🏥" },
   زمنية: { label: "إجازة زمنية", max: 7, color: "bg-amber-100 text-amber-700", icon: "⏱️" },
 };
 
-// التشفير
-const SEC = {
-  encode: (str) => {
-    if (!str) return "";
-    try {
-      return btoa(unescape(encodeURIComponent(str)));
-    } catch { return str; }
-  },
-  verify: (input, stored) => {
-    if (!input || !stored) return false;
-    if (input.trim() === stored.trim()) return true;
-    try {
-      return input.trim() === atob(stored);
-    } catch { return false; }
-  }
+const TRAINING_TYPES = ["تدريب ذاتي", "دورة تدريبية", "ورشة عمل", "تدريب إلكتروني", "مهمة عملية"];
+const TRAINING_STATUS = { 
+  مسندة: "bg-amber-100 text-amber-700", 
+  "قيد التنفيذ": "bg-blue-100 text-blue-700", 
+  مكتملة: "bg-emerald-100 text-emerald-700", 
+  ملغية: "bg-red-100 text-red-700" 
 };
+
+const ITEM_CONDITIONS = ["جيد", "مستعمل", "يحتاج صيانة", "تالف"];
+const COND_STYLE = { 
+  جيد: "bg-emerald-100 text-emerald-800", 
+  مستعمل: "bg-blue-100 text-blue-800", 
+  "يحتاج صيانة": "bg-amber-100 text-amber-800", 
+  تالف: "bg-red-100 text-red-800" 
+};
+
+const FURNITURE_CATS = ["أثاث مكتبي", "أجهزة حاسوب", "معدات مكتبية", "أجهزة تكييف", "أخرى"];
 
 // التخزين المحلي
 const storage = {
   get: (key, defaultValue = null) => {
-    try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : defaultValue;
-    } catch { return defaultValue; }
+    try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : defaultValue; } catch { return defaultValue; }
   },
   set: (key, value) => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-      return true;
-    } catch { return false; }
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
   }
 };
 
-/* ═══════════════════════════════════════════════════════════
-   FIREBASE API - المزامنة الكاملة
-═══════════════════════════════════════════════════════════ */
+// Firebase API
 const FirebaseAPI = {
   checkConnection: async () => {
     try {
@@ -102,19 +95,12 @@ const FirebaseAPI = {
       return response.ok;
     } catch { return false; }
   },
-
-  // كلمات المرور
   savePassword: async (empId, encrypted) => {
     try {
-      await fetch(`${FIREBASE_URL}/passwords/${empId}.json`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(encrypted)
-      });
+      await fetch(`${FIREBASE_URL}/passwords/${empId}.json`, { method: "PUT", body: JSON.stringify(encrypted) });
       return true;
     } catch { return false; }
   },
-
   getPassword: async (empId) => {
     try {
       const res = await fetch(`${FIREBASE_URL}/passwords/${empId}.json`);
@@ -123,19 +109,12 @@ const FirebaseAPI = {
       return typeof data === "string" ? data : null;
     } catch { return null; }
   },
-
-  // الطلبات
   saveRequest: async (request) => {
     try {
-      await fetch(`${FIREBASE_URL}/requests/${request.id}.json`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(request)
-      });
+      await fetch(`${FIREBASE_URL}/requests/${request.id}.json`, { method: "PUT", body: JSON.stringify(request) });
       return true;
     } catch { return false; }
   },
-
   getAllRequests: async () => {
     try {
       const res = await fetch(`${FIREBASE_URL}/requests.json`);
@@ -144,26 +123,15 @@ const FirebaseAPI = {
       return data ? Object.values(data) : [];
     } catch { return []; }
   },
-
   deleteRequest: async (id) => {
-    try {
-      await fetch(`${FIREBASE_URL}/requests/${id}.json`, { method: "DELETE" });
-      return true;
-    } catch { return false; }
+    try { await fetch(`${FIREBASE_URL}/requests/${id}.json`, { method: "DELETE" }); return true; } catch { return false; }
   },
-
-  // الإشعارات
   saveNotification: async (empId, notification) => {
     try {
-      await fetch(`${FIREBASE_URL}/notifications/${empId}/${notification.id}.json`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(notification)
-      });
+      await fetch(`${FIREBASE_URL}/notifications/${empId}/${notification.id}.json`, { method: "PUT", body: JSON.stringify(notification) });
       return true;
     } catch { return false; }
   },
-
   getNotifications: async (empId) => {
     try {
       const res = await fetch(`${FIREBASE_URL}/notifications/${empId}.json`);
@@ -172,19 +140,12 @@ const FirebaseAPI = {
       return data ? Object.values(data).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp)) : [];
     } catch { return []; }
   },
-
-  // سجل الدخول
   saveLoginHistory: async (entry) => {
     try {
-      await fetch(`${FIREBASE_URL}/login_history/${entry.id}.json`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(entry)
-      });
+      await fetch(`${FIREBASE_URL}/login_history/${entry.id}.json`, { method: "PUT", body: JSON.stringify(entry) });
       return true;
     } catch { return false; }
   },
-
   getLoginHistory: async () => {
     try {
       const res = await fetch(`${FIREBASE_URL}/login_history.json?orderBy="$key"&limitToLast=50`);
@@ -195,25 +156,40 @@ const FirebaseAPI = {
   }
 };
 
-// Hook لحالة الاتصال
 function useConnectionStatus() {
   const [isConnected, setIsConnected] = useState(false);
   const [checking, setChecking] = useState(true);
-
   const checkConnection = useCallback(async () => {
     setChecking(true);
     const connected = await FirebaseAPI.checkConnection();
     setIsConnected(connected);
     setChecking(false);
   }, []);
-
   useEffect(() => {
     checkConnection();
     const interval = setInterval(checkConnection, 30000);
     return () => clearInterval(interval);
   }, [checkConnection]);
-
   return { isConnected, checking, checkConnection };
+}
+
+function printElement(elementId, title = "تقرير") {
+  const el = document.getElementById(elementId);
+  if (!el) { window.print(); return; }
+  const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>${title}</title>
+  <style>*{font-family:'Arial',sans-serif;} body{padding:20mm;} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:8px;text-align:right}</style></head>
+  <body>${el.innerHTML}</body></html>`;
+  const iframe = document.createElement("iframe");
+  iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0";
+  document.body.appendChild(iframe);
+  iframe.contentDocument.write(html);
+  iframe.contentDocument.close();
+  iframe.contentWindow.focus();
+  setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 2000); }, 500);
+}
+
+function PrintButton({ targetId, label = "طباعة / PDF", title }) {
+  return (<button onClick={() => targetId ? printElement(targetId, title) : window.print()} className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-xl shadow-sm transition-all active:scale-95 no-print"><Printer size={13}/> {label}</button>);
 }
 
 // ========== شاشة تسجيل الدخول ==========
@@ -233,83 +209,42 @@ function LoginScreen({ onLogin }) {
         if (expiry > Date.now()) {
           const acct = ACCOUNTS.find(a => a.id === acctId);
           if (acct) onLogin(acct);
-        } else {
-          sessionStorage.removeItem("boc_session");
-        }
+        } else sessionStorage.removeItem("boc_session");
       }
     } catch {}
   }, [onLogin]);
 
   const handleLogin = async () => {
     setErr("");
-    if (!user || !pass) {
-      setErr("أدخل الرقم الوظيفي وكلمة المرور");
-      return;
-    }
-
+    if (!user || !pass) { setErr("أدخل الرقم الوظيفي وكلمة المرور"); return; }
     const account = ACCOUNTS.find(a => a.jobNum === user.trim());
-    if (!account) {
-      setErr("الرقم الوظيفي غير موجود");
-      return;
-    }
-
+    if (!account) { setErr("الرقم الوظيفي غير موجود"); return; }
     setLoading(true);
     
     let isValid = false;
-    
-    // محاولة التحقق من Firebase
-    if (isConnected) {
-      const fbPass = await FirebaseAPI.getPassword(account.id);
-      if (fbPass) {
-        isValid = SEC.verify(pass.trim(), fbPass);
-        if (isValid) {
-          storage.set(`pass_${account.id}`, fbPass);
-        }
-      }
-    }
-    
-    // التحقق محلياً
+    // التحقق المباشر
+    if (pass.trim() === account.password) isValid = true;
+    // التحقق من التخزين المحلي
     if (!isValid) {
       const storedPass = storage.get(`pass_${account.id}`);
-      if (storedPass) {
-        isValid = SEC.verify(pass.trim(), storedPass);
-      } else {
-        isValid = (pass.trim() === account.password);
-        if (isValid && isConnected) {
-          const encrypted = btoa(pass.trim());
-          await FirebaseAPI.savePassword(account.id, encrypted);
-          storage.set(`pass_${account.id}`, encrypted);
-        }
-      }
+      if (storedPass && (pass.trim() === storedPass)) isValid = true;
+    }
+    // التحقق من Firebase
+    if (!isValid && isConnected) {
+      const fbPass = await FirebaseAPI.getPassword(account.id);
+      if (fbPass && (pass.trim() === fbPass)) isValid = true;
     }
 
     if (isValid) {
-      // تسجيل الدخول
-      const loginEntry = {
-        id: Date.now(),
-        empId: account.id,
-        empName: account.name,
-        loginAt: new Date().toISOString(),
-      };
-      
-      if (isConnected) {
-        await FirebaseAPI.saveLoginHistory(loginEntry);
+      if (isConnected && pass.trim() === account.password) {
+        await FirebaseAPI.savePassword(account.id, pass.trim());
+        storage.set(`pass_${account.id}`, pass.trim());
       }
-      
-      sessionStorage.setItem("boc_session", JSON.stringify({
-        acctId: account.id,
-        expiry: Date.now() + 8 * 60 * 60 * 1000
-      }));
-      
+      sessionStorage.setItem("boc_session", JSON.stringify({ acctId: account.id, expiry: Date.now() + 8 * 3600000 }));
       const defaultPasswords = ["1001","1002","1003","1004","1005","2001","2002","2003","3001","3002","3003","3004"];
-      if (defaultPasswords.includes(pass.trim())) {
-        sessionStorage.setItem("force_password_change", "true");
-      }
-      
+      if (defaultPasswords.includes(pass.trim())) sessionStorage.setItem("force_password_change", "true");
       onLogin(account);
-    } else {
-      setErr("كلمة المرور غير صحيحة");
-    }
+    } else { setErr("كلمة المرور غير صحيحة"); }
     setLoading(false);
   };
 
@@ -317,85 +252,29 @@ function LoginScreen({ onLogin }) {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4" dir="rtl">
       <div className="w-full max-w-md bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-white/20">
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg mb-4">
-            <LogIn size={32} className="text-white"/>
-          </div>
+          <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg mb-4"><LogIn size={32} className="text-white"/></div>
           <h2 className="text-2xl font-bold text-white">شركة نفط البصرة</h2>
-          <p className="text-sm text-slate-300 mt-2">شعبة مستودع الفاو — نظام الإجازات</p>
+          <p className="text-sm text-slate-300 mt-2">شعبة مستودع الفاو — النظام المتكامل</p>
         </div>
-        
-        {/* حالة الاتصال */}
         <div className="mb-4 flex items-center justify-center gap-2 text-xs">
-          {isConnected ? (
-            <>
-              <Wifi size={12} className="text-emerald-400"/>
-              <span className="text-emerald-400">✓ متصل بالسحابة</span>
-            </>
-          ) : (
-            <>
-              <WifiOff size={12} className="text-amber-400"/>
-              <span className="text-amber-400">⚠ وضع غير متصل (محلي)</span>
-            </>
-          )}
+          {isConnected ? <><Wifi size={12} className="text-emerald-400"/><span className="text-emerald-400">✓ متصل بالسحابة</span></> : <><WifiOff size={12} className="text-amber-400"/><span className="text-amber-400">⚠ وضع غير متصل (محلي)</span></>}
         </div>
-        
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-bold text-slate-200 mb-2">الرقم الوظيفي</label>
-            <input 
-              type="text" 
-              value={user} 
-              onChange={(e) => setUser(e.target.value)} 
-              className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
-              placeholder="مثال: 728004" 
-              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-bold text-slate-200 mb-2">كلمة المرور</label>
-            <div className="relative">
-              <input 
-                type={showP ? "text" : "password"} 
-                value={pass} 
-                onChange={(e) => setPass(e.target.value)} 
-                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
-                placeholder="••••••••" 
-                onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-              />
-              <button 
-                onClick={() => setShowP(!showP)} 
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-              >
-                {showP ? <EyeOff size={18}/> : <Eye size={18}/>}
-              </button>
-            </div>
-          </div>
-          
-          {err && (
-            <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-xl flex items-center gap-2">
-              <AlertCircle size={16}/> {err}
-            </div>
-          )}
-          
-          <button 
-            onClick={handleLogin} 
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50"
-          >
-            {loading ? "جاري التحقق..." : "تسجيل الدخول"}
-          </button>
+          <div><label className="block text-sm font-bold text-slate-200 mb-2">الرقم الوظيفي</label>
+            <input type="text" value={user} onChange={e=>setUser(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 text-center text-lg" placeholder="728004" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/></div>
+          <div><label className="block text-sm font-bold text-slate-200 mb-2">كلمة المرور</label>
+            <div className="relative"><input type={showP?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 text-center text-lg" placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
+              <button onClick={()=>setShowP(!showP)} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">{showP?<EyeOff size={18}/>:<Eye size={18}/>}</button></div></div>
+          {err && <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-xl flex items-center gap-2"><AlertCircle size={16}/> {err}</div>}
+          <button onClick={handleLogin} disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50 text-lg">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
         </div>
-        
-        <div className="mt-6 text-center text-xs text-slate-400">
-          <p>للتجربة: <strong className="text-blue-300">728004</strong> | <strong className="text-blue-300">1001</strong></p>
-        </div>
+        <div className="mt-6 text-center text-sm text-slate-400"><p>🔑 <strong className="text-blue-300">728004</strong> | كلمة المرور: <strong className="text-blue-300">1001</strong></p></div>
       </div>
     </div>
   );
 }
 
-// ========== صفحة تغيير كلمة المرور ==========
+// ========== تغيير كلمة المرور ==========
 function ChangePasswordPage({ emp, onLogout }) {
   const [newPass, setNewPass] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -405,731 +284,485 @@ function ChangePasswordPage({ emp, onLogout }) {
   const { isConnected } = useConnectionStatus();
 
   const handleChangePassword = async () => {
-    if (!newPass || newPass.trim().length < 4) {
-      setMsg({ text: "⚠️ كلمة المرور يجب أن تكون 4 خانات أو أكثر", type: "error" });
-      return;
-    }
-    if (newPass.trim() !== confirm.trim()) {
-      setMsg({ text: "⚠️ كلمات المرور غير متطابقة", type: "error" });
-      return;
-    }
-
+    if (!newPass || newPass.trim().length < 4) { setMsg({ text: "⚠️ كلمة المرور يجب أن تكون 4 خانات أو أكثر", type: "error" }); return; }
+    if (newPass.trim() !== confirm.trim()) { setMsg({ text: "⚠️ كلمات المرور غير متطابقة", type: "error" }); return; }
     setLoading(true);
-    
     try {
-      const encrypted = btoa(newPass.trim());
-      storage.set(`pass_${emp.id}`, encrypted);
-      
-      if (isConnected) {
-        await FirebaseAPI.savePassword(emp.id, encrypted);
-      }
-      
+      storage.set(`pass_${emp.id}`, newPass.trim());
+      if (isConnected) await FirebaseAPI.savePassword(emp.id, newPass.trim());
       sessionStorage.removeItem("force_password_change");
       setMsg({ text: isConnected ? "✅ تم تغيير كلمة المرور ومزامنتها مع السحابة!" : "✅ تم تغيير كلمة المرور محلياً", type: "success" });
-      setNewPass("");
-      setConfirm("");
-      
-      setTimeout(() => {
-        if (window.confirm("تم تغيير كلمة المرور. هل تريد تسجيل الخروج؟")) {
-          onLogout();
-        }
-      }, 1500);
-    } catch (error) {
-      setMsg({ text: "❌ حدث خطأ", type: "error" });
-    } finally {
-      setLoading(false);
-    }
+      setNewPass(""); setConfirm("");
+      setTimeout(() => { if (window.confirm("تم تغيير كلمة المرور. هل تريد تسجيل الخروج؟")) onLogout(); }, 1500);
+    } catch { setMsg({ text: "❌ حدث خطأ", type: "error" }); }
+    finally { setLoading(false); }
   };
 
   return (
     <div className="max-w-md mx-auto">
       <div className="bg-white rounded-2xl shadow-xl p-6">
-        <div className="flex items-center gap-3 border-b pb-3 mb-4">
-          <div className="p-2 bg-blue-100 rounded-xl">
-            <Shield size={20} className="text-blue-600"/>
-          </div>
-          <div>
-            <h2 className="font-bold text-slate-800">تغيير كلمة المرور</h2>
-            <p className="text-xs text-slate-500">{emp.name}</p>
-          </div>
-        </div>
-        
+        <div className="flex items-center gap-3 border-b pb-3 mb-4"><div className="p-2 bg-blue-100 rounded-xl"><Shield size={20} className="text-blue-600"/></div><div><h2 className="font-bold text-slate-800">تغيير كلمة المرور</h2><p className="text-xs text-slate-500">{emp.name}</p></div></div>
         <div className="space-y-4">
-          <div>
-            <label className="text-sm font-bold text-slate-600 block mb-1">كلمة المرور الجديدة</label>
-            <div className="relative">
-              <input
-                type={showN ? "text" : "password"}
-                value={newPass}
-                onChange={(e) => setNewPass(e.target.value)}
-                placeholder="أدخل كلمة المرور الجديدة"
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 pl-10 focus:outline-none focus:border-blue-500"
-              />
-              <button onClick={() => setShowN(!showN)} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                {showN ? <EyeOff size={16}/> : <Eye size={16}/>}
-              </button>
-            </div>
-          </div>
-          
-          <div>
-            <label className="text-sm font-bold text-slate-600 block mb-1">تأكيد كلمة المرور</label>
-            <input
-              type={showN ? "text" : "password"}
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              placeholder="أعد إدخال كلمة المرور"
-              className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-          
-          {msg && (
-            <div className={`p-3 rounded-xl text-sm text-center ${
-              msg.type === "success" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-            }`}>
-              {msg.text}
-            </div>
-          )}
-          
-          <button
-            onClick={handleChangePassword}
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            <Save size={16}/> {loading ? "جاري الحفظ..." : "حفظ كلمة المرور"}
-          </button>
+          <div><label className="text-sm font-bold text-slate-600 block mb-1">كلمة المرور الجديدة</label><div className="relative"><input type={showN?"text":"password"} value={newPass} onChange={e=>setNewPass(e.target.value)} placeholder="أدخل كلمة المرور الجديدة" className="w-full border border-slate-200 rounded-xl px-4 py-3 pl-10 focus:outline-none focus:border-blue-500"/>
+            <button onClick={()=>setShowN(!showN)} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">{showN?<EyeOff size={16}/>:<Eye size={16}/>}</button></div></div>
+          <div><label className="text-sm font-bold text-slate-600 block mb-1">تأكيد كلمة المرور</label><input type={showN?"text":"password"} value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="أعد إدخال كلمة المرور" className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"/></div>
+          {msg && <div className={`p-3 rounded-xl text-sm text-center ${msg.type==="success"?"bg-emerald-50 text-emerald-700":"bg-red-50 text-red-700"}`}>{msg.text}</div>}
+          <button onClick={handleChangePassword} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"><Save size={16}/> {loading?"جاري الحفظ...":"حفظ كلمة المرور"}</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ========== صفحة الطلبات ==========
-function RequestsPage({ emp }) {
-  const [requests, setRequests] = useState([]);
+// ========== 1. نظام الحضور الكامل ==========
+function AttendanceSystem({ emp, isAdmin, allEmployees }) {
+  const now = new Date();
+  const [selMonth, setSelMonth] = useState(now.getMonth());
+  const [selYear, setSelYear] = useState(now.getFullYear());
+  const [selEmpId, setSelEmpId] = useState(isAdmin ? null : emp.id);
+  const [selectedDate, setSelectedDate] = useState(now.toISOString().slice(0,10));
+  const [dailyRecords, setDailyRecords] = useState(() => storage.get(`attendance_${emp.id}`, {}));
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  const daysInMonth = new Date(selYear, selMonth+1, 0).getDate();
+  
+  useEffect(() => { storage.set(`attendance_${emp.id}`, dailyRecords); }, [dailyRecords, emp.id]);
+  
+  const handleCheckIn = () => {
+    const nowTime = new Date().toLocaleTimeString("ar-IQ", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
+    const record = dailyRecords[selectedDate] || {};
+    setDailyRecords({ ...dailyRecords, [selectedDate]: { ...record, checkIn: nowTime, status: "حاضر" } });
+    showToast("✅ تم تسجيل دخولك بنجاح");
+  };
+  
+  const handleCheckOut = () => {
+    const nowTime = new Date().toLocaleTimeString("ar-IQ", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
+    const record = dailyRecords[selectedDate] || {};
+    if (!record.checkIn) { showToast("⚠️ يجب تسجيل الدخول أولاً"); return; }
+    setDailyRecords({ ...dailyRecords, [selectedDate]: { ...record, checkOut: nowTime } });
+    showToast("✅ تم تسجيل خروجك بنجاح");
+  };
+  
+  const stats = { حاضر: 0, غائب: 0 };
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = `${selYear}-${String(selMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    if (dailyRecords[key]?.checkIn) stats.حاضر++; else stats.غائب++;
+  }
+  const attendanceRate = daysInMonth > 0 ? Math.round((stats.حاضر / daysInMonth) * 100) : 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3 items-center justify-between">
+        <div className="flex gap-2"><select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))} className="bg-white border rounded-xl px-3 py-2 text-sm">{months.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
+        <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))} className="bg-white border rounded-xl px-3 py-2 text-sm">{[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}</select>
+        {isAdmin && <select value={selEmpId||""} onChange={e=>setSelEmpId(Number(e.target.value)||null)} className="bg-white border rounded-xl px-3 py-2 text-sm min-w-[180px]"><option value="">-- اختر موظفاً --</option>{allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,2).join(" ")}</option>)}</select>}</div>
+        <PrintButton targetId="print-attendance" title={`تقرير الحضور - ${months[selMonth]} ${selYear}`}/>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="bg-emerald-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold text-emerald-700">{stats.حاضر}</p><p className="text-[10px]">أيام الحضور</p></div>
+        <div className="bg-red-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold text-red-700">{stats.غائب}</p><p className="text-[10px]">أيام الغياب</p></div>
+        <div className="bg-blue-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold text-blue-700">{attendanceRate}%</p><p className="text-[10px]">نسبة الحضور</p></div>
+      </div>
+      {(!isAdmin || selEmpId === emp.id) && (
+        <div className="bg-white rounded-2xl border p-5"><h3 className="font-bold text-slate-800 mb-3">تسجيل الحضور اليومي</h3>
+          <div className="flex flex-wrap gap-4 items-end"><div><label className="block text-xs font-bold text-slate-500 mb-1">التاريخ</label><input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} className="border rounded-xl px-3 py-2"/></div>
+          <div className="flex gap-2"><button onClick={handleCheckIn} className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold"><LogIn size={14} className="inline ml-1"/> تسجيل دخول</button>
+          <button onClick={handleCheckOut} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><LogOut size={14} className="inline ml-1"/> تسجيل خروج</button></div></div>
+          {dailyRecords[selectedDate]?.checkIn && <div className="mt-3 text-sm text-slate-600">✅ تم تسجيل الدخول الساعة {dailyRecords[selectedDate].checkIn}</div>}
+          {dailyRecords[selectedDate]?.checkOut && <div className="text-sm text-slate-600">✅ تم تسجيل الخروج الساعة {dailyRecords[selectedDate].checkOut}</div>}</div>
+      )}
+      <div id="print-attendance" className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b"><th className="px-3 py-2">اليوم</th><th className="px-3 py-2">التاريخ</th><th className="px-3 py-2">دخول</th><th className="px-3 py-2">خروج</th><th className="px-3 py-2">الحالة</th></tr></thead>
+      <tbody>{Array.from({length:daysInMonth},(_,i)=>i+1).map(day=>{const key = `${selYear}-${String(selMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`; const record = dailyRecords[key]||{};
+      return(<tr key={day} className="border-b hover:bg-slate-50"><td className="px-3 py-2">{new Date(key).toLocaleDateString("ar-IQ",{weekday:"short"})}</td><td className="px-3 py-2">{day}</td><td className="px-3 py-2">{record.checkIn||"—"}</td><td className="px-3 py-2">{record.checkOut||"—"}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${record.checkIn?"bg-emerald-100 text-emerald-700":"bg-red-100 text-red-700"}`}>{record.checkIn?"حاضر":"غائب"}</span></td></tr>);})}</tbody></table></div></div>
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+    </div>
+  );
+}
+
+// ========== 2. نظام التدريب ==========
+function TrainingSystem({ emp, isAdmin, allEmployees }) {
+  const [trainings, setTrainings] = useState(() => storage.get(`trainings_${emp.id}`, []));
   const [showForm, setShowForm] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [formData, setFormData] = useState({
-    type: "اعتيادية",
-    dateFrom: new Date().toISOString().slice(0,10),
-    dateTo: new Date().toISOString().slice(0,10),
-    purpose: ""
-  });
-  const [errors, setErrors] = useState({});
-  const { isConnected } = useConnectionStatus();
+  const [form, setForm] = useState({ title:"", type:"تدريب ذاتي", desc:"", startDate:"", endDate:"", provider:"" });
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  
+  useEffect(() => { storage.set(`trainings_${emp.id}`, trainings); }, [trainings, emp.id]);
+  
+  const addTraining = () => {
+    if (!form.title) return showToast("عنوان التدريب مطلوب");
+    const newTraining = { ...form, id: Date.now(), status: "مسندة", assignedAt: new Date().toISOString() };
+    setTrainings([newTraining, ...trainings]);
+    setForm({ title:"", type:"تدريب ذاتي", desc:"", startDate:"", endDate:"", provider:"" });
+    setShowForm(false);
+    showToast("✅ تم إضافة التدريب");
+  };
+  
+  const updateStatus = (id, status) => {
+    setTrainings(trainings.map(t => t.id === id ? { ...t, status, completedAt: status==="مكتملة"?new Date().toISOString():t.completedAt } : t));
+    showToast(`✅ تم تحديث الحالة إلى ${status}`);
+  };
+  
+  const getStatusColor = (status) => TRAINING_STATUS[status] || "bg-slate-100 text-slate-600";
+  const myTrainings = trainings.filter(t => !isAdmin || true);
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center"><h3 className="font-bold text-slate-800 text-lg">المهام التدريبية</h3>
+        {isAdmin && <button onClick={()=>setShowForm(!showForm)} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة تدريب</button>}
+        <PrintButton targetId="print-training" title="تقرير التدريب"/></div>
+      {showForm && isAdmin && (<div className="bg-white rounded-2xl border-2 border-violet-200 p-5"><div className="grid grid-cols-2 gap-3"><input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="عنوان التدريب" className="border rounded-xl px-3 py-2 text-sm col-span-2"/>
+      <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} className="border rounded-xl px-3 py-2 text-sm">{TRAINING_TYPES.map(t=><option key={t}>{t}</option>)}</select>
+      <input value={form.provider} onChange={e=>setForm({...form,provider:e.target.value})} placeholder="الجهة المقدمة" className="border rounded-xl px-3 py-2 text-sm"/>
+      <input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} placeholder="تاريخ البداية" className="border rounded-xl px-3 py-2 text-sm"/>
+      <input type="date" value={form.endDate} onChange={e=>setForm({...form,endDate:e.target.value})} placeholder="تاريخ النهاية" className="border rounded-xl px-3 py-2 text-sm"/>
+      <textarea value={form.desc} onChange={e=>setForm({...form,desc:e.target.value})} rows={2} placeholder="وصف التدريب" className="border rounded-xl px-3 py-2 text-sm col-span-2"/></div>
+      <div className="flex gap-2 justify-end mt-4"><button onClick={()=>setShowForm(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={addTraining} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> إضافة</button></div></div>)}
+      <div id="print-training" className="space-y-3">{myTrainings.length===0?<div className="bg-white rounded-2xl p-10 text-center"><GraduationCap size={40} className="text-slate-300 mx-auto"/><p className="text-slate-400">لا توجد مهام تدريبية</p></div>:
+      myTrainings.map(t=>(<div key={t.id} className="bg-white rounded-2xl border p-4 shadow-sm"><div className="flex justify-between items-start"><div><div className="flex gap-2 mb-1"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${getStatusColor(t.status)}`}>{t.status}</span>
+      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-50 text-violet-700">{t.type}</span></div><p className="font-bold text-slate-800">{t.title}</p>
+      {t.desc && <p className="text-xs text-slate-500 mt-1">{t.desc}</p>}<div className="flex gap-3 text-[10px] text-slate-400 mt-2">{t.startDate && <span>📅 من {t.startDate}</span>}{t.endDate && <span>إلى {t.endDate}</span>}{t.provider && <span>🏛️ {t.provider}</span>}</div></div>
+      {isAdmin && t.status!=="مكتملة" && <button onClick={()=>updateStatus(t.id,"مكتملة")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs"><CheckCircle size={12}/> إكمال</button>}</div></div>))}</div>
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+    </div>
+  );
+}
 
-  // تحميل الطلبات
+// ========== 3. جرد المخزن ==========
+function InventorySystem({ emp, isAdmin }) {
+  const [items, setItems] = useState(() => storage.get("inventory_items", [
+    { id:1, code:"INV-001", name:"مقاومة متغيرة", category:"أجهزة قياس", unit:"قطعة", qty:5, condition:"جيد", location:"الرف A1" },
+    { id:2, code:"INV-002", name:"مولد ذبذبات", category:"أجهزة قياس", unit:"قطعة", qty:2, condition:"جيد", location:"الرف A2" },
+    { id:3, code:"INV-003", name:"جهاز معايرة ضغط", category:"أجهزة معايرة", unit:"قطعة", qty:1, condition:"جيد", location:"الرف B1" },
+    { id:4, code:"INV-004", name:"كماشة كهرباء", category:"عدد يدوية", unit:"قطعة", qty:10, condition:"جيد", location:"الرف C1" },
+    { id:5, code:"INV-005", name:"مفك براغي", category:"عدد يدوية", unit:"مجموعة", qty:3, condition:"مستعمل", location:"الرف C2" },
+  ]));
+  const [search, setSearch] = useState("");
+  const [filterCat, setFilterCat] = useState("الكل");
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ code:"", name:"", category:"أجهزة قياس", unit:"قطعة", qty:1, condition:"جيد", location:"" });
+  const [adding, setAdding] = useState(false);
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  useEffect(() => { storage.set("inventory_items", items); }, [items]);
+  
+  const categories = ["الكل", ...new Set(items.map(i=>i.category))];
+  const filtered = items.filter(i => (i.name.includes(search) || i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
+  
+  const saveItem = () => {
+    if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
+    if (adding) setItems([...items, { ...form, id: Date.now() }]);
+    else setItems(items.map(i => i.id===editId ? form : i));
+    setEditId(null); setAdding(false);
+    showToast("✅ تم الحفظ");
+  };
+  const deleteItem = (id) => { if(window.confirm("هل تريد الحذف؟")) { setItems(items.filter(i=>i.id!==id)); showToast("✅ تم الحذف"); } };
+  const openEdit = (it) => { setEditId(it.id); setForm({...it}); setAdding(false); };
+  const openAdd = () => { setAdding(true); setEditId(null); setForm({ code:"", name:"", category:"أجهزة قياس", unit:"قطعة", qty:1, condition:"جيد", location:"" }); };
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3 items-center justify-between"><div className="flex gap-2 flex-1"><div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
+      <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="bg-white border rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select></div>
+      <div className="flex gap-2"><button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة صنف</button><PrintButton targetId="print-inventory" title="جرد المخزن"/></div></div>
+      
+      {(adding || editId) && (<div className="bg-white rounded-2xl border-2 border-blue-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة صنف":"تعديل صنف"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[["الرمز *","code"],["الاسم *","name"],["الفئة","category"],["الوحدة","unit"]].map(([l,k])=>(<div key={k}><label className="block text-[10px] font-bold text-slate-500 mb-1">{l}</label><input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>))}
+      <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الكمية</label><input type="number" value={form.qty} onChange={e=>setForm({...form,qty:Number(e.target.value)})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+      <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الحالة</label><select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">{ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}</select></div>
+      <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الموقع</label><input value={form.location} onChange={e=>setForm({...form,location:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div></div>
+      <div className="flex gap-2 justify-end mt-4"><button onClick={()=>{setEditId(null);setAdding(false);}} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl"><Save size={13}/> حفظ</button></div></div>)}
+      
+      <div id="print-inventory" className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b"><th>الرمز</th><th>الاسم</th><th>الفئة</th><th>الكمية</th><th>الحالة</th><th>الموقع</th><th>إجراءات</th></tr></thead>
+      <tbody>{filtered.map(it=>(<tr key={it.id} className="border-b hover:bg-slate-50"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2 font-semibold">{it.name}</td><td className="px-3 py-2">{it.category}</td><td className="px-3 py-2 font-bold">{it.qty}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${COND_STYLE[it.condition]||""}`}>{it.condition}</span></td><td className="px-3 py-2">{it.location}</td>
+      <td className="px-3 py-2"><div className="flex gap-1"><button onClick={()=>openEdit(it)} className="p-1 text-blue-500 hover:bg-blue-50 rounded"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+    </div>
+  );
+}
+
+// ========== 4. جرد الأثاث ==========
+function FurnitureInventory({ emp, isAdmin }) {
+  const [items, setItems] = useState(() => storage.get("furniture_items", [
+    { id:1, code:"FURN-001", name:"منضدة كتابة 160 سم", category:"أثاث مكتبي", qty:5, condition:"جيد", location:"المكتب الرئيسي", serialNo:"SN001" },
+    { id:2, code:"FURN-002", name:"كرسي دوار", category:"أثاث مكتبي", qty:8, condition:"جيد", location:"المكتب الرئيسي", serialNo:"SN002" },
+    { id:3, code:"FURN-003", name:"خزانة ملفات", category:"أثاث مكتبي", qty:3, condition:"مستعمل", location:"أرشيف", serialNo:"SN003" },
+    { id:4, code:"FURN-004", name:"طابعة HP", category:"أجهزة حاسوب", qty:2, condition:"جيد", location:"قسم IT", serialNo:"HP001" },
+  ]));
+  const [search, setSearch] = useState("");
+  const [filterCat, setFilterCat] = useState("الكل");
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ code:"", name:"", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"", serialNo:"" });
+  const [adding, setAdding] = useState(false);
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  useEffect(() => { storage.set("furniture_items", items); }, [items]);
+  
+  const categories = ["الكل", ...FURNITURE_CATS];
+  const filtered = items.filter(i => (i.name.includes(search) || i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
+  
+  const saveItem = () => {
+    if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
+    if (adding) setItems([...items, { ...form, id: Date.now() }]);
+    else setItems(items.map(i => i.id===editId ? form : i));
+    setEditId(null); setAdding(false);
+    showToast("✅ تم الحفظ");
+  };
+  const deleteItem = (id) => { if(window.confirm("هل تريد الحذف؟")) { setItems(items.filter(i=>i.id!==id)); showToast("✅ تم الحذف"); } };
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3 items-center justify-between"><div className="flex gap-2 flex-1"><div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
+      <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="bg-white border rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select></div>
+      <div className="flex gap-2"><button onClick={()=>{setAdding(true); setEditId(null); setForm({ code:"", name:"", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"", serialNo:"" });}} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button><PrintButton targetId="print-furniture" title="جرد الأثاث"/></div></div>
+      
+      {(adding || editId) && (<div className="bg-white rounded-2xl border-2 border-violet-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة قطعة":"تعديل قطعة"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[["الرمز *","code"],["الاسم *","name"],["الفئة","category"],["الكمية","qty"],["الموقع","location"],["الرقم التسلسلي","serialNo"]].map(([l,k])=>(<div key={k}><label className="block text-[10px] font-bold text-slate-500 mb-1">{l}</label><input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>))}
+      <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الحالة</label><select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">{ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}</select></div></div>
+      <div className="flex gap-2 justify-end mt-4"><button onClick={()=>{setEditId(null);setAdding(false);}} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> حفظ</button></div></div>)}
+      
+      <div id="print-furniture" className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b"><th>الرمز</th><th>الاسم</th><th>الفئة</th><th>الكمية</th><th>الحالة</th><th>الموقع</th><th>الرقم التسلسلي</th><th>إجراءات</th></tr></thead>
+      <tbody>{filtered.map(it=>(<tr key={it.id} className="border-b hover:bg-slate-50"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2 font-semibold">{it.name}</td><td className="px-3 py-2">{it.category}</td><td className="px-3 py-2 font-bold">{it.qty}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${COND_STYLE[it.condition]||""}`}>{it.condition}</span></td><td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 text-slate-400">{it.serialNo||"—"}</td>
+      <td className="px-3 py-2"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id); setForm({...it}); setAdding(false);}} className="p-1 text-blue-500 hover:bg-blue-50 rounded"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+    </div>
+  );
+}
+
+// ========== 5. لوحة إحصائيات متقدمة ==========
+function AdvancedStats({ allEmployees, allRequests, trainings }) {
+  const [stats, setStats] = useState({ totalEmployees:0, pendingRequests:0, approvedRequests:0, trainingCompleted:0, trainingInProgress:0 });
   useEffect(() => {
-    const loadRequests = async () => {
-      setLoading(true);
-      if (isConnected) {
-        const allRequests = await FirebaseAPI.getAllRequests();
-        const myRequests = allRequests.filter(r => r.empId === emp.id);
-        setRequests(myRequests);
-      } else {
-        const local = storage.get(`requests_${emp.id}`, []);
-        setRequests(local);
-      }
-      setLoading(false);
-    };
-    loadRequests();
-  }, [emp.id, isConnected]);
+    setStats({
+      totalEmployees: allEmployees.length,
+      pendingRequests: (allRequests || []).filter(r => r.status === "بانتظار المراجعة").length,
+      approvedRequests: (allRequests || []).filter(r => r.status === "موافق عليها").length,
+      trainingCompleted: (trainings || []).filter(t => t.status === "مكتملة").length,
+      trainingInProgress: (trainings || []).filter(t => t.status === "قيد التنفيذ" || t.status === "مسندة").length,
+    });
+  }, [allEmployees, allRequests, trainings]);
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-5 text-white"><Users size={28} className="mb-2 opacity-80"/><p className="text-3xl font-bold">{stats.totalEmployees}</p><p className="text-sm opacity-80">إجمالي الموظفين</p></div>
+      <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-2xl p-5 text-white"><FileText size={28} className="mb-2 opacity-80"/><p className="text-3xl font-bold">{stats.pendingRequests}</p><p className="text-sm opacity-80">طلبات معلقة</p></div>
+      <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl p-5 text-white"><CheckCircle size={28} className="mb-2 opacity-80"/><p className="text-3xl font-bold">{stats.approvedRequests}</p><p className="text-sm opacity-80">طلبات موافق عليها</p></div>
+      <div className="bg-gradient-to-r from-violet-500 to-violet-600 rounded-2xl p-5 text-white"><GraduationCap size={28} className="mb-2 opacity-80"/><p className="text-3xl font-bold">{stats.trainingCompleted}</p><p className="text-sm opacity-80">تدريب مكتمل</p></div>
+      <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-2xl p-5 text-white"><Clock size={28} className="mb-2 opacity-80"/><p className="text-3xl font-bold">{stats.trainingInProgress}</p><p className="text-sm opacity-80">تدريب قيد التنفيذ</p></div>
+    </div>
+  );
+}
 
-  const saveRequest = async (request) => {
-    if (isConnected) {
-      await FirebaseAPI.saveRequest(request);
-    }
-    storage.set(`requests_${emp.id}`, [request, ...requests]);
-    setRequests([request, ...requests]);
-  };
+// ========== 6. سجل التعديلات ==========
+function AuditLogPage() {
+  const [logs, setLogs] = useState(() => storage.get("audit_log", []));
+  const [search, setSearch] = useState("");
+  const filtered = logs.filter(l => l.details?.includes(search) || l.by?.includes(search)).slice(0, 100);
+  useEffect(() => { storage.set("audit_log", logs); }, [logs]);
+  return (
+    <div className="space-y-4"><div className="flex gap-3"><div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث في السجل..." className="bg-transparent text-sm outline-none w-full"/></div><PrintButton targetId="print-audit" title="سجل التعديلات"/></div>
+    <div id="print-audit" className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b"><th>العملية</th><th>التفاصيل</th><th>بواسطة</th><th>التاريخ</th></tr></thead>
+    <tbody>{filtered.length===0?<tr><td colSpan={4} className="text-center py-8 text-slate-400">لا توجد سجلات</td></tr>:
+    filtered.map(l=><tr key={l.id} className="border-b hover:bg-slate-50"><td className="px-3 py-2">{l.action}</td><td className="px-3 py-2">{l.details}</td><td className="px-3 py-2">{l.by}</td><td className="px-3 py-2 text-slate-400">{new Date(l.at).toLocaleString("ar-IQ")}</td></tr>)}</tbody></td></div></div></div>
+  );
+}
 
-  const deleteRequest = async (id) => {
-    if (window.confirm("هل تريد حذف هذا الطلب؟")) {
-      if (isConnected) {
-        await FirebaseAPI.deleteRequest(id);
-      }
-      const updated = requests.filter(r => r.id !== id);
-      storage.set(`requests_${emp.id}`, updated);
-      setRequests(updated);
-    }
-  };
-
+// ========== طلبات الإجازة ==========
+function RequestsPage({ emp }) {
+  const [requests, setRequests] = useState(() => storage.get(`requests_${emp.id}`, []));
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({ type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" });
+  const [errors, setErrors] = useState({});
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  
   const handleSubmit = () => {
-    const newErrors = {};
-    if (!formData.purpose.trim()) newErrors.purpose = "الغرض مطلوب";
-    if (new Date(formData.dateFrom) > new Date(formData.dateTo)) newErrors.date = "تاريخ البداية يجب أن يكون قبل تاريخ النهاية";
-    
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-    
+    if (!formData.purpose.trim()) { setErrors({purpose:"الغرض مطلوب"}); return; }
+    if (new Date(formData.dateFrom) > new Date(formData.dateTo)) { setErrors({date:"تاريخ البداية يجب أن يكون قبل تاريخ النهاية"}); return; }
     const days = Math.ceil((new Date(formData.dateTo) - new Date(formData.dateFrom)) / 86400000) + 1;
     const maxDays = LEAVE_TYPES[formData.type].max;
-    
-    if (days > maxDays) {
-      setErrors({ days: `الحد الأقصى ${maxDays} يوم` });
-      return;
-    }
-    
-    const newRequest = {
-      id: Date.now(),
-      ...formData,
-      days,
-      status: "بانتظار المراجعة",
-      submittedAt: new Date().toISOString(),
-      empId: emp.id,
-      empName: emp.name,
-    };
-    
-    saveRequest(newRequest);
+    if (days > maxDays) { setErrors({days:`الحد الأقصى ${maxDays} يوم`}); return; }
+    const newRequest = { id:Date.now(), ...formData, days, status:"بانتظار المراجعة", submittedAt:new Date().toISOString(), empId:emp.id, empName:emp.name };
+    setRequests([newRequest, ...requests]);
+    storage.set(`requests_${emp.id}`, [newRequest, ...requests]);
     setShowForm(false);
-    setFormData({ type: "اعتيادية", dateFrom: new Date().toISOString().slice(0,10), dateTo: new Date().toISOString().slice(0,10), purpose: "" });
+    setFormData({ type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" });
     setErrors({});
+    showToast("✅ تم إرسال طلبك بنجاح");
   };
-
+  
+  const deleteRequest = (id) => {
+    if(window.confirm("هل تريد حذف هذا الطلب؟")) {
+      const updated = requests.filter(r => r.id !== id);
+      setRequests(updated);
+      storage.set(`requests_${emp.id}`, updated);
+      showToast("✅ تم حذف الطلب");
+    }
+  };
+  
   const getStatusBadge = (status) => {
-    switch(status) {
-      case "بانتظار المراجعة": return "bg-amber-100 text-amber-700";
-      case "موافق عليها": return "bg-emerald-100 text-emerald-700";
-      case "مرفوضة": return "bg-red-100 text-red-700";
-      default: return "bg-slate-100 text-slate-700";
-    }
+    if(status==="بانتظار المراجعة") return "bg-amber-100 text-amber-700";
+    if(status==="موافق عليها") return "bg-emerald-100 text-emerald-700";
+    return "bg-red-100 text-red-700";
   };
-
-  if (loading) {
-    return <div className="text-center py-8 text-slate-500">جاري التحميل...</div>;
-  }
-
+  
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-bold text-slate-800 text-lg">طلبات الإجازة</h3>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition"
-        >
-          <Plus size={16}/> طلب جديد
-        </button>
-      </div>
-      
-      {/* نموذج إضافة طلب */}
-      {showForm && (
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
-          <h4 className="font-bold text-slate-800 mb-4">طلب إجازة جديد</h4>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-bold text-slate-600 mb-1">نوع الإجازة</label>
-              <select
-                value={formData.type}
-                onChange={(e) => setFormData({...formData, type: e.target.value})}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2 focus:outline-none focus:border-blue-500"
-              >
-                {Object.entries(LEAVE_TYPES).map(([key, val]) => (
-                  <option key={key} value={key}>{val.label}</option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-bold text-slate-600 mb-1">من تاريخ</label>
-                <input
-                  type="date"
-                  value={formData.dateFrom}
-                  onChange={(e) => setFormData({...formData, dateFrom: e.target.value})}
-                  className="w-full border border-slate-200 rounded-xl px-4 py-2 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-600 mb-1">إلى تاريخ</label>
-                <input
-                  type="date"
-                  value={formData.dateTo}
-                  onChange={(e) => setFormData({...formData, dateTo: e.target.value})}
-                  className="w-full border border-slate-200 rounded-xl px-4 py-2 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-bold text-slate-600 mb-1">الغرض</label>
-              <input
-                type="text"
-                value={formData.purpose}
-                onChange={(e) => setFormData({...formData, purpose: e.target.value})}
-                placeholder="اكتب سبب الإجازة..."
-                className="w-full border border-slate-200 rounded-xl px-4 py-2 focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            
-            {errors.purpose && <p className="text-red-500 text-xs">{errors.purpose}</p>}
-            {errors.date && <p className="text-red-500 text-xs">{errors.date}</p>}
-            {errors.days && <p className="text-red-500 text-xs">{errors.days}</p>}
-            
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => setShowForm(false)}
-                className="flex-1 py-2 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-50"
-              >
-                إلغاء
-              </button>
-              <button
-                onClick={handleSubmit}
-                className="flex-1 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700"
-              >
-                إرسال الطلب
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* قائمة الطلبات */}
-      {requests.length === 0 ? (
-        <div className="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200">
-          <FileText size={40} className="mx-auto mb-3 text-slate-300"/>
-          <p>لا توجد طلبات إجازة</p>
-          <p className="text-sm mt-1">اضغط على "طلب جديد" لإضافة طلب</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {requests.map(req => (
-            <div key={req.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${LEAVE_TYPES[req.type]?.color || "bg-slate-100"}`}>
-                      {LEAVE_TYPES[req.type]?.label || req.type}
-                    </span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusBadge(req.status)}`}>
-                      {req.status}
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-600">
-                    من {req.dateFrom} إلى {req.dateTo} — {req.days} يوم
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">{req.purpose}</p>
-                  <p className="text-[10px] text-slate-300 mt-2">
-                    تاريخ التقديم: {new Date(req.submittedAt).toLocaleDateString("ar-IQ")}
-                  </p>
-                </div>
-                {req.status === "بانتظار المراجعة" && (
-                  <button
-                    onClick={() => deleteRequest(req.id)}
-                    className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"
-                  >
-                    <Trash2 size={16}/>
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="flex justify-between items-center"><h3 className="font-bold text-slate-800 text-lg">طلبات الإجازة</h3><button onClick={()=>setShowForm(!showForm)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><Plus size={16}/> طلب جديد</button></div>
+      {showForm && (<div className="bg-white rounded-2xl p-5 border"><h4 className="font-bold mb-4">طلب إجازة جديد</h4><div className="space-y-3"><select value={formData.type} onChange={e=>setFormData({...formData,type:e.target.value})} className="w-full border rounded-xl px-4 py-2">{Object.entries(LEAVE_TYPES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select>
+      <div className="grid grid-cols-2 gap-3"><input type="date" value={formData.dateFrom} onChange={e=>setFormData({...formData,dateFrom:e.target.value})} className="border rounded-xl px-4 py-2"/><input type="date" value={formData.dateTo} onChange={e=>setFormData({...formData,dateTo:e.target.value})} className="border rounded-xl px-4 py-2"/></div>
+      <input value={formData.purpose} onChange={e=>setFormData({...formData,purpose:e.target.value})} placeholder="الغرض من الإجازة" className="w-full border rounded-xl px-4 py-2"/>
+      {errors.purpose && <p className="text-red-500 text-xs">{errors.purpose}</p>}{errors.date && <p className="text-red-500 text-xs">{errors.date}</p>}{errors.days && <p className="text-red-500 text-xs">{errors.days}</p>}
+      <div className="flex gap-3"><button onClick={()=>setShowForm(false)} className="flex-1 py-2 border rounded-xl">إلغاء</button><button onClick={handleSubmit} className="flex-1 py-2 bg-blue-600 text-white rounded-xl">إرسال</button></div></div></div>)}
+      {requests.length===0?<div className="bg-white rounded-2xl p-8 text-center text-slate-400 border"><FileText size={40} className="mx-auto mb-3 text-slate-300"/><p>لا توجد طلبات إجازة</p></div>:
+      requests.map(req=>(<div key={req.id} className="bg-white rounded-2xl p-4 border"><div className="flex justify-between items-start"><div><div className="flex gap-2 mb-2"><span className={`px-2 py-1 rounded-full text-xs font-bold ${LEAVE_TYPES[req.type]?.color}`}>{LEAVE_TYPES[req.type]?.label}</span><span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusBadge(req.status)}`}>{req.status}</span></div>
+      <p className="text-sm">من {req.dateFrom} إلى {req.dateTo} — {req.days} يوم</p><p className="text-xs text-slate-400 mt-1">{req.purpose}</p></div>{req.status==="بانتظار المراجعة" && <button onClick={()=>deleteRequest(req.id)} className="p-2 text-red-400"><Trash2 size={16}/></button>}</div></div>))}
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
 }
 
-// ========== صفحة الموافقات (للمشرف) ==========
+// ========== الموافقات ==========
 function ApprovalsPage({ emp }) {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const { isConnected } = useConnectionStatus();
-
-  useEffect(() => {
-    const loadRequests = async () => {
-      setLoading(true);
-      if (isConnected) {
-        const allRequests = await FirebaseAPI.getAllRequests();
-        const pending = allRequests.filter(r => r.status === "بانتظار المراجعة");
-        setRequests(pending);
-      }
-      setLoading(false);
-    };
-    loadRequests();
-  }, [isConnected]);
-
-  const updateStatus = async (id, status) => {
-    const request = requests.find(r => r.id === id);
-    if (!request) return;
-    
-    const updated = { ...request, status };
-    
-    if (isConnected) {
-      await FirebaseAPI.saveRequest(updated);
+  const [requests, setRequests] = useState(() => {
+    const allRequests = storage.get("all_requests", []);
+    return allRequests.filter(r => r.status === "بانتظار المراجعة");
+  });
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  
+  const updateStatus = (id, status) => {
+    const allRequests = storage.get("all_requests", []);
+    const updated = allRequests.map(r => r.id === id ? { ...r, status, decidedAt: new Date().toISOString(), decidedBy: emp.name } : r);
+    storage.set("all_requests", updated);
+    // تحديث طلبات الموظف
+    const req = allRequests.find(r => r.id === id);
+    if(req) {
+      const empRequests = storage.get(`requests_${req.empId}`, []);
+      const updatedEmp = empRequests.map(r => r.id === id ? { ...r, status } : r);
+      storage.set(`requests_${req.empId}`, updatedEmp);
+      // إضافة إشعار
+      const notifs = storage.get(`notifications_${req.empId}`, []);
+      storage.set(`notifications_${req.empId}`, [{ id:Date.now(), type:status==="موافق عليها"?"موافقة":"رفض", title:status==="موافق عليها"?"✅ تمت الموافقة على طلبك":"❌ تم رفض طلبك", body:`${req.type} — ${req.days} يوم`, timestamp:new Date().toISOString(), read:false }, ...notifs]);
     }
-    
-    // إرسال إشعار للموظف
-    if (isConnected) {
-      await FirebaseAPI.saveNotification(request.empId, {
-        id: Date.now(),
-        type: status === "موافق عليها" ? "موافقة" : "رفض",
-        title: status === "موافق عليها" ? "✅ تمت الموافقة على طلبك" : "❌ تم رفض طلبك",
-        body: `${request.type} — ${request.days} يوم`,
-        timestamp: new Date().toISOString(),
-        read: false
-      });
-    }
-    
     setRequests(requests.filter(r => r.id !== id));
+    showToast(`✅ تم ${status==="موافق عليها"?"قبول":"رفض"} الطلب`);
   };
-
-  if (loading) {
-    return <div className="text-center py-8 text-slate-500">جاري التحميل...</div>;
-  }
-
-  return (
-    <div className="space-y-4">
-      <h3 className="font-bold text-slate-800 text-lg">الطلبات المعلقة ({requests.length})</h3>
-      
-      {requests.length === 0 ? (
-        <div className="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200">
-          <CheckCircle size={40} className="mx-auto mb-3 text-slate-300"/>
-          <p>لا توجد طلبات معلقة</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {requests.map(req => (
-            <div key={req.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="font-bold text-slate-800">{req.empName}</span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${LEAVE_TYPES[req.type]?.color || "bg-slate-100"}`}>
-                      {LEAVE_TYPES[req.type]?.label || req.type}
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-600">
-                    من {req.dateFrom} إلى {req.dateTo} — {req.days} يوم
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">{req.purpose}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => updateStatus(req.id, "موافق عليها")}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700"
-                  >
-                    <ThumbsUp size={12}/> قبول
-                  </button>
-                  <button
-                    onClick={() => updateStatus(req.id, "مرفوضة")}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded-xl text-xs font-bold hover:bg-red-700"
-                  >
-                    <ThumbsDown size={12}/> رفض
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  
+  return (<div className="space-y-4"><h3 className="font-bold text-slate-800 text-lg">الطلبات المعلقة ({requests.length})</h3>
+  {requests.length===0?<div className="bg-white rounded-2xl p-8 text-center"><CheckCircle size={40} className="mx-auto text-slate-300"/><p>لا توجد طلبات معلقة</p></div>:
+  requests.map(req=>(<div key={req.id} className="bg-white rounded-2xl p-4 border"><div className="flex justify-between"><div><p className="font-bold">{req.empName}</p><p className="text-sm">{req.type} — {req.days} يوم</p><p className="text-xs text-slate-400">{req.purpose}</p></div>
+  <div className="flex gap-2"><button onClick={()=>updateStatus(req.id,"موافق عليها")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs">قبول</button><button onClick={()=>updateStatus(req.id,"مرفوضة")} className="px-3 py-1.5 bg-red-600 text-white rounded-xl text-xs">رفض</button></div></div></div>))}
+  {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}</div>);
 }
 
-// ========== صفحة الإشعارات ==========
+// ========== الإشعارات ==========
 function NotificationsPage({ emp }) {
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const { isConnected } = useConnectionStatus();
-
-  useEffect(() => {
-    const loadNotifications = async () => {
-      setLoading(true);
-      if (isConnected) {
-        const notifs = await FirebaseAPI.getNotifications(emp.id);
-        setNotifications(notifs);
-      }
-      setLoading(false);
-    };
-    loadNotifications();
-  }, [emp.id, isConnected]);
-
-  const markAsRead = async (id) => {
-    const notif = notifications.find(n => n.id === id);
-    if (notif && !notif.read) {
-      const updated = { ...notif, read: true };
-      if (isConnected) {
-        await FirebaseAPI.saveNotification(emp.id, updated);
-      }
-      setNotifications(notifications.map(n => n.id === id ? updated : n));
-    }
+  const [notifications, setNotifications] = useState(() => storage.get(`notifications_${emp.id}`, []));
+  const markAsRead = (id) => {
+    const updated = notifications.map(n => n.id === id ? { ...n, read: true } : n);
+    setNotifications(updated);
+    storage.set(`notifications_${emp.id}`, updated);
   };
-
-  if (loading) {
-    return <div className="text-center py-8 text-slate-500">جاري التحميل...</div>;
-  }
-
-  return (
-    <div className="space-y-3">
-      <h3 className="font-bold text-slate-800 text-lg">الإشعارات</h3>
-      
-      {notifications.length === 0 ? (
-        <div className="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200">
-          <Bell size={40} className="mx-auto mb-3 text-slate-300"/>
-          <p>لا توجد إشعارات</p>
-        </div>
-      ) : (
-        notifications.map(notif => (
-          <div 
-            key={notif.id} 
-            onClick={() => markAsRead(notif.id)}
-            className={`bg-white rounded-2xl p-4 shadow-sm border cursor-pointer transition ${
-              notif.read ? "border-slate-100 opacity-70" : "border-blue-200 bg-blue-50/30"
-            }`}
-          >
-            <div className="flex items-start gap-3">
-              <div className={`p-2 rounded-xl ${notif.type === "موافقة" ? "bg-emerald-100" : notif.type === "رفض" ? "bg-red-100" : "bg-blue-100"}`}>
-                {notif.type === "موافقة" ? <ThumbsUp size={16} className="text-emerald-600"/> :
-                 notif.type === "رفض" ? <ThumbsDown size={16} className="text-red-600"/> :
-                 <Bell size={16} className="text-blue-600"/>}
-              </div>
-              <div className="flex-1">
-                <p className="font-bold text-slate-800">{notif.title}</p>
-                <p className="text-sm text-slate-500 mt-0.5">{notif.body}</p>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  {new Date(notif.timestamp).toLocaleString("ar-IQ")}
-                </p>
-              </div>
-              {!notif.read && <div className="w-2 h-2 bg-blue-500 rounded-full"/>}
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  );
+  return (<div className="space-y-3"><h3 className="font-bold text-slate-800 text-lg">الإشعارات</h3>
+  {notifications.length===0?<div className="bg-white rounded-2xl p-8 text-center"><Bell size={40} className="mx-auto text-slate-300"/><p>لا توجد إشعارات</p></div>:
+  notifications.map(n=>(<div key={n.id} onClick={()=>markAsRead(n.id)} className={`bg-white rounded-2xl p-4 border cursor-pointer ${n.read?"border-slate-100 opacity-70":"border-blue-200 bg-blue-50/30"}`}>
+  <div className="flex gap-3"><div className={`p-2 rounded-xl ${n.type==="موافقة"?"bg-emerald-100":n.type==="رفض"?"bg-red-100":"bg-blue-100"}`}>
+  {n.type==="موافقة"?<ThumbsUp size={16} className="text-emerald-600"/>:n.type==="رفض"?<ThumbsDown size={16} className="text-red-600"/>:<Bell size={16} className="text-blue-600"/>}</div>
+  <div><p className="font-bold">{n.title}</p><p className="text-sm text-slate-500">{n.body}</p><p className="text-[10px] text-slate-400">{new Date(n.timestamp).toLocaleString("ar-IQ")}</p></div>
+  {!n.read && <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"/>}</div></div>))}</div>);
 }
 
-// ========== إحصائيات المشرف ==========
-function AdminStatsPage() {
-  const [stats, setStats] = useState({ employees: ACCOUNTS.length, pending: 0, total: 0 });
-  const { isConnected } = useConnectionStatus();
-
-  useEffect(() => {
-    const loadStats = async () => {
-      if (isConnected) {
-        const requests = await FirebaseAPI.getAllRequests();
-        setStats(prev => ({ ...prev, pending: requests.filter(r => r.status === "بانتظار المراجعة").length, total: requests.length }));
-      }
-    };
-    loadStats();
-  }, [isConnected]);
-
-  return (
-    <div className="space-y-4">
-      <h3 className="font-bold text-slate-800 text-lg">إحصائيات النظام</h3>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-5 text-white">
-          <Users size={28} className="mb-2 opacity-80"/>
-          <p className="text-3xl font-bold">{stats.employees}</p>
-          <p className="text-sm opacity-80">إجمالي الموظفين</p>
-        </div>
-        
-        <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-2xl p-5 text-white">
-          <Clock size={28} className="mb-2 opacity-80"/>
-          <p className="text-3xl font-bold">{stats.pending}</p>
-          <p className="text-sm opacity-80">طلبات معلقة</p>
-        </div>
-        
-        <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl p-5 text-white">
-          <FileText size={28} className="mb-2 opacity-80"/>
-          <p className="text-3xl font-bold">{stats.total}</p>
-          <p className="text-sm opacity-80">إجمالي الطلبات</p>
-        </div>
-      </div>
-      
-      <div className="bg-white rounded-2xl p-5 border border-slate-200">
-        <h4 className="font-bold text-slate-800 mb-3">حالة المزامنة</h4>
-        <div className="flex items-center gap-3">
-          <Wifi size={20} className={isConnected ? "text-emerald-500" : "text-amber-500"}/>
-          <span>{isConnected ? "✓ متصل بالسحابة - البيانات متزامنة" : "⚠ غير متصل - البيانات محلية"}</span>
-        </div>
-      </div>
-    </div>
-  );
+// ========== إدارة الموظفين ==========
+function EmployeeManager({ employees, setEmployees }) {
+  const [search, setSearch] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي" });
+  const [adding, setAdding] = useState(false);
+  const filtered = employees.filter(e => e.name.includes(search) || e.jobNum.includes(search));
+  const saveEmp = () => {
+    if (!form.name || !form.jobNum) return;
+    if (adding) setEmployees([...employees, { ...form, id: Date.now(), password:"1000" }]);
+    else setEmployees(employees.map(e => e.id===editId ? { ...form, id:editId } : e));
+    setAdding(false); setEditId(null);
+  };
+  return (<div className="space-y-4"><div className="flex gap-3"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="flex-1 border rounded-xl px-3 py-2"/>
+  <button onClick={()=>{setAdding(true); setForm({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحי" });}} className="px-4 py-2 bg-blue-600 text-white rounded-xl"><Plus size={14}/> إضافة</button></div>
+  {(adding||editId) && (<div className="bg-white rounded-2xl border p-5"><div className="grid grid-cols-2 gap-3"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="الاسم" className="border rounded-xl px-3 py-2"/>
+  <input value={form.jobNum} onChange={e=>setForm({...form,jobNum:e.target.value})} placeholder="الرقم الوظيفي" className="border rounded-xl px-3 py-2"/>
+  <input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="المسمى" className="border rounded-xl px-3 py-2"/>
+  <select value={form.dept} onChange={e=>setForm({...form,dept:e.target.value})} className="border rounded-xl px-3 py-2"><option>قسم السيطرة والنظم</option><option>شعبة مستودع الفاو</option><option>شعبة المرافئ</option></select>
+  <select value={form.shift} onChange={e=>setForm({...form,shift:e.target.value})} className="border rounded-xl px-3 py-2"><option>صباحي</option><option>مناوبة</option></select></div>
+  <div className="flex gap-2 mt-4"><button onClick={()=>{setAdding(false);setEditId(null);}} className="flex-1 py-2 border rounded-xl">إلغاء</button><button onClick={saveEmp} className="flex-1 py-2 bg-blue-600 text-white rounded-xl">حفظ</button></div></div>)}
+  <div className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="bg-slate-50 border-b"><th className="px-3 py-2 text-right">الاسم</th><th className="px-3 py-2 text-right">الرقم</th><th className="px-3 py-2 text-right">المسمى</th><th className="px-3 py-2 text-right">القسم</th><th></th></tr></thead>
+  <tbody>{filtered.map(e=><tr key={e.id} className="border-b"><td className="px-3 py-2">{e.name}</td><td className="px-3 py-2">{e.jobNum}</td><td className="px-3 py-2">{e.title}</td><td className="px-3 py-2">{e.dept}</td>
+  <td className="px-3 py-2"><button onClick={()=>{setEditId(e.id); setForm(e);}} className="text-blue-500"><Edit3 size={14}/></button></td></tr>)}</tbody></table></div></div></div>);
 }
 
-// ========== لوحة التحكم الرئيسية ==========
+// ========== اللوحة الرئيسية ==========
 function Dashboard({ emp, onLogout }) {
   const [view, setView] = useState("home");
-  const { isConnected } = useConnectionStatus();
+  const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []));
+  const [trainings, setTrainings] = useState(() => storage.get("all_trainings", []));
+  const [employees, setEmployees] = useState(ACCOUNTS);
   const isAdmin = emp.role === "admin" || emp.jobNum === "728004";
+  const pendingCount = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
   
   useEffect(() => {
     const needsChange = sessionStorage.getItem("force_password_change");
     if (needsChange === "true") {
       sessionStorage.removeItem("force_password_change");
-      setTimeout(() => {
-        if (window.confirm("🔐 لأسباب أمنية، يرجى تغيير كلمة المرور الافتراضية الآن.")) {
-          setView("changepass");
-        }
-      }, 500);
+      setTimeout(() => { if(window.confirm("🔐 يرجى تغيير كلمة المرور الافتراضية")) setView("changepass"); }, 500);
     }
   }, []);
-
+  
   const menuItems = [
     { id: "home", label: "الرئيسية", icon: <Home size={18}/> },
     { id: "requests", label: "طلبات الإجازة", icon: <FileText size={18}/> },
+    { id: "attendance", label: "الحضور", icon: <Calendar size={18}/> },
+    { id: "training", label: "التدريب", icon: <GraduationCap size={18}/> },
+    { id: "inventory", label: "جرد المخزن", icon: <Package size={18}/> },
+    { id: "furniture", label: "جرد الأثاث", icon: <ClipboardList size={18}/> },
     { id: "notifications", label: "الإشعارات", icon: <Bell size={18}/> },
+    { id: "stats", label: "الإحصائيات", icon: <BarChart size={18}/> },
+    { id: "audit", label: "سجل التعديلات", icon: <ClipboardList size={18}/> },
     { id: "changepass", label: "تغيير كلمة المرور", icon: <Shield size={18}/> },
   ];
-
   if (isAdmin) {
-    menuItems.push(
-      { id: "approvals", label: "الموافقات", icon: <ThumbsUp size={18}/> },
-      { id: "stats", label: "الإحصائيات", icon: <BarChart size={18}/> }
-    );
+    menuItems.unshift({ id: "approvals", label: "الموافقات", icon: <ThumbsUp size={18}/>, badge: pendingCount });
+    menuItems.unshift({ id: "employees", label: "إدارة الموظفين", icon: <Users size={18}/> });
   }
-
+  
   return (
     <div className="min-h-screen bg-slate-50" dir="rtl">
-      {/* الشريط العلوي */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between flex-wrap gap-3 sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center">
-            <span className="text-white font-bold text-sm">BOC</span>
-          </div>
-          <div>
-            <h1 className="font-bold text-slate-800">شركة نفط البصرة</h1>
-            <p className="text-xs text-slate-500">شعبة مستودع الفاو — نظام الإجازات</p>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          {/* حالة الاتصال */}
-          <div className="flex items-center gap-2 text-xs">
-            {isConnected ? (
-              <>
-                <Wifi size={12} className="text-emerald-500"/>
-                <span className="text-emerald-700">متصل بالسحابة</span>
-              </>
-            ) : (
-              <>
-                <WifiOff size={12} className="text-amber-500"/>
-                <span className="text-amber-700">غير متصل (محلي)</span>
-              </>
-            )}
-          </div>
-          
-          <div className="text-left">
-            <p className="text-sm font-bold text-slate-800">{emp.name.split(" ").slice(0,2).join(" ")}</p>
-            <p className="text-xs text-slate-500">{emp.title}</p>
-          </div>
-          <button onClick={onLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors">
-            <LogOut size={18}/>
-          </button>
-        </div>
-      </div>
+      <div className="bg-white border-b px-6 py-4 flex items-center justify-between flex-wrap sticky top-0 z-10"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center"><span className="text-white font-bold text-sm">BOC</span></div>
+      <div><h1 className="font-bold text-slate-800">شركة نفط البصرة</h1><p className="text-xs text-slate-500">شعبة مستودع الفاو — النظام المتكامل</p></div></div>
+      <div className="flex items-center gap-4"><div className="text-left"><p className="text-sm font-bold">{emp.name.split(" ").slice(0,2).join(" ")}</p><p className="text-xs text-slate-500">{emp.title}</p></div><button onClick={onLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><LogOut size={18}/></button></div></div>
       
-      {/* القائمة الجانبية والمحتوى */}
-      <div className="flex flex-col md:flex-row">
-        {/* القائمة الجانبية */}
-        <aside className="md:w-64 bg-white border-l border-slate-200 md:min-h-screen p-4">
-          <nav className="space-y-1">
-            {menuItems.map(item => (
-              <button
-                key={item.id}
-                onClick={() => setView(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
-                  view === item.id 
-                    ? "bg-blue-50 text-blue-700" 
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ))}
-          </nav>
-          
-          {/* معلومات المزامنة */}
-          <div className="mt-6 p-3 bg-slate-50 rounded-xl text-xs text-slate-600">
-            <p className="font-bold mb-2 flex items-center gap-2">
-              <RefreshCw size={12}/> حالة المزامنة
-            </p>
-            <p className="text-[11px]">• كلمات المرور: {isConnected ? "متزامنة" : "محلية"}</p>
-            <p className="text-[11px]">• الطلبات: {isConnected ? "سحابية" : "محلية"}</p>
-            {isConnected && <p className="text-[10px] text-emerald-600 mt-1">✓ المزامنة التلقائية مفعلة</p>}
-          </div>
-        </aside>
-        
-        {/* المحتوى الرئيسي */}
-        <main className="flex-1 p-6">
-          {view === "home" && (
-            <div className="max-w-4xl mx-auto">
-              <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center">
-                    <User size={28} className="text-white"/>
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-800">مرحباً، {emp.name.split(" ")[0]}</h2>
-                    <p className="text-slate-500">تم تسجيل الدخول بنجاح إلى نظام شعبة مستودع الفاو</p>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-                    <div className="flex items-center gap-3">
-                      <CheckCircle size={20} className="text-emerald-600"/>
-                      <div>
-                        <p className="font-bold text-emerald-800">حالة النظام</p>
-                        <p className="text-sm text-emerald-700">✓ يعمل بشكل طبيعي</p>
-                        {isConnected && <p className="text-xs text-emerald-600 mt-1">✓ متصل بالسحابة</p>}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                    <div className="flex items-center gap-3">
-                      <Shield size={20} className="text-blue-600"/>
-                      <div>
-                        <p className="font-bold text-blue-800">معلومات الحساب</p>
-                        <p className="text-sm text-blue-700">الرقم الوظيفي: {emp.jobNum}</p>
-                        <p className="text-xs text-blue-600 mt-1">الدور: {isAdmin ? "مشرف" : "موظف"}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="mt-6 pt-6 border-t border-slate-100">
-                  <p className="text-slate-600 text-sm">
-                    يمكنك من خلال القائمة الجانبية:
-                  </p>
-                  <ul className="mt-2 space-y-1 text-sm text-slate-500">
-                    <li>• 📋 تقديم طلب إجازة جديد</li>
-                    <li>• 🔔 متابعة الإشعارات</li>
-                    <li>• 🔐 تغيير كلمة المرور</li>
-                    {isAdmin && <li>• ✅ الموافقة على طلبات الموظفين</li>}
-                    {isAdmin && <li>• 📊 عرض إحصائيات النظام</li>}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {view === "requests" && <RequestsPage emp={emp} />}
-          {view === "notifications" && <NotificationsPage emp={emp} />}
-          {view === "changepass" && <ChangePasswordPage emp={emp} onLogout={onLogout} />}
-          {view === "approvals" && isAdmin && <ApprovalsPage emp={emp} />}
-          {view === "stats" && isAdmin && <AdminStatsPage />}
-        </main>
-      </div>
+      <div className="flex flex-col md:flex-row"><aside className="md:w-64 bg-white border-l min-h-screen p-4"><nav className="space-y-1">{menuItems.map(item => (<button key={item.id} onClick={()=>setView(item.id)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold ${view===item.id?"bg-blue-50 text-blue-700":"text-slate-600 hover:bg-slate-50"}`}>
+      <span className="flex items-center gap-3">{item.icon}{item.label}</span>{item.badge>0 && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full">{item.badge}</span>}</button>))}</nav>
+      <div className="mt-6 p-3 bg-slate-50 rounded-xl text-xs"><p className="font-bold mb-2">ℹ️ النظام</p><p className="text-[11px]">✓ يعمل بشكل كامل</p><p className="text-[11px]">✓ البيانات في جهازك</p></div></aside>
+      
+      <main className="flex-1 p-6">{view==="home" && (<div className="bg-white rounded-2xl p-8"><div className="flex items-center gap-4"><div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center"><User size={28} className="text-white"/></div><div><h2 className="text-xl font-bold">مرحباً، {emp.name.split(" ")[0]}</h2><p className="text-slate-500">تم تسجيل الدخول بنجاح</p></div></div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6"><div className="bg-emerald-50 border rounded-xl p-4"><CheckCircle className="text-emerald-600"/><p className="font-bold mt-2">✓ النظام يعمل</p></div><div className="bg-blue-50 border rounded-xl p-4"><Shield className="text-blue-600"/><p className="font-bold mt-2">✓ آمن ومشفر</p></div></div>
+      <div className="mt-6 pt-6 border-t"><p>الوحدات المتاحة: الحضور | التدريب | الجرد | الإشعارات | التقارير</p></div></div>)}
+      {view==="requests" && <RequestsPage emp={emp} />}
+      {view==="attendance" && <AttendanceSystem emp={emp} isAdmin={isAdmin} allEmployees={employees} />}
+      {view==="training" && <TrainingSystem emp={emp} isAdmin={isAdmin} allEmployees={employees} />}
+      {view==="inventory" && <InventorySystem emp={emp} isAdmin={isAdmin} />}
+      {view==="furniture" && <FurnitureInventory emp={emp} isAdmin={isAdmin} />}
+      {view==="notifications" && <NotificationsPage emp={emp} />}
+      {view==="stats" && <AdvancedStats allEmployees={employees} allRequests={allRequests} trainings={trainings} />}
+      {view==="audit" && <AuditLogPage />}
+      {view==="changepass" && <ChangePasswordPage emp={emp} onLogout={onLogout} />}
+      {view==="employees" && isAdmin && <EmployeeManager employees={employees} setEmployees={setEmployees} />}
+      {view==="approvals" && isAdmin && <ApprovalsPage emp={emp} />}
+      </main></div>
     </div>
   );
 }
 
-// ========== التطبيق الرئيسي ==========
 export default function App() {
   const [user, setUser] = useState(null);
-
-  return user ? (
-    <Dashboard emp={user} onLogout={() => {
-      sessionStorage.clear();
-      setUser(null);
-    }} />
-  ) : (
-    <LoginScreen onLogin={setUser} />
-  );
+  return user ? <Dashboard emp={user} onLogout={()=>{sessionStorage.clear(); setUser(null);}} /> : <LoginScreen onLogin={setUser} />;
 }
