@@ -8296,7 +8296,7 @@ function SiteMapPage({ isAdmin }) {
    CHANGE PASSWORD — تغيير كلمة المرور (النسخة النهائية المصلحة لـ Vercel)
 ═══════════════════════════════════════════════════════════ */
 function ChangePasswordPage({ emp, setUser }) {
-  const [, setFbPassword] = useFirebase(`employees/${emp.id}/password`, null);
+  const [, setFbPassword] = useFirebase(`employees/${emp?.id}/password`, null);
   const [newPass,     setNewPass]     = useState("");
   const [confirm,     setConfirm]     = useState("");
   const [showN,        setShowN]       = useState(false);
