@@ -8410,136 +8410,24 @@ function ChangePasswordPage({ emp, setUser }) {
   );
 }
 /* ═══════════════════════════════════════════════════════════
-   ROOT — نظام التحكم وإدارة الدخول بالرقم الوظيفي
+   ROOT
 ═══════════════════════════════════════════════════════════ */
 export default function LeaveSystem() {
   const [user, setUser] = useState(null);
-  const [loginError, setLoginError] = useState("");
-  const [loginLoading, setLoginLoading] = useState(false);
 
-  // دالة جلب الموظف والمطابقة بالرقم الوظيفي (cardId)
-  const handleLoginSubmit = async (enteredCardId, enteredPassword) => {
-    if (!enteredCardId.trim() || !enteredPassword.trim()) {
-      setLoginError("الرجاء إدخال الرقم الوظيفي وكلمة المرور");
-      return;
-    }
-
-    setLoginLoading(true);
-    setLoginError("");
-
-    try {
-      // ── 1. جلب كلمة المرور المُخزَّنة من Firebase ──
-      let storedPassword = null;
-      try {
-        const pwRes = await fetch(`${FIREBASE_URL}/passwords/${String(enteredCardId).trim()}.json`);
-        const pwVal = await pwRes.json();
-        if (pwVal && typeof pwVal === "string") storedPassword = pwVal;
-      } catch {}
-
-      // ── 2. التحقق من كلمة المرور ──
-      let passwordValid = false;
-      if (storedPassword) {
-        // كلمة مرور محفوظة في Firebase (مُشفَّرة أو نص)
-        passwordValid = SEC.verify(enteredPassword.trim(), storedPassword);
-      } else {
-        // fallback: استخدام ACCOUNTS المحلية
-        const acct = ACCOUNTS.find(a =>
-          String(a.jobNum).trim() === String(enteredCardId).trim() ||
-          String(a.username).trim() === String(enteredCardId).trim()
-        );
-        if (acct) passwordValid = enteredPassword.trim() === acct.password;
-      }
-
-      if (!passwordValid) {
-        setLoginError("كلمة المرور غير صحيحة");
-        return;
-      }
-
-      // ── 3. جلب بيانات الموظف ──
-      let foundEmployee = null;
-
-      // أولاً: جرّب Firebase employees
-      try {
-        const empRes = await fetch(`${FIREBASE_URL}/employees.json`);
-        const empData = await empRes.json();
-        if (empData && typeof empData === "object" && !empData.error) {
-          const vals = Array.isArray(empData) ? empData : Object.values(empData);
-          foundEmployee = vals.find(e =>
-            e && (String(e.cardId||e.jobNum||e.id).trim() === String(enteredCardId).trim())
-          );
-        }
-      } catch {}
-
-      // ثانياً: fallback إلى ACCOUNTS
-      if (!foundEmployee) {
-        const acct = ACCOUNTS.find(a =>
-          String(a.jobNum).trim() === String(enteredCardId).trim() ||
-          String(a.username).trim() === String(enteredCardId).trim()
-        );
-        if (acct) foundEmployee = { ...acct, cardId: acct.jobNum };
-      }
-
-      if (!foundEmployee) {
-        setLoginError("الرقم الوظيفي غير موجود في النظام");
-        return;
-      }
-
-      // ── 4. نجاح الدخول ──
-      // حفظ كلمة المرور في Firebase إذا لم تكن موجودة
-      if (!storedPassword) {
-        try {
-          await fetch(`${FIREBASE_URL}/passwords/${String(enteredCardId).trim()}.json`, {
-            method:"PUT", headers:{"Content-Type":"application/json"},
-            body: JSON.stringify(SEC.encode(enteredPassword.trim()))
-          });
-        } catch {}
-      }
-
-      try {
-        sessionStorage.setItem("boc_session", JSON.stringify({
-          acct: foundEmployee, expiry: Date.now() + 8*60*60*1000
-        }));
-      } catch {}
-
-      setUser(foundEmployee);
-      if (String(foundEmployee.cardId||foundEmployee.jobNum) === "728004") {
-        if (typeof takeBackup === "function") setTimeout(() => takeBackup(foundEmployee.name), 3000);
-      }
-
-    } catch (error) {
-      console.error(error);
-      // Final fallback: ACCOUNTS only
-      const acct = ACCOUNTS.find(a =>
-        (String(a.jobNum).trim() === String(enteredCardId).trim()) &&
-        enteredPassword.trim() === a.password
-      );
-      if (acct) {
-        setUser({...acct, cardId: acct.jobNum});
-      } else {
-        setLoginError("خطأ في الاتصال — تحقق من الشبكة");
-      }
-    } finally {
-      setLoginLoading(false);
+  const handleLogin = (acct) => {
+    setUser(acct);
+    if (String(acct?.jobNum || acct?.cardId) === "728004") {
+      if (typeof takeBackup === "function") setTimeout(() => takeBackup(acct.name), 3000);
     }
   };
 
   const handleLogout = () => {
-    if (typeof fbAuth !== 'undefined' && fbAuth.clearTokens) {
-      fbAuth.clearTokens();
-    }
-    try { 
-      sessionStorage.removeItem("boc_session"); 
-    } catch (e) {}
+    try { sessionStorage.removeItem("boc_session"); } catch {}
     setUser(null);
   };
 
-  return user ? (
-    <Dashboard emp={user} onLogout={handleLogout} />
-  ) : (
-    <LoginScreen 
-      onLogin={handleLoginSubmit} 
-      loginError={loginError} 
-      loginLoading={loginLoading} 
-    />
-  );
+  return user
+    ? <Dashboard emp={user} onLogout={handleLogout}/>
+    : <LoginScreen onLogin={handleLogin}/>;
 }
