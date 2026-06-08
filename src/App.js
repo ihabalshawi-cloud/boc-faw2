@@ -78,13 +78,45 @@ function setupIdleDetection(onLogout) {
   return ()=>{ clearTimeout(_idleTimer); ["mousemove","keypress","click","touchstart"].forEach(e=>window.removeEventListener(e,reset)); };
 }
 
-// كلمات المرور لا تُخزَّن محلياً — Firebase Auth يتولى كل شيء
-function encodePassword(raw) { return raw||""; }
-function verifyPassword(a,b) { return String(a).trim()===String(b).trim(); }
+/* ═══════════════════════════════════════════════════════════
+   SECURITY LAYER — طبقة الأمان المطورة والمؤمنة
+═══════════════════════════════════════════════════════════ */
+const SEC_KEY = [66, 79, 67, 70, 77];
+const SEC = {
+  encode: (str) => {
+    if (!str) return "";
+    try {
+      const utf8Str = unescape(encodeURIComponent(str));
+      const xorChars = utf8Str.split("").map((c,i) =>
+        String.fromCharCode(c.charCodeAt(0) ^ SEC_KEY[i % SEC_KEY.length])
+      ).join("");
+      return btoa(xorChars);
+    } catch { return str; }
+  },
+  decode: (str) => {
+    if (!str) return "";
+    try {
+      const b64 = /^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$/;
+      if (!b64.test(str.trim())) return str; // كلمة مرور قديمة كنص صريح
+      const xorChars = atob(str.trim());
+      const utf8Str = xorChars.split("").map((c,i) =>
+        String.fromCharCode(c.charCodeAt(0) ^ SEC_KEY[i % SEC_KEY.length])
+      ).join("");
+      return decodeURIComponent(escape(utf8Str));
+    } catch { return str; }
+  },
+  verify: (input, stored) => {
+    if (!input || !stored) return false;
+    if (input.trim() === stored.trim()) return true;       // نص صريح قديم
+    return input.trim() === SEC.decode(stored).trim();     // مُشفَّر جديد
+  },
+};
+
+// دوال مختصرة للاستخدام في الكود القديم
+function encodePassword(raw) { return SEC.encode(raw); }
+function verifyPassword(a, b) { return SEC.verify(a, b); }
 
 
-
-// 5. Idle Timeout — تسجيل خروج تلقائي عند الخمول (30 دقيقة)
 
 
 /* ═══════════════════════════════════════════════════════════
@@ -619,14 +651,17 @@ function LoginScreen({ onLogin }) {
         if (typeof val === "string" && val.length > 0) stored = val;
       } catch {}
 
-      const valid = stored ? (pass.trim() === stored.trim()) : (pass.trim() === baseAcct.password);
+      // SEC.verify يقبل كلمة مرور قديمة (نص صريح) أو جديدة (مُشفَّرة)
+      const valid = stored
+        ? SEC.verify(pass.trim(), stored)
+        : (pass.trim() === baseAcct.password);
 
       if (valid) {
-        // حفظ الكلمة في Firebase إذا لم تكن موجودة
+        // حفظ مُشفَّر في Firebase إذا لم تكن موجودة
         if (!stored) {
           try { await fetch(`${FIREBASE_URL}/passwords/${baseAcct.jobNum}.json`, {
             method:"PUT", headers:{"Content-Type":"application/json"},
-            body: JSON.stringify(pass.trim())
+            body: JSON.stringify(SEC.encode(pass.trim()))
           }); } catch {}
         }
         try { sessionStorage.setItem("boc_session", JSON.stringify({
@@ -8215,11 +8250,12 @@ function ChangePasswordPage({ emp }) {
     if (newPass !== confirm) return setMsg({type:"err", text:"كلمة المرور غير متطابقة"});
     try {
       setPassLoading(true);
-      // حفظ مباشر في Firebase كنص صريح
+      // حفظ مُشفَّر في Firebase
+      const encoded = SEC.encode(newPass.trim());
       const res = await fetch(`${FIREBASE_URL}/passwords/${emp.jobNum}.json`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newPass.trim())
+        body: JSON.stringify(encoded)
       });
       if (!res.ok) throw new Error("Firebase error");
       if (typeof auditLog === "function") auditLog("تغيير كلمة المرور", emp.name.split(" ").slice(0,2).join(" "), emp.name);
@@ -8310,3 +8346,4 @@ export default function LeaveSystem() {
     ? <Dashboard emp={user} onLogout={handleLogout}/>
     : <LoginScreen onLogin={handleLogin}/>;
 }
+
