@@ -1,22 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { 
   LogIn, LogOut, Shield, Eye, EyeOff, AlertCircle, Save, Home, User, 
   CheckCircle, Wifi, WifiOff, RefreshCw, FileText, Clock, Calendar,
   Bell, ThumbsUp, ThumbsDown, Plus, Trash2, Edit3, X, Users, Package,
-  ClipboardList, GraduationCap, BarChart, Star, Target, ArrowRightLeft,
-  Printer, Download, Upload, Search, Settings, Award, Truck, Box,
-  TrendingUp, TrendingDown, PieChart, Activity, Filter, UserCheck, UserX,
-  BookOpen, Video, Briefcase
+  ClipboardList, GraduationCap, BarChart, Star, ArrowRightLeft,
+  Printer, Download, Search, Award
 } from "lucide-react";
 
-/* ═══════════════════════════════════════════════════════════
-   FIREBASE CONFIG
-═══════════════════════════════════════════════════════════ */
 const FIREBASE_URL = "https://faop-scada-default-rtdb.asia-southeast1.firebasedatabase.app";
 
-/* ═══════════════════════════════════════════════════════════
-   ACCOUNTS - الكادر الكامل (33 موظف)
-═══════════════════════════════════════════════════════════ */
 const ACCOUNTS = [
   {id:1, jobNum:"728004", password:"1001", name:"ايهاب عبد اللطيف عودة سلمان الشاوي", title:"ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"admin"},
   {id:2, jobNum:"727466", password:"1002", name:"عدي فيصل عبد الهادي عبد السيد الربيعه", title:"ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي"},
@@ -51,30 +43,15 @@ const ACCOUNTS = [
 ];
 
 const LEAVE_TYPES = {
-  اعتيادية: { label: "إجازة اعتيادية", max: 30, color: "bg-blue-100 text-blue-700", icon: "🏖️" },
-  مرضية: { label: "إجازة مرضية", max: 15, color: "bg-rose-100 text-rose-700", icon: "🏥" },
-  زمنية: { label: "إجازة زمنية", max: 7, color: "bg-amber-100 text-amber-700", icon: "⏱️" },
+  اعتيادية: { label: "إجازة اعتيادية", max: 30, color: "bg-blue-100 text-blue-700" },
+  مرضية: { label: "إجازة مرضية", max: 15, color: "bg-rose-100 text-rose-700" },
+  زمنية: { label: "إجازة زمنية", max: 7, color: "bg-amber-100 text-amber-700" },
 };
 
-const TRAINING_TYPES = ["تدريب ذاتي", "دورة تدريبية", "ورشة عمل", "تدريب إلكتروني", "مهمة عملية"];
-const TRAINING_STATUS = { 
-  مسندة: "bg-amber-100 text-amber-700", 
-  "قيد التنفيذ": "bg-blue-100 text-blue-700", 
-  مكتملة: "bg-emerald-100 text-emerald-700", 
-  ملغية: "bg-red-100 text-red-700" 
-};
-
+const TRAINING_TYPES = ["تدريب ذاتي", "دورة تدريبية", "ورشة عمل", "تدريب إلكتروني"];
 const ITEM_CONDITIONS = ["جيد", "مستعمل", "يحتاج صيانة", "تالف"];
-const COND_STYLE = { 
-  جيد: "bg-emerald-100 text-emerald-800", 
-  مستعمل: "bg-blue-100 text-blue-800", 
-  "يحتاج صيانة": "bg-amber-100 text-amber-800", 
-  تالف: "bg-red-100 text-red-800" 
-};
+const FURNITURE_CATS = ["أثاث مكتبي", "أجهزة حاسوب", "معدات مكتبية", "أجهزة تكييف"];
 
-const FURNITURE_CATS = ["أثاث مكتبي", "أجهزة حاسوب", "معدات مكتبية", "أجهزة تكييف", "أخرى"];
-
-// التخزين المحلي
 const storage = {
   get: (key, defaultValue = null) => {
     try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : defaultValue; } catch { return defaultValue; }
@@ -84,7 +61,6 @@ const storage = {
   }
 };
 
-// Firebase API
 const FirebaseAPI = {
   checkConnection: async () => {
     try {
@@ -96,88 +72,28 @@ const FirebaseAPI = {
     } catch { return false; }
   },
   savePassword: async (empId, encrypted) => {
-    try {
-      await fetch(`${FIREBASE_URL}/passwords/${empId}.json`, { method: "PUT", body: JSON.stringify(encrypted) });
-      return true;
-    } catch { return false; }
+    try { await fetch(`${FIREBASE_URL}/passwords/${empId}.json`, { method: "PUT", body: JSON.stringify(encrypted) }); return true; } catch { return false; }
   },
   getPassword: async (empId) => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/passwords/${empId}.json`);
-      if (!res.ok) return null;
-      const data = await res.json();
-      return typeof data === "string" ? data : null;
-    } catch { return null; }
-  },
-  saveRequest: async (request) => {
-    try {
-      await fetch(`${FIREBASE_URL}/requests/${request.id}.json`, { method: "PUT", body: JSON.stringify(request) });
-      return true;
-    } catch { return false; }
-  },
-  getAllRequests: async () => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/requests.json`);
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data ? Object.values(data) : [];
-    } catch { return []; }
-  },
-  deleteRequest: async (id) => {
-    try { await fetch(`${FIREBASE_URL}/requests/${id}.json`, { method: "DELETE" }); return true; } catch { return false; }
-  },
-  saveNotification: async (empId, notification) => {
-    try {
-      await fetch(`${FIREBASE_URL}/notifications/${empId}/${notification.id}.json`, { method: "PUT", body: JSON.stringify(notification) });
-      return true;
-    } catch { return false; }
-  },
-  getNotifications: async (empId) => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/notifications/${empId}.json`);
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data ? Object.values(data).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp)) : [];
-    } catch { return []; }
-  },
-  saveLoginHistory: async (entry) => {
-    try {
-      await fetch(`${FIREBASE_URL}/login_history/${entry.id}.json`, { method: "PUT", body: JSON.stringify(entry) });
-      return true;
-    } catch { return false; }
-  },
-  getLoginHistory: async () => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/login_history.json?orderBy="$key"&limitToLast=50`);
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data ? Object.values(data).reverse() : [];
-    } catch { return []; }
+    try { const res = await fetch(`${FIREBASE_URL}/passwords/${empId}.json`); if (!res.ok) return null; const data = await res.json(); return typeof data === "string" ? data : null; } catch { return null; }
   }
 };
 
 function useConnectionStatus() {
   const [isConnected, setIsConnected] = useState(false);
-  const [checking, setChecking] = useState(true);
   const checkConnection = useCallback(async () => {
-    setChecking(true);
     const connected = await FirebaseAPI.checkConnection();
     setIsConnected(connected);
-    setChecking(false);
   }, []);
-  useEffect(() => {
-    checkConnection();
-    const interval = setInterval(checkConnection, 30000);
-    return () => clearInterval(interval);
-  }, [checkConnection]);
-  return { isConnected, checking, checkConnection };
+  useEffect(() => { checkConnection(); const interval = setInterval(checkConnection, 30000); return () => clearInterval(interval); }, [checkConnection]);
+  return { isConnected };
 }
 
 function printElement(elementId, title = "تقرير") {
   const el = document.getElementById(elementId);
   if (!el) { window.print(); return; }
   const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>${title}</title>
-  <style>*{font-family:'Arial',sans-serif;} body{padding:20mm;} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:8px;text-align:right}</style></head>
+  <style>*{font-family:Arial,sans-serif;} body{padding:20mm;} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:8px;text-align:right}</style></head>
   <body>${el.innerHTML}</body></html>`;
   const iframe = document.createElement("iframe");
   iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0";
@@ -188,8 +104,8 @@ function printElement(elementId, title = "تقرير") {
   setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 2000); }, 500);
 }
 
-function PrintButton({ targetId, label = "طباعة / PDF", title }) {
-  return (<button onClick={() => targetId ? printElement(targetId, title) : window.print()} className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-xl shadow-sm transition-all active:scale-95 no-print"><Printer size={13}/> {label}</button>);
+function PrintButton({ targetId, label = "طباعة" }) {
+  return (<button onClick={() => targetId ? printElement(targetId) : window.print()} className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-xl shadow-sm"><Printer size={13}/> {label}</button>);
 }
 
 // ========== شاشة تسجيل الدخول ==========
@@ -220,26 +136,12 @@ function LoginScreen({ onLogin }) {
     const account = ACCOUNTS.find(a => a.jobNum === user.trim());
     if (!account) { setErr("الرقم الوظيفي غير موجود"); return; }
     setLoading(true);
-    
     let isValid = false;
-    // التحقق المباشر
     if (pass.trim() === account.password) isValid = true;
-    // التحقق من التخزين المحلي
-    if (!isValid) {
-      const storedPass = storage.get(`pass_${account.id}`);
-      if (storedPass && (pass.trim() === storedPass)) isValid = true;
-    }
-    // التحقق من Firebase
-    if (!isValid && isConnected) {
-      const fbPass = await FirebaseAPI.getPassword(account.id);
-      if (fbPass && (pass.trim() === fbPass)) isValid = true;
-    }
-
+    if (!isValid) { const storedPass = storage.get(`pass_${account.id}`); if (storedPass && pass.trim() === storedPass) isValid = true; }
+    if (!isValid && isConnected) { const fbPass = await FirebaseAPI.getPassword(account.id); if (fbPass && pass.trim() === fbPass) isValid = true; }
     if (isValid) {
-      if (isConnected && pass.trim() === account.password) {
-        await FirebaseAPI.savePassword(account.id, pass.trim());
-        storage.set(`pass_${account.id}`, pass.trim());
-      }
+      if (isConnected && pass.trim() === account.password) { await FirebaseAPI.savePassword(account.id, pass.trim()); storage.set(`pass_${account.id}`, pass.trim()); }
       sessionStorage.setItem("boc_session", JSON.stringify({ acctId: account.id, expiry: Date.now() + 8 * 3600000 }));
       const defaultPasswords = ["1001","1002","1003","1004","1005","2001","2002","2003","3001","3002","3003","3004"];
       if (defaultPasswords.includes(pass.trim())) sessionStorage.setItem("force_password_change", "true");
@@ -254,19 +156,16 @@ function LoginScreen({ onLogin }) {
         <div className="text-center mb-8">
           <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg mb-4"><LogIn size={32} className="text-white"/></div>
           <h2 className="text-2xl font-bold text-white">شركة نفط البصرة</h2>
-          <p className="text-sm text-slate-300 mt-2">شعبة مستودع الفاو — النظام المتكامل</p>
-        </div>
-        <div className="mb-4 flex items-center justify-center gap-2 text-xs">
-          {isConnected ? <><Wifi size={12} className="text-emerald-400"/><span className="text-emerald-400">✓ متصل بالسحابة</span></> : <><WifiOff size={12} className="text-amber-400"/><span className="text-amber-400">⚠ وضع غير متصل (محلي)</span></>}
+          <p className="text-sm text-slate-300 mt-2">شعبة مستودع الفاو</p>
         </div>
         <div className="space-y-4">
           <div><label className="block text-sm font-bold text-slate-200 mb-2">الرقم الوظيفي</label>
-            <input type="text" value={user} onChange={e=>setUser(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 text-center text-lg" placeholder="728004" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/></div>
+            <input type="text" value={user} onChange={e=>setUser(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center text-lg" placeholder="728004" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/></div>
           <div><label className="block text-sm font-bold text-slate-200 mb-2">كلمة المرور</label>
-            <div className="relative"><input type={showP?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 text-center text-lg" placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
+            <div className="relative"><input type={showP?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center text-lg" placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
               <button onClick={()=>setShowP(!showP)} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">{showP?<EyeOff size={18}/>:<Eye size={18}/>}</button></div></div>
           {err && <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-xl flex items-center gap-2"><AlertCircle size={16}/> {err}</div>}
-          <button onClick={handleLogin} disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50 text-lg">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
+          <button onClick={handleLogin} disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl transition-all text-lg">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
         </div>
         <div className="mt-6 text-center text-sm text-slate-400"><p>🔑 <strong className="text-blue-300">728004</strong> | كلمة المرور: <strong className="text-blue-300">1001</strong></p></div>
       </div>
@@ -291,7 +190,7 @@ function ChangePasswordPage({ emp, onLogout }) {
       storage.set(`pass_${emp.id}`, newPass.trim());
       if (isConnected) await FirebaseAPI.savePassword(emp.id, newPass.trim());
       sessionStorage.removeItem("force_password_change");
-      setMsg({ text: isConnected ? "✅ تم تغيير كلمة المرور ومزامنتها مع السحابة!" : "✅ تم تغيير كلمة المرور محلياً", type: "success" });
+      setMsg({ text: "✅ تم تغيير كلمة المرور بنجاح!", type: "success" });
       setNewPass(""); setConfirm("");
       setTimeout(() => { if (window.confirm("تم تغيير كلمة المرور. هل تريد تسجيل الخروج؟")) onLogout(); }, 1500);
     } catch { setMsg({ text: "❌ حدث خطأ", type: "error" }); }
@@ -299,7 +198,7 @@ function ChangePasswordPage({ emp, onLogout }) {
   };
 
   return (
-    <div className="max-w-md mx-auto">
+    <div className="max-w-md mx-auto mt-10">
       <div className="bg-white rounded-2xl shadow-xl p-6">
         <div className="flex items-center gap-3 border-b pb-3 mb-4"><div className="p-2 bg-blue-100 rounded-xl"><Shield size={20} className="text-blue-600"/></div><div><h2 className="font-bold text-slate-800">تغيير كلمة المرور</h2><p className="text-xs text-slate-500">{emp.name}</p></div></div>
         <div className="space-y-4">
@@ -307,263 +206,10 @@ function ChangePasswordPage({ emp, onLogout }) {
             <button onClick={()=>setShowN(!showN)} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">{showN?<EyeOff size={16}/>:<Eye size={16}/>}</button></div></div>
           <div><label className="text-sm font-bold text-slate-600 block mb-1">تأكيد كلمة المرور</label><input type={showN?"text":"password"} value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="أعد إدخال كلمة المرور" className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"/></div>
           {msg && <div className={`p-3 rounded-xl text-sm text-center ${msg.type==="success"?"bg-emerald-50 text-emerald-700":"bg-red-50 text-red-700"}`}>{msg.text}</div>}
-          <button onClick={handleChangePassword} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"><Save size={16}/> {loading?"جاري الحفظ...":"حفظ كلمة المرور"}</button>
+          <button onClick={handleChangePassword} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2"><Save size={16}/> {loading?"جاري الحفظ...":"حفظ كلمة المرور"}</button>
         </div>
       </div>
     </div>
-  );
-}
-
-// ========== 1. نظام الحضور الكامل ==========
-function AttendanceSystem({ emp, isAdmin, allEmployees }) {
-  const now = new Date();
-  const [selMonth, setSelMonth] = useState(now.getMonth());
-  const [selYear, setSelYear] = useState(now.getFullYear());
-  const [selEmpId, setSelEmpId] = useState(isAdmin ? null : emp.id);
-  const [selectedDate, setSelectedDate] = useState(now.toISOString().slice(0,10));
-  const [dailyRecords, setDailyRecords] = useState(() => storage.get(`attendance_${emp.id}`, {}));
-  const [toast, setToast] = useState("");
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
-  const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
-  const daysInMonth = new Date(selYear, selMonth+1, 0).getDate();
-  
-  useEffect(() => { storage.set(`attendance_${emp.id}`, dailyRecords); }, [dailyRecords, emp.id]);
-  
-  const handleCheckIn = () => {
-    const nowTime = new Date().toLocaleTimeString("ar-IQ", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
-    const record = dailyRecords[selectedDate] || {};
-    setDailyRecords({ ...dailyRecords, [selectedDate]: { ...record, checkIn: nowTime, status: "حاضر" } });
-    showToast("✅ تم تسجيل دخولك بنجاح");
-  };
-  
-  const handleCheckOut = () => {
-    const nowTime = new Date().toLocaleTimeString("ar-IQ", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
-    const record = dailyRecords[selectedDate] || {};
-    if (!record.checkIn) { showToast("⚠️ يجب تسجيل الدخول أولاً"); return; }
-    setDailyRecords({ ...dailyRecords, [selectedDate]: { ...record, checkOut: nowTime } });
-    showToast("✅ تم تسجيل خروجك بنجاح");
-  };
-  
-  const stats = { حاضر: 0, غائب: 0 };
-  for (let d = 1; d <= daysInMonth; d++) {
-    const key = `${selYear}-${String(selMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-    if (dailyRecords[key]?.checkIn) stats.حاضر++; else stats.غائب++;
-  }
-  const attendanceRate = daysInMonth > 0 ? Math.round((stats.حاضر / daysInMonth) * 100) : 0;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-3 items-center justify-between">
-        <div className="flex gap-2"><select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))} className="bg-white border rounded-xl px-3 py-2 text-sm">{months.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
-        <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))} className="bg-white border rounded-xl px-3 py-2 text-sm">{[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}</select>
-        {isAdmin && <select value={selEmpId||""} onChange={e=>setSelEmpId(Number(e.target.value)||null)} className="bg-white border rounded-xl px-3 py-2 text-sm min-w-[180px]"><option value="">-- اختر موظفاً --</option>{allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,2).join(" ")}</option>)}</select>}</div>
-        <PrintButton targetId="print-attendance" title={`تقرير الحضور - ${months[selMonth]} ${selYear}`}/>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <div className="bg-emerald-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold text-emerald-700">{stats.حاضر}</p><p className="text-[10px]">أيام الحضور</p></div>
-        <div className="bg-red-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold text-red-700">{stats.غائب}</p><p className="text-[10px]">أيام الغياب</p></div>
-        <div className="bg-blue-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold text-blue-700">{attendanceRate}%</p><p className="text-[10px]">نسبة الحضور</p></div>
-      </div>
-      {(!isAdmin || selEmpId === emp.id) && (
-        <div className="bg-white rounded-2xl border p-5"><h3 className="font-bold text-slate-800 mb-3">تسجيل الحضور اليومي</h3>
-          <div className="flex flex-wrap gap-4 items-end"><div><label className="block text-xs font-bold text-slate-500 mb-1">التاريخ</label><input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} className="border rounded-xl px-3 py-2"/></div>
-          <div className="flex gap-2"><button onClick={handleCheckIn} className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold"><LogIn size={14} className="inline ml-1"/> تسجيل دخول</button>
-          <button onClick={handleCheckOut} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><LogOut size={14} className="inline ml-1"/> تسجيل خروج</button></div></div>
-          {dailyRecords[selectedDate]?.checkIn && <div className="mt-3 text-sm text-slate-600">✅ تم تسجيل الدخول الساعة {dailyRecords[selectedDate].checkIn}</div>}
-          {dailyRecords[selectedDate]?.checkOut && <div className="text-sm text-slate-600">✅ تم تسجيل الخروج الساعة {dailyRecords[selectedDate].checkOut}</div>}</div>
-      )}
-      <div id="print-attendance" className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b"><th className="px-3 py-2">اليوم</th><th className="px-3 py-2">التاريخ</th><th className="px-3 py-2">دخول</th><th className="px-3 py-2">خروج</th><th className="px-3 py-2">الحالة</th></tr></thead>
-      <tbody>{Array.from({length:daysInMonth},(_,i)=>i+1).map(day=>{const key = `${selYear}-${String(selMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`; const record = dailyRecords[key]||{};
-      return(<tr key={day} className="border-b hover:bg-slate-50"><td className="px-3 py-2">{new Date(key).toLocaleDateString("ar-IQ",{weekday:"short"})}</td><td className="px-3 py-2">{day}</td><td className="px-3 py-2">{record.checkIn||"—"}</td><td className="px-3 py-2">{record.checkOut||"—"}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${record.checkIn?"bg-emerald-100 text-emerald-700":"bg-red-100 text-red-700"}`}>{record.checkIn?"حاضر":"غائب"}</span></td></tr>);})}</tbody></table></div></div>
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
-    </div>
-  );
-}
-
-// ========== 2. نظام التدريب ==========
-function TrainingSystem({ emp, isAdmin, allEmployees }) {
-  const [trainings, setTrainings] = useState(() => storage.get(`trainings_${emp.id}`, []));
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title:"", type:"تدريب ذاتي", desc:"", startDate:"", endDate:"", provider:"" });
-  const [toast, setToast] = useState("");
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
-  
-  useEffect(() => { storage.set(`trainings_${emp.id}`, trainings); }, [trainings, emp.id]);
-  
-  const addTraining = () => {
-    if (!form.title) return showToast("عنوان التدريب مطلوب");
-    const newTraining = { ...form, id: Date.now(), status: "مسندة", assignedAt: new Date().toISOString() };
-    setTrainings([newTraining, ...trainings]);
-    setForm({ title:"", type:"تدريب ذاتي", desc:"", startDate:"", endDate:"", provider:"" });
-    setShowForm(false);
-    showToast("✅ تم إضافة التدريب");
-  };
-  
-  const updateStatus = (id, status) => {
-    setTrainings(trainings.map(t => t.id === id ? { ...t, status, completedAt: status==="مكتملة"?new Date().toISOString():t.completedAt } : t));
-    showToast(`✅ تم تحديث الحالة إلى ${status}`);
-  };
-  
-  const getStatusColor = (status) => TRAINING_STATUS[status] || "bg-slate-100 text-slate-600";
-  const myTrainings = trainings.filter(t => !isAdmin || true);
-  
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-bold text-slate-800 text-lg">المهام التدريبية</h3>
-        {isAdmin && <button onClick={()=>setShowForm(!showForm)} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة تدريب</button>}
-        <PrintButton targetId="print-training" title="تقرير التدريب"/></div>
-      {showForm && isAdmin && (<div className="bg-white rounded-2xl border-2 border-violet-200 p-5"><div className="grid grid-cols-2 gap-3"><input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="عنوان التدريب" className="border rounded-xl px-3 py-2 text-sm col-span-2"/>
-      <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} className="border rounded-xl px-3 py-2 text-sm">{TRAINING_TYPES.map(t=><option key={t}>{t}</option>)}</select>
-      <input value={form.provider} onChange={e=>setForm({...form,provider:e.target.value})} placeholder="الجهة المقدمة" className="border rounded-xl px-3 py-2 text-sm"/>
-      <input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} placeholder="تاريخ البداية" className="border rounded-xl px-3 py-2 text-sm"/>
-      <input type="date" value={form.endDate} onChange={e=>setForm({...form,endDate:e.target.value})} placeholder="تاريخ النهاية" className="border rounded-xl px-3 py-2 text-sm"/>
-      <textarea value={form.desc} onChange={e=>setForm({...form,desc:e.target.value})} rows={2} placeholder="وصف التدريب" className="border rounded-xl px-3 py-2 text-sm col-span-2"/></div>
-      <div className="flex gap-2 justify-end mt-4"><button onClick={()=>setShowForm(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={addTraining} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> إضافة</button></div></div>)}
-      <div id="print-training" className="space-y-3">{myTrainings.length===0?<div className="bg-white rounded-2xl p-10 text-center"><GraduationCap size={40} className="text-slate-300 mx-auto"/><p className="text-slate-400">لا توجد مهام تدريبية</p></div>:
-      myTrainings.map(t=>(<div key={t.id} className="bg-white rounded-2xl border p-4 shadow-sm"><div className="flex justify-between items-start"><div><div className="flex gap-2 mb-1"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${getStatusColor(t.status)}`}>{t.status}</span>
-      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-50 text-violet-700">{t.type}</span></div><p className="font-bold text-slate-800">{t.title}</p>
-      {t.desc && <p className="text-xs text-slate-500 mt-1">{t.desc}</p>}<div className="flex gap-3 text-[10px] text-slate-400 mt-2">{t.startDate && <span>📅 من {t.startDate}</span>}{t.endDate && <span>إلى {t.endDate}</span>}{t.provider && <span>🏛️ {t.provider}</span>}</div></div>
-      {isAdmin && t.status!=="مكتملة" && <button onClick={()=>updateStatus(t.id,"مكتملة")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs"><CheckCircle size={12}/> إكمال</button>}</div></div>))}</div>
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
-    </div>
-  );
-}
-
-// ========== 3. جرد المخزن ==========
-function InventorySystem({ emp, isAdmin }) {
-  const [items, setItems] = useState(() => storage.get("inventory_items", [
-    { id:1, code:"INV-001", name:"مقاومة متغيرة", category:"أجهزة قياس", unit:"قطعة", qty:5, condition:"جيد", location:"الرف A1" },
-    { id:2, code:"INV-002", name:"مولد ذبذبات", category:"أجهزة قياس", unit:"قطعة", qty:2, condition:"جيد", location:"الرف A2" },
-    { id:3, code:"INV-003", name:"جهاز معايرة ضغط", category:"أجهزة معايرة", unit:"قطعة", qty:1, condition:"جيد", location:"الرف B1" },
-    { id:4, code:"INV-004", name:"كماشة كهرباء", category:"عدد يدوية", unit:"قطعة", qty:10, condition:"جيد", location:"الرف C1" },
-    { id:5, code:"INV-005", name:"مفك براغي", category:"عدد يدوية", unit:"مجموعة", qty:3, condition:"مستعمل", location:"الرف C2" },
-  ]));
-  const [search, setSearch] = useState("");
-  const [filterCat, setFilterCat] = useState("الكل");
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ code:"", name:"", category:"أجهزة قياس", unit:"قطعة", qty:1, condition:"جيد", location:"" });
-  const [adding, setAdding] = useState(false);
-  const [toast, setToast] = useState("");
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
-  useEffect(() => { storage.set("inventory_items", items); }, [items]);
-  
-  const categories = ["الكل", ...new Set(items.map(i=>i.category))];
-  const filtered = items.filter(i => (i.name.includes(search) || i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
-  
-  const saveItem = () => {
-    if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
-    if (adding) setItems([...items, { ...form, id: Date.now() }]);
-    else setItems(items.map(i => i.id===editId ? form : i));
-    setEditId(null); setAdding(false);
-    showToast("✅ تم الحفظ");
-  };
-  const deleteItem = (id) => { if(window.confirm("هل تريد الحذف؟")) { setItems(items.filter(i=>i.id!==id)); showToast("✅ تم الحذف"); } };
-  const openEdit = (it) => { setEditId(it.id); setForm({...it}); setAdding(false); };
-  const openAdd = () => { setAdding(true); setEditId(null); setForm({ code:"", name:"", category:"أجهزة قياس", unit:"قطعة", qty:1, condition:"جيد", location:"" }); };
-  
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-3 items-center justify-between"><div className="flex gap-2 flex-1"><div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
-      <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="bg-white border rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select></div>
-      <div className="flex gap-2"><button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة صنف</button><PrintButton targetId="print-inventory" title="جرد المخزن"/></div></div>
-      
-      {(adding || editId) && (<div className="bg-white rounded-2xl border-2 border-blue-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة صنف":"تعديل صنف"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[["الرمز *","code"],["الاسم *","name"],["الفئة","category"],["الوحدة","unit"]].map(([l,k])=>(<div key={k}><label className="block text-[10px] font-bold text-slate-500 mb-1">{l}</label><input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>))}
-      <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الكمية</label><input type="number" value={form.qty} onChange={e=>setForm({...form,qty:Number(e.target.value)})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
-      <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الحالة</label><select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">{ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}</select></div>
-      <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الموقع</label><input value={form.location} onChange={e=>setForm({...form,location:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div></div>
-      <div className="flex gap-2 justify-end mt-4"><button onClick={()=>{setEditId(null);setAdding(false);}} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl"><Save size={13}/> حفظ</button></div></div>)}
-      
-      <div id="print-inventory" className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b"><th>الرمز</th><th>الاسم</th><th>الفئة</th><th>الكمية</th><th>الحالة</th><th>الموقع</th><th>إجراءات</th></tr></thead>
-      <tbody>{filtered.map(it=>(<tr key={it.id} className="border-b hover:bg-slate-50"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2 font-semibold">{it.name}</td><td className="px-3 py-2">{it.category}</td><td className="px-3 py-2 font-bold">{it.qty}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${COND_STYLE[it.condition]||""}`}>{it.condition}</span></td><td className="px-3 py-2">{it.location}</td>
-      <td className="px-3 py-2"><div className="flex gap-1"><button onClick={()=>openEdit(it)} className="p-1 text-blue-500 hover:bg-blue-50 rounded"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
-    </div>
-  );
-}
-
-// ========== 4. جرد الأثاث ==========
-function FurnitureInventory({ emp, isAdmin }) {
-  const [items, setItems] = useState(() => storage.get("furniture_items", [
-    { id:1, code:"FURN-001", name:"منضدة كتابة 160 سم", category:"أثاث مكتبي", qty:5, condition:"جيد", location:"المكتب الرئيسي", serialNo:"SN001" },
-    { id:2, code:"FURN-002", name:"كرسي دوار", category:"أثاث مكتبي", qty:8, condition:"جيد", location:"المكتب الرئيسي", serialNo:"SN002" },
-    { id:3, code:"FURN-003", name:"خزانة ملفات", category:"أثاث مكتبي", qty:3, condition:"مستعمل", location:"أرشيف", serialNo:"SN003" },
-    { id:4, code:"FURN-004", name:"طابعة HP", category:"أجهزة حاسوب", qty:2, condition:"جيد", location:"قسم IT", serialNo:"HP001" },
-  ]));
-  const [search, setSearch] = useState("");
-  const [filterCat, setFilterCat] = useState("الكل");
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ code:"", name:"", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"", serialNo:"" });
-  const [adding, setAdding] = useState(false);
-  const [toast, setToast] = useState("");
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
-  useEffect(() => { storage.set("furniture_items", items); }, [items]);
-  
-  const categories = ["الكل", ...FURNITURE_CATS];
-  const filtered = items.filter(i => (i.name.includes(search) || i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
-  
-  const saveItem = () => {
-    if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
-    if (adding) setItems([...items, { ...form, id: Date.now() }]);
-    else setItems(items.map(i => i.id===editId ? form : i));
-    setEditId(null); setAdding(false);
-    showToast("✅ تم الحفظ");
-  };
-  const deleteItem = (id) => { if(window.confirm("هل تريد الحذف؟")) { setItems(items.filter(i=>i.id!==id)); showToast("✅ تم الحذف"); } };
-  
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-3 items-center justify-between"><div className="flex gap-2 flex-1"><div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
-      <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="bg-white border rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select></div>
-      <div className="flex gap-2"><button onClick={()=>{setAdding(true); setEditId(null); setForm({ code:"", name:"", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"", serialNo:"" });}} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button><PrintButton targetId="print-furniture" title="جرد الأثاث"/></div></div>
-      
-      {(adding || editId) && (<div className="bg-white rounded-2xl border-2 border-violet-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة قطعة":"تعديل قطعة"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[["الرمز *","code"],["الاسم *","name"],["الفئة","category"],["الكمية","qty"],["الموقع","location"],["الرقم التسلسلي","serialNo"]].map(([l,k])=>(<div key={k}><label className="block text-[10px] font-bold text-slate-500 mb-1">{l}</label><input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>))}
-      <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الحالة</label><select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">{ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}</select></div></div>
-      <div className="flex gap-2 justify-end mt-4"><button onClick={()=>{setEditId(null);setAdding(false);}} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> حفظ</button></div></div>)}
-      
-      <div id="print-furniture" className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b"><th>الرمز</th><th>الاسم</th><th>الفئة</th><th>الكمية</th><th>الحالة</th><th>الموقع</th><th>الرقم التسلسلي</th><th>إجراءات</th></tr></thead>
-      <tbody>{filtered.map(it=>(<tr key={it.id} className="border-b hover:bg-slate-50"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2 font-semibold">{it.name}</td><td className="px-3 py-2">{it.category}</td><td className="px-3 py-2 font-bold">{it.qty}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${COND_STYLE[it.condition]||""}`}>{it.condition}</span></td><td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 text-slate-400">{it.serialNo||"—"}</td>
-      <td className="px-3 py-2"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id); setForm({...it}); setAdding(false);}} className="p-1 text-blue-500 hover:bg-blue-50 rounded"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
-    </div>
-  );
-}
-
-// ========== 5. لوحة إحصائيات متقدمة ==========
-function AdvancedStats({ allEmployees, allRequests, trainings }) {
-  const [stats, setStats] = useState({ totalEmployees:0, pendingRequests:0, approvedRequests:0, trainingCompleted:0, trainingInProgress:0 });
-  useEffect(() => {
-    setStats({
-      totalEmployees: allEmployees.length,
-      pendingRequests: (allRequests || []).filter(r => r.status === "بانتظار المراجعة").length,
-      approvedRequests: (allRequests || []).filter(r => r.status === "موافق عليها").length,
-      trainingCompleted: (trainings || []).filter(t => t.status === "مكتملة").length,
-      trainingInProgress: (trainings || []).filter(t => t.status === "قيد التنفيذ" || t.status === "مسندة").length,
-    });
-  }, [allEmployees, allRequests, trainings]);
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-5 text-white"><Users size={28} className="mb-2 opacity-80"/><p className="text-3xl font-bold">{stats.totalEmployees}</p><p className="text-sm opacity-80">إجمالي الموظفين</p></div>
-      <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-2xl p-5 text-white"><FileText size={28} className="mb-2 opacity-80"/><p className="text-3xl font-bold">{stats.pendingRequests}</p><p className="text-sm opacity-80">طلبات معلقة</p></div>
-      <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl p-5 text-white"><CheckCircle size={28} className="mb-2 opacity-80"/><p className="text-3xl font-bold">{stats.approvedRequests}</p><p className="text-sm opacity-80">طلبات موافق عليها</p></div>
-      <div className="bg-gradient-to-r from-violet-500 to-violet-600 rounded-2xl p-5 text-white"><GraduationCap size={28} className="mb-2 opacity-80"/><p className="text-3xl font-bold">{stats.trainingCompleted}</p><p className="text-sm opacity-80">تدريب مكتمل</p></div>
-      <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-2xl p-5 text-white"><Clock size={28} className="mb-2 opacity-80"/><p className="text-3xl font-bold">{stats.trainingInProgress}</p><p className="text-sm opacity-80">تدريب قيد التنفيذ</p></div>
-    </div>
-  );
-}
-
-// ========== 6. سجل التعديلات ==========
-function AuditLogPage() {
-  const [logs, setLogs] = useState(() => storage.get("audit_log", []));
-  const [search, setSearch] = useState("");
-  const filtered = logs.filter(l => l.details?.includes(search) || l.by?.includes(search)).slice(0, 100);
-  useEffect(() => { storage.set("audit_log", logs); }, [logs]);
-  return (
-    <div className="space-y-4"><div className="flex gap-3"><div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث في السجل..." className="bg-transparent text-sm outline-none w-full"/></div><PrintButton targetId="print-audit" title="سجل التعديلات"/></div>
-    <div id="print-audit" className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b"><th>العملية</th><th>التفاصيل</th><th>بواسطة</th><th>التاريخ</th></tr></thead>
-    <tbody>{filtered.length===0?<tr><td colSpan={4} className="text-center py-8 text-slate-400">لا توجد سجلات</td></tr>:
-    filtered.map(l=><tr key={l.id} className="border-b hover:bg-slate-50"><td className="px-3 py-2">{l.action}</td><td className="px-3 py-2">{l.details}</td><td className="px-3 py-2">{l.by}</td><td className="px-3 py-2 text-slate-400">{new Date(l.at).toLocaleString("ar-IQ")}</td></tr>)}</tbody></td></div></div></div>
   );
 }
 
@@ -583,8 +229,9 @@ function RequestsPage({ emp }) {
     const maxDays = LEAVE_TYPES[formData.type].max;
     if (days > maxDays) { setErrors({days:`الحد الأقصى ${maxDays} يوم`}); return; }
     const newRequest = { id:Date.now(), ...formData, days, status:"بانتظار المراجعة", submittedAt:new Date().toISOString(), empId:emp.id, empName:emp.name };
+    const allRequests = storage.get("all_requests", []);
+    storage.set("all_requests", [newRequest, ...allRequests]);
     setRequests([newRequest, ...requests]);
-    storage.set(`requests_${emp.id}`, [newRequest, ...requests]);
     setShowForm(false);
     setFormData({ type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" });
     setErrors({});
@@ -635,13 +282,11 @@ function ApprovalsPage({ emp }) {
     const allRequests = storage.get("all_requests", []);
     const updated = allRequests.map(r => r.id === id ? { ...r, status, decidedAt: new Date().toISOString(), decidedBy: emp.name } : r);
     storage.set("all_requests", updated);
-    // تحديث طلبات الموظف
     const req = allRequests.find(r => r.id === id);
     if(req) {
       const empRequests = storage.get(`requests_${req.empId}`, []);
       const updatedEmp = empRequests.map(r => r.id === id ? { ...r, status } : r);
       storage.set(`requests_${req.empId}`, updatedEmp);
-      // إضافة إشعار
       const notifs = storage.get(`notifications_${req.empId}`, []);
       storage.set(`notifications_${req.empId}`, [{ id:Date.now(), type:status==="موافق عليها"?"موافقة":"رفض", title:status==="موافق عليها"?"✅ تمت الموافقة على طلبك":"❌ تم رفض طلبك", body:`${req.type} — ${req.days} يوم`, timestamp:new Date().toISOString(), read:false }, ...notifs]);
     }
@@ -673,6 +318,198 @@ function NotificationsPage({ emp }) {
   {!n.read && <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"/>}</div></div>))}</div>);
 }
 
+// ========== نظام الحضور ==========
+function AttendanceSystem({ emp, isAdmin, allEmployees }) {
+  const now = new Date();
+  const [selMonth, setSelMonth] = useState(now.getMonth());
+  const [selYear, setSelYear] = useState(now.getFullYear());
+  const [selEmpId, setSelEmpId] = useState(isAdmin ? null : emp.id);
+  const [selectedDate, setSelectedDate] = useState(now.toISOString().slice(0,10));
+  const [dailyRecords, setDailyRecords] = useState(() => storage.get(`attendance_${emp.id}`, {}));
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  const daysInMonth = new Date(selYear, selMonth+1, 0).getDate();
+  
+  useEffect(() => { storage.set(`attendance_${emp.id}`, dailyRecords); }, [dailyRecords, emp.id]);
+  
+  const handleCheckIn = () => {
+    const nowTime = new Date().toLocaleTimeString("ar-IQ", { hour:"2-digit", minute:"2-digit" });
+    const record = dailyRecords[selectedDate] || {};
+    setDailyRecords({ ...dailyRecords, [selectedDate]: { ...record, checkIn: nowTime, status: "حاضر" } });
+    showToast("✅ تم تسجيل دخولك بنجاح");
+  };
+  
+  const handleCheckOut = () => {
+    const nowTime = new Date().toLocaleTimeString("ar-IQ", { hour:"2-digit", minute:"2-digit" });
+    const record = dailyRecords[selectedDate] || {};
+    if (!record.checkIn) { showToast("⚠️ يجب تسجيل الدخول أولاً"); return; }
+    setDailyRecords({ ...dailyRecords, [selectedDate]: { ...record, checkOut: nowTime } });
+    showToast("✅ تم تسجيل خروجك بنجاح");
+  };
+  
+  const stats = { حاضر: 0, غائب: 0 };
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = `${selYear}-${String(selMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    if (dailyRecords[key]?.checkIn) stats.حاضر++; else stats.غائب++;
+  }
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3 items-center justify-between">
+        <div className="flex gap-2"><select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))} className="bg-white border rounded-xl px-3 py-2 text-sm">{months.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
+        <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))} className="bg-white border rounded-xl px-3 py-2 text-sm">{[2024,2025,2026].map(y=><option key={y}>{y}</option>)}</select>
+        {isAdmin && <select value={selEmpId||""} onChange={e=>setSelEmpId(Number(e.target.value)||null)} className="bg-white border rounded-xl px-3 py-2 text-sm min-w-[180px]"><option value="">-- اختر موظفاً --</option>{allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,2).join(" ")}</option>)}</select>}</div>
+        <PrintButton targetId="print-attendance" label="طباعة التقرير"/>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-emerald-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold text-emerald-700">{stats.حاضر}</p><p className="text-[10px]">أيام الحضور</p></div>
+        <div className="bg-red-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold text-red-700">{stats.غائب}</p><p className="text-[10px]">أيام الغياب</p></div>
+        <div className="bg-blue-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold text-blue-700">{Math.round(stats.حاضر/daysInMonth*100)}%</p><p className="text-[10px]">نسبة الحضور</p></div>
+      </div>
+      {(!isAdmin || selEmpId === emp.id) && (<div className="bg-white rounded-2xl border p-5"><h3 className="font-bold text-slate-800 mb-3">تسجيل الحضور اليومي</h3>
+      <div className="flex flex-wrap gap-4 items-end"><div><label className="block text-xs font-bold text-slate-500 mb-1">التاريخ</label><input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} className="border rounded-xl px-3 py-2"/></div>
+      <div className="flex gap-2"><button onClick={handleCheckIn} className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold"><LogIn size={14} className="inline ml-1"/> تسجيل دخول</button>
+      <button onClick={handleCheckOut} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><LogOut size={14} className="inline ml-1"/> تسجيل خروج</button></div></div>
+      {dailyRecords[selectedDate]?.checkIn && <div className="mt-3 text-sm text-slate-600">✅ تم تسجيل الدخول الساعة {dailyRecords[selectedDate].checkIn}</div>}</div>)}
+      <div id="print-attendance" className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b"><th className="px-3 py-2">اليوم</th><th className="px-3 py-2">التاريخ</th><th className="px-3 py-2">دخول</th><th className="px-3 py-2">خروج</th><th className="px-3 py-2">الحالة</th></tr></thead>
+      <tbody>{Array.from({length:daysInMonth},(_,i)=>i+1).map(day=>{const key = `${selYear}-${String(selMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`; const record = dailyRecords[key]||{};
+      return(<tr key={day} className="border-b"><td className="px-3 py-2">{new Date(key).toLocaleDateString("ar-IQ",{weekday:"short"})}</td><td className="px-3 py-2">{day}</td><td className="px-3 py-2">{record.checkIn||"—"}</td><td className="px-3 py-2">{record.checkOut||"—"}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${record.checkIn?"bg-emerald-100 text-emerald-700":"bg-red-100 text-red-700"}`}>{record.checkIn?"حاضر":"غائب"}</span></td></tr>);})}</tbody></table></div></div>
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+    </div>
+  );
+}
+
+// ========== نظام التدريب ==========
+function TrainingSystem({ emp, isAdmin, allEmployees }) {
+  const [trainings, setTrainings] = useState(() => storage.get(`trainings_${emp.id}`, []));
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title:"", type:"تدريب ذاتي", desc:"", startDate:"", endDate:"", provider:"" });
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  useEffect(() => { storage.set(`trainings_${emp.id}`, trainings); }, [trainings, emp.id]);
+  
+  const addTraining = () => {
+    if (!form.title) return showToast("عنوان التدريب مطلوب");
+    const newTraining = { ...form, id: Date.now(), status: "مسندة", assignedAt: new Date().toISOString() };
+    setTrainings([newTraining, ...trainings]);
+    setForm({ title:"", type:"تدريب ذاتي", desc:"", startDate:"", endDate:"", provider:"" });
+    setShowForm(false);
+    showToast("✅ تم إضافة التدريب");
+  };
+  
+  const updateStatus = (id, status) => {
+    setTrainings(trainings.map(t => t.id === id ? { ...t, status, completedAt: status==="مكتملة"?new Date().toISOString():t.completedAt } : t));
+    showToast(`✅ تم تحديث الحالة إلى ${status}`);
+  };
+  
+  return (
+    <div className="space-y-4"><div className="flex justify-between items-center"><h3 className="font-bold text-slate-800 text-lg">المهام التدريبية</h3>
+    {isAdmin && <button onClick={()=>setShowForm(!showForm)} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة تدريب</button>}
+    <PrintButton targetId="print-training" label="طباعة"/></div>
+    {showForm && isAdmin && (<div className="bg-white rounded-2xl border-2 border-violet-200 p-5"><div className="grid grid-cols-2 gap-3"><input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="عنوان التدريب" className="border rounded-xl px-3 py-2 text-sm col-span-2"/>
+    <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} className="border rounded-xl px-3 py-2 text-sm">{TRAINING_TYPES.map(t=><option key={t}>{t}</option>)}</select>
+    <input value={form.provider} onChange={e=>setForm({...form,provider:e.target.value})} placeholder="الجهة المقدمة" className="border rounded-xl px-3 py-2 text-sm"/>
+    <input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} className="border rounded-xl px-3 py-2 text-sm"/>
+    <input type="date" value={form.endDate} onChange={e=>setForm({...form,endDate:e.target.value})} className="border rounded-xl px-3 py-2 text-sm"/>
+    <textarea value={form.desc} onChange={e=>setForm({...form,desc:e.target.value})} rows={2} placeholder="وصف التدريب" className="border rounded-xl px-3 py-2 text-sm col-span-2"/></div>
+    <div className="flex gap-2 justify-end mt-4"><button onClick={()=>setShowForm(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={addTraining} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> إضافة</button></div></div>)}
+    <div id="print-training" className="space-y-3">{trainings.length===0?<div className="bg-white rounded-2xl p-10 text-center"><GraduationCap size={40} className="text-slate-300 mx-auto"/><p className="text-slate-400">لا توجد مهام تدريبية</p></div>:
+    trainings.map(t=>(<div key={t.id} className="bg-white rounded-2xl border p-4"><div className="flex justify-between"><div><div className="flex gap-2 mb-1"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${t.status==="مكتملة"?"bg-emerald-100 text-emerald-700":"bg-amber-100 text-amber-700"}`}>{t.status}</span>
+    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-50 text-violet-700">{t.type}</span></div><p className="font-bold text-slate-800">{t.title}</p>
+    {t.desc && <p className="text-xs text-slate-500 mt-1">{t.desc}</p>}<div className="flex gap-3 text-[10px] text-slate-400 mt-2">{t.startDate && <span>📅 من {t.startDate}</span>}{t.endDate && <span>إلى {t.endDate}</span>}</div></div>
+    {isAdmin && t.status!=="مكتملة" && <button onClick={()=>updateStatus(t.id,"مكتملة")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs"><CheckCircle size={12}/> إكمال</button>}</div></div>))}</div>
+    {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+    </div>
+  );
+}
+
+// ========== جرد المخزن ==========
+function InventorySystem() {
+  const [items, setItems] = useState(() => storage.get("inventory_items", [
+    { id:1, code:"INV-001", name:"مقاومة متغيرة", category:"أجهزة قياس", qty:5, condition:"جيد", location:"الرف A1" },
+    { id:2, code:"INV-002", name:"مولد ذبذبات", category:"أجهزة قياس", qty:2, condition:"جيد", location:"الرف A2" },
+    { id:3, code:"INV-003", name:"جهاز معايرة ضغط", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"الرف B1" },
+    { id:4, code:"INV-004", name:"كماشة كهرباء", category:"عدد يدوية", qty:10, condition:"جيد", location:"الرف C1" },
+  ]));
+  const [search, setSearch] = useState("");
+  const [filterCat, setFilterCat] = useState("الكل");
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ code:"", name:"", category:"أجهزة قياس", qty:1, condition:"جيد", location:"" });
+  const [adding, setAdding] = useState(false);
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  useEffect(() => { storage.set("inventory_items", items); }, [items]);
+  
+  const categories = ["الكل", ...new Set(items.map(i=>i.category))];
+  const filtered = items.filter(i => (i.name.includes(search) || i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
+  
+  const saveItem = () => {
+    if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
+    if (adding) setItems([...items, { ...form, id: Date.now() }]);
+    else setItems(items.map(i => i.id===editId ? form : i));
+    setEditId(null); setAdding(false);
+    showToast("✅ تم الحفظ");
+  };
+  
+  return (
+    <div className="space-y-4"><div className="flex flex-wrap gap-3 items-center justify-between"><div className="flex gap-2 flex-1"><div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
+    <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="bg-white border rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select></div>
+    <div className="flex gap-2"><button onClick={()=>{setAdding(true); setForm({ code:"", name:"", category:"أجهزة قياس", qty:1, condition:"جيد", location:"" });}} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button><PrintButton targetId="print-inventory" label="طباعة"/></div></div>
+    {(adding || editId) && (<div className="bg-white rounded-2xl border-2 border-blue-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة صنف":"تعديل صنف"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[["الرمز *","code"],["الاسم *","name"],["الفئة","category"],["الكمية","qty"],["الموقع","location"]].map(([l,k])=>(<div key={k}><label className="block text-[10px] font-bold text-slate-500 mb-1">{l}</label><input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>))}
+    <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الحالة</label><select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">{ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}</select></div></div>
+    <div className="flex gap-2 justify-end mt-4"><button onClick={()=>{setEditId(null);setAdding(false);}} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl"><Save size={13}/> حفظ</button></div></div>)}
+    <div id="print-inventory" className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b"><th>الرمز</th><th>الاسم</th><th>الفئة</th><th>الكمية</th><th>الحالة</th><th>الموقع</th><th>إجراءات</th></tr></thead>
+    <tbody>{filtered.map(it=>(<tr key={it.id} className="border-b"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2">{it.name}</td><td className="px-3 py-2">{it.category}</td><td className="px-3 py-2 font-bold">{it.qty}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td><td className="px-3 py-2">{it.location}</td>
+    <td className="px-3 py-2"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id); setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>{if(window.confirm("حذف؟")) setItems(items.filter(i=>i.id!==it.id));}} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
+    {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+    </div>
+  );
+}
+
+// ========== جرد الأثاث ==========
+function FurnitureInventory() {
+  const [items, setItems] = useState(() => storage.get("furniture_items", [
+    { id:1, code:"FURN-001", name:"منضدة كتابة", category:"أثاث مكتبي", qty:5, condition:"جيد", location:"المكتب الرئيسي" },
+    { id:2, code:"FURN-002", name:"كرسي دوار", category:"أثاث مكتبي", qty:8, condition:"جيد", location:"المكتب الرئيسي" },
+  ]));
+  const [search, setSearch] = useState("");
+  const [filterCat, setFilterCat] = useState("الكل");
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ code:"", name:"", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"" });
+  const [adding, setAdding] = useState(false);
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  useEffect(() => { storage.set("furniture_items", items); }, [items]);
+  
+  const categories = ["الكل", ...FURNITURE_CATS];
+  const filtered = items.filter(i => (i.name.includes(search) || i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
+  
+  const saveItem = () => {
+    if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
+    if (adding) setItems([...items, { ...form, id: Date.now() }]);
+    else setItems(items.map(i => i.id===editId ? form : i));
+    setEditId(null); setAdding(false);
+    showToast("✅ تم الحفظ");
+  };
+  
+  return (
+    <div className="space-y-4"><div className="flex flex-wrap gap-3 items-center justify-between"><div className="flex gap-2 flex-1"><div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
+    <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="bg-white border rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select></div>
+    <div className="flex gap-2"><button onClick={()=>{setAdding(true); setForm({ code:"", name:"", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"" });}} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button><PrintButton targetId="print-furniture" label="طباعة"/></div></div>
+    {(adding || editId) && (<div className="bg-white rounded-2xl border-2 border-violet-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة قطعة":"تعديل قطعة"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[["الرمز *","code"],["الاسم *","name"],["الفئة","category"],["الكمية","qty"],["الموقع","location"]].map(([l,k])=>(<div key={k}><label className="block text-[10px] font-bold text-slate-500 mb-1">{l}</label><input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>))}
+    <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الحالة</label><select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">{ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}</select></div></div>
+    <div className="flex gap-2 justify-end mt-4"><button onClick={()=>{setEditId(null);setAdding(false);}} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> حفظ</button></div></div>)}
+    <div id="print-furniture" className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b"><th>الرمز</th><th>الاسم</th><th>الفئة</th><th>الكمية</th><th>الحالة</th><th>الموقع</th><th>إجراءات</th></tr></thead>
+    <tbody>{filtered.map(it=>(<tr key={it.id} className="border-b"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2">{it.name}</td><td className="px-3 py-2">{it.category}</td><td className="px-3 py-2 font-bold">{it.qty}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td><td className="px-3 py-2">{it.location}</td>
+    <td className="px-3 py-2"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id); setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>{if(window.confirm("حذف؟")) setItems(items.filter(i=>i.id!==it.id));}} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
+    {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+    </div>
+  );
+}
+
 // ========== إدارة الموظفين ==========
 function EmployeeManager({ employees, setEmployees }) {
   const [search, setSearch] = useState("");
@@ -687,33 +524,50 @@ function EmployeeManager({ employees, setEmployees }) {
     setAdding(false); setEditId(null);
   };
   return (<div className="space-y-4"><div className="flex gap-3"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="flex-1 border rounded-xl px-3 py-2"/>
-  <button onClick={()=>{setAdding(true); setForm({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحי" });}} className="px-4 py-2 bg-blue-600 text-white rounded-xl"><Plus size={14}/> إضافة</button></div>
+  <button onClick={()=>{setAdding(true); setForm({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي" });}} className="px-4 py-2 bg-blue-600 text-white rounded-xl"><Plus size={14}/> إضافة</button></div>
   {(adding||editId) && (<div className="bg-white rounded-2xl border p-5"><div className="grid grid-cols-2 gap-3"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="الاسم" className="border rounded-xl px-3 py-2"/>
   <input value={form.jobNum} onChange={e=>setForm({...form,jobNum:e.target.value})} placeholder="الرقم الوظيفي" className="border rounded-xl px-3 py-2"/>
   <input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="المسمى" className="border rounded-xl px-3 py-2"/>
   <select value={form.dept} onChange={e=>setForm({...form,dept:e.target.value})} className="border rounded-xl px-3 py-2"><option>قسم السيطرة والنظم</option><option>شعبة مستودع الفاو</option><option>شعبة المرافئ</option></select>
   <select value={form.shift} onChange={e=>setForm({...form,shift:e.target.value})} className="border rounded-xl px-3 py-2"><option>صباحي</option><option>مناوبة</option></select></div>
   <div className="flex gap-2 mt-4"><button onClick={()=>{setAdding(false);setEditId(null);}} className="flex-1 py-2 border rounded-xl">إلغاء</button><button onClick={saveEmp} className="flex-1 py-2 bg-blue-600 text-white rounded-xl">حفظ</button></div></div>)}
-  <div className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="bg-slate-50 border-b"><th className="px-3 py-2 text-right">الاسم</th><th className="px-3 py-2 text-right">الرقم</th><th className="px-3 py-2 text-right">المسمى</th><th className="px-3 py-2 text-right">القسم</th><th></th></tr></thead>
+  <div className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="bg-slate-50 border-b"><th className="px-3 py-2">الاسم</th><th className="px-3 py-2">الرقم</th><th className="px-3 py-2">المسمى</th><th className="px-3 py-2">القسم</th><th></th></tr></thead>
   <tbody>{filtered.map(e=><tr key={e.id} className="border-b"><td className="px-3 py-2">{e.name}</td><td className="px-3 py-2">{e.jobNum}</td><td className="px-3 py-2">{e.title}</td><td className="px-3 py-2">{e.dept}</td>
   <td className="px-3 py-2"><button onClick={()=>{setEditId(e.id); setForm(e);}} className="text-blue-500"><Edit3 size={14}/></button></td></tr>)}</tbody></table></div></div></div>);
+}
+
+// ========== إحصائيات ==========
+function StatsPage({ employees, allRequests }) {
+  const pending = (allRequests || []).filter(r => r.status === "بانتظار المراجعة").length;
+  const approved = (allRequests || []).filter(r => r.status === "موافق عليها").length;
+  return (<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-5 text-white"><Users size={28} className="mb-2"/><p className="text-3xl font-bold">{employees.length}</p><p className="text-sm">الموظفين</p></div>
+    <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-2xl p-5 text-white"><FileText size={28} className="mb-2"/><p className="text-3xl font-bold">{pending}</p><p className="text-sm">طلبات معلقة</p></div>
+    <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl p-5 text-white"><CheckCircle size={28} className="mb-2"/><p className="text-3xl font-bold">{approved}</p><p className="text-sm">طلبات مقبولة</p></div>
+    <div className="bg-gradient-to-r from-violet-500 to-violet-600 rounded-2xl p-5 text-white"><Award size={28} className="mb-2"/><p className="text-3xl font-bold">{employees.filter(e=>e.role==="admin").length}</p><p className="text-sm">مشرفين</p></div>
+  </div>);
+}
+
+// ========== سجل التعديلات ==========
+function AuditLogPage() {
+  const [logs, setLogs] = useState(() => storage.get("audit_log", []));
+  useEffect(() => { storage.set("audit_log", logs); }, [logs]);
+  return (<div className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b"><th className="px-3 py-2">العملية</th><th className="px-3 py-2">التفاصيل</th><th className="px-3 py-2">بواسطة</th><th className="px-3 py-2">التاريخ</th></tr></thead>
+  <tbody>{logs.length===0?<tr><td colSpan={4} className="text-center py-8 text-slate-400">لا توجد سجلات</td></tr>:
+  logs.slice(0,100).map(l=><tr key={l.id} className="border-b"><td className="px-3 py-2">{l.action}</td><td className="px-3 py-2">{l.details}</td><td className="px-3 py-2">{l.by}</td><td className="px-3 py-2 text-slate-400">{new Date(l.at).toLocaleString("ar-IQ")}</td></tr>)}</tbody></table></div></div>);
 }
 
 // ========== اللوحة الرئيسية ==========
 function Dashboard({ emp, onLogout }) {
   const [view, setView] = useState("home");
   const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []));
-  const [trainings, setTrainings] = useState(() => storage.get("all_trainings", []));
   const [employees, setEmployees] = useState(ACCOUNTS);
   const isAdmin = emp.role === "admin" || emp.jobNum === "728004";
   const pendingCount = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
   
   useEffect(() => {
     const needsChange = sessionStorage.getItem("force_password_change");
-    if (needsChange === "true") {
-      sessionStorage.removeItem("force_password_change");
-      setTimeout(() => { if(window.confirm("🔐 يرجى تغيير كلمة المرور الافتراضية")) setView("changepass"); }, 500);
-    }
+    if (needsChange) { sessionStorage.removeItem("force_password_change"); setTimeout(() => { if(window.confirm("🔐 يرجى تغيير كلمة المرور الافتراضية")) setView("changepass"); }, 500); }
   }, []);
   
   const menuItems = [
@@ -730,33 +584,33 @@ function Dashboard({ emp, onLogout }) {
   ];
   if (isAdmin) {
     menuItems.unshift({ id: "approvals", label: "الموافقات", icon: <ThumbsUp size={18}/>, badge: pendingCount });
-    menuItems.unshift({ id: "employees", label: "إدارة الموظفين", icon: <Users size={18}/> });
+    menuItems.unshift({ id: "employees", label: "الموظفين", icon: <Users size={18}/> });
   }
   
   return (
     <div className="min-h-screen bg-slate-50" dir="rtl">
-      <div className="bg-white border-b px-6 py-4 flex items-center justify-between flex-wrap sticky top-0 z-10"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center"><span className="text-white font-bold text-sm">BOC</span></div>
-      <div><h1 className="font-bold text-slate-800">شركة نفط البصرة</h1><p className="text-xs text-slate-500">شعبة مستودع الفاو — النظام المتكامل</p></div></div>
+      <div className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-10"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center"><span className="text-white font-bold text-sm">BOC</span></div>
+      <div><h1 className="font-bold text-slate-800">شركة نفط البصرة</h1><p className="text-xs text-slate-500">شعبة مستودع الفاو</p></div></div>
       <div className="flex items-center gap-4"><div className="text-left"><p className="text-sm font-bold">{emp.name.split(" ").slice(0,2).join(" ")}</p><p className="text-xs text-slate-500">{emp.title}</p></div><button onClick={onLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><LogOut size={18}/></button></div></div>
       
       <div className="flex flex-col md:flex-row"><aside className="md:w-64 bg-white border-l min-h-screen p-4"><nav className="space-y-1">{menuItems.map(item => (<button key={item.id} onClick={()=>setView(item.id)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold ${view===item.id?"bg-blue-50 text-blue-700":"text-slate-600 hover:bg-slate-50"}`}>
       <span className="flex items-center gap-3">{item.icon}{item.label}</span>{item.badge>0 && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full">{item.badge}</span>}</button>))}</nav>
-      <div className="mt-6 p-3 bg-slate-50 rounded-xl text-xs"><p className="font-bold mb-2">ℹ️ النظام</p><p className="text-[11px]">✓ يعمل بشكل كامل</p><p className="text-[11px]">✓ البيانات في جهازك</p></div></aside>
+      <div className="mt-6 p-3 bg-slate-50 rounded-xl text-xs"><p className="font-bold mb-2">ℹ️ النظام</p><p>✓ يعمل بكفاءة</p><p>✓ البيانات محفوظة</p></div></aside>
       
-      <main className="flex-1 p-6">{view==="home" && (<div className="bg-white rounded-2xl p-8"><div className="flex items-center gap-4"><div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center"><User size={28} className="text-white"/></div><div><h2 className="text-xl font-bold">مرحباً، {emp.name.split(" ")[0]}</h2><p className="text-slate-500">تم تسجيل الدخول بنجاح</p></div></div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6"><div className="bg-emerald-50 border rounded-xl p-4"><CheckCircle className="text-emerald-600"/><p className="font-bold mt-2">✓ النظام يعمل</p></div><div className="bg-blue-50 border rounded-xl p-4"><Shield className="text-blue-600"/><p className="font-bold mt-2">✓ آمن ومشفر</p></div></div>
-      <div className="mt-6 pt-6 border-t"><p>الوحدات المتاحة: الحضور | التدريب | الجرد | الإشعارات | التقارير</p></div></div>)}
-      {view==="requests" && <RequestsPage emp={emp} />}
-      {view==="attendance" && <AttendanceSystem emp={emp} isAdmin={isAdmin} allEmployees={employees} />}
-      {view==="training" && <TrainingSystem emp={emp} isAdmin={isAdmin} allEmployees={employees} />}
-      {view==="inventory" && <InventorySystem emp={emp} isAdmin={isAdmin} />}
-      {view==="furniture" && <FurnitureInventory emp={emp} isAdmin={isAdmin} />}
-      {view==="notifications" && <NotificationsPage emp={emp} />}
-      {view==="stats" && <AdvancedStats allEmployees={employees} allRequests={allRequests} trainings={trainings} />}
-      {view==="audit" && <AuditLogPage />}
-      {view==="changepass" && <ChangePasswordPage emp={emp} onLogout={onLogout} />}
-      {view==="employees" && isAdmin && <EmployeeManager employees={employees} setEmployees={setEmployees} />}
-      {view==="approvals" && isAdmin && <ApprovalsPage emp={emp} />}
+      <main className="flex-1 p-6">
+        {view==="home" && <div className="bg-white rounded-2xl p-8"><div className="flex items-center gap-4"><div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center"><User size={28} className="text-white"/></div><div><h2 className="text-xl font-bold">مرحباً، {emp.name.split(" ")[0]}</h2><p className="text-slate-500">تم تسجيل الدخول بنجاح</p></div></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6"><div className="bg-emerald-50 border rounded-xl p-4"><CheckCircle className="text-emerald-600"/><p className="font-bold mt-2">✓ النظام يعمل</p></div><div className="bg-blue-50 border rounded-xl p-4"><Shield className="text-blue-600"/><p className="font-bold mt-2">✓ آمن ومشفر</p></div></div></div>}
+        {view==="requests" && <RequestsPage emp={emp} />}
+        {view==="attendance" && <AttendanceSystem emp={emp} isAdmin={isAdmin} allEmployees={employees} />}
+        {view==="training" && <TrainingSystem emp={emp} isAdmin={isAdmin} allEmployees={employees} />}
+        {view==="inventory" && <InventorySystem />}
+        {view==="furniture" && <FurnitureInventory />}
+        {view==="notifications" && <NotificationsPage emp={emp} />}
+        {view==="stats" && <StatsPage employees={employees} allRequests={allRequests} />}
+        {view==="audit" && <AuditLogPage />}
+        {view==="changepass" && <ChangePasswordPage emp={emp} onLogout={onLogout} />}
+        {view==="employees" && isAdmin && <EmployeeManager employees={employees} setEmployees={setEmployees} />}
+        {view==="approvals" && isAdmin && <ApprovalsPage emp={emp} />}
       </main></div>
     </div>
   );
