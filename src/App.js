@@ -1,552 +1,344 @@
-import { useState, useEffect, useCallback } from "react";
-import { 
-  LogIn, LogOut, Shield, Eye, EyeOff, AlertCircle, Save, Home, User, 
-  CheckCircle, Wifi, WifiOff, RefreshCw, FileText, Clock, Calendar,
-  Bell, ThumbsUp, ThumbsDown, Plus, Trash2, Edit3, X, Users, Package,
-  ClipboardList, GraduationCap, BarChart, Printer, Download, Search, Award
-} from "lucide-react";
+// أضف هذا الكود في بداية ملف App.js، واستبدل دوال InventorySystem و FurnitureInventory بالكود التالي:
 
-const FIREBASE_URL = "https://faop-scada-default-rtdb.asia-southeast1.firebasedatabase.app";
-
-const ACCOUNTS = [
-  {id:1, jobNum:"728004", password:"1001", name:"ايهاب عبد اللطيف", title:"ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"admin"},
-  {id:2, jobNum:"727466", password:"1002", name:"عدي فيصل", title:"ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:3, jobNum:"737283", password:"1003", name:"عمر طاهر", title:"م.ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:4, jobNum:"756571", password:"1004", name:"ليث شاكر", title:"معاون مهندس", dept:"قسم السيطرة والنظم", shift:"صباحي"},
-  {id:5, jobNum:"790850", password:"1005", name:"اسعد عبد الامام", title:"م.مدير فني", dept:"شعبة مستودع الفاو", shift:"صباحي"},
-];
-
-const LEAVE_TYPES = {
-  اعتيادية: { label: "إجازة اعتيادية", max: 30, color: "bg-blue-100 text-blue-700" },
-  مرضية: { label: "إجازة مرضية", max: 15, color: "bg-rose-100 text-rose-700" },
-  زمنية: { label: "إجازة زمنية", max: 7, color: "bg-amber-100 text-amber-700" },
-};
-
-const storage = {
-  get: (key, defaultValue = null) => {
-    try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : defaultValue; } catch { return defaultValue; }
-  },
-  set: (key, value) => {
-    try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
-  }
-};
-
-const FirebaseAPI = {
-  checkConnection: async () => {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const response = await fetch(`${FIREBASE_URL}/.json`, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      return response.ok;
-    } catch { return false; }
-  },
-  savePassword: async (empId, password) => {
-    try { await fetch(`${FIREBASE_URL}/passwords/${empId}.json`, { method: "PUT", body: JSON.stringify(password) }); return true; } catch { return false; }
-  },
-  getPassword: async (empId) => {
-    try { const res = await fetch(`${FIREBASE_URL}/passwords/${empId}.json`); if (!res.ok) return null; const data = await res.json(); return typeof data === "string" ? data : null; } catch { return null; }
-  },
-  saveRequest: async (request) => {
-    try { await fetch(`${FIREBASE_URL}/requests/${request.id}.json`, { method: "PUT", body: JSON.stringify(request) }); return true; } catch { return false; }
-  },
-  getAllRequests: async () => {
-    try { const res = await fetch(`${FIREBASE_URL}/requests.json`); if (!res.ok) return []; const data = await res.json(); return data ? Object.values(data) : []; } catch { return []; }
-  },
-  deleteRequest: async (id) => {
-    try { await fetch(`${FIREBASE_URL}/requests/${id}.json`, { method: "DELETE" }); return true; } catch { return false; }
-  },
-  saveNotification: async (empId, notification) => {
-    try { await fetch(`${FIREBASE_URL}/notifications/${empId}/${notification.id}.json`, { method: "PUT", body: JSON.stringify(notification) }); return true; } catch { return false; }
-  },
-  getNotifications: async (empId) => {
-    try { const res = await fetch(`${FIREBASE_URL}/notifications/${empId}.json`); if (!res.ok) return []; const data = await res.json(); return data ? Object.values(data).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp)) : []; } catch { return []; }
-  }
-};
-
-function useConnectionStatus() {
-  const [isConnected, setIsConnected] = useState(false);
-  const checkConnection = useCallback(async () => {
-    const connected = await FirebaseAPI.checkConnection();
-    setIsConnected(connected);
-  }, []);
-  useEffect(() => { checkConnection(); const interval = setInterval(checkConnection, 30000); return () => clearInterval(interval); }, [checkConnection]);
-  return { isConnected };
-}
-
-function printElement(elementId) {
-  const el = document.getElementById(elementId);
-  if (!el) { window.print(); return; }
-  const html = `<html dir="rtl"><head><meta charset="UTF-8"/><title>تقرير</title>
-  <style>body{padding:20mm;font-family:Arial} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:8px}</style></head>
-  <body>${el.innerHTML}</body></html>`;
-  const win = window.open();
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  win.print();
-  setTimeout(() => win.close(), 1000);
-}
-
-function PrintButton({ targetId }) {
-  return (<button onClick={() => printElement(targetId)} className="flex items-center gap-1 text-xs font-bold text-slate-700 bg-white border px-3 py-2 rounded-xl"><Printer size={13}/> طباعة</button>);
-}
-
-// ========== شاشة تسجيل الدخول ==========
-function LoginScreen({ onLogin }) {
-  const [user, setUser] = useState("");
-  const [pass, setPass] = useState("");
-  const [showP, setShowP] = useState(false);
-  const [err, setErr] = useState("");
-  const [loading, setLoading] = useState(false);
-  const { isConnected } = useConnectionStatus();
-
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem("boc_session");
-      if (saved) {
-        const { acctId, expiry } = JSON.parse(saved);
-        if (expiry > Date.now()) {
-          const acct = ACCOUNTS.find(a => a.id === acctId);
-          if (acct) onLogin(acct);
-        } else sessionStorage.removeItem("boc_session");
-      }
-    } catch {}
-  }, [onLogin]);
-
-  const handleLogin = async () => {
-    setErr("");
-    if (!user || !pass) { setErr("أدخل الرقم الوظيفي وكلمة المرور"); return; }
-    const account = ACCOUNTS.find(a => a.jobNum === user.trim());
-    if (!account) { setErr("الرقم الوظيفي غير موجود"); return; }
-    setLoading(true);
-    let isValid = (pass.trim() === account.password);
-    if (!isValid && isConnected) {
-      const fbPass = await FirebaseAPI.getPassword(account.id);
-      if (fbPass && pass.trim() === fbPass) isValid = true;
-    }
-    if (isValid) {
-      if (isConnected && pass.trim() === account.password) {
-        await FirebaseAPI.savePassword(account.id, pass.trim());
-      }
-      sessionStorage.setItem("boc_session", JSON.stringify({ acctId: account.id, expiry: Date.now() + 8 * 3600000 }));
-      onLogin(account);
-    } else { setErr("كلمة المرور غير صحيحة"); }
-    setLoading(false);
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4" dir="rtl">
-      <div className="w-full max-w-md bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-white/20">
-        <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg mb-4"><LogIn size={32} className="text-white"/></div>
-          <h2 className="text-2xl font-bold text-white">شركة نفط البصرة</h2>
-          <p className="text-sm text-slate-300 mt-2">شعبة مستودع الفاو</p>
-        </div>
-        <div className="mb-4 flex items-center justify-center gap-2 text-xs">
-          {isConnected ? <><Wifi size={12} className="text-emerald-400"/><span>متصل</span></> : <><WifiOff size={12} className="text-amber-400"/><span>غير متصل</span></>}
-        </div>
-        <div className="space-y-4">
-          <input type="text" value={user} onChange={e=>setUser(e.target.value)} placeholder="الرقم الوظيفي" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
-          <div className="relative">
-            <input type={showP?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)} placeholder="كلمة المرور" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
-            <button onClick={()=>setShowP(!showP)} className="absolute left-4 top-3 text-slate-400">{showP?<EyeOff size={18}/>:<Eye size={18}/>}</button>
-          </div>
-          {err && <div className="bg-red-500/20 text-red-300 text-sm p-3 rounded-xl">{err}</div>}
-          <button onClick={handleLogin} disabled={loading} className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
-        </div>
-        <div className="mt-6 text-center text-sm text-slate-400"><p>🔑 <strong className="text-blue-300">728004</strong> / <strong className="text-blue-300">1001</strong></p></div>
-      </div>
-    </div>
-  );
-}
-
-// ========== تغيير كلمة المرور ==========
-function ChangePasswordPage({ emp, onLogout }) {
-  const [newPass, setNewPass] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [showN, setShowN] = useState(false);
-  const [msg, setMsg] = useState("");
-  const [loading, setLoading] = useState(false);
-  const { isConnected } = useConnectionStatus();
-
-  const handleChange = async () => {
-    if (!newPass || newPass.length < 4) { setMsg("كلمة المرور يجب أن تكون 4 خانات"); return; }
-    if (newPass !== confirm) { setMsg("كلمات المرور غير متطابقة"); return; }
-    setLoading(true);
-    try {
-      if (isConnected) await FirebaseAPI.savePassword(emp.id, newPass);
-      setMsg("✅ تم تغيير كلمة المرور بنجاح");
-      setTimeout(() => onLogout(), 1500);
-    } catch { setMsg("❌ حدث خطأ"); }
-    setLoading(false);
-  };
-
-  return (
-    <div className="max-w-md mx-auto mt-10">
-      <div className="bg-white rounded-2xl p-6 shadow-xl">
-        <h2 className="font-bold text-xl mb-4">تغيير كلمة المرور</h2>
-        <p className="text-sm text-slate-500 mb-4">{emp.name}</p>
-        <div className="space-y-3">
-          <input type={showN?"text":"password"} value={newPass} onChange={e=>setNewPass(e.target.value)} placeholder="كلمة المرور الجديدة" className="w-full border rounded-xl px-4 py-3"/>
-          <input type={showN?"text":"password"} value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="تأكيد كلمة المرور" className="w-full border rounded-xl px-4 py-3"/>
-          <button onClick={()=>setShowN(!showN)} className="text-sm text-blue-500">{showN?"إخفاء":"إظهار"}</button>
-          {msg && <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl text-center">{msg}</div>}
-          <button onClick={handleChange} disabled={loading} className="w-full bg-blue-600 text-white py-3 rounded-xl">{loading?"جاري الحفظ...":"حفظ"}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ========== طلبات الإجازة ==========
-function RequestsPage({ emp }) {
-  const [requests, setRequests] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" });
-  const [toast, setToast] = useState("");
-  const { isConnected } = useConnectionStatus();
-
-  useEffect(() => {
-    const load = async () => {
-      if (isConnected) {
-        const all = await FirebaseAPI.getAllRequests();
-        setRequests(all.filter(r => r.empId === emp.id));
-      } else {
-        setRequests(storage.get(`requests_${emp.id}`, []));
-      }
-    };
-    load();
-  }, [emp.id, isConnected]);
-
-  const handleSubmit = async () => {
-    if (!form.purpose) { setToast("الغرض مطلوب"); setTimeout(()=>setToast(""),2000); return; }
-    const days = Math.ceil((new Date(form.dateTo) - new Date(form.dateFrom)) / 86400000) + 1;
-    const newReq = { id:Date.now(), ...form, days, status:"بانتظار المراجعة", submittedAt:new Date().toISOString(), empId:emp.id, empName:emp.name };
-    if (isConnected) await FirebaseAPI.saveRequest(newReq);
-    setRequests([newReq, ...requests]);
-    setShowForm(false);
-    setToast("✅ تم إرسال طلبك");
-    setTimeout(()=>setToast(""),2000);
-  };
-
-  const deleteReq = async (id) => {
-    if (window.confirm("حذف؟")) {
-      if (isConnected) await FirebaseAPI.deleteRequest(id);
-      setRequests(requests.filter(r => r.id !== id));
-      setToast("✅ تم الحذف");
-      setTimeout(()=>setToast(""),2000);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="font-bold text-xl">طلبات الإجازة</h2>
-        <button onClick={()=>setShowForm(!showForm)} className="px-4 py-2 bg-blue-600 text-white rounded-xl"><Plus size={16}/> طلب جديد</button>
-      </div>
-      {showForm && (
-        <div className="bg-white rounded-2xl p-5 border">
-          <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} className="w-full border rounded-xl p-3 mb-3">
-            {Object.entries(LEAVE_TYPES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-          </select>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <input type="date" value={form.dateFrom} onChange={e=>setForm({...form,dateFrom:e.target.value})} className="border rounded-xl p-3"/>
-            <input type="date" value={form.dateTo} onChange={e=>setForm({...form,dateTo:e.target.value})} className="border rounded-xl p-3"/>
-          </div>
-          <input value={form.purpose} onChange={e=>setForm({...form,purpose:e.target.value})} placeholder="الغرض" className="w-full border rounded-xl p-3 mb-3"/>
-          <div className="flex gap-3">
-            <button onClick={()=>setShowForm(false)} className="flex-1 py-2 border rounded-xl">إلغاء</button>
-            <button onClick={handleSubmit} className="flex-1 py-2 bg-blue-600 text-white rounded-xl">إرسال</button>
-          </div>
-        </div>
-      )}
-      {requests.length === 0 ? (
-        <div className="bg-white rounded-2xl p-8 text-center text-slate-400"><FileText size={40} className="mx-auto"/><p>لا توجد طلبات</p></div>
-      ) : (
-        requests.map(r => (
-          <div key={r.id} className="bg-white rounded-2xl p-4 border">
-            <div className="flex justify-between">
-              <div>
-                <span className={`px-2 py-1 rounded-full text-xs ${LEAVE_TYPES[r.type]?.color}`}>{LEAVE_TYPES[r.type]?.label}</span>
-                <p className="mt-2">{r.dateFrom} إلى {r.dateTo} — {r.days} يوم</p>
-                <p className="text-sm text-slate-500">{r.purpose}</p>
-                <p className="text-xs text-slate-400 mt-1">الحالة: {r.status}</p>
-              </div>
-              {r.status === "بانتظار المراجعة" && (
-                <button onClick={()=>deleteReq(r.id)} className="text-red-400"><Trash2 size={18}/></button>
-              )}
-            </div>
-          </div>
-        ))
-      )}
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-5 py-3 rounded-2xl">{toast}</div>}
-    </div>
-  );
-}
-
-// ========== الموافقات ==========
-function ApprovalsPage({ emp }) {
-  const [requests, setRequests] = useState([]);
-  const [toast, setToast] = useState("");
-  const { isConnected } = useConnectionStatus();
-
-  useEffect(() => {
-    const load = async () => {
-      const all = isConnected ? await FirebaseAPI.getAllRequests() : storage.get("all_requests", []);
-      setRequests(all.filter(r => r.status === "بانتظار المراجعة"));
-    };
-    load();
-  }, [isConnected]);
-
-  const updateStatus = async (id, status) => {
-    const req = requests.find(r => r.id === id);
-    if (!req) return;
-    const updated = { ...req, status, decidedAt: new Date().toISOString(), decidedBy: emp.name };
-    if (isConnected) await FirebaseAPI.saveRequest(updated);
-    const notif = { id:Date.now(), type:status==="موافق عليها"?"موافقة":"رفض", title:status==="موافق عليها"?"✅ تمت الموافقة":"❌ تم الرفض", body:`${req.type} — ${req.days} يوم`, timestamp:new Date().toISOString(), read:false };
-    if (isConnected) await FirebaseAPI.saveNotification(req.empId, notif);
-    setRequests(requests.filter(r => r.id !== id));
-    setToast(`✅ تم ${status==="موافق عليها"?"قبول":"رفض"}`);
-    setTimeout(()=>setToast(""),2000);
-  };
-
-  return (
-    <div>
-      <h2 className="font-bold text-xl mb-4">الطلبات المعلقة ({requests.length})</h2>
-      {requests.length === 0 ? (
-        <div className="bg-white rounded-2xl p-8 text-center"><CheckCircle size={40} className="mx-auto text-slate-300"/><p>لا توجد طلبات</p></div>
-      ) : (
-        requests.map(r => (
-          <div key={r.id} className="bg-white rounded-2xl p-4 border mb-3">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="font-bold">{r.empName}</p>
-                <p className="text-sm">{r.type} — {r.days} يوم</p>
-                <p className="text-xs text-slate-500">{r.purpose}</p>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={()=>updateStatus(r.id,"موافق عليها")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs">قبول</button>
-                <button onClick={()=>updateStatus(r.id,"مرفوضة")} className="px-3 py-1.5 bg-red-600 text-white rounded-xl text-xs">رفض</button>
-              </div>
-            </div>
-          </div>
-        ))
-      )}
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-5 py-3 rounded-2xl">{toast}</div>}
-    </div>
-  );
-}
-
-// ========== الإشعارات ==========
-function NotificationsPage({ emp }) {
-  const [notifs, setNotifs] = useState([]);
-  const { isConnected } = useConnectionStatus();
-
-  useEffect(() => {
-    const load = async () => {
-      const data = isConnected ? await FirebaseAPI.getNotifications(emp.id) : storage.get(`notifications_${emp.id}`, []);
-      setNotifs(data);
-    };
-    load();
-  }, [emp.id, isConnected]);
-
-  const markRead = async (id) => {
-    const updated = notifs.map(n => n.id === id ? { ...n, read: true } : n);
-    setNotifs(updated);
-    const n = notifs.find(n => n.id === id);
-    if (n && isConnected) await FirebaseAPI.saveNotification(emp.id, { ...n, read: true });
-  };
-
-  return (
-    <div>
-      <h2 className="font-bold text-xl mb-4">الإشعارات</h2>
-      {notifs.length === 0 ? (
-        <div className="bg-white rounded-2xl p-8 text-center"><Bell size={40} className="mx-auto text-slate-300"/><p>لا توجد إشعارات</p></div>
-      ) : (
-        notifs.map(n => (
-          <div key={n.id} onClick={()=>markRead(n.id)} className={`bg-white rounded-2xl p-4 border mb-3 cursor-pointer ${n.read ? "opacity-70" : "border-blue-200 bg-blue-50"}`}>
-            <div className="flex gap-3">
-              <div className={`p-2 rounded-xl ${n.type==="موافقة"?"bg-emerald-100":"bg-red-100"}`}>
-                {n.type==="موافقة"?<ThumbsUp size={16}/>:<ThumbsDown size={16}/>}
-              </div>
-              <div>
-                <p className="font-bold">{n.title}</p>
-                <p className="text-sm">{n.body}</p>
-                <p className="text-xs text-slate-400">{new Date(n.timestamp).toLocaleString()}</p>
-              </div>
-              {!n.read && <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"/>}
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
-
-// ========== إدارة الموظفين ==========
-function EmployeeManager({ employees, setEmployees }) {
+// ========== جرد المخزن (باستخدام بيانات Excel) ==========
+function InventorySystem() {
+  const [items, setItems] = useState(() => storage.get("inventory_items", [
+    // أجهزة قياس ومعايرة
+    { id:1, code:"2301280010", name:"مقاومة متغيرة", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"2489" },
+    { id:2, code:"2301243008", name:"مولد ذبذبات", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"JB21280" },
+    { id:3, code:"2309443025", name:"جهاز معايرة مقياس الضغط", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"2605079" },
+    { id:4, code:"2309443011", name:"جهاز معايرة مقياس الضغط", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"12064" },
+    { id:5, code:"2301373023", name:"جهاز مقياس متعدد الاغراض", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"22460049" },
+    { id:6, code:"2301390031", name:"جهاز قياس الضغط بالأوزان", category:"أجهزة معايرة", qty:1, condition:"عاطل", location:"مخزن الآلات الدقيقة", serialNo:"1B77" },
+    { id:7, code:"2308513026", name:"جهاز معايرة الضغوط", category:"أجهزة معايرة", qty:1, condition:"مستعمل", location:"ورشة", serialNo:"2414" },
+    { id:8, code:"2301493004", name:"جهاز معايرة المزدوجات (درجة حرارة)", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"B3-C511" },
+    { id:9, code:"2301293019", name:"جهاز تمييز الحساسات الحرارية", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"2645" },
+    { id:10, code:"2335613000", name:"جهاز فحص الفولتية", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"SS22344089" },
+    { id:11, code:"2336263013", name:"جهاز كشف مسار الكابلات", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"SS257676213" },
+    { id:12, code:"2335070006", name:"جهاز راسم الذبذبات", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"RS-248-898" },
+    { id:13, code:"2311183002", name:"كاميرا تصوير حرارية", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"TL-12513120" },
+    { id:14, code:"2503163065", name:"ايفو ميتر", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"263458" },
+    { id:15, code:"2501035893", name:"كوسرة طيارية", category:"عدد يدوية", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:16, code:"2505133097", name:"منكنة", category:"عدد يدوية", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:17, code:"2505503033", name:"جهاز ضغط يدوي هوائي", category:"أجهزة ضغط", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"13104" },
+    { id:18, code:"2505503013", name:"جهاز ضغط يدوي هوائي", category:"أجهزة ضغط", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"220828" },
+    { id:19, code:"2507973015", name:"جهاز ضغط هيدروليك", category:"أجهزة ضغط", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"17093" },
+    { id:20, code:"2507973016", name:"جهاز ضغط هيدروليك", category:"أجهزة ضغط", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"17077" },
+    { id:21, code:"2509133009", name:"جهاز معايرة الحرارة", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"204822" },
+    { id:22, code:"2503303018", name:"جهاز معايرة الحرارة", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"2594143" },
+    { id:23, code:"2503513013", name:"جهاز معايرة التيار الكهربائي الواطئ", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"2029006" },
+    { id:24, code:"2511233055", name:"كلاب ميتر", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"1400004" },
+    { id:25, code:"2511090188", name:"ميتر MEQ-2", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"MEQ-2" },
+    { id:26, code:"2504786015", name:"ضاغطة هواء", category:"أجهزة ضغط", qty:1, condition:"مستعمل", location:"ورشة" },
+    { id:27, code:"2505073613", name:"مقياس ضغط هيدروليك", category:"أجهزة ضغط", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"2605162" },
+    { id:28, code:"2510593033", name:"جهاز قياس الحرارة", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"12157" },
+    { id:29, code:"2503303032", name:"جهاز قياس الحرارة الدقيق", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"227-005" },
+    { id:30, code:"2313973022", name:"ماكنة لحام", category:"عدد كهربائية", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:31, code:"2624033", name:"FLUKE 726 (متعدد الاغراض مع قياس الضغط)", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"FLUKE726" },
+    { id:32, code:"26242703", name:"FLUKE 700P27 (متعدد الاغراض مع قياس الضغط)", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"FLUKE700P27" },
+    
+    // صمامات
+    { id:33, code:"5869856100", name:"VALVE SOLENOID EXPROOF 3WAY", category:"صمامات", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:34, code:"5899710065", name:"VALVE NEEDLE", category:"صمامات", qty:2, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:35, code:"5869892300", name:"VALVE SWITCHING", category:"صمامات", qty:2, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:36, code:"5869996510", name:"VALVE CHECK INODC250", category:"صمامات", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:37, code:"5869856050", name:"NEEDLE SOLENOID 1/2 TUBE", category:"صمامات", qty:2, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:38, code:"5883202040", name:"NEEDLE VALVE P-N215129", category:"صمامات", qty:4, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:39, code:"5889835125", name:"NEEDLE VALVE P-N915370", category:"صمامات", qty:5, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:40, code:"5863208250", name:"NEEDLE VALVE 4F-V6LN-SS", category:"صمامات", qty:21, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:41, code:"00-036-3401", name:"FNPTV BALL 1/2 NEEDLE", category:"صمامات", qty:7, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    
+    // مقاييس ضغط (كيجات)
+    { id:42, code:"", name:"كيج 30 par صغير", category:"مقاييس ضغط", qty:6, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:43, code:"", name:"كيج 60 psi صغير", category:"مقاييس ضغط", qty:25, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:44, code:"", name:"كيج 30 psi صغير", category:"مقاييس ضغط", qty:2, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:45, code:"", name:"كيج 250 kgf/cm2 كبير", category:"مقاييس ضغط", qty:5, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:46, code:"", name:"كيج 25 kg/cm2 كبير", category:"مقاييس ضغط", qty:8, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:47, code:"584-5002-529", name:"كيج 10 Kg كبير", category:"مقاييس ضغط", qty:9, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:48, code:"", name:"كيج 16 kg كبير", category:"مقاييس ضغط", qty:10, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:49, code:"", name:"كيج 100C كبير", category:"مقاييس ضغط", qty:2, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:50, code:"", name:"كيج 50 KG", category:"مقاييس ضغط", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:51, code:"", name:"كيج 25 par وسط", category:"مقاييس ضغط", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    
+    // أجهزة تحكم ومرسلات
+    { id:52, code:"", name:"مرسلة ضغط", category:"أجهزة تحكم", qty:7, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:53, code:"", name:"مرسلة جريان", category:"أجهزة تحكم", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:54, code:"", name:"PIC كارت", category:"أجهزة تحكم", qty:8, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:55, code:"", name:"متحكم ضغط", category:"أجهزة تحكم", qty:3, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:56, code:"", name:"لوحة اشارة", category:"أجهزة تحكم", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:57, code:"", name:"مفتاح تشغيل", category:"أجهزة تحكم", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:58, code:"", name:"ثرموستات متحسس حرارة RTD", category:"أجهزة تحكم", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    
+    // قطع توصيل وعدد يدوية
+    { id:59, code:"", name:"عكس مختلف الانواع حرف T", category:"قطع توصيل", qty:150, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:60, code:"", name:"عكس مختلف الانواع حرف L", category:"قطع توصيل", qty:110, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:61, code:"", name:"نبلة مختلف الاستخدام والاحجام", category:"قطع توصيل", qty:100, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:62, code:"", name:"صمام 1/2 HGVS12NC", category:"صمامات", qty:14, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:63, code:"", name:"صمام مختلف الاستخدام (5 اتجاهات كبير)", category:"صمامات", qty:5, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    
+    // عدد كهربائية ويدوية
+    { id:64, code:"", name:"دريل كهربائي", category:"عدد كهربائية", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:65, code:"", name:"منفاخ هواء", category:"عدد يدوية", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:66, code:"", name:"منشار كهربائي", category:"عدد كهربائية", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:67, code:"", name:"كماشة", category:"عدد يدوية", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:68, code:"", name:"كماشة حجم كبير", category:"عدد يدوية", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:69, code:"", name:"جاكوز", category:"عدد يدوية", qty:3, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:70, code:"", name:"كاوية لحيم", category:"عدد يدوية", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:71, code:"", name:"مسدس صمغ", category:"عدد يدوية", qty:2, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:72, code:"", name:"بايب سبانة 8 انش", category:"عدد يدوية", qty:5, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:73, code:"", name:"بايب سبانة 10 انش", category:"عدد يدوية", qty:5, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:74, code:"", name:"رافعة هيدروليك", category:"عدد يدوية", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+    { id:75, code:"", name:"برشر سويج", category:"عدد يدوية", qty:3, condition:"تالف", location:"مخزن الآلات الدقيقة" },
+    { id:76, code:"", name:"افيوميتر (أزرق)", category:"أجهزة قياس", qty:2, condition:"تالف", location:"مخزن الآلات الدقيقة" },
+    { id:77, code:"", name:"منظم ضغط نيتروجين", category:"أجهزة ضغط", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة" },
+  ]));
+  
   const [search, setSearch] = useState("");
+  const [filterCat, setFilterCat] = useState("الكل");
   const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي" });
+  const [form, setForm] = useState({ code:"", name:"", category:"أجهزة قياس", qty:1, condition:"جيد", location:"", serialNo:"" });
   const [adding, setAdding] = useState(false);
-  const filtered = employees.filter(e => e.name.includes(search) || e.jobNum.includes(search));
-  const save = () => {
-    if (!form.name || !form.jobNum) return;
-    if (adding) setEmployees([...employees, { ...form, id: Date.now(), password:"1000" }]);
-    else setEmployees(employees.map(e => e.id===editId ? form : e));
-    setAdding(false); setEditId(null);
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  useEffect(() => { storage.set("inventory_items", items); }, [items]);
+  
+  const categories = ["الكل", ...new Set(items.map(i=>i.category))];
+  const filtered = items.filter(i => (i.name.includes(search) || i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
+  
+  const saveItem = () => {
+    if (!form.name) return showToast("الاسم مطلوب");
+    if (adding) setItems([...items, { ...form, id: Date.now() }]);
+    else setItems(items.map(i => i.id===editId ? form : i));
+    setEditId(null); setAdding(false);
+    showToast("✅ تم الحفظ");
   };
+  
+  const deleteItem = (id) => { if(window.confirm("حذف؟")) { setItems(items.filter(i=>i.id!==id)); showToast("✅ تم الحذف"); } };
+  const openEdit = (it) => { setEditId(it.id); setForm({...it}); setAdding(false); };
+  const openAdd = () => { setAdding(true); setEditId(null); setForm({ code:"", name:"", category:"أجهزة قياس", qty:1, condition:"جيد", location:"مخزن الآلات الدقيقة", serialNo:"" }); };
+  
+  const totalItems = items.reduce((s,i)=>s+i.qty,0);
+  const damagedItems = items.filter(i=>i.condition==="تالف" || i.condition==="عاطل").length;
+  
   return (
     <div className="space-y-4">
-      <div className="flex gap-3">
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="flex-1 border rounded-xl px-3 py-2"/>
-        <button onClick={()=>{setAdding(true); setForm({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي" });}} className="px-4 py-2 bg-blue-600 text-white rounded-xl"><Plus size={14}/> إضافة</button>
-      </div>
-      {(adding || editId) && (
-        <div className="bg-white rounded-2xl border p-5">
-          <div className="grid grid-cols-2 gap-3">
-            <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="الاسم" className="border rounded-xl p-2"/>
-            <input value={form.jobNum} onChange={e=>setForm({...form,jobNum:e.target.value})} placeholder="الرقم" className="border rounded-xl p-2"/>
-            <input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="المسمى" className="border rounded-xl p-2"/>
-            <select value={form.dept} onChange={e=>setForm({...form,dept:e.target.value})} className="border rounded-xl p-2">
-              <option>قسم السيطرة والنظم</option><option>شعبة مستودع الفاو</option><option>شعبة المرافئ</option>
-            </select>
-            <select value={form.shift} onChange={e=>setForm({...form,shift:e.target.value})} className="border rounded-xl p-2">
-              <option>صباحي</option><option>مناوبة</option>
-            </select>
-          </div>
-          <div className="flex gap-2 mt-4">
-            <button onClick={()=>{setAdding(false);setEditId(null);}} className="flex-1 py-2 border rounded-xl">إلغاء</button>
-            <button onClick={save} className="flex-1 py-2 bg-blue-600 text-white rounded-xl">حفظ</button>
-          </div>
+      <div className="flex flex-wrap gap-3 items-center justify-between">
+        <div className="flex gap-2 flex-1">
+          <div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
+          <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="bg-white border rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select>
         </div>
-      )}
-      <div className="bg-white rounded-2xl border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50"><tr><th className="p-3 text-right">الاسم</th><th>الرقم</th><th>المسمى</th><th>القسم</th><th></th></tr></thead>
-          <tbody>
-            {filtered.map(e => (
-              <tr key={e.id} className="border-t"><td className="p-3">{e.name}</td><td>{e.jobNum}</td><td>{e.title}</td><td>{e.dept}</td>
-              <td><button onClick={()=>{setEditId(e.id); setForm(e);}} className="text-blue-500"><Edit3 size={14}/></button></td></tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ========== إحصائيات ==========
-function StatsPage({ employees }) {
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div className="bg-blue-500 rounded-2xl p-5 text-white"><Users size={28}/><p className="text-3xl font-bold">{employees.length}</p><p>الموظفين</p></div>
-      <div className="bg-emerald-500 rounded-2xl p-5 text-white"><Award size={28}/><p className="text-3xl font-bold">{employees.filter(e=>e.role==="admin").length}</p><p>مشرفين</p></div>
-      <div className="bg-amber-500 rounded-2xl p-5 text-white"><Clock size={28}/><p className="text-3xl font-bold">{employees.filter(e=>e.shift==="مناوبة").length}</p><p>مناوبين</p></div>
-      <div className="bg-violet-500 rounded-2xl p-5 text-white"><Calendar size={28}/><p className="text-3xl font-bold">{employees.filter(e=>e.shift==="صباحي").length}</p><p>صباحيين</p></div>
-    </div>
-  );
-}
-
-// ========== سجل التعديلات ==========
-function AuditLogPage() {
-  const [logs, setLogs] = useState(() => storage.get("audit_log", []));
-  return (
-    <div className="bg-white rounded-2xl border overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-slate-50"><tr><th className="p-3 text-right">العملية</th><th>التفاصيل</th><th>بواسطة</th><th>التاريخ</th></tr></thead>
-        <tbody>
-          {logs.length === 0 ? <tr><td colSpan={4} className="text-center py-8">لا توجد سجلات</td></tr> :
-            logs.slice(0,50).map(l => (
-              <tr key={l.id} className="border-t"><td className="p-3">{l.action}</td><td>{l.details}</td><td>{l.by}</td><td>{new Date(l.at).toLocaleString()}</td></tr>
-            ))
-          }
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// ========== اللوحة الرئيسية ==========
-function Dashboard({ emp, onLogout }) {
-  const [view, setView] = useState("home");
-  const [employees, setEmployees] = useState(ACCOUNTS);
-  const [allRequests, setAllRequests] = useState([]);
-  const { isConnected } = useConnectionStatus();
-  const isAdmin = emp.role === "admin" || emp.jobNum === "728004";
-
-  useEffect(() => {
-    const load = async () => {
-      if (isConnected) setAllRequests(await FirebaseAPI.getAllRequests());
-      else setAllRequests(storage.get("all_requests", []));
-    };
-    load();
-  }, [isConnected]);
-
-  const menuItems = [
-    { id: "home", label: "الرئيسية", icon: <Home size={18}/> },
-    { id: "requests", label: "طلباتي", icon: <FileText size={18}/> },
-    { id: "notifications", label: "الإشعارات", icon: <Bell size={18}/> },
-    { id: "employees", label: "الموظفين", icon: <Users size={18}/> },
-    { id: "stats", label: "الإحصائيات", icon: <BarChart size={18}/> },
-    { id: "audit", label: "السجل", icon: <ClipboardList size={18}/> },
-    { id: "changepass", label: "تغيير كلمة المرور", icon: <Shield size={18}/> },
-  ];
-  if (isAdmin) menuItems.unshift({ id: "approvals", label: "الموافقات", icon: <ThumbsUp size={18}/> });
-
-  return (
-    <div className="min-h-screen bg-slate-50" dir="rtl">
-      <div className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center"><span className="text-white font-bold">BOC</span></div>
-          <div><h1 className="font-bold">شركة نفط البصرة</h1><p className="text-xs text-slate-500">شعبة مستودع الفاو</p></div>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-xs">
-            {isConnected ? <><Wifi size={12} className="text-emerald-500"/><span>متصل</span></> : <><WifiOff size={12} className="text-amber-500"/><span>غير متصل</span></>}
-          </div>
-          <div><p className="text-sm font-bold">{emp.name}</p><p className="text-xs text-slate-500">{emp.title}</p></div>
-          <button onClick={onLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><LogOut size={18}/></button>
+        <div className="flex gap-2">
+          <button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة صنف</button>
+          <PrintButton targetId="print-inventory" label="طباعة"/>
         </div>
       </div>
-      <div className="flex flex-col md:flex-row">
-        <aside className="md:w-64 bg-white border-l min-h-screen p-4">
-          <nav className="space-y-1">
-            {menuItems.map(item => (
-              <button key={item.id} onClick={()=>setView(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold ${view===item.id ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50"}`}>
-                {item.icon}{item.label}
-              </button>
-            ))}
-          </nav>
-        </aside>
-        <main className="flex-1 p-6">
-          {view === "home" && (
-            <div className="bg-white rounded-2xl p-8">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center"><User size={28} className="text-white"/></div>
-                <div><h2 className="text-xl font-bold">مرحباً، {emp.name}</h2><p className="text-slate-500">تم تسجيل الدخول بنجاح</p></div>
-              </div>
-              <div className="grid grid-cols-2 gap-4 mt-6">
-                <div className="bg-emerald-50 border rounded-xl p-4"><CheckCircle className="text-emerald-600"/><p className="font-bold mt-2">✓ النظام يعمل</p>{isConnected && <p className="text-xs text-emerald-600">متصل بالسحابة</p>}</div>
-                <div className="bg-blue-50 border rounded-xl p-4"><Shield className="text-blue-600"/><p className="font-bold mt-2">✓ آمن ومشفر</p></div>
-              </div>
-            </div>
-          )}
-          {view === "requests" && <RequestsPage emp={emp} />}
-          {view === "approvals" && isAdmin && <ApprovalsPage emp={emp} />}
-          {view === "notifications" && <NotificationsPage emp={emp} />}
-          {view === "employees" && <EmployeeManager employees={employees} setEmployees={setEmployees} />}
-          {view === "stats" && <StatsPage employees={employees} />}
-          {view === "audit" && <AuditLogPage />}
-          {view === "changepass" && <ChangePasswordPage emp={emp} onLogout={onLogout} />}
-        </main>
+      
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="bg-blue-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold">{items.length}</p><p className="text-[10px]">إجمالي الأصناف</p></div>
+        <div className="bg-slate-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold">{totalItems}</p><p className="text-[10px]">إجمالي القطع</p></div>
+        <div className="bg-emerald-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold">{items.filter(i=>i.condition==="جيد").length}</p><p className="text-[10px]">حالة جيدة</p></div>
+        <div className="bg-amber-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold">{items.filter(i=>i.condition==="مستعمل" || i.condition==="ورشة").length}</p><p className="text-[10px]">مستعمل/ورشة</p></div>
+        <div className="bg-red-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold">{damagedItems}</p><p className="text-[10px]">تالف/عاطل</p></div>
       </div>
+      
+      {(adding || editId) && (<div className="bg-white rounded-2xl border-2 border-blue-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة صنف":"تعديل صنف"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[["الاسم *","name"],["الرمز","code"],["الفئة","category"],["الكمية","qty"],["الموقع","location"],["الرقم التسلسلي","serialNo"]].map(([l,k])=>(
+          <div key={k}><label className="block text-[10px] font-bold text-slate-500 mb-1">{l}</label>
+          <input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+        ))}
+        <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الحالة</label>
+        <select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">
+          {["جيد","مستعمل","يحتاج صيانة","تالف","عاطل"].map(c=><option key={c}>{c}</option>)}
+        </select></div>
+      </div>
+      <div className="flex gap-2 justify-end mt-4"><button onClick={()=>{setEditId(null);setAdding(false);}} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl"><Save size={13}/> حفظ</button></div></div>)}
+      
+      <div id="print-inventory" className="bg-white rounded-2xl border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-xs">
+            <thead><tr className="bg-slate-50 border-b"><th>الاسم</th><th>الرمز</th><th>الفئة</th><th>الكمية</th><th>الحالة</th><th>الموقع</th><th>الرقم التسلسلي</th><th>إجراءات</th></tr></thead>
+            <tbody>{filtered.map(it=>(
+              <tr key={it.id} className="border-b hover:bg-slate-50">
+                <td className="px-3 py-2 font-semibold">{it.name}</td>
+                <td className="px-3 py-2 font-mono">{it.code||"—"}</td>
+                <td className="px-3 py-2">{it.category}</td>
+                <td className="px-3 py-2 font-bold">{it.qty}</td>
+                <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":it.condition==="تالف"||it.condition==="عاطل"?"bg-red-100 text-red-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td>
+                <td className="px-3 py-2">{it.location}</td>
+                <td className="px-3 py-2 text-slate-400">{it.serialNo||"—"}</td>
+                <td className="px-3 py-2"><div className="flex gap-1"><button onClick={()=>openEdit(it)} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td>
+              </tr>))}</tbody>
+          </table>
+        </div>
+      </div>
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
 }
 
-export default function App() {
-  const [user, setUser] = useState(null);
-  return user ? <Dashboard emp={user} onLogout={()=>{sessionStorage.clear(); setUser(null);}} /> : <LoginScreen onLogin={setUser} />;
+// ========== جرد الأثاث والمعدات المكتبية (باستخدام بيانات Excel) ==========
+function FurnitureInventory() {
+  const [items, setItems] = useState(() => storage.get("furniture_items", [
+    // مكيفات
+    { id:1, code:"", name:"سبلت 2 طن LG (1)", category:"أجهزة تكييف", qty:1, condition:"تم الشطب", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:2, code:"", name:"سبلت 2 طن LG (2)", category:"أجهزة تكييف", qty:1, condition:"تم الشطب", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:3, code:"", name:"سبلت 2 طن LG (3)", category:"أجهزة تكييف", qty:1, condition:"تم الشطب", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:4, code:"", name:"سبلت 2 طن LG (4)", category:"أجهزة تكييف", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:5, code:"", name:"سبلت 2 طن LG (5)", category:"أجهزة تكييف", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:6, code:"", name:"سبلت 2 طن LG (6)", category:"أجهزة تكييف", qty:1, condition:"عاطل", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:7, code:"", name:"سبلت 2 طن LG (7)", category:"أجهزة تكييف", qty:1, condition:"تالف", location:"المخزن" },
+    { id:8, code:"", name:"سبلت 2 طن LG (8)", category:"أجهزة تكييف", qty:1, condition:"عاطل", location:"المخزن" },
+    { id:9, code:"1504688400", name:"سبلت 2 طن LG (9)", category:"أجهزة تكييف", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:10, code:"1504688401", name:"سبلت 2 طن LG (10)", category:"أجهزة تكييف", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:11, code:"1504443042", name:"سبلت 4 طن LG", category:"أجهزة تكييف", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:12, code:"", name:"مكيف هواء كرافت 1.5 طن", category:"أجهزة تكييف", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    
+    // مراوح
+    { id:13, code:"1523114957", name:"مروحة عمودية", category:"أجهزة تكييف", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:14, code:"1523114958", name:"مروحة عمودية", category:"أجهزة تكييف", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:15, code:"05K130042835", name:"مروحة عمودية", category:"أجهزة تكييف", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    
+    // أثاث مكتبي - مناضد
+    { id:16, code:"1402228079", name:"منضدة كتابة 160 سم", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:17, code:"1402228080", name:"منضدة كتابة 160 سم", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:18, code:"1402139368", name:"منضدة كتابة", category:"أثاث مكتبي", qty:1, condition:"تم الشطب", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:19, code:"1402139370", name:"منضدة كتابة", category:"أثاث مكتبي", qty:1, condition:"تالف", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:20, code:"1402139371", name:"منضدة كتابة", category:"أثاث مكتبي", qty:1, condition:"تم الشطب", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:21, code:"1402139372", name:"منضدة كتابة", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:22, code:"1402139369", name:"منضدة كتابة", category:"أثاث مكتبي", qty:1, condition:"تم الشطب", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:23, code:"1402123785", name:"منضدة كتابة خشب", category:"أثاث مكتبي", qty:1, condition:"تالف", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:24, code:"1402123786", name:"منضدة كتابة خشب", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:25, code:"1402225456", name:"منضدة كتابة مع ملحق", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:26, code:"1402225457", name:"منضدة كتابة مع ملحق", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:27, code:"1402134055", name:"منضدة كتابة", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:28, code:"1402133738", name:"منضدة كتابة خشب", category:"أثاث مكتبي", qty:1, condition:"تالف", location:"المخزن" },
+    { id:29, code:"1402113052", name:"منضدة عمل", category:"أثاث مكتبي", qty:2, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    
+    // كراسي
+    { id:30, code:"1402035187", name:"كرسي مداولة", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:31, code:"1402035188", name:"كرسي مداولة", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:32, code:"1402035189", name:"كرسي مداولة", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:33, code:"1402035190", name:"كرسي مداولة", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:34, code:"", name:"كرسي مداولة (3 قطع)", category:"أثاث مكتبي", qty:3, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:35, code:"1402024339", name:"كرسي دوار جلد", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:36, code:"1402024340", name:"كرسي دوار جلد", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:37, code:"", name:"كرسي دوار جلد", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:38, code:"1401644198", name:"كرسي بلاستك", category:"أثاث مكتبي", qty:13, condition:"تالف", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:39, code:"1402033212", name:"كرسي ذو مسند (6) - تالف", category:"أثاث مكتبي", qty:6, condition:"تالف", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:40, code:"1402033212", name:"كرسي ذو مسند (6)", category:"أثاث مكتبي", qty:6, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    
+    // مكتبات ودواليب
+    { id:41, code:"1402214928", name:"مكتبة خشب (تالف)", category:"أثاث مكتبي", qty:1, condition:"تالف", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:42, code:"1402214929", name:"مكتبة خشب (تالف)", category:"أثاث مكتبي", qty:1, condition:"تالف", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:43, code:"1402208897", name:"مكتبة بابين", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:44, code:"1402208898", name:"مكتبة بابين", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:45, code:"14022149284929", name:"مكتبة بابين (2 قطعة)", category:"أثاث مكتبي", qty:2, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:46, code:"1402203092", name:"مكتبة بابين", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:47, code:"1402208899", name:"مكتبة بابين", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:48, code:"1402284803", name:"دولاب حديد", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:49, code:"1402198907", name:"دولاب حديد", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:50, code:"1402198908", name:"دولاب حديد", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:51, code:"1402198909", name:"دولاب حديد", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:52, code:"1402194054", name:"دولاب حديد", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:53, code:"1402193333", name:"دولاب حديد", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    
+    // أجهزة كهربائية
+    { id:54, code:"1515674402", name:"ثلاجة عمودية فستل 16 قدم", category:"أجهزة كهربائية", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:55, code:"1513674126", name:"ثلاجة فستل 9 قدم", category:"أجهزة كهربائية", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:56, code:"1522042001", name:"براد ماء", category:"أجهزة كهربائية", qty:1, condition:"عاطل", location:"المخزن" },
+    { id:57, code:"", name:"مدفأة زيتية", category:"أجهزة كهربائية", qty:2, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:58, code:"1403014212", name:"طباخ كهربائي", category:"أجهزة كهربائية", qty:1, condition:"تالف", location:"المخزن" },
+    { id:59, code:"1403024031", name:"فرن كهربائي", category:"أجهزة كهربائية", qty:1, condition:"تالف", location:"المخزن" },
+    { id:60, code:"1403114492", name:"مكنسة كهربائية", category:"أجهزة كهربائية", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:61, code:"", name:"سخان ماء", category:"أجهزة كهربائية", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    
+    // معدات مكتبية
+    { id:62, code:"1901114388", name:"طابعة كانون", category:"معدات مكتبية", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:63, code:"", name:"حاسبة HP", category:"معدات مكتبية", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    
+    // متنوعات
+    { id:64, code:"", name:"سرير منام (2 قطعة)", category:"أثاث متنوع", qty:2, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+    { id:65, code:"1401263016", name:"شماعة ملابس (4 قطع)", category:"أثاث متنوع", qty:4, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو" },
+  ]));
+  
+  const [search, setSearch] = useState("");
+  const [filterCat, setFilterCat] = useState("الكل");
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ code:"", name:"", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"", serialNo:"" });
+  const [adding, setAdding] = useState(false);
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  useEffect(() => { storage.set("furniture_items", items); }, [items]);
+  
+  const categories = ["الكل", ...new Set(items.map(i=>i.category))];
+  const filtered = items.filter(i => (i.name.includes(search) || i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
+  const totalItems = items.reduce((s,i)=>s+i.qty,0);
+  
+  const saveItem = () => {
+    if (!form.name) return showToast("الاسم مطلوب");
+    if (adding) setItems([...items, { ...form, id: Date.now() }]);
+    else setItems(items.map(i => i.id===editId ? form : i));
+    setEditId(null); setAdding(false);
+    showToast("✅ تم الحفظ");
+  };
+  
+  const deleteItem = (id) => { if(window.confirm("حذف؟")) { setItems(items.filter(i=>i.id!==id)); showToast("✅ تم الحذف"); } };
+  const openEdit = (it) => { setEditId(it.id); setForm({...it}); };
+  const openAdd = () => { setAdding(true); setForm({ code:"", name:"", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"السيطرة والنظم - شعبة الفاو", serialNo:"" }); };
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3 items-center justify-between">
+        <div className="flex gap-2 flex-1">
+          <div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
+          <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="bg-white border rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button>
+          <PrintButton targetId="print-furniture" label="طباعة"/>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-violet-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold">{items.length}</p><p className="text-[10px]">إجمالي الأصناف</p></div>
+        <div className="bg-slate-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold">{totalItems}</p><p className="text-[10px]">إجمالي القطع</p></div>
+        <div className="bg-emerald-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold">{items.filter(i=>i.condition==="جيد").length}</p><p className="text-[10px]">حالة جيدة</p></div>
+        <div className="bg-red-50 rounded-2xl p-3 text-center border"><p className="text-2xl font-bold">{items.filter(i=>i.condition==="تالف"||i.condition==="عاطل"||i.condition==="تم الشطب").length}</p><p className="text-[10px]">تالف/مشطوب</p></div>
+      </div>
+      
+      {(adding || editId) && (<div className="bg-white rounded-2xl border-2 border-violet-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة قطعة":"تعديل قطعة"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[["الاسم *","name"],["الرمز","code"],["الفئة","category"],["الكمية","qty"],["الموقع","location"],["الرقم التسلسلي","serialNo"]].map(([l,k])=>(
+          <div key={k}><label className="block text-[10px] font-bold text-slate-500 mb-1">{l}</label>
+          <input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+        ))}
+        <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الحالة</label>
+        <select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">
+          {["جيد","مستعمل","يحتاج صيانة","تالف","عاطل","تم الشطب"].map(c=><option key={c}>{c}</option>)}
+        </select></div>
+      </div>
+      <div className="flex gap-2 justify-end mt-4"><button onClick={()=>{setEditId(null);setAdding(false);}} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> حفظ</button></div></div>)}
+      
+      <div id="print-furniture" className="bg-white rounded-2xl border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-xs">
+            <thead><tr className="bg-slate-50 border-b"><th>الاسم</th><th>الرمز</th><th>الفئة</th><th>الكمية</th><th>الحالة</th><th>الموقع</th><th>الرقم التسلسلي</th><th>إجراءات</th></tr></thead>
+            <tbody>{filtered.map(it=>(
+              <tr key={it.id} className="border-b hover:bg-slate-50">
+                <td className="px-3 py-2 font-semibold">{it.name}</td>
+                <td className="px-3 py-2 font-mono">{it.code||"—"}</td>
+                <td className="px-3 py-2">{it.category}</td>
+                <td className="px-3 py-2 font-bold">{it.qty}</td>
+                <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":it.condition==="تالف"||it.condition==="عاطل"?"bg-red-100 text-red-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td>
+                <td className="px-3 py-2">{it.location}</td>
+                <td className="px-3 py-2 text-slate-400">{it.serialNo||"—"}</td>
+                <td className="px-3 py-2"><div className="flex gap-1"><button onClick={()=>openEdit(it)} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td>
+              </tr>))}</tbody>
+          </table>
+        </div>
+      </div>
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+    </div>
+  );
 }
