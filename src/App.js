@@ -7,17 +7,11 @@ import {
   Home, Bell, ThumbsUp, ThumbsDown, Star, Target, BarChart2, CheckSquare, 
   BookOpen, GraduationCap, BarChart, Wifi, WifiOff, Truck, Box, Award, Settings,
   TrendingUp, TrendingDown, PieChart, Activity, Filter, Calendar as CalendarIcon,
-  UserCheck, UserX, Briefcase, Video, Book, Award as AwardIcon, Clock as ClockIcon
+  UserCheck, UserX, Briefcase, Video, Book, AwardIcon, ClockIcon
 } from "lucide-react";
 
-/* ═══════════════════════════════════════════════════════════
-   FIREBASE CONFIG
-═══════════════════════════════════════════════════════════ */
 const FIREBASE_URL = "https://faop-scada-default-rtdb.asia-southeast1.firebasedatabase.app";
 
-/* ═══════════════════════════════════════════════════════════
-   SECURITY LAYER
-═══════════════════════════════════════════════════════════ */
 const SEC_KEY = [66, 79, 67, 70, 77];
 const SEC = {
   encode: (str) => {
@@ -51,7 +45,6 @@ const SEC = {
   },
 };
 
-// Rate limiting
 const _attempts = (() => {
   try { const s=sessionStorage.getItem("_la"); return s?JSON.parse(s):{}; } catch { return {}; }
 })();
@@ -61,7 +54,6 @@ function recordAttempt(key, ok) {
 }
 function getAttempts(key) { return _attempts[key]||0; }
 
-// Idle timeout
 let _idleTimer = null;
 function setupIdleDetection(onLogout) {
   const reset = () => {
@@ -76,7 +68,6 @@ function setupIdleDetection(onLogout) {
   return ()=>{ clearTimeout(_idleTimer); ["mousemove","keypress","click","touchstart"].forEach(e=>window.removeEventListener(e,reset)); };
 }
 
-// Firebase REST helpers
 const fb = {
   async get(path) {
     try {
@@ -107,7 +98,6 @@ const fb = {
   },
 };
 
-// Global cache
 const _fbCache = {};
 const _fbListeners = {};
 const _fbPolls = {};
@@ -205,8 +195,6 @@ function printElement(elementId, title = "تقرير") {
     th{background:#f1f5f9;font-weight:700}
     @page{size:A4;margin:15mm}
     tr{page-break-inside:avoid}
-    .text-center{text-align:center}
-    .font-bold{font-weight:700}
   </style>
 </head>
 <body>${el.innerHTML}</body>
@@ -227,15 +215,13 @@ function PrintButton({ targetId, label = "طباعة / PDF", title }) {
   return (
     <button
       onClick={() => targetId ? printElement(targetId, title) : window.print()}
-      className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-xl shadow-sm transition-all active:scale-95 no-print">
+      className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-xl shadow-sm transition-all active:scale-95 no-print"
+    >
       <Printer size={13}/> {label}
     </button>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   ACCOUNTS - الكادر الكامل
-═══════════════════════════════════════════════════════════ */
 const ACCOUNTS = [
   {id:1, jobNum:"728004", password:"1001", name:"ايهاب عبد اللطيف عودة سلمان الشاوي", title:"ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"admin"},
   {id:2, jobNum:"727466", password:"1002", name:"عدي فيصل عبد الهادي عبد السيد الربيعه", title:"ر. مهندسين", dept:"قسم السيطرة والنظم", shift:"صباحي"},
@@ -269,9 +255,6 @@ const ACCOUNTS = [
   {id:30, jobNum:"689331", password:"3004", name:"سجاد علي راضي علي", title:"عقد", dept:"قسم السيطرة والنظم", shift:"صباحي", role:"attendance_admin"},
 ];
 
-/* ═══════════════════════════════════════════════════════════
-   CONSTANTS
-═══════════════════════════════════════════════════════════ */
 const LEAVE_TYPES = {
   اعتيادية: { label:"إجازة اعتيادية", color:"bg-blue-600", light:"bg-blue-50 text-blue-700", max:30 },
   مرضية: { label:"إجازة مرضية", color:"bg-rose-600", light:"bg-rose-50 text-rose-700", max:15 },
@@ -279,18 +262,28 @@ const LEAVE_TYPES = {
 };
 
 const TS = {
-  "حاضر": { label:"حاضر", color:"bg-emerald-100 text-emerald-700" },
-  "غائب": { label:"غائب", color:"bg-red-100 text-red-700" },
-  "تأخر": { label:"تأخر", color:"bg-amber-100 text-amber-700" },
-  "إجازة": { label:"إجازة", color:"bg-blue-100 text-blue-700" },
-  "إيفاد": { label:"إيفاد", color:"bg-purple-100 text-purple-700" },
+  حاضر: { label:"حاضر", color:"bg-emerald-100 text-emerald-700" },
+  غائب: { label:"غائب", color:"bg-red-100 text-red-700" },
+  تأخر: { label:"تأخر", color:"bg-amber-100 text-amber-700" },
+  إجازة: { label:"إجازة", color:"bg-blue-100 text-blue-700" },
+  إيفاد: { label:"إيفاد", color:"bg-purple-100 text-purple-700" },
 };
 
 const TRAINING_TYPES = ["تدريب ذاتي", "دورة تدريبية", "ورشة عمل", "تدريب إلكتروني", "مهمة عملية"];
-const TRAINING_STATUS = { "مُسندة": "bg-amber-100 text-amber-700", "قيد التنفيذ": "bg-blue-100 text-blue-700", "مكتملة": "bg-emerald-100 text-emerald-700", "ملغية": "bg-red-100 text-red-700" };
+const TRAINING_STATUS = { 
+  مسندة: "bg-amber-100 text-amber-700", 
+  "قيد التنفيذ": "bg-blue-100 text-blue-700", 
+  مكتملة: "bg-emerald-100 text-emerald-700", 
+  ملغية: "bg-red-100 text-red-700" 
+};
 
 const ITEM_CONDITIONS = ["جيد", "مستعمل", "يحتاج صيانة", "تالف"];
-const COND_STYLE = { "جيد": "bg-emerald-100 text-emerald-800", "مستعمل": "bg-blue-100 text-blue-800", "يحتاج صيانة": "bg-amber-100 text-amber-800", "تالف": "bg-red-100 text-red-800" };
+const COND_STYLE = { 
+  جيد: "bg-emerald-100 text-emerald-800", 
+  مستعمل: "bg-blue-100 text-blue-800", 
+  "يحتاج صيانة": "bg-amber-100 text-amber-800", 
+  تالف: "bg-red-100 text-red-800" 
+};
 
 const FURNITURE_CATS = ["أثاث مكتبي", "أجهزة حاسوب", "معدات مكتبية", "أجهزة تكييف", "أخرى"];
 
@@ -333,7 +326,6 @@ function useConnectionStatus() {
   return { isConnected, checking, checkConnection };
 }
 
-// ========== شاشة تسجيل الدخول ==========
 function LoginScreen({ onLogin }) {
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
@@ -359,7 +351,7 @@ function LoginScreen({ onLogin }) {
     setErr("");
     if (!user || !pass) { setErr("أدخل الرقم الوظيفي وكلمة المرور"); return; }
     const attempts = getAttempts(user);
-    if (attempts >= 5) { setErr('تم تجاوز 5 محاولات'); return; }
+    if (attempts >= 5) { setErr("تم تجاوز 5 محاولات"); return; }
 
     const baseAcct = ACCOUNTS.find(a => a.jobNum === user.trim());
     if (!baseAcct) { recordAttempt(user, false); setErr("الرقم الوظيفي غير موجود"); return; }
@@ -406,28 +398,50 @@ function LoginScreen({ onLogin }) {
             <LogIn size={32} className="text-white"/>
           </div>
           <h2 className="text-2xl font-bold text-white">شركة نفط البصرة</h2>
-          <p className="text-sm text-slate-300 mt-2">شعبة مستودع الفاو — النظام المتكامل</p>
+          <p className="text-sm text-slate-300 mt-2">شعبة مستودع الفاو</p>
         </div>
         <div className="mb-4 flex items-center justify-center gap-2 text-xs">
-          {isConnected ? <><Wifi size={12} className="text-emerald-400"/><span className="text-emerald-400">متصل بالسحابة</span></> :
-            <><WifiOff size={12} className="text-amber-400"/><span className="text-amber-400">غير متصل (محلي)</span></>}
+          {isConnected ? (
+            <><Wifi size={12} className="text-emerald-400"/><span className="text-emerald-400">متصل بالسحابة</span></>
+          ) : (
+            <><WifiOff size={12} className="text-amber-400"/><span className="text-amber-400">غير متصل (محلي)</span></>
+          )}
         </div>
         <div className="space-y-4">
-          <div><label className="block text-sm font-bold text-slate-200 mb-2">الرقم الوظيفي</label>
-            <input type="text" value={user} onChange={e=>setUser(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white" placeholder="728004" onKeyDown={e=>e.key==="Enter"&&loginClick()}/></div>
-          <div><label className="block text-sm font-bold text-slate-200 mb-2">كلمة المرور</label>
-            <div className="relative"><input type={showP?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white" placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&loginClick()}/>
-              <button onClick={()=>setShowP(!showP)} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">{showP?<EyeOff size={18}/>:<Eye size={18}/>}</button></div></div>
+          <div>
+            <label className="block text-sm font-bold text-slate-200 mb-2">الرقم الوظيفي</label>
+            <input 
+              type="text" value={user} onChange={e=>setUser(e.target.value)} 
+              className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white" 
+              placeholder="728004" onKeyDown={e=>e.key==="Enter"&&loginClick()}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-200 mb-2">كلمة المرور</label>
+            <div className="relative">
+              <input 
+                type={showP?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)} 
+                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white" 
+                placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&loginClick()}
+              />
+              <button onClick={()=>setShowP(!showP)} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                {showP?<EyeOff size={18}/>:<Eye size={18}/>}
+              </button>
+            </div>
+          </div>
           {err && <div className="bg-red-500/20 text-red-300 text-sm p-3 rounded-xl">{err}</div>}
-          <button onClick={loginClick} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3 rounded-xl">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
+          <button onClick={loginClick} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3 rounded-xl">
+            {loading?"جاري التحقق...":"تسجيل الدخول"}
+          </button>
         </div>
-        <div className="mt-6 text-center text-xs text-slate-400"><p>للتجربة: <strong className="text-blue-300">728004</strong> | <strong className="text-blue-300">1001</strong></p></div>
+        <div className="mt-6 text-center text-xs text-slate-400">
+          <p>للتجربة: <strong className="text-blue-300">728004</strong> | <strong className="text-blue-300">1001</strong></p>
+        </div>
       </div>
     </div>
   );
 }
 
-// ========== تغيير كلمة المرور ==========
 function ChangePasswordPage({ emp, onLogout }) {
   const [newPass, setNewPass] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -437,19 +451,32 @@ function ChangePasswordPage({ emp, onLogout }) {
   const { isConnected } = useConnectionStatus();
 
   const saveNewPassword = async () => {
-    if (!newPass || newPass.trim().length < 4) { setMsg({ text: "⚠️ كلمة المرور يجب أن تكون 4 خانات أو أكثر", type: "error" }); return; }
-    if (newPass.trim() !== confirm.trim()) { setMsg({ text: "⚠️ كلمات المرور غير متطابقة", type: "error" }); return; }
+    if (!newPass || newPass.trim().length < 4) { 
+      setMsg({ text: "كلمة المرور يجب أن تكون 4 خانات أو أكثر", type: "error" }); 
+      return; 
+    }
+    if (newPass.trim() !== confirm.trim()) { 
+      setMsg({ text: "كلمات المرور غير متطابقة", type: "error" }); 
+      return; 
+    }
     setLoading(true);
     try {
       const encrypted = SEC.encode(newPass.trim());
       localStorage.setItem(`pass_${emp.id}`, encrypted);
-      if (isConnected) await fetch(`${FIREBASE_URL}/passwords/${emp.id}.json`, { method: "PUT", body: JSON.stringify(encrypted) });
+      if (isConnected) {
+        await fetch(`${FIREBASE_URL}/passwords/${emp.id}.json`, { method: "PUT", body: JSON.stringify(encrypted) });
+      }
       sessionStorage.removeItem("force_password_change");
-      setMsg({ text: "✅ تم تغيير كلمة المرور بنجاح!", type: "success" });
+      setMsg({ text: "تم تغيير كلمة المرور بنجاح!", type: "success" });
       setNewPass(""); setConfirm("");
-      setTimeout(() => { if (window.confirm("تم تغيير كلمة المرور. هل تريد تسجيل الخروج؟")) onLogout(); }, 1500);
-    } catch { setMsg({ text: "❌ حدث خطأ", type: "error" }); }
-    finally { setLoading(false); }
+      setTimeout(() => { 
+        if (window.confirm("تم تغيير كلمة المرور. هل تريد تسجيل الخروج؟")) onLogout(); 
+      }, 1500);
+    } catch { 
+      setMsg({ text: "حدث خطأ", type: "error" }); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   return (
@@ -460,28 +487,45 @@ function ChangePasswordPage({ emp, onLogout }) {
           <div><h2 className="font-bold text-slate-800">تغيير كلمة المرور</h2><p className="text-xs text-slate-500">{emp.name}</p></div>
         </div>
         <div className="space-y-4">
-          <div><label className="text-sm font-bold text-slate-600 block mb-1">كلمة المرور الجديدة</label>
-            <div className="relative"><input type={showN?"text":"password"} value={newPass} onChange={e=>setNewPass(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 pl-10 focus:outline-none focus:border-blue-500"/>
-              <button onClick={()=>setShowN(!showN)} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">{showN?<EyeOff size={16}/>:<Eye size={16}/>}</button></div></div>
-          <div><label className="text-sm font-bold text-slate-600 block mb-1">تأكيد كلمة المرور</label>
-            <input type={showN?"text":"password"} value={confirm} onChange={e=>setConfirm(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"/></div>
-          {msg && <div className={`p-3 rounded-xl text-sm text-center ${msg.type==="success"?"bg-emerald-50 text-emerald-700":"bg-red-50 text-red-700"}`}>{msg.text}</div>}
-          <button onClick={saveNewPassword} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2"><Save size={16}/> {loading?"جاري الحفظ...":"حفظ كلمة المرور"}</button>
+          <div>
+            <label className="text-sm font-bold text-slate-600 block mb-1">كلمة المرور الجديدة</label>
+            <div className="relative">
+              <input 
+                type={showN?"text":"password"} value={newPass} onChange={e=>setNewPass(e.target.value)} 
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 pl-10 focus:outline-none focus:border-blue-500"
+              />
+              <button onClick={()=>setShowN(!showN)} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                {showN?<EyeOff size={16}/>:<Eye size={16}/>}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-bold text-slate-600 block mb-1">تأكيد كلمة المرور</label>
+            <input 
+              type={showN?"text":"password"} value={confirm} onChange={e=>setConfirm(e.target.value)} 
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          {msg && (
+            <div className={`p-3 rounded-xl text-sm text-center ${msg.type==="success"?"bg-emerald-50 text-emerald-700":"bg-red-50 text-red-700"}`}>
+              {msg.text}
+            </div>
+          )}
+          <button onClick={saveNewPassword} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2">
+            <Save size={16}/> {loading?"جاري الحفظ...":"حفظ كلمة المرور"}
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-// ========== 1. نظام الحضور الكامل ==========
 function AttendanceSystem({ emp, isAdmin, allEmployees }) {
   const now = new Date();
   const [selMonth, setSelMonth] = useState(now.getMonth());
   const [selYear, setSelYear] = useState(now.getFullYear());
   const [selEmpId, setSelEmpId] = useState(isAdmin ? null : emp.id);
   const [selectedDate, setSelectedDate] = useState(now.toISOString().slice(0,10));
-  const [checkInTime, setCheckInTime] = useState("");
-  const [checkOutTime, setCheckOutTime] = useState("");
   const [dailyRecords, setDailyRecords] = useFirebase(`attendance/daily/${emp.id}`, {});
   const [monthlyStats, setMonthlyStats] = useState({});
   const [toast, setToast] = useState("");
@@ -492,29 +536,25 @@ function AttendanceSystem({ emp, isAdmin, allEmployees }) {
   const empTarget = selEmpId || emp.id;
   const empInfo = allEmployees.find(e => e.id === empTarget);
 
-  // تسجيل دخول
   const handleCheckIn = () => {
     const nowTime = new Date().toLocaleTimeString("ar-IQ", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
     const record = dailyRecords[selectedDate] || {};
     const updated = { ...record, checkIn: nowTime, status: "حاضر", date: selectedDate };
     setDailyRecords({ ...dailyRecords, [selectedDate]: updated });
     auditLog("تسجيل دخول", `${empInfo?.name} - سجل دخول الساعة ${nowTime}`, emp.name);
-    showToast("✓ تم تسجيل دخولك بنجاح");
+    showToast("تم تسجيل دخولك بنجاح");
   };
 
-  // تسجيل خروج
   const handleCheckOut = () => {
     const nowTime = new Date().toLocaleTimeString("ar-IQ", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
     const record = dailyRecords[selectedDate] || {};
-    const checkIn = record.checkIn;
-    if (!checkIn) { showToast("⚠️ يجب تسجيل الدخول أولاً"); return; }
+    if (!record.checkIn) { showToast("يجب تسجيل الدخول أولاً"); return; }
     const updated = { ...record, checkOut: nowTime };
     setDailyRecords({ ...dailyRecords, [selectedDate]: updated });
     auditLog("تسجيل خروج", `${empInfo?.name} - سجل خروج الساعة ${nowTime}`, emp.name);
-    showToast("✓ تم تسجيل خروجك بنجاح");
+    showToast("تم تسجيل خروجك بنجاح");
   };
 
-  // حساب الإحصائيات الشهرية
   useEffect(() => {
     const stats = { حاضر: 0, غائب: 0, تأخر: 0, إجازة: 0 };
     for (let d = 1; d <= daysInMonth; d++) {
@@ -528,7 +568,6 @@ function AttendanceSystem({ emp, isAdmin, allEmployees }) {
 
   const attendanceRate = daysInMonth > 0 ? Math.round((monthlyStats.حاضر / daysInMonth) * 100) : 0;
 
-  // تصدير CSV
   const exportAttendanceCSV = () => {
     const rows = [];
     for (let d = 1; d <= daysInMonth; d++) {
@@ -542,12 +581,21 @@ function AttendanceSystem({ emp, isAdmin, allEmployees }) {
         "الحالة": record.status || "غائب"
       });
     }
-    const csv = [Object.keys(rows[0]).join(","), ...rows.map(r => Object.values(r).map(v => `"${v}"`).join(","))].join("\n");
+    const headers = Object.keys(rows[0]);
+    const csvRows = [headers.join(",")];
+    for (const row of rows) {
+      const values = headers.map(header => `"${row[header]}"`);
+      csvRows.push(values.join(","));
+    }
+    const csv = csvRows.join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `attendance_${selYear}_${selMonth+1}.csv`; a.click();
+    const a = document.createElement("a"); 
+    a.href = url; 
+    a.download = `attendance_${selYear}_${selMonth+1}.csv`; 
+    a.click();
     URL.revokeObjectURL(url);
-    showToast("✓ تم تصدير التقرير");
+    showToast("تم تصدير التقرير");
   };
 
   return (
@@ -562,25 +610,26 @@ function AttendanceSystem({ emp, isAdmin, allEmployees }) {
           </select>
           {isAdmin && (
             <select value={selEmpId||""} onChange={e=>setSelEmpId(Number(e.target.value)||null)} className="bg-white border rounded-xl px-3 py-2 text-sm min-w-[180px]">
-              <option value="">-- اختر موظفاً --</option>
+              <option value="">-- اختر موظفا --</option>
               {allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,2).join(" ")}</option>)}
             </select>
           )}
         </div>
         <div className="flex gap-2">
-          <button onClick={exportAttendanceCSV} className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border px-3 py-2 rounded-xl"><Download size={13}/> تصدير CSV</button>
+          <button onClick={exportAttendanceCSV} className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border px-3 py-2 rounded-xl">
+            <Download size={13}/> تصدير CSV
+          </button>
           <PrintButton targetId="print-attendance" title={`تقرير الحضور - ${months[selMonth]} ${selYear}`}/>
         </div>
       </div>
 
-      {/* إحصائيات */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
           { label: "أيام الحضور", value: monthlyStats.حاضر || 0, color: "bg-emerald-50 text-emerald-700", icon: <UserCheck size={18}/> },
           { label: "نسبة الحضور", value: `${attendanceRate}%`, color: "bg-blue-50 text-blue-700", icon: <TrendingUp size={18}/> },
           { label: "غياب", value: monthlyStats.غائب || 0, color: "bg-red-50 text-red-700", icon: <UserX size={18}/> },
-          { label: "تأخر", value: monthlyStats.تأخر || 0, color: "bg-amber-50 text-amber-700", icon: <ClockIcon size={18}/> },
-          { label: "إجازة", value: monthlyStats.إجازة || 0, color: "bg-purple-50 text-purple-700", icon: <CalendarIcon size={18}/> },
+          { label: "تأخر", value: monthlyStats.تأخر || 0, color: "bg-amber-50 text-amber-700", icon: <Clock size={18}/> },
+          { label: "إجازة", value: monthlyStats.إجازة || 0, color: "bg-purple-50 text-purple-700", icon: <Calendar size={18}/> },
         ].map(s=>(
           <div key={s.label} className={`${s.color} rounded-2xl p-3 text-center border`}>
             <div className="flex items-center justify-center mb-1">{s.icon}</div>
@@ -590,17 +639,14 @@ function AttendanceSystem({ emp, isAdmin, allEmployees }) {
         ))}
       </div>
 
-      {/* تسجيل الدخول/الخروج اليومي */}
       {(!isAdmin || selEmpId === emp.id) && (
         <div className="bg-white rounded-2xl border p-5">
           <h3 className="font-bold text-slate-800 mb-3">تسجيل الحضور اليومي</h3>
           <div className="flex flex-wrap gap-4 items-end">
-            <div><label className="block text-xs font-bold text-slate-500 mb-1">التاريخ</label>
-              <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} className="border rounded-xl px-3 py-2"/></div>
-            <div><label className="block text-xs font-bold text-slate-500 mb-1">حالة اليوم</label>
-              <div className="border rounded-xl px-3 py-2 bg-slate-50 text-sm">
-                {dailyRecords[selectedDate]?.status || "لم يسجل بعد"}
-              </div></div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">التاريخ</label>
+              <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} className="border rounded-xl px-3 py-2"/>
+            </div>
             <div className="flex gap-2">
               <button onClick={handleCheckIn} className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700">
                 <LogIn size={14} className="inline ml-1"/> تسجيل دخول
@@ -611,39 +657,55 @@ function AttendanceSystem({ emp, isAdmin, allEmployees }) {
             </div>
           </div>
           {dailyRecords[selectedDate]?.checkIn && (
-            <div className="mt-3 text-sm text-slate-600">✓ تم تسجيل الدخول الساعة {dailyRecords[selectedDate].checkIn}</div>
-          )}
-          {dailyRecords[selectedDate]?.checkOut && (
-            <div className="text-sm text-slate-600">✓ تم تسجيل الخروج الساعة {dailyRecords[selectedDate].checkOut}</div>
+            <div className="mt-3 text-sm text-slate-600">تم تسجيل الدخول الساعة {dailyRecords[selectedDate].checkIn}</div>
           )}
         </div>
       )}
 
-      {/* جدول الحضور الشهري */}
       <div id="print-attendance" className="bg-white rounded-2xl border overflow-hidden">
-        <div className="hidden print:block text-center p-4"><p className="text-lg font-bold">شركة نفط البصرة - تقرير الحضور</p><p>{months[selMonth]} {selYear} - {empInfo?.name}</p></div>
+        <div className="hidden print:block text-center p-4">
+          <p className="text-lg font-bold">شركة نفط البصرة - تقرير الحضور</p>
+          <p>{months[selMonth]} {selYear} - {empInfo?.name}</p>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-right text-xs">
-            <thead><tr className="bg-slate-50 border-b">{["اليوم","التاريخ","دخول","خروج","الحالة"].map(h=><th key={h} className="px-3 py-2 font-bold">{h}</th>)}</tr></thead>
+            <thead>
+              <tr className="bg-slate-50 border-b">
+                <th className="px-3 py-2 font-bold">اليوم</th>
+                <th className="px-3 py-2 font-bold">التاريخ</th>
+                <th className="px-3 py-2 font-bold">دخول</th>
+                <th className="px-3 py-2 font-bold">خروج</th>
+                <th className="px-3 py-2 font-bold">الحالة</th>
+              </tr>
+            </thead>
             <tbody>
               {Array.from({length:daysInMonth},(_,i)=>i+1).map(day=>{
                 const dateKey = `${selYear}-${String(selMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
                 const record = dailyRecords[dateKey] || {};
                 const statusColor = TS[record.status]?.color || "bg-slate-100 text-slate-600";
-                return (<tr key={day} className="border-b hover:bg-slate-50"><td className="px-3 py-2">{new Date(dateKey).toLocaleDateString("ar-IQ",{weekday:"short"})}</td>
-                <td className="px-3 py-2">{day}</td><td className="px-3 py-2 font-mono">{record.checkIn || "—"}</td><td className="px-3 py-2 font-mono">{record.checkOut || "—"}</td>
-                <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColor}`}>{record.status || "غائب"}</span></td></tr>);
+                return (
+                  <tr key={day} className="border-b hover:bg-slate-50">
+                    <td className="px-3 py-2">{new Date(dateKey).toLocaleDateString("ar-IQ",{weekday:"short"})}</td>
+                    <td className="px-3 py-2">{day}</td>
+                    <td className="px-3 py-2 font-mono">{record.checkIn || "—"}</td>
+                    <td className="px-3 py-2 font-mono">{record.checkOut || "—"}</td>
+                    <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColor}`}>{record.status || "غائب"}</span></td>
+                  </tr>
+                );
               })}
             </tbody>
           </table>
         </div>
       </div>
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl">
+          <CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}
+        </div>
+      )}
     </div>
   );
 }
 
-// ========== 2. نظام التدريب ==========
 function TrainingSystem({ emp, isAdmin, allEmployees }) {
   const [trainings, setTrainings] = useFirebase("training/tasks", []);
   const [showForm, setShowForm] = useState(false);
@@ -656,24 +718,24 @@ function TrainingSystem({ emp, isAdmin, allEmployees }) {
 
   const assignTraining = () => {
     if (!form.empId || !form.title) return showToast("الموظف والعنوان مطلوبان");
-    const newTraining = { ...form, id: Date.now(), status: "مُسندة", assignedBy: emp.name, assignedAt: new Date().toISOString() };
+    const newTraining = { ...form, id: Date.now(), status: "مسندة", assignedBy: emp.name, assignedAt: new Date().toISOString() };
     setTrainings([newTraining, ...(trainings || [])]);
     auditLog("إسناد تدريب", `${form.title} - للموظف ${allEmployees.find(e=>e.id===form.empId)?.name}`, emp.name);
     setForm({ empId:"", title:"", type:"تدريب ذاتي", desc:"", startDate:"", endDate:"", provider:"", maxScore:10 });
     setShowForm(false);
-    showToast("✓ تم إسناد التدريب");
+    showToast("تم إسناد التدريب");
   };
 
   const updateStatus = (id, status) => {
     setTrainings((trainings || []).map(t => t.id === id ? { ...t, status, completedAt: status==="مكتملة"?new Date().toISOString():t.completedAt } : t));
     auditLog("تحديث تدريب", `تغيير حالة التدريب إلى ${status}`, emp.name);
-    showToast(`✓ تم تحديث الحالة إلى ${status}`);
+    showToast(`تم تحديث الحالة إلى ${status}`);
   };
 
   const addAction = (id, actionText) => {
     if (!actionText.trim()) return showToast("اكتب الإجراء أولاً");
     setTrainings((trainings || []).map(t => t.id === id ? { ...t, empAction: actionText, actionAt: new Date().toISOString(), status: "قيد التنفيذ" } : t));
-    showToast("✓ تم تسجيل الإجراء");
+    showToast("تم تسجيل الإجراء");
   };
 
   const getStatusColor = (status) => TRAINING_STATUS[status] || "bg-slate-100 text-slate-600";
@@ -682,61 +744,114 @@ function TrainingSystem({ emp, isAdmin, allEmployees }) {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="font-bold text-slate-800 text-lg">المهام التدريبية</h3>
-        {isAdmin && <button onClick={()=>setShowForm(!showForm)} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إسناد تدريب</button>}
+        {isAdmin && (
+          <button onClick={()=>setShowForm(!showForm)} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl">
+            <Plus size={13}/> إسناد تدريب
+          </button>
+        )}
         <PrintButton targetId="print-training" title="تقرير التدريب"/>
       </div>
 
       {showForm && isAdmin && (
         <div className="bg-white rounded-2xl border-2 border-violet-200 p-5">
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الموظف</label>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">الموظف</label>
               <select value={form.empId} onChange={e=>setForm({...form, empId: e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm">
                 <option value="">-- اختر --</option>
                 {allEmployees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
-              </select></div>
-            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">عنوان التدريب</label>
-              <input value={form.title} onChange={e=>setForm({...form, title:e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm"/></div>
-            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">نوع التدريب</label>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">عنوان التدريب</label>
+              <input value={form.title} onChange={e=>setForm({...form, title:e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm"/>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">نوع التدريب</label>
               <select value={form.type} onChange={e=>setForm({...form, type:e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm">
                 {TRAINING_TYPES.map(t=><option key={t}>{t}</option>)}
-              </select></div>
-            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الجهة المقدمة</label>
-              <input value={form.provider} onChange={e=>setForm({...form, provider:e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm"/></div>
-            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">تاريخ البداية</label>
-              <input type="date" value={form.startDate} onChange={e=>setForm({...form, startDate:e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm"/></div>
-            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">تاريخ النهاية</label>
-              <input type="date" value={form.endDate} onChange={e=>setForm({...form, endDate:e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm"/></div>
-            <div className="col-span-2"><label className="block text-[10px] font-bold text-slate-500 mb-1">الوصف</label>
-              <textarea value={form.desc} onChange={e=>setForm({...form, desc:e.target.value})} rows={2} className="w-full border rounded-xl px-3 py-2 text-sm"/></div>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">الجهة المقدمة</label>
+              <input value={form.provider} onChange={e=>setForm({...form, provider:e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm"/>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">تاريخ البداية</label>
+              <input type="date" value={form.startDate} onChange={e=>setForm({...form, startDate:e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm"/>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">تاريخ النهاية</label>
+              <input type="date" value={form.endDate} onChange={e=>setForm({...form, endDate:e.target.value})} className="w-full border rounded-xl px-3 py-2 text-sm"/>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">الوصف</label>
+              <textarea value={form.desc} onChange={e=>setForm({...form, desc:e.target.value})} rows={2} className="w-full border rounded-xl px-3 py-2 text-sm"/>
+            </div>
           </div>
-          <div className="flex gap-2 justify-end mt-4"><button onClick={()=>setShowForm(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button>
-          <button onClick={assignTraining} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> إسناد</button></div>
+          <div className="flex gap-2 justify-end mt-4">
+            <button onClick={()=>setShowForm(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button>
+            <button onClick={assignTraining} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> إسناد</button>
+          </div>
         </div>
       )}
 
       <div id="print-training" className="space-y-3">
-        {visibleTrainings.length === 0 ? <div className="bg-white rounded-2xl p-10 text-center"><GraduationCap size={40} className="text-slate-300 mx-auto"/><p className="text-slate-400">لا توجد مهام تدريبية</p></div>
-        : visibleTrainings.map(t => {
+        {visibleTrainings.length === 0 ? (
+          <div className="bg-white rounded-2xl p-10 text-center">
+            <GraduationCap size={40} className="text-slate-300 mx-auto"/>
+            <p className="text-slate-400">لا توجد مهام تدريبية</p>
+          </div>
+        ) : visibleTrainings.map(t => {
           const empInfo = allEmployees.find(e=>e.id===t.empId);
-          return (<div key={t.id} className="bg-white rounded-2xl border p-4 shadow-sm">
-            <div className="flex justify-between items-start"><div><div className="flex gap-2 mb-1"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${getStatusColor(t.status)}`}>{t.status}</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-50 text-violet-700">{t.type}</span></div>
-            <p className="font-bold text-slate-800">{t.title}</p>{isAdmin && <p className="text-xs text-slate-500">{empInfo?.name}</p>}
-            {t.desc && <p className="text-xs text-slate-500 mt-1">{t.desc}</p>}
-            <div className="flex gap-3 text-[10px] text-slate-400 mt-2">{t.startDate && <span>📅 من {t.startDate}</span>}{t.endDate && <span>إلى {t.endDate}</span>}{t.provider && <span>🏛️ {t.provider}</span>}</div>
-            {t.empAction && <div className="mt-2 p-2 bg-emerald-50 rounded-xl text-xs"><span className="font-bold">✍️ الإجراء:</span> {t.empAction}</div>}</div>
-            <div className="flex gap-2">{!isAdmin && t.status==="مُسندة" && <button onClick={()=>{const action=prompt("أدخل الإجراء الذي قمت به:"); if(action) addAction(t.id, action);}} className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs">كتابة إجراء</button>}
-            {isAdmin && t.status!=="مكتملة" && <button onClick={()=>updateStatus(t.id,"مكتملة")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs"><CheckCircle size={12}/> إكمال</button>}
-            {isAdmin && t.status==="قيد التنفيذ" && <button onClick={()=>updateStatus(t.id,"مكتملة")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs">إكمال</button>}</div></div>
-          </div>);
+          return (
+            <div key={t.id} className="bg-white rounded-2xl border p-4 shadow-sm">
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="flex gap-2 mb-1">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${getStatusColor(t.status)}`}>{t.status}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-50 text-violet-700">{t.type}</span>
+                  </div>
+                  <p className="font-bold text-slate-800">{t.title}</p>
+                  {isAdmin && <p className="text-xs text-slate-500">{empInfo?.name}</p>}
+                  {t.desc && <p className="text-xs text-slate-500 mt-1">{t.desc}</p>}
+                  <div className="flex gap-3 text-[10px] text-slate-400 mt-2">
+                    {t.startDate && <span> من {t.startDate}</span>}
+                    {t.endDate && <span>إلى {t.endDate}</span>}
+                    {t.provider && <span> {t.provider}</span>}
+                  </div>
+                  {t.empAction && (
+                    <div className="mt-2 p-2 bg-emerald-50 rounded-xl text-xs">
+                      <span className="font-bold">الإجراء:</span> {t.empAction}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {!isAdmin && t.status==="مسندة" && (
+                    <button onClick={()=>{const action=prompt("أدخل الإجراء الذي قمت به:"); if(action) addAction(t.id, action);}} className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs">
+                      كتابة إجراء
+                    </button>
+                  )}
+                  {isAdmin && t.status!=="مكتملة" && (
+                    <button onClick={()=>updateStatus(t.id,"مكتملة")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs">
+                      <CheckCircle size={12}/> إكمال
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
         })}
       </div>
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl">
+          <CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}
+        </div>
+      )}
     </div>
   );
 }
 
-// ========== 3. جرد المخزن ==========
 function InventorySystem({ emp, isAdmin }) {
   const [items, setItems] = useLocalStorage("inventory_items", [
     { id:1, code:"INV-001", name:"مقاومة متغيرة", category:"أجهزة قياس", unit:"قطعة", qty:5, condition:"جيد", location:"الرف A1", lastUpdate:new Date().toISOString().slice(0,10) },
@@ -770,42 +885,58 @@ function InventorySystem({ emp, isAdmin }) {
     else setItems(items.map(i => i.id===editId ? updatedItem : i));
     auditLog(adding?"إضافة":"تعديل", `${adding?"إضافة":"تعديل"} صنف ${form.name}`, emp.name);
     cancelForm();
-    showToast("✓ تم الحفظ");
+    showToast("تم الحفظ");
   };
 
   const deleteItem = (id) => {
     if (window.confirm("هل تريد حذف هذا الصنف؟")) {
       setItems(items.filter(i => i.id !== id));
       auditLog("حذف", `حذف صنف`, emp.name);
-      showToast("✓ تم الحذف");
+      showToast("تم الحذف");
     }
   };
 
   const doTransfer = () => {
-    setItems(items.map(i => i.id===transferModal.id ? { ...i, qty: i.qty - transferModal.qty, lastUpdate: new Date().toISOString().slice(0,10) } : i));
+    setItems(items.map(i => i.id===transferModal.id ? { ...i, qty: i.qty - (transferModal.qty || 1), lastUpdate: new Date().toISOString().slice(0,10) } : i));
     auditLog("نقل", `نقل ${transferModal.qty} من ${transferModal.name}`, emp.name);
     setTransferModal(null);
-    showToast("✓ تم نقل الكمية");
+    showToast("تم نقل الكمية");
   };
 
   const exportCSV = () => {
     const rows = items.map(i => ({ "الرمز":i.code, "الاسم":i.name, "الفئة":i.category, "الوحدة":i.unit, "الكمية":i.qty, "الحالة":i.condition, "الموقع":i.location }));
-    const csv = [Object.keys(rows[0]).join(","), ...rows.map(r => Object.values(r).map(v=>`"${v}"`).join(","))].join("\n");
-    const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8;"});
-    const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="inventory.csv"; a.click(); URL.revokeObjectURL(url);
-    showToast("✓ تم التصدير");
+    const headers = Object.keys(rows[0]);
+    const csvRows = [headers.join(",")];
+    for (const row of rows) {
+      const values = headers.map(header => `"${row[header]}"`);
+      csvRows.push(values.join(","));
+    }
+    const blob = new Blob(["\uFEFF"+csvRows.join("\n")], {type:"text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download="inventory.csv"; a.click(); 
+    URL.revokeObjectURL(url);
+    showToast("تم التصدير");
   };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div className="flex gap-2 flex-1">
-          <div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
-          <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="bg-white border rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select>
+          <div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1">
+            <Search size={14} className="text-slate-400"/>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/>
+          </div>
+          <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="bg-white border rounded-xl px-3 py-2 text-sm">
+            {categories.map(c=><option key={c}>{c}</option>)}
+          </select>
         </div>
         <div className="flex gap-2">
-          <button onClick={exportCSV} className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border px-3 py-2 rounded-xl"><Download size={13}/> CSV</button>
-          <button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة صنف</button>
+          <button onClick={exportCSV} className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border px-3 py-2 rounded-xl">
+            <Download size={13}/> CSV
+          </button>
+          <button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl">
+            <Plus size={13}/> إضافة صنف
+          </button>
           <PrintButton targetId="print-inventory" title="جرد المخزن"/>
         </div>
       </div>
@@ -817,46 +948,102 @@ function InventorySystem({ emp, isAdmin }) {
           { label:"حالة جيدة", value:items.filter(i=>i.condition==="جيد").length, color:"bg-emerald-50" },
           { label:"يحتاج صيانة", value:items.filter(i=>i.condition==="يحتاج صيانة").length, color:"bg-amber-50" },
           { label:"تالف", value:damagedItems, color:"bg-red-50" },
-        ].map(s=><div key={s.label} className={`${s.color} rounded-2xl p-3 text-center border`}><p className="text-2xl font-bold">{s.value}</p><p className="text-[10px]">{s.label}</p></div>)}
+        ].map(s=>(
+          <div key={s.label} className={`${s.color} rounded-2xl p-3 text-center border`}>
+            <p className="text-2xl font-bold">{s.value}</p>
+            <p className="text-[10px]">{s.label}</p>
+          </div>
+        ))}
       </div>
 
       {(adding || editId) && (
         <div className="bg-white rounded-2xl border-2 border-blue-200 p-5">
-          <div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة صنف":"تعديل صنف"}</h4><button onClick={cancelForm}><X size={15}/></button></div>
+          <div className="flex justify-between mb-3">
+            <h4 className="font-bold">{adding?"إضافة صنف":"تعديل صنف"}</h4>
+            <button onClick={cancelForm}><X size={15}/></button>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[["الرمز *","code"],["الاسم *","name"],["الفئة","category"],["الوحدة","unit"]].map(([l,k])=>(
-              <div key={k}><label className="block text-[10px] font-bold text-slate-500 mb-1">{l}</label><input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+              <div key={k}><label className="block text-[10px] font-bold text-slate-500 mb-1">{l}</label>
+              <input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
             ))}
-            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الكمية</label><input type="number" value={form.qty} onChange={e=>setForm({...form,qty:Number(e.target.value)})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
-            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الحالة</label><select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">{ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}</select></div>
-            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الموقع</label><input value={form.location} onChange={e=>setForm({...form,location:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الكمية</label>
+            <input type="number" value={form.qty} onChange={e=>setForm({...form,qty:Number(e.target.value)})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الحالة</label>
+            <select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">
+              {ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}
+            </select></div>
+            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الموقع</label>
+            <input value={form.location} onChange={e=>setForm({...form,location:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
           </div>
-          <div className="flex gap-2 justify-end mt-4"><button onClick={cancelForm} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl"><Save size={13}/> حفظ</button></div>
+          <div className="flex gap-2 justify-end mt-4">
+            <button onClick={cancelForm} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button>
+            <button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl"><Save size={13}/> حفظ</button>
+          </div>
         </div>
       )}
 
       <div id="print-inventory" className="bg-white rounded-2xl border overflow-hidden">
-        <div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b">{["الرمز","الاسم","الفئة","الكمية","الحالة","الموقع","آخر تحديث","إجراءات"].map(h=><th key={h} className="px-3 py-2 font-bold">{h}</th>)}</tr></thead>
-        <tbody>{filtered.map(it=>(
-          <tr key={it.id} className="border-b hover:bg-slate-50"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2 font-semibold">{it.name}</td><td className="px-3 py-2">{it.category}</td>
-          <td className="px-3 py-2 font-bold">{it.qty}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${COND_STYLE[it.condition]||""}`}>{it.condition}</span></td>
-          <td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 text-slate-400">{it.lastUpdate}</td>
-          <td className="px-3 py-2"><div className="flex gap-1"><button onClick={()=>openEdit(it)} className="p-1 text-blue-500 hover:bg-blue-50 rounded"><Edit3 size={12}/></button>
-          <button onClick={()=>setTransferModal(it)} className="p-1 text-amber-500 hover:bg-amber-50 rounded"><ArrowRightLeft size={12}/></button>
-          <button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-xs">
+            <thead>
+              <tr className="bg-slate-50 border-b">
+                <th className="px-3 py-2 font-bold">الرمز</th>
+                <th className="px-3 py-2 font-bold">الاسم</th>
+                <th className="px-3 py-2 font-bold">الفئة</th>
+                <th className="px-3 py-2 font-bold">الكمية</th>
+                <th className="px-3 py-2 font-bold">الحالة</th>
+                <th className="px-3 py-2 font-bold">الموقع</th>
+                <th className="px-3 py-2 font-bold">آخر تحديث</th>
+                <th className="px-3 py-2 font-bold">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(it=>(
+                <tr key={it.id} className="border-b hover:bg-slate-50">
+                  <td className="px-3 py-2 font-mono">{it.code}</td>
+                  <td className="px-3 py-2 font-semibold">{it.name}</td>
+                  <td className="px-3 py-2">{it.category}</td>
+                  <td className="px-3 py-2 font-bold">{it.qty}</td>
+                  <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${COND_STYLE[it.condition]||""}`}>{it.condition}</span></td>
+                  <td className="px-3 py-2">{it.location}</td>
+                  <td className="px-3 py-2 text-slate-400">{it.lastUpdate}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1">
+                      <button onClick={()=>openEdit(it)} className="p-1 text-blue-500 hover:bg-blue-50 rounded"><Edit3 size={12}/></button>
+                      <button onClick={()=>setTransferModal(it)} className="p-1 text-amber-500 hover:bg-amber-50 rounded"><ArrowRightLeft size={12}/></button>
+                      <button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={12}/></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {transferModal && (<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={()=>setTransferModal(null)}><div className="bg-white rounded-2xl p-6 max-w-md w-full" onClick={e=>e.stopPropagation()}>
-        <h3 className="font-bold mb-3">نقل {transferModal.name}</h3><p className="text-sm text-slate-500 mb-3">الكمية المتاحة: {transferModal.qty}</p>
-        <input type="number" min="1" max={transferModal.qty} className="w-full border rounded-xl px-3 py-2 mb-4" placeholder="الكمية" onChange={e=>setTransferModal({...transferModal, qty:Number(e.target.value)})}/>
-        <div className="flex gap-2"><button onClick={()=>setTransferModal(null)} className="flex-1 py-2 border rounded-xl">إلغاء</button><button onClick={doTransfer} className="flex-1 py-2 bg-amber-500 text-white rounded-xl">تأكيد النقل</button></div>
-      </div></div>)}
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+      {transferModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={()=>setTransferModal(null)}>
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full" onClick={e=>e.stopPropagation()}>
+            <h3 className="font-bold mb-3">نقل {transferModal.name}</h3>
+            <p className="text-sm text-slate-500 mb-3">الكمية المتاحة: {transferModal.qty}</p>
+            <input type="number" min="1" max={transferModal.qty} className="w-full border rounded-xl px-3 py-2 mb-4" placeholder="الكمية" onChange={e=>setTransferModal({...transferModal, qty:Number(e.target.value)})}/>
+            <div className="flex gap-2">
+              <button onClick={()=>setTransferModal(null)} className="flex-1 py-2 border rounded-xl">إلغاء</button>
+              <button onClick={doTransfer} className="flex-1 py-2 bg-amber-500 text-white rounded-xl">تأكيد النقل</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl">
+          <CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}
+        </div>
+      )}
     </div>
   );
 }
 
-// ========== 4. جرد الأثاث ==========
 function FurnitureInventory({ emp, isAdmin }) {
   const [items, setItems] = useLocalStorage("furniture_items", [
     { id:1, code:"FURN-001", name:"منضدة كتابة 160 سم", category:"أثاث مكتبي", qty:5, condition:"جيد", location:"المكتب الرئيسي", serialNo:"SN001", lastUpdate:new Date().toISOString().slice(0,10) },
@@ -884,14 +1071,14 @@ function FurnitureInventory({ emp, isAdmin }) {
     else setItems(items.map(i => i.id===editId ? updated : i));
     auditLog(adding?"إضافة":"تعديل", `${adding?"إضافة":"تعديل"} أثاث ${form.name}`, emp.name);
     cancelForm();
-    showToast("✓ تم الحفظ");
+    showToast("تم الحفظ");
   };
 
   const deleteItem = (id) => {
     if (window.confirm("هل تريد حذف هذا العنصر؟")) {
       setItems(items.filter(i => i.id !== id));
       auditLog("حذف", `حذف أثاث`, emp.name);
-      showToast("✓ تم الحذف");
+      showToast("تم الحذف");
     }
   };
 
@@ -901,20 +1088,40 @@ function FurnitureInventory({ emp, isAdmin }) {
 
   const exportCSV = () => {
     const rows = items.map(i => ({ "الرمز":i.code, "الاسم":i.name, "الفئة":i.category, "الكمية":i.qty, "الحالة":i.condition, "الموقع":i.location, "الرقم التسلسلي":i.serialNo }));
-    const csv = [Object.keys(rows[0]).join(","), ...rows.map(r => Object.values(r).map(v=>`"${v}"`).join(","))].join("\n");
-    const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8;"});
-    const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="furniture.csv"; a.click(); URL.revokeObjectURL(url);
-    showToast("✓ تم التصدير");
+    const headers = Object.keys(rows[0]);
+    const csvRows = [headers.join(",")];
+    for (const row of rows) {
+      const values = headers.map(header => `"${row[header]}"`);
+      csvRows.push(values.join(","));
+    }
+    const blob = new Blob(["\uFEFF"+csvRows.join("\n")], {type:"text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download="furniture.csv"; a.click(); 
+    URL.revokeObjectURL(url);
+    showToast("تم التصدير");
   };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center justify-between">
-        <div className="flex gap-2 flex-1"><div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
-        <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="bg-white border rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select></div>
-        <div className="flex gap-2"><button onClick={exportCSV} className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border px-3 py-2 rounded-xl"><Download size={13}/> CSV</button>
-        <button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button>
-        <PrintButton targetId="print-furniture" title="جرد الأثاث"/></div>
+        <div className="flex gap-2 flex-1">
+          <div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1">
+            <Search size={14} className="text-slate-400"/>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/>
+          </div>
+          <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="bg-white border rounded-xl px-3 py-2 text-sm">
+            {categories.map(c=><option key={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={exportCSV} className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border px-3 py-2 rounded-xl">
+            <Download size={13}/> CSV
+          </button>
+          <button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl">
+            <Plus size={13}/> إضافة
+          </button>
+          <PrintButton targetId="print-furniture" title="جرد الأثاث"/>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -923,38 +1130,84 @@ function FurnitureInventory({ emp, isAdmin }) {
           { label:"إجمالي القطع", value:totalItems, color:"bg-slate-50" },
           { label:"حالة جيدة", value:items.filter(i=>i.condition==="جيد").length, color:"bg-emerald-50" },
           { label:"يحتاج صيانة/تالف", value:items.filter(i=>i.condition!=="جيد").length, color:"bg-amber-50" },
-        ].map(s=><div key={s.label} className={`${s.color} rounded-2xl p-3 text-center border`}><p className="text-2xl font-bold">{s.value}</p><p className="text-[10px]">{s.label}</p></div>)}
+        ].map(s=>(
+          <div key={s.label} className={`${s.color} rounded-2xl p-3 text-center border`}>
+            <p className="text-2xl font-bold">{s.value}</p>
+            <p className="text-[10px]">{s.label}</p>
+          </div>
+        ))}
       </div>
 
       {(adding || editId) && (
         <div className="bg-white rounded-2xl border-2 border-violet-200 p-5">
-          <div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة قطعة":"تعديل قطعة"}</h4><button onClick={cancelForm}><X size={15}/></button></div>
+          <div className="flex justify-between mb-3">
+            <h4 className="font-bold">{adding?"إضافة قطعة":"تعديل قطعة"}</h4>
+            <button onClick={cancelForm}><X size={15}/></button>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[["الرمز *","code"],["الاسم *","name"],["الفئة","category"],["الكمية","qty"],["الموقع","location"],["الرقم التسلسلي","serialNo"]].map(([l,k])=>(
-              <div key={k}><label className="block text-[10px] font-bold text-slate-500 mb-1">{l}</label><input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+              <div key={k}><label className="block text-[10px] font-bold text-slate-500 mb-1">{l}</label>
+              <input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
             ))}
-            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الحالة</label><select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">{ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}</select></div>
+            <div><label className="block text-[10px] font-bold text-slate-500 mb-1">الحالة</label>
+            <select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">
+              {ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}
+            </select></div>
           </div>
-          <div className="flex gap-2 justify-end mt-4"><button onClick={cancelForm} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> حفظ</button></div>
+          <div className="flex gap-2 justify-end mt-4">
+            <button onClick={cancelForm} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">إلغاء</button>
+            <button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> حفظ</button>
+          </div>
         </div>
       )}
 
       <div id="print-furniture" className="bg-white rounded-2xl border overflow-hidden">
-        <div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b">{["الرمز","الاسم","الفئة","الكمية","الحالة","الموقع","الرقم التسلسلي","إجراءات"].map(h=><th key={h} className="px-3 py-2 font-bold">{h}</th>)}</tr></thead>
-        <tbody>{filtered.map(it=>(
-          <tr key={it.id} className="border-b hover:bg-slate-50"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2 font-semibold">{it.name}</td><td className="px-3 py-2">{it.category}</td>
-          <td className="px-3 py-2 font-bold">{it.qty}</td><td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${COND_STYLE[it.condition]||""}`}>{it.condition}</span></td>
-          <td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 text-slate-400">{it.serialNo||"—"}</td>
-          <td className="px-3 py-2"><div className="flex gap-1"><button onClick={()=>openEdit(it)} className="p-1 text-blue-500 hover:bg-blue-50 rounded"><Edit3 size={12}/></button>
-          <button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-xs">
+            <thead>
+              <tr className="bg-slate-50 border-b">
+                <th className="px-3 py-2 font-bold">الرمز</th>
+                <th className="px-3 py-2 font-bold">الاسم</th>
+                <th className="px-3 py-2 font-bold">الفئة</th>
+                <th className="px-3 py-2 font-bold">الكمية</th>
+                <th className="px-3 py-2 font-bold">الحالة</th>
+                <th className="px-3 py-2 font-bold">الموقع</th>
+                <th className="px-3 py-2 font-bold">الرقم التسلسلي</th>
+                <th className="px-3 py-2 font-bold">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(it=>(
+                <tr key={it.id} className="border-b hover:bg-slate-50">
+                  <td className="px-3 py-2 font-mono">{it.code}</td>
+                  <td className="px-3 py-2 font-semibold">{it.name}</td>
+                  <td className="px-3 py-2">{it.category}</td>
+                  <td className="px-3 py-2 font-bold">{it.qty}</td>
+                  <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${COND_STYLE[it.condition]||""}`}>{it.condition}</span></td>
+                  <td className="px-3 py-2">{it.location}</td>
+                  <td className="px-3 py-2 text-slate-400">{it.serialNo||"—"}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1">
+                      <button onClick={()=>openEdit(it)} className="p-1 text-blue-500 hover:bg-blue-50 rounded"><Edit3 size={12}/></button>
+                      <button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={12}/></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl">
+          <CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}
+        </div>
+      )}
     </div>
   );
 }
 
-// ========== 5. لوحة إحصائيات متقدمة ==========
-function AdvancedStats({ allEmployees, allRequests, trainings, attendanceRecords }) {
+function AdvancedStats({ allEmployees, allRequests, trainings }) {
   const [stats, setStats] = useState({
     totalEmployees: 0,
     activeEmployees: 0,
@@ -963,7 +1216,7 @@ function AdvancedStats({ allEmployees, allRequests, trainings, attendanceRecords
     rejectedRequests: 0,
     trainingCompleted: 0,
     trainingInProgress: 0,
-    attendanceRate: 0,
+    attendanceRate: 85,
     mostActiveDept: "",
   });
 
@@ -979,7 +1232,7 @@ function AdvancedStats({ allEmployees, allRequests, trainings, attendanceRecords
       approvedRequests: (allRequests || []).filter(r => r.status === "موافق عليها").length,
       rejectedRequests: (allRequests || []).filter(r => r.status === "مرفوضة").length,
       trainingCompleted: (trainings || []).filter(t => t.status === "مكتملة").length,
-      trainingInProgress: (trainings || []).filter(t => t.status === "قيد التنفيذ" || t.status === "مُسندة").length,
+      trainingInProgress: (trainings || []).filter(t => t.status === "قيد التنفيذ" || t.status === "مسندة").length,
       attendanceRate: 85,
       mostActiveDept: topDept ? topDept[0] : "—",
     });
@@ -995,47 +1248,88 @@ function AdvancedStats({ allEmployees, allRequests, trainings, attendanceRecords
           { icon: <GraduationCap size={24}/>, label: "تدريب مكتمل", value: stats.trainingCompleted, color: "bg-violet-500", trend: `${stats.trainingInProgress} قيد التنفيذ` },
         ].map(s=>(
           <div key={s.label} className={`${s.color} rounded-2xl p-5 text-white`}>
-            <div className="flex justify-between items-start"><div className="opacity-80">{s.icon}</div><span className="text-xs opacity-70">{s.trend}</span></div>
-            <p className="text-3xl font-bold mt-3">{s.value}</p><p className="text-sm opacity-80 mt-1">{s.label}</p>
+            <div className="flex justify-between items-start">
+              <div className="opacity-80">{s.icon}</div>
+              <span className="text-xs opacity-70">{s.trend}</span>
+            </div>
+            <p className="text-3xl font-bold mt-3">{s.value}</p>
+            <p className="text-sm opacity-80 mt-1">{s.label}</p>
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl border p-5"><h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><PieChart size={16}/> توزيع الطلبات</h3>
-          <div className="space-y-2">{[
-            { label:"موافق عليها", value:stats.approvedRequests, color:"bg-emerald-500" },
-            { label:"بانتظار المراجعة", value:stats.pendingRequests, color:"bg-amber-500" },
-            { label:"مرفوضة", value:stats.rejectedRequests, color:"bg-red-500" },
-          ].map(s=>{
-            const total = stats.approvedRequests+stats.pendingRequests+stats.rejectedRequests || 1;
-            const percent = Math.round(s.value/total*100);
-            return (<div key={s.label}><div className="flex justify-between text-xs mb-1"><span>{s.label}</span><span>{percent}%</span></div><div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full ${s.color} rounded-full`} style={{width:`${percent}%`}}/></div></div>);
-          })}</div></div>
+        <div className="bg-white rounded-2xl border p-5">
+          <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><PieChart size={16}/> توزيع الطلبات</h3>
+          <div className="space-y-2">
+            {[
+              { label:"موافق عليها", value:stats.approvedRequests, color:"bg-emerald-500" },
+              { label:"بانتظار المراجعة", value:stats.pendingRequests, color:"bg-amber-500" },
+              { label:"مرفوضة", value:stats.rejectedRequests, color:"bg-red-500" },
+            ].map(s=>{
+              const total = stats.approvedRequests+stats.pendingRequests+stats.rejectedRequests || 1;
+              const percent = Math.round(s.value/total*100);
+              return (
+                <div key={s.label}>
+                  <div className="flex justify-between text-xs mb-1"><span>{s.label}</span><span>{percent}%</span></div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={`h-full ${s.color} rounded-full`} style={{width:`${percent}%`}}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
-        <div className="bg-white rounded-2xl border p-5"><h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><Activity size={16}/> حالة التدريب</h3>
-          <div className="space-y-2">{[
-            { label:"مكتملة", value:stats.trainingCompleted, color:"bg-emerald-500" },
-            { label:"قيد التنفيذ", value:stats.trainingInProgress, color:"bg-blue-500" },
-          ].map(s=>{
-            const total = stats.trainingCompleted+stats.trainingInProgress || 1;
-            const percent = Math.round(s.value/total*100);
-            return (<div key={s.label}><div className="flex justify-between text-xs mb-1"><span>{s.label}</span><span>{percent}%</span></div><div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full ${s.color} rounded-full`} style={{width:`${percent}%`}}/></div></div>);
-          })}</div></div>
+        <div className="bg-white rounded-2xl border p-5">
+          <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><Activity size={16}/> حالة التدريب</h3>
+          <div className="space-y-2">
+            {[
+              { label:"مكتملة", value:stats.trainingCompleted, color:"bg-emerald-500" },
+              { label:"قيد التنفيذ", value:stats.trainingInProgress, color:"bg-blue-500" },
+            ].map(s=>{
+              const total = stats.trainingCompleted+stats.trainingInProgress || 1;
+              const percent = Math.round(s.value/total*100);
+              return (
+                <div key={s.label}>
+                  <div className="flex justify-between text-xs mb-1"><span>{s.label}</span><span>{percent}%</span></div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={`h-full ${s.color} rounded-full`} style={{width:`${percent}%`}}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
-        <div className="bg-white rounded-2xl border p-5"><h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><TrendingUp size={16}/> الحضور والإنتاجية</h3>
-          <div className="text-center"><div className="relative w-32 h-32 mx-auto"><div className="w-32 h-32 rounded-full border-8 border-slate-100"></div>
-          <div className="absolute inset-0 flex items-center justify-center"><p className="text-3xl font-bold text-emerald-600">{stats.attendanceRate}%</p></div></div><p className="text-sm text-slate-600 mt-3">نسبة الحضور الإجمالية</p></div></div>
+        <div className="bg-white rounded-2xl border p-5">
+          <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><TrendingUp size={16}/> الحضور والإنتاجية</h3>
+          <div className="text-center">
+            <div className="relative w-32 h-32 mx-auto">
+              <div className="w-32 h-32 rounded-full border-8 border-slate-100"></div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <p className="text-3xl font-bold text-emerald-600">{stats.attendanceRate}%</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 mt-3">نسبة الحضور الإجمالية</p>
+          </div>
+        </div>
 
-        <div className="bg-white rounded-2xl border p-5"><h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><Award size={16}/> القسم الأكثر نشاطاً</h3>
-          <div className="text-center"><div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl flex items-center justify-center mx-auto"><Award size={32} className="text-white"/></div>
-          <p className="font-bold text-slate-800 mt-3">{stats.mostActiveDept}</p><p className="text-xs text-slate-500">أكثر قسم نشاطاً في الطلبات</p></div></div>
+        <div className="bg-white rounded-2xl border p-5">
+          <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><Award size={16}/> القسم الأكثر نشاطا</h3>
+          <div className="text-center">
+            <div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl flex items-center justify-center mx-auto">
+              <Award size={32} className="text-white"/>
+            </div>
+            <p className="font-bold text-slate-800 mt-3">{stats.mostActiveDept}</p>
+            <p className="text-xs text-slate-500">أكثر قسم نشاطا في الطلبات</p>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-// ========== 6. سجل التعديلات ==========
 function AuditLogPage() {
   const [logs, setLogs] = useFirebase("audit_log", []);
   const [search, setSearch] = useState("");
@@ -1044,17 +1338,43 @@ function AuditLogPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-3"><div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث في السجل..." className="bg-transparent text-sm outline-none w-full"/></div>
-      <PrintButton targetId="print-audit" title="سجل التعديلات"/></div>
-      <div id="print-audit" className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50 border-b">{["العملية","التفاصيل","بواسطة","التاريخ"].map(h=><th key={h} className="px-3 py-2 font-bold">{h}</th>)}</tr></thead>
-      <tbody>{filtered.length===0?<tr><td colSpan={4} className="text-center py-8 text-slate-400">لا توجد سجلات</td></tr>:
-      filtered.map(l=><tr key={l.id} className="border-b hover:bg-slate-50"><td className="px-3 py-2"><span className="text-lg ml-1">{ACTION_ICONS[l.action]||"📝"}</span>{l.action}</td>
-      <td className="px-3 py-2">{l.details}</td><td className="px-3 py-2">{l.by}</td><td className="px-3 py-2 text-slate-400">{new Date(l.at).toLocaleString("ar-IQ")}</td></tr>))}</tbody></table></div></div>
+      <div className="flex gap-3">
+        <div className="flex items-center gap-2 bg-white border rounded-xl px-3 py-2 flex-1">
+          <Search size={14} className="text-slate-400"/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث في السجل..." className="bg-transparent text-sm outline-none w-full"/>
+        </div>
+        <PrintButton targetId="print-audit" title="سجل التعديلات"/>
+      </div>
+      <div id="print-audit" className="bg-white rounded-2xl border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-xs">
+            <thead>
+              <tr className="bg-slate-50 border-b">
+                <th className="px-3 py-2 font-bold">العملية</th>
+                <th className="px-3 py-2 font-bold">التفاصيل</th>
+                <th className="px-3 py-2 font-bold">بواسطة</th>
+                <th className="px-3 py-2 font-bold">التاريخ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length===0 ? (
+                <tr><td colSpan={4} className="text-center py-8 text-slate-400">لا توجد سجلات</td></tr>
+              ) : filtered.map(l=>(
+                <tr key={l.id} className="border-b hover:bg-slate-50">
+                  <td className="px-3 py-2"><span className="text-lg ml-1">{ACTION_ICONS[l.action]||"📝"}</span>{l.action}</td>
+                  <td className="px-3 py-2">{l.details}</td>
+                  <td className="px-3 py-2">{l.by}</td>
+                  <td className="px-3 py-2 text-slate-400">{new Date(l.at).toLocaleString("ar-IQ")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ========== 7. تقارير PDF متعددة ==========
 function PDFReportsPage({ allEmployees }) {
   const [reportType, setReportType] = useState("attendance");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -1062,8 +1382,7 @@ function PDFReportsPage({ allEmployees }) {
   const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
 
   const generateReport = () => {
-    const element = document.getElementById("report-content");
-    if (element) printElement("report-content", `تقرير ${months[selectedMonth]} ${selectedYear}`);
+    printElement("report-content", `تقرير ${months[selectedMonth]} ${selectedYear}`);
   };
 
   return (
@@ -1081,25 +1400,126 @@ function PDFReportsPage({ allEmployees }) {
         <select value={selectedYear} onChange={e=>setSelectedYear(Number(e.target.value))} className="bg-white border rounded-xl px-3 py-2 text-sm">
           {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
         </select>
-        <button onClick={generateReport} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><Printer size={14}/> توليد وطباعة</button>
+        <button onClick={generateReport} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold">
+          <Printer size={14}/> توليد وطباعة
+        </button>
       </div>
 
       <div id="report-content" className="hidden print:block">
-        <div className="text-center p-4"><p className="text-xl font-bold">شركة نفط البصرة - شعبة الفاو</p><p className="text-lg">التقرير الشهري - {months[selectedMonth]} {selectedYear}</p></div>
+        <div className="text-center p-4">
+          <p className="text-xl font-bold">شركة نفط البصرة - شعبة الفاو</p>
+          <p className="text-lg">التقرير الشهري - {months[selectedMonth]} {selectedYear}</p>
+        </div>
         {reportType === "employees" && (
-          <table className="w-full border-collapse"><thead><tr><th className="border p-2">#</th><th className="border p-2">الاسم</th><th className="border p-2">الرقم الوظيفي</th><th className="border p-2">القسم</th></tr></thead>
-          <tbody>{allEmployees.map((e,i)=><tr key={e.id}><td className="border p-2">{i+1}</td><td className="border p-2">{e.name}</td><td className="border p-2">{e.jobNum}</td><td className="border p-2">{e.dept}</td></tr>)}</tbody></table>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th className="border p-2">#</th>
+                <th className="border p-2">الاسم</th>
+                <th className="border p-2">الرقم الوظيفي</th>
+                <th className="border p-2">القسم</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allEmployees.map((e,i)=>(
+                <tr key={e.id}>
+                  <td className="border p-2">{i+1}</td>
+                  <td className="border p-2">{e.name}</td>
+                  <td className="border p-2">{e.jobNum}</td>
+                  <td className="border p-2">{e.dept}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
         {reportType === "requests" && <p className="text-center p-8 text-slate-400">سيتم عرض تقرير الطلبات عند اكتمال البيانات</p>}
         {reportType === "attendance" && <p className="text-center p-8 text-slate-400">سيتم عرض تقرير الحضور عند اكتمال البيانات</p>}
         {reportType === "inventory" && <p className="text-center p-8 text-slate-400">سيتم عرض تقرير المخزن عند اكتمال البيانات</p>}
-        <div className="mt-8 pt-4 border-t flex justify-between"><div className="text-center"><p>توقيع الموظف</p><div className="w-32 border-t border-black mt-2"/></div><div className="text-center"><p>توقيع المشرف</p><div className="w-32 border-t border-black mt-2"/></div></div>
+        <div className="mt-8 pt-4 border-t flex justify-between">
+          <div className="text-center"><p>توقيع الموظف</p><div className="w-32 border-t border-black mt-2"/></div>
+          <div className="text-center"><p>توقيع المشرف</p><div className="w-32 border-t border-black mt-2"/></div>
+        </div>
       </div>
     </div>
   );
 }
 
-// ========== لوحة التحكم الرئيسية ==========
+function EmployeeManager({ employees, setEmployees }) {
+  const [search, setSearch] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي" });
+  const [adding, setAdding] = useState(false);
+  const filtered = employees.filter(e => e.name.includes(search) || e.jobNum.includes(search));
+  
+  const saveEmp = () => {
+    if (!form.name || !form.jobNum) return;
+    if (adding) setEmployees([...employees, { ...form, id: Date.now() }]);
+    else setEmployees(employees.map(e => e.id===editId ? { ...form, id:editId } : e));
+    setAdding(false); setEditId(null);
+  };
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-3">
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="flex-1 border rounded-xl px-3 py-2"/>
+        <button onClick={()=>{setAdding(true); setForm({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي" });}} className="px-4 py-2 bg-blue-600 text-white rounded-xl">
+          <Plus size={14}/> إضافة
+        </button>
+      </div>
+      {(adding||editId) && (
+        <div className="bg-white rounded-2xl border p-5">
+          <div className="grid grid-cols-2 gap-3">
+            <input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} placeholder="الاسم" className="border rounded-xl px-3 py-2"/>
+            <input value={form.jobNum} onChange={e=>setForm({...form, jobNum:e.target.value})} placeholder="الرقم الوظيفي" className="border rounded-xl px-3 py-2"/>
+            <input value={form.title} onChange={e=>setForm({...form, title:e.target.value})} placeholder="المسمى الوظيفي" className="border rounded-xl px-3 py-2"/>
+            <select value={form.dept} onChange={e=>setForm({...form, dept:e.target.value})} className="border rounded-xl px-3 py-2">
+              <option>قسم السيطرة والنظم</option>
+              <option>شعبة مستودع الفاو</option>
+              <option>شعبة المرافئ</option>
+            </select>
+            <select value={form.shift} onChange={e=>setForm({...form, shift:e.target.value})} className="border rounded-xl px-3 py-2">
+              <option>صباحي</option>
+              <option>مناوبة</option>
+            </select>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={()=>{setAdding(false);setEditId(null);}} className="flex-1 py-2 border rounded-xl">إلغاء</button>
+            <button onClick={saveEmp} className="flex-1 py-2 bg-blue-600 text-white rounded-xl">حفظ</button>
+          </div>
+        </div>
+      )}
+      <div className="bg-white rounded-2xl border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b">
+                <th className="px-3 py-2 text-right">الاسم</th>
+                <th className="px-3 py-2 text-right">الرقم</th>
+                <th className="px-3 py-2 text-right">المسمى</th>
+                <th className="px-3 py-2 text-right">القسم</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(e=>(
+                <tr key={e.id} className="border-b">
+                  <td className="px-3 py-2">{e.name}</td>
+                  <td className="px-3 py-2">{e.jobNum}</td>
+                  <td className="px-3 py-2">{e.title}</td>
+                  <td className="px-3 py-2">{e.dept}</td>
+                  <td className="px-3 py-2">
+                    <button onClick={()=>{setEditId(e.id); setForm(e);}} className="text-blue-500"><Edit3 size={14}/></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ emp, onLogout }) {
   const [view, setView] = useState("home");
   const [allRequests, setAllRequests] = useFirebase("requests", []);
@@ -1113,7 +1533,12 @@ function Dashboard({ emp, onLogout }) {
   useEffect(() => {
     const cleanup = setupIdleDetection(onLogout);
     const needsChange = sessionStorage.getItem("force_password_change");
-    if (needsChange === "true") { sessionStorage.removeItem("force_password_change"); setTimeout(()=>{ if(window.confirm("🔐 يرجى تغيير كلمة المرور الافتراضية")) setView("changepass"); }, 500); }
+    if (needsChange === "true") { 
+      sessionStorage.removeItem("force_password_change"); 
+      setTimeout(()=>{ 
+        if(window.confirm("يرجى تغيير كلمة المرور الافتراضية")) setView("changepass"); 
+      }, 500); 
+    }
     return cleanup;
   }, [onLogout]);
 
@@ -1133,68 +1558,135 @@ function Dashboard({ emp, onLogout }) {
     menuItems.unshift({ id: "approvals", label: "الموافقات", icon: <ThumbsUp size={14}/>, badge: pendingCount });
     menuItems.unshift({ id: "employees", label: "إدارة الموظفين", icon: <Users size={14}/> });
   }
-  if (isInventoryMgr && !isAdmin) menuItems.push({ id: "inventory", label: "جرد المخزن", icon: <Package size={14}/> });
+  if (isInventoryMgr && !isAdmin) {
+    menuItems.push({ id: "inventory", label: "جرد المخزن", icon: <Package size={14}/> });
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row" dir="rtl">
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap');*{font-family:'IBM Plex Sans Arabic',sans-serif;}.fu{animation:fadeIn .3s ease}@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@media print{.no-print{display:none!important}}`}</style>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+        *{font-family:'IBM Plex Sans Arabic',sans-serif;}
+        .fu{animation:fadeIn .3s ease}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @media print{.no-print{display:none!important}}
+      `}</style>
 
       <aside className="no-print hidden md:flex w-64 bg-slate-900 text-white flex-col shrink-0 min-h-screen sticky top-0">
-        <div className="p-4 border-b border-slate-800"><div className="flex items-center gap-3 mb-3"><div className="w-9 h-9 rounded-full bg-blue-800 border flex items-center justify-center"><span className="text-white font-bold text-xs">BOC</span></div>
-        <div><p className="text-xs font-bold">شركة نفط البصرة</p><p className="text-[10px] text-blue-400">شعبة مستودع الفاو</p></div></div>
-        <div className="bg-slate-800 rounded-xl px-3 py-2"><p className="text-xs font-bold truncate">{emp.name.split(" ").slice(0,3).join(" ")}</p><p className="text-[10px] text-slate-400">{emp.title}</p>{isAdmin && <span className="text-[9px] text-amber-400 flex items-center gap-1 mt-1"><Shield size={10}/> مشرف</span>}</div></div>
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">{menuItems.map(item => (
-          <button key={item.id} onClick={()=>setView(item.id)} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${view===item.id?"bg-blue-600":"text-slate-400 hover:bg-slate-800 hover:text-white"}`}>
-            <span className="flex items-center gap-2.5">{item.icon}{item.label}</span>{item.badge>0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{item.badge}</span>}
-          </button>))}
-          <button onClick={onLogout} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-red-400 hover:bg-red-950/40 mt-4"><LogOut size={14}/> تسجيل الخروج</button>
+        <div className="p-4 border-b border-slate-800">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-full bg-blue-800 border flex items-center justify-center">
+              <span className="text-white font-bold text-xs">BOC</span>
+            </div>
+            <div>
+              <p className="text-xs font-bold">شركة نفط البصرة</p>
+              <p className="text-[10px] text-blue-400">شعبة مستودع الفاو</p>
+            </div>
+          </div>
+          <div className="bg-slate-800 rounded-xl px-3 py-2">
+            <p className="text-xs font-bold truncate">{emp.name.split(" ").slice(0,3).join(" ")}</p>
+            <p className="text-[10px] text-slate-400">{emp.title}</p>
+            {isAdmin && <span className="text-[9px] text-amber-400 flex items-center gap-1 mt-1"><Shield size={10}/> مشرف</span>}
+          </div>
+        </div>
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+          {menuItems.map(item => (
+            <button key={item.id} onClick={()=>setView(item.id)} 
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                view===item.id ? "bg-blue-600" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <span className="flex items-center gap-2.5">{item.icon}{item.label}</span>
+              {item.badge>0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{item.badge}</span>}
+            </button>
+          ))}
+          <button onClick={onLogout} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-red-400 hover:bg-red-950/40 mt-4">
+            <LogOut size={14}/> تسجيل الخروج
+          </button>
         </nav>
-        <div className="px-3 pb-3"><div className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-slate-400"><div className={`w-2 h-2 rounded-full ${isConnected?"bg-emerald-400":"bg-amber-400"}`}/>{isConnected?"متصل بالسحابة":"وضع غير متصل"}</div></div>
+        <div className="px-3 pb-3">
+          <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] text-slate-400">
+            <div className={`w-2 h-2 rounded-full ${isConnected?"bg-emerald-400":"bg-amber-400"}`}/>
+            {isConnected?"متصل بالسحابة":"وضع غير متصل"}
+          </div>
+        </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-h-screen"><main className="flex-1 p-4 md:p-6 overflow-y-auto">
-        {view === "home" && (<div className="fu"><div className="bg-white rounded-2xl p-8 shadow-sm"><div className="flex items-center gap-4"><div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center"><User size={28} className="text-white"/></div><div><h2 className="text-xl font-bold">مرحباً، {emp.name.split(" ")[0]}</h2><p className="text-slate-500">نظام شعبة مستودع الفاو المتكامل</p></div></div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6"><div className="bg-emerald-50 border rounded-xl p-4"><CheckCircle className="text-emerald-600"/><p className="font-bold mt-2">✓ النظام يعمل</p><p className="text-xs text-slate-500">جميع الأنظمة جاهزة</p></div>
-        <div className="bg-blue-50 border rounded-xl p-4"><Shield className="text-blue-600"/><p className="font-bold mt-2">✓ آمن ومشفر</p><p className="text-xs text-slate-500">كلمات المرور مشفرة</p></div>
-        <div className="bg-amber-50 border rounded-xl p-4"><Wifi className="text-amber-600"/><p className="font-bold mt-2">{isConnected?"متصل بالسحابة":"وضع غير متصل"}</p><p className="text-xs text-slate-500">{isConnected?"مزامنة تلقائية مفعلة":"يعمل محلياً"}</p></div></div>
-        <div className="mt-6 pt-6 border-t"><p className="text-sm text-slate-600">الوحدات المتاحة: الحضور | التدريب | جرد المخزن | جرد الأثاث | التقارير | الإحصائيات</p></div></div></div>)}
-        {view === "attendance" && <AttendanceSystem emp={emp} isAdmin={isAdmin} allEmployees={employees} />}
-        {view === "training" && <TrainingSystem emp={emp} isAdmin={isAdmin} allEmployees={employees} />}
-        {view === "inventory" && <InventorySystem emp={emp} isAdmin={isAdmin} />}
-        {view === "furniture" && <FurnitureInventory emp={emp} isAdmin={isAdmin} />}
-        {view === "stats" && <AdvancedStats allEmployees={employees} allRequests={allRequests} trainings={trainings} />}
-        {view === "audit" && <AuditLogPage />}
-        {view === "reports" && <PDFReportsPage allEmployees={employees} />}
-        {view === "changepass" && <ChangePasswordPage emp={emp} onLogout={onLogout} />}
-        {view === "employees" && isAdmin && <EmployeeManager employees={employees} setEmployees={setEmployees} />}
-        {view === "approvals" && isAdmin && (<div className="space-y-4"><h3 className="font-bold text-slate-800">الموافقات ({pendingCount})</h3>
-          {(allRequests||[]).filter(r=>r.status==="بانتظار المراجعة").map(req=><div key={req.id} className="bg-white rounded-2xl border p-4"><div className="flex justify-between"><div><p className="font-bold">{req.empName}</p><p className="text-xs">{req.type} — {req.days} يوم</p></div><div className="flex gap-2"><button onClick={()=>{setAllRequests((allRequests||[]).map(r=>r.id===req.id?{...r,status:"موافق عليها"}:r)); auditLog("موافقة",`تمت الموافقة على طلب ${req.type}`,emp.name);}} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs">قبول</button>
-          <button onClick={()=>{setAllRequests((allRequests||[]).map(r=>r.id===req.id?{...r,status:"مرفوضة"}:r)); auditLog("رفض",`تم رفض طلب ${req.type}`,emp.name);}} className="px-3 py-1.5 bg-red-600 text-white rounded-xl text-xs">رفض</button></div></div></div>)}</div>)}
-      </main></div>
+      <div className="flex-1 flex flex-col min-h-screen">
+        <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+          {view === "home" && (
+            <div className="fu">
+              <div className="bg-white rounded-2xl p-8 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center">
+                    <User size={28} className="text-white"/>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">مرحباً، {emp.name.split(" ")[0]}</h2>
+                    <p className="text-slate-500">نظام شعبة مستودع الفاو المتكامل</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                  <div className="bg-emerald-50 border rounded-xl p-4">
+                    <CheckCircle className="text-emerald-600"/>
+                    <p className="font-bold mt-2">✓ النظام يعمل</p>
+                    <p className="text-xs text-slate-500">جميع الأنظمة جاهزة</p>
+                  </div>
+                  <div className="bg-blue-50 border rounded-xl p-4">
+                    <Shield className="text-blue-600"/>
+                    <p className="font-bold mt-2">✓ آمن ومشفر</p>
+                    <p className="text-xs text-slate-500">كلمات المرور مشفرة</p>
+                  </div>
+                  <div className="bg-amber-50 border rounded-xl p-4">
+                    <Wifi className="text-amber-600"/>
+                    <p className="font-bold mt-2">{isConnected?"متصل بالسحابة":"وضع غير متصل"}</p>
+                    <p className="text-xs text-slate-500">{isConnected?"مزامنة تلقائية مفعلة":"يعمل محلياً"}</p>
+                  </div>
+                </div>
+                <div className="mt-6 pt-6 border-t">
+                  <p className="text-sm text-slate-600">الوحدات المتاحة: الحضور | التدريب | جرد المخزن | جرد الأثاث | التقارير | الإحصائيات</p>
+                </div>
+              </div>
+            </div>
+          )}
+          {view === "attendance" && <AttendanceSystem emp={emp} isAdmin={isAdmin} allEmployees={employees} />}
+          {view === "training" && <TrainingSystem emp={emp} isAdmin={isAdmin} allEmployees={employees} />}
+          {view === "inventory" && <InventorySystem emp={emp} isAdmin={isAdmin} />}
+          {view === "furniture" && <FurnitureInventory emp={emp} isAdmin={isAdmin} />}
+          {view === "stats" && <AdvancedStats allEmployees={employees} allRequests={allRequests} trainings={trainings} />}
+          {view === "audit" && <AuditLogPage />}
+          {view === "reports" && <PDFReportsPage allEmployees={employees} />}
+          {view === "changepass" && <ChangePasswordPage emp={emp} onLogout={onLogout} />}
+          {view === "employees" && isAdmin && <EmployeeManager employees={employees} setEmployees={setEmployees} />}
+          {view === "approvals" && isAdmin && (
+            <div className="space-y-4">
+              <h3 className="font-bold text-slate-800">الموافقات ({pendingCount})</h3>
+              {(allRequests||[]).filter(r=>r.status==="بانتظار المراجعة").map(req=>(
+                <div key={req.id} className="bg-white rounded-2xl border p-4">
+                  <div className="flex justify-between">
+                    <div>
+                      <p className="font-bold">{req.empName}</p>
+                      <p className="text-xs">{req.type} — {req.days} يوم</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={()=>{
+                        setAllRequests((allRequests||[]).map(r=>r.id===req.id?{...r,status:"موافق عليها"}:r));
+                        auditLog("موافقة",`تمت الموافقة على طلب ${req.type}`,emp.name);
+                      }} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs">قبول</button>
+                      <button onClick={()=>{
+                        setAllRequests((allRequests||[]).map(r=>r.id===req.id?{...r,status:"مرفوضة"}:r));
+                        auditLog("رفض",`تم رفض طلب ${req.type}`,emp.name);
+                      }} className="px-3 py-1.5 bg-red-600 text-white rounded-xl text-xs">رفض</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
-}
-
-// ========== إدارة الموظفين المبسطة ==========
-function EmployeeManager({ employees, setEmployees }) {
-  const [search, setSearch] = useState("");
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي" });
-  const [adding, setAdding] = useState(false);
-  const filtered = employees.filter(e => e.name.includes(search) || e.jobNum.includes(search));
-  const saveEmp = () => {
-    if (!form.name || !form.jobNum) return;
-    if (adding) setEmployees([...employees, { ...form, id: Date.now() }]);
-    else setEmployees(employees.map(e => e.id===editId ? { ...form, id:editId } : e));
-    setAdding(false); setEditId(null);
-  };
-  return (<div className="space-y-4"><div className="flex gap-3"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="flex-1 border rounded-xl px-3 py-2"/><button onClick={()=>{setAdding(true); setForm({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي" });}} className="px-4 py-2 bg-blue-600 text-white rounded-xl"><Plus size={14}/> إضافة</button></div>
-  {(adding||editId) && (<div className="bg-white rounded-2xl border p-5"><div className="grid grid-cols-2 gap-3">{["name","jobNum","title"].map(k=><input key={k} value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} placeholder={k} className="border rounded-xl px-3 py-2"/>)}
-  <select value={form.dept} onChange={e=>setForm({...form,dept:e.target.value})} className="border rounded-xl px-3 py-2"><option>قسم السيطرة والنظم</option><option>شعبة مستودع الفاو</option><option>شعبة المرافئ</option></select>
-  <select value={form.shift} onChange={e=>setForm({...form,shift:e.target.value})} className="border rounded-xl px-3 py-2"><option>صباحي</option><option>مناوبة</option></select></div>
-  <div className="flex gap-2 mt-4"><button onClick={()=>{setAdding(false);setEditId(null);}} className="flex-1 py-2 border rounded-xl">إلغاء</button><button onClick={saveEmp} className="flex-1 py-2 bg-blue-600 text-white rounded-xl">حفظ</button></div></div>)}
-  <div className="bg-white rounded-2xl border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="bg-slate-50 border-b"><th className="px-3 py-2 text-right">الاسم</th><th className="px-3 py-2 text-right">الرقم</th><th className="px-3 py-2 text-right">المسمى</th><th className="px-3 py-2 text-right">القسم</th><th></th></tr></thead>
-  <tbody>{filtered.map(e=><tr key={e.id} className="border-b"><td className="px-3 py-2">{e.name}</td><td className="px-3 py-2">{e.jobNum}</td><td className="px-3 py-2">{e.title}</td><td className="px-3 py-2">{e.dept}</td><td className="px-3 py-2"><button onClick={()=>{setEditId(e.id); setForm(e);}} className="text-blue-500"><Edit3 size={14}/></button></td></tr>)}</tbody></table></div></div></div>);
 }
 
 export default function App() {
