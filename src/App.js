@@ -1,17 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   LogIn, LogOut, Shield, Eye, EyeOff, AlertCircle, Save, Home, User, 
-  CheckCircle, Wifi, WifiOff, RefreshCw, FileText, Clock, Calendar,
+  CheckCircle, Wifi, WifiOff, FileText, Clock, Calendar,
   Bell, ThumbsUp, ThumbsDown, Plus, Trash2, Edit3, X, Users, Package,
-  ClipboardList, GraduationCap, BarChart, Star, ArrowRightLeft,
+  ClipboardList, GraduationCap, BarChart, Star,
   Printer, Download, Search, Award, Moon, Sun, MessageSquare, 
-  CheckSquare, Mic, MicOff, Volume2, TrendingUp, AlertTriangle,
-  Activity, Target, ChevronDown, ChevronUp, Send, Paperclip
+  CheckSquare, Mic, MicOff, AlertTriangle,
+  Send
 } from "lucide-react";
-import { 
-  BarChart as ReBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend 
-} from "recharts";
+// No external chart library — pure SVG charts below
 
 // ========== الثوابت ==========
 const FIREBASE_URL = "https://faop-scada-default-rtdb.asia-southeast1.firebasedatabase.app";
@@ -893,6 +890,66 @@ function EmployeeManager({ employees, setEmployees }) {
   </div>);
 }
 
+// ========== SVG Charts — بدون مكتبات خارجية ==========
+
+function SVGBarChart({ data, keys, colors, height = 180, labelKey = "name" }) {
+  if (!data || data.length === 0) return <div className="flex items-center justify-center text-secondary text-sm" style={{height}}>لا توجد بيانات</div>;
+  const W = 480; const H = height; const PAD = { t:10, r:10, b:32, l:28 };
+  const chartW = W - PAD.l - PAD.r;
+  const chartH = H - PAD.t - PAD.b;
+  const maxVal = Math.max(1, ...data.flatMap(d => keys.map(k => Number(d[k]||0))));
+  const groupW = chartW / data.length;
+  const barW = Math.max(4, groupW / keys.length - 3);
+  const yTicks = [0, Math.ceil(maxVal/4), Math.ceil(maxVal/2), Math.ceil(maxVal*3/4), maxVal];
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{overflow:"visible"}}>
+      {/* Grid */}
+      {yTicks.map((t,i) => { const y = PAD.t + chartH - (t/maxVal)*chartH; return (
+        <g key={i}><line x1={PAD.l} x2={W-PAD.r} y1={y} y2={y} stroke="#e2e8f0" strokeWidth="1" strokeDasharray={i===0?"0":"3,3"}/><text x={PAD.l-4} y={y+4} textAnchor="end" fontSize="9" fill="#94a3b8">{t}</text></g>
+      );})}
+      {/* Bars */}
+      {data.map((d, di) => keys.map((k, ki) => {
+        const val = Number(d[k]||0);
+        const barH = (val/maxVal)*chartH;
+        const x = PAD.l + di*groupW + ki*(barW+3) + 4;
+        const y = PAD.t + chartH - barH;
+        return <g key={`${di}-${ki}`}><rect x={x} y={y} width={barW} height={Math.max(0,barH)} fill={colors[ki]} rx="2"/>{val>0&&<text x={x+barW/2} y={y-3} textAnchor="middle" fontSize="8" fill={colors[ki]}>{val}</text>}</g>;
+      }))}
+      {/* X Labels */}
+      {data.map((d,i) => <text key={i} x={PAD.l + i*groupW + groupW/2} y={H-8} textAnchor="middle" fontSize="9" fill="#64748b">{d[labelKey]}</text>)}
+      {/* Legend */}
+      {keys.map((k,i) => <g key={i} transform={`translate(${PAD.l + i*90}, ${H-2})`}><rect width="8" height="8" fill={colors[i]} rx="1" y="-8"/><text x="12" y="0" fontSize="9" fill="#64748b">{k}</text></g>)}
+    </svg>
+  );
+}
+
+function SVGPieChart({ data, colors, height = 180, donut = false }) {
+  if (!data || data.length === 0) return <div className="flex items-center justify-center text-secondary text-sm" style={{height}}>لا توجد بيانات</div>;
+  const total = data.reduce((s,d) => s + d.value, 0);
+  if (total === 0) return <div className="flex items-center justify-center text-secondary text-sm" style={{height}}>لا توجد بيانات</div>;
+  const cx = 90; const cy = height/2; const r = Math.min(cx, cy) - 16; const ir = donut ? r*0.5 : 0;
+  let angle = -Math.PI/2;
+  const slices = data.map((d,i) => {
+    const sweep = (d.value/total) * 2 * Math.PI;
+    const x1 = cx + r*Math.cos(angle); const y1 = cy + r*Math.sin(angle);
+    angle += sweep;
+    const x2 = cx + r*Math.cos(angle); const y2 = cy + r*Math.sin(angle);
+    const large = sweep > Math.PI ? 1 : 0;
+    const mx = cx + (r+ir)/2*Math.cos(angle-sweep/2); const my = cy + (r+ir)/2*Math.sin(angle-sweep/2);
+    return { d: donut
+      ? `M${cx+ir*Math.cos(angle-sweep)} ${cy+ir*Math.sin(angle-sweep)} L${x1} ${y1} A${r} ${r} 0 ${large} 1 ${x2} ${y2} L${cx+ir*Math.cos(angle)} ${cy+ir*Math.sin(angle)} A${ir} ${ir} 0 ${large} 0 ${cx+ir*Math.cos(angle-sweep)} ${cy+ir*Math.sin(angle-sweep)} Z`
+      : `M${cx} ${cy} L${x1} ${y1} A${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`,
+      color: colors[i%colors.length], label: d.name, value: d.value, mx, my };
+  });
+  return (
+    <svg viewBox={`0 0 280 ${height}`} width="100%">
+      {slices.map((s,i) => <path key={i} d={s.d} fill={s.color} stroke="white" strokeWidth="1.5"/>)}
+      {/* Legend */}
+      {data.map((d,i) => <g key={i} transform={`translate(190, ${16 + i*22})`}><rect width="10" height="10" fill={colors[i%colors.length]} rx="2"/><text x="14" y="9" fontSize="10" fill="#475569">{d.name}</text><text x="14" y="20" fontSize="9" fill="#94a3b8">{d.value} ({Math.round(d.value/total*100)}%)</text></g>)}
+    </svg>
+  );
+}
+
 // ========== لوحة التحكم التحليلية (جديدة) ==========
 function AnalyticsDashboard({ employees, allRequests }) {
   const now = new Date();
@@ -905,17 +962,22 @@ function AnalyticsDashboard({ employees, allRequests }) {
       const d = new Date(r.submittedAt);
       return d.getMonth() === i && d.getFullYear() === currentYear;
     });
-    return { month: month.slice(0,3), موافق: monthReqs.filter(r=>r.status==="موافق عليها").length, مرفوض: monthReqs.filter(r=>r.status==="مرفوضة").length, معلق: monthReqs.filter(r=>r.status==="بانتظار المراجعة").length };
+    return { name: month.slice(0,3), "موافق": monthReqs.filter(r=>r.status==="موافق عليها").length, "مرفوض": monthReqs.filter(r=>r.status==="مرفوضة").length, "معلق": monthReqs.filter(r=>r.status==="بانتظار المراجعة").length };
   });
 
   // توزيع الطلبات حسب النوع
   const typeData = Object.entries(LEAVE_TYPES).map(([k, v]) => ({
-    name: v.label, value: allRequests.filter(r => r.type === k).length
+    name: v.label.replace("إجازة ",""), value: allRequests.filter(r => r.type === k).length
   })).filter(d => d.value > 0);
 
   // حالة المخزون
   const invItems = storage.get("inventory_items", []);
   const condData = ITEM_CONDITIONS.map(c => ({ name: c, value: invItems.filter(i => i.condition === c).length })).filter(d => d.value > 0);
+
+  // توزيع الموظفين حسب القسم
+  const deptData = [...new Set(employees.map(e=>e.dept))].map(d => ({
+    name: d.replace("قسم ","").replace("شعبة ",""), value: employees.filter(e=>e.dept===d).length
+  }));
 
   // KPIs
   const pendingReqs = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
@@ -929,7 +991,7 @@ function AnalyticsDashboard({ employees, allRequests }) {
     { label: "طلبات مقبولة", value: approvedReqs, icon: <CheckCircle size={24}/>, color: "from-emerald-500 to-emerald-600" },
     { label: "مخزون منخفض", value: lowStockCount, icon: <AlertTriangle size={24}/>, color: "from-red-500 to-red-600" },
     { label: "إجمالي المخزون", value: totalInv, icon: <Package size={24}/>, color: "from-violet-500 to-violet-600" },
-    { label: "مشرفين النظام", value: employees.filter(e=>e.role==="admin").length, icon: <Shield size={24}/>, color: "from-indigo-500 to-indigo-600" },
+    { label: "مشرفي النظام", value: employees.filter(e=>e.role==="admin").length, icon: <Shield size={24}/>, color: "from-indigo-500 to-indigo-600" },
   ];
 
   return (
@@ -947,31 +1009,11 @@ function AnalyticsDashboard({ employees, allRequests }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card rounded-2xl border-color border p-4">
           <h4 className="font-bold mb-3 text-sm">الطلبات الشهرية ({currentYear})</h4>
-          <ResponsiveContainer width="100%" height={200}>
-            <ReBarChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3}/>
-              <XAxis dataKey="month" tick={{fontSize:10}} />
-              <YAxis tick={{fontSize:10}} />
-              <Tooltip />
-              <Bar dataKey="موافق" fill="#10b981" radius={[3,3,0,0]}/>
-              <Bar dataKey="مرفوض" fill="#ef4444" radius={[3,3,0,0]}/>
-              <Bar dataKey="معلق" fill="#f59e0b" radius={[3,3,0,0]}/>
-            </ReBarChart>
-          </ResponsiveContainer>
+          <SVGBarChart data={monthlyData} keys={["موافق","مرفوض","معلق"]} colors={["#10b981","#ef4444","#f59e0b"]} height={200}/>
         </div>
-
         <div className="card rounded-2xl border-color border p-4">
           <h4 className="font-bold mb-3 text-sm">توزيع أنواع الإجازات</h4>
-          {typeData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie data={typeData} cx="50%" cy="50%" outerRadius={70} dataKey="value" label={({name,value})=>`${name}: ${value}`} labelLine={false}>
-                  {typeData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : <div className="h-[200px] flex items-center justify-center text-secondary text-sm">لا توجد بيانات</div>}
+          <SVGPieChart data={typeData} colors={PIE_COLORS} height={200}/>
         </div>
       </div>
 
@@ -979,29 +1021,11 @@ function AnalyticsDashboard({ employees, allRequests }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card rounded-2xl border-color border p-4">
           <h4 className="font-bold mb-3 text-sm">حالة المخزون</h4>
-          {condData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <Pie data={condData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} dataKey="value" label={({name,value})=>`${name}: ${value}`}>
-                  {condData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : <div className="h-[180px] flex items-center justify-center text-secondary text-sm">لا توجد بيانات</div>}
+          <SVGPieChart data={condData} colors={["#10b981","#64748b","#f59e0b","#ef4444","#8b5cf6"]} height={180} donut={true}/>
         </div>
-
         <div className="card rounded-2xl border-color border p-4">
           <h4 className="font-bold mb-3 text-sm">توزيع الموظفين حسب القسم</h4>
-          <ResponsiveContainer width="100%" height={180}>
-            <ReBarChart data={[...new Set(employees.map(e=>e.dept))].map(d=>({dept:d.replace("قسم ","").replace("شعبة ",""), عدد:employees.filter(e=>e.dept===d).length}))}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3}/>
-              <XAxis dataKey="dept" tick={{fontSize:9}} />
-              <YAxis tick={{fontSize:10}} />
-              <Tooltip />
-              <Bar dataKey="عدد" fill="#6366f1" radius={[3,3,0,0]}/>
-            </ReBarChart>
-          </ResponsiveContainer>
+          <SVGBarChart data={deptData} keys={["value"]} colors={["#6366f1"]} height={180} labelKey="name"/>
         </div>
       </div>
     </div>
