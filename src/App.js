@@ -250,8 +250,8 @@ function LoginScreen({ onLogin, dark }) {
   const handleLogin = async () => {
     setErr("");
     if (!user || !pass) { setErr("أدخل الرقم الوظيفي وكلمة المرور"); return; }
-    const account = ACCOUNTS.find(a => a.jobNum === user.trim() || a.username === user.trim().toLowerCase());
-    if (!account) { setErr("اسم المستخدم أو الرقم الوظيفي غير موجود"); return; }
+    const account = ACCOUNTS.find(a => a.jobNum === user.trim());
+    if (!account) { setErr("الرقم الوظيفي غير موجود"); return; }
     setLoading(true);
     let isValid = false;
     if (pass.trim() === account.password) isValid = true;
@@ -279,15 +279,15 @@ function LoginScreen({ onLogin, dark }) {
           </div>
         </div>
         <div className="space-y-4">
-          <div><label className="block text-sm font-bold text-slate-200 mb-2">اسم المستخدم أو الرقم الوظيفي</label>
-            <input type="text" value={user} onChange={e=>setUser(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center text-lg" placeholder="i.shawi أو 728004" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/></div>
+          <div><label className="block text-sm font-bold text-slate-200 mb-2">الرقم الوظيفي</label>
+            <input type="text" value={user} onChange={e=>setUser(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center text-lg" placeholder="728004" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/></div>
           <div><label className="block text-sm font-bold text-slate-200 mb-2">كلمة المرور</label>
             <div className="relative"><input type={showP?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center text-lg" placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
               <button onClick={()=>setShowP(!showP)} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">{showP?<EyeOff size={18}/>:<Eye size={18}/>}</button></div></div>
           {err && <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-xl flex items-center gap-2"><AlertCircle size={16}/> {err}</div>}
           <button onClick={handleLogin} disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl transition-all text-lg">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
         </div>
-        <div className="mt-6 text-center text-sm text-slate-400"><p>🔑 <strong className="text-blue-300">i.shawi</strong> | كلمة المرور: <strong className="text-blue-300">1001</strong></p></div>
+        <div className="mt-6 text-center text-sm text-slate-400"><p>🔑 <strong className="text-blue-300">728004</strong> | كلمة المرور: <strong className="text-blue-300">1001</strong></p></div>
       </div>
     </div>
   );
