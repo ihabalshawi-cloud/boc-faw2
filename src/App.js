@@ -99,6 +99,21 @@ const storage = {
   get: (key, def = null) => { try { const i = localStorage.getItem(key); return i ? JSON.parse(i) : def; } catch { return def; } },
   set: (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch { return false; } }
 };
+// كلمات المرور المحلية في sessionStorage (تُمسح عند إغلاق المتصفح)
+const passStore = {
+  get: (key) => { try { const i = sessionStorage.getItem(key); return i ? JSON.parse(i) : null; } catch { return null; } },
+  set: (key, val) => { try { sessionStorage.setItem(key, JSON.stringify(val)); return true; } catch { return false; } }
+};
+
+// SHA-256 عبر Web Crypto API (مدمج في المتصفح — لا مكتبات خارجية)
+const PASS_SALT = "BOC_FAW_SCADA_2025#";
+async function hashPassword(plain) {
+  const data = new TextEncoder().encode(PASS_SALT + plain);
+  const buf  = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
+}
+// هل النص هو hash SHA-256 مخزّن مسبقاً؟ (64 حرف hex)
+const isHash = s => typeof s === "string" && /^[a-f0-9]{64}$/.test(s);
 
 // تشغيل صوت تنبيه
 function playAlert(type = "notification") {
@@ -155,7 +170,7 @@ function exportCSV(data, filename) {
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename + ".csv"; a.click();
 }
 
-// ========== Firebase API (لا تغيير على منطق الأمان) ==========
+// ========== Firebase API ==========
 const FirebaseAPI = {
   checkConnection: async () => {
     try {
@@ -166,18 +181,61 @@ const FirebaseAPI = {
       return res.ok;
     } catch { return false; }
   },
-  savePassword: async (empId, encrypted) => {
-    try { await fetch(`${FIREBASE_URL}/passwords/${empId}.json`, { method: "PUT", body: JSON.stringify(encrypted) }); return true; } catch { return false; }
+
+  // ── كلمات المرور ──────────────────────────────────────────────────────────
+  savePassword: async (empId, hash) => {
+    try { await fetch(`${FIREBASE_URL}/passwords/${empId}.json`, { method: "PUT", body: JSON.stringify(hash) }); return true; } catch { return false; }
   },
   getPassword: async (empId) => {
     try { const res = await fetch(`${FIREBASE_URL}/passwords/${empId}.json`); if (!res.ok) return null; const d = await res.json(); return typeof d === "string" ? d : null; } catch { return null; }
   },
-  // Chat
+
+  // ── بيانات الحسابات (مخفية في Firebase) ────────────────────────────────
+  // قراءة حساب واحد بالرقم الوظيفي (مسموح بالقراءة لمن يعرف الرقم)
+  fetchAccount: async (jobNum) => {
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 4000);
+      const res = await fetch(`${FIREBASE_URL}/accounts/${jobNum}.json`, { signal: ctrl.signal });
+      clearTimeout(tid);
+      if (!res.ok) return null;
+      const d = await res.json();
+      return d && d.id ? d : null;
+    } catch { return null; }
+  },
+  // قراءة الـ hash الافتراضي لأول تسجيل دخول (قبل تغيير كلمة المرور)
+  fetchInitHash: async (jobNum) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/init_hashes/${jobNum}.json`);
+      if (!res.ok) return null;
+      const d = await res.json();
+      return typeof d === "string" ? d : null;
+    } catch { return null; }
+  },
+  // ترحيل مرة واحدة: رفع جميع الحسابات + هاشات البداية إلى Firebase
+  initializeAccounts: async (accounts) => {
+    try {
+      const accountsData = {};
+      const hashesData   = {};
+      for (const acc of accounts) {
+        const { password, ...rest } = acc;
+        accountsData[acc.jobNum] = rest;
+        hashesData[acc.jobNum]   = await hashPassword(password); // hash كلمة المرور الافتراضية
+      }
+      const [r1, r2] = await Promise.all([
+        fetch(`${FIREBASE_URL}/accounts.json`,    { method: "PUT", body: JSON.stringify(accountsData) }),
+        fetch(`${FIREBASE_URL}/init_hashes.json`, { method: "PUT", body: JSON.stringify(hashesData)   }),
+      ]);
+      return r1.ok && r2.ok;
+    } catch { return false; }
+  },
+
+  // ── الدردشة ───────────────────────────────────────────────────────────────
   sendMessage: async (msg) => {
     try { await fetch(`${FIREBASE_URL}/chat.json`, { method: "POST", body: JSON.stringify(msg) }); return true; } catch { return false; }
   },
   getMessages: async (limit = 50) => {
-    try { 
+    try {
       const res = await fetch(`${FIREBASE_URL}/chat.json?orderBy="timestamp"&limitToLast=${limit}`);
       if (!res.ok) return [];
       const data = await res.json();
@@ -227,6 +285,33 @@ function useSmartAlerts(employees) {
   return alerts;
 }
 
+// ========== قفل تسجيل الدخول ==========
+const LOCK_LIMIT    = 5;
+const LOCK_DURATION = 15 * 60 * 1000; // 15 دقيقة
+
+function getLockInfo(jobNum) {
+  return storage.get(`login_lock_${jobNum}`) || { count: 0, lockedUntil: 0 };
+}
+function recordFail(jobNum) {
+  const d = getLockInfo(jobNum);
+  const count = d.count + 1;
+  storage.set(`login_lock_${jobNum}`, {
+    count,
+    lockedUntil: count >= LOCK_LIMIT ? Date.now() + LOCK_DURATION : d.lockedUntil,
+  });
+  return count >= LOCK_LIMIT;
+}
+function clearLockData(jobNum) {
+  storage.set(`login_lock_${jobNum}`, { count: 0, lockedUntil: 0 });
+}
+function lockSecsRemaining(jobNum) {
+  const { lockedUntil } = getLockInfo(jobNum);
+  return Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000));
+}
+function fmtTime(s) {
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
 // ========== شاشة تسجيل الدخول ==========
 function LoginScreen({ onLogin, dark }) {
   const [user, setUser] = useState("");
@@ -234,15 +319,41 @@ function LoginScreen({ onLogin, dark }) {
   const [showP, setShowP] = useState(false);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const [lockSecs, setLockSecs] = useState(0);
+  const lockTimer = useRef(null);
   const { isConnected } = useConnectionStatus();
+
+  const startCountdown = useCallback((secs) => {
+    setLockSecs(secs);
+    if (lockTimer.current) clearInterval(lockTimer.current);
+    lockTimer.current = setInterval(() => {
+      setLockSecs(prev => {
+        if (prev <= 1) { clearInterval(lockTimer.current); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  useEffect(() => {
+    if (!user.trim()) { setLockSecs(0); return; }
+    const secs = lockSecsRemaining(user.trim());
+    if (secs > 0) startCountdown(secs);
+    else setLockSecs(0);
+  }, [user, startCountdown]);
+
+  useEffect(() => () => { if (lockTimer.current) clearInterval(lockTimer.current); }, []);
 
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem("boc_session");
       if (saved) {
         const { acctId, expiry } = JSON.parse(saved);
-        if (expiry > Date.now()) { const a = ACCOUNTS.find(x => x.id === acctId); if (a) onLogin(a); }
-        else sessionStorage.removeItem("boc_session");
+        if (expiry > Date.now()) {
+          // حاول استرداد بيانات المستخدم من الكاش المحلي أولاً ثم ACCOUNTS
+          const cached = storage.get(`cached_account_${acctId}`);
+          const a = cached || ACCOUNTS.find(x => x.id === acctId);
+          if (a) onLogin(a);
+        } else sessionStorage.removeItem("boc_session");
       }
     } catch {}
   }, [onLogin]);
@@ -250,37 +361,84 @@ function LoginScreen({ onLogin, dark }) {
   const handleLogin = async () => {
     setErr("");
     if (!user || !pass) { setErr("أدخل الرقم الوظيفي وكلمة المرور"); return; }
-    const account = ACCOUNTS.find(a => a.jobNum === user.trim());
-    if (!account) { setErr("الرقم الوظيفي غير موجود"); return; }
-    setLoading(true);
-    let isValid = false;
 
-    // Priority: local custom password > Firebase custom password > hardcoded default
-    // The hardcoded default is only accepted when NO custom password has ever been set.
-    const localPass = storage.get(`pass_${account.id}`);
+    const remaining = lockSecsRemaining(user.trim());
+    if (remaining > 0) { startCountdown(remaining); setErr(`الحساب مقفل. حاول بعد ${fmtTime(remaining)}`); return; }
+
+    setLoading(true);
+
+    // ── 1. جلب بيانات الحساب ───────────────────────────────────────────────
+    // الأولوية: Firebase ← كاش localStorage ← ACCOUNTS (احتياطي)
+    let account = null;
+    if (isConnected) {
+      const fb = await FirebaseAPI.fetchAccount(user.trim());
+      if (fb) {
+        account = fb;
+        storage.set(`cached_account_${fb.id}`, fb); // كاش للعمل أوف-لاين
+      }
+    }
+    if (!account) account = storage.get(`cached_account_${user.trim()}`)
+                         || ACCOUNTS.find(a => a.jobNum === user.trim());
+    if (!account) { setErr("الرقم الوظيفي غير موجود"); setLoading(false); return; }
+
+    // ── 2. التحقق من كلمة المرور ───────────────────────────────────────────
+    let isValid = false;
+    const inputHash = await hashPassword(pass.trim());
+    const localPass = passStore.get(`pass_${account.id}`);
+
     if (localPass) {
-      // User has a custom password stored locally — only accept that, reject the old default
-      isValid = pass.trim() === localPass;
+      if (isHash(localPass)) {
+        isValid = inputHash === localPass;
+      } else {
+        // ترقية تلقائية من نص إلى hash
+        isValid = pass.trim() === localPass;
+        if (isValid) {
+          passStore.set(`pass_${account.id}`, inputHash);
+          if (isConnected) await FirebaseAPI.savePassword(account.id, inputHash);
+        }
+      }
     } else if (isConnected) {
+      // حاول /passwords/{id} أولاً (كلمة مرور مغيّرة)
       const fp = await FirebaseAPI.getPassword(account.id);
       if (fp) {
-        isValid = pass.trim() === fp;
-        if (isValid) storage.set(`pass_${account.id}`, fp); // cache for offline use
+        isValid = isHash(fp) ? inputHash === fp : pass.trim() === fp;
+        if (isValid) {
+          const toStore = isHash(fp) ? fp : inputHash;
+          passStore.set(`pass_${account.id}`, toStore);
+          if (!isHash(fp)) await FirebaseAPI.savePassword(account.id, inputHash);
+        }
       } else {
-        // No custom password anywhere — accept the hardcoded default
-        isValid = pass.trim() === account.password;
+        // حاول /init_hashes/{jobNum} (كلمة المرور الافتراضية المشفّرة في Firebase)
+        const initH = await FirebaseAPI.fetchInitHash(user.trim());
+        if (initH) {
+          isValid = inputHash === initH;
+        } else {
+          // احتياطي نهائي: كلمة المرور الافتراضية في الكود
+          isValid = pass.trim() === (account.password || "");
+        }
       }
     } else {
-      // Offline with no local custom password — fall back to hardcoded default
-      isValid = pass.trim() === account.password;
+      // غير متصل — الاحتياطي المحلي
+      isValid = pass.trim() === (account.password || "");
     }
 
     if (isValid) {
+      clearLockData(user.trim());
       sessionStorage.setItem("boc_session", JSON.stringify({ acctId: account.id, expiry: Date.now() + 8 * 3600000 }));
       const defaultPasswords = ["1001","1002","1003","1004","1005","1006","1007","1008","1009","1010","1011","2001","2002","2003","2004","2005","2006","2007","2008","2009","2010","2011","2012","2013","2014","2015","2016","2017","2018","3001","3002","3003","3004"];
       if (defaultPasswords.includes(pass.trim()) && !localPass) sessionStorage.setItem("force_password_change", "true");
       onLogin(account);
-    } else { setErr("كلمة المرور غير صحيحة"); }
+    } else {
+      const locked = recordFail(user.trim());
+      const secs = lockSecsRemaining(user.trim());
+      const { count } = getLockInfo(user.trim());
+      if (locked) {
+        startCountdown(secs);
+        setErr(`تم قفل الحساب لمدة 15 دقيقة بعد ${LOCK_LIMIT} محاولات فاشلة`);
+      } else {
+        setErr(`كلمة المرور غير صحيحة — محاولة ${count} من ${LOCK_LIMIT}`);
+      }
+    }
     setLoading(false);
   };
 
@@ -301,8 +459,14 @@ function LoginScreen({ onLogin, dark }) {
           <div><label className="block text-sm font-bold text-slate-200 mb-2">كلمة المرور</label>
             <div className="relative"><input type={showP?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center text-lg" placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
               <button onClick={()=>setShowP(!showP)} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">{showP?<EyeOff size={18}/>:<Eye size={18}/>}</button></div></div>
+          {lockSecs > 0 && (
+            <div className="bg-red-700/30 border border-red-500/50 text-red-200 text-sm p-3 rounded-xl flex items-center gap-2">
+              <AlertCircle size={16}/>
+              <span>الحساب مقفل — يُفتح بعد <strong className="font-mono">{fmtTime(lockSecs)}</strong></span>
+            </div>
+          )}
           {err && <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-xl flex items-center gap-2"><AlertCircle size={16}/> {err}</div>}
-          <button onClick={handleLogin} disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl transition-all text-lg">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
+          <button onClick={handleLogin} disabled={loading || lockSecs > 0} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all text-lg">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
         </div>
         <div className="mt-6 text-center text-sm text-slate-400"><p>🔑 <strong className="text-blue-300">728004</strong> | كلمة المرور: <strong className="text-blue-300">1001</strong></p></div>
       </div>
@@ -324,10 +488,11 @@ function ChangePasswordPage({ emp, onLogout }) {
     if (newPass.trim() !== confirm.trim()) { setMsg({ text: "⚠️ كلمات المرور غير متطابقة", type: "error" }); return; }
     setLoading(true);
     try {
-      storage.set(`pass_${emp.id}`, newPass.trim());
-      if (isConnected) await FirebaseAPI.savePassword(emp.id, newPass.trim());
+      const hashed = await hashPassword(newPass.trim());
+      passStore.set(`pass_${emp.id}`, hashed);
+      if (isConnected) await FirebaseAPI.savePassword(emp.id, hashed);
       sessionStorage.removeItem("force_password_change");
-      setMsg({ text: "✅ تم تغيير كلمة المرور بنجاح!", type: "success" });
+      setMsg({ text: "✅ تم تغيير كلمة المرور بنجاح وتشفيرها!", type: "success" });
       setNewPass(""); setConfirm("");
       setTimeout(() => { if (window.confirm("تم تغيير كلمة المرور. هل تريد تسجيل الخروج؟")) onLogout(); }, 1500);
     } catch { setMsg({ text: "❌ حدث خطأ", type: "error" }); }
@@ -898,21 +1063,48 @@ function FurnitureInventory() {
 
 // ========== إدارة الموظفين ==========
 function EmployeeManager({ employees, setEmployees }) {
-  const [search, setSearch] = useState("");
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي" });
-  const [adding, setAdding] = useState(false);
+  const [search, setSearch]       = useState("");
+  const [editId, setEditId]       = useState(null);
+  const [form, setForm]           = useState({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي" });
+  const [adding, setAdding]       = useState(false);
+  const [migrating, setMigrating] = useState(false);
+  const [migrateMsg, setMigrateMsg] = useState("");
+
   const filtered = employees.filter(e => e.name.includes(search) || e.jobNum.includes(search));
+
   const saveEmp = () => {
     if (!form.name || !form.jobNum) return;
     if (adding) setEmployees([...employees, { ...form, id: Date.now(), password:"1000" }]);
     else setEmployees(employees.map(e => e.id===editId ? { ...form, id:editId } : e));
     setAdding(false); setEditId(null);
   };
+
+  const handleMigrate = async () => {
+    if (!window.confirm("سيتم رفع بيانات جميع الموظفين (بدون كلمات المرور) إلى Firebase.\nهل تريد المتابعة؟")) return;
+    setMigrating(true);
+    setMigrateMsg("");
+    const ok = await FirebaseAPI.initializeAccounts(ACCOUNTS);
+    setMigrating(false);
+    setMigrateMsg(ok
+      ? "✅ تم نقل البيانات إلى Firebase بنجاح! يمكنك الآن إزالة ACCOUNTS من الكود."
+      : "❌ فشل الاتصال بـ Firebase — تحقق من قواعد الأمان."
+    );
+  };
+
   return (<div className="space-y-4">
-    <div className="flex gap-3"><div className="flex items-center gap-2 input rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-secondary"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
+    {/* شريط أدوات */}
+    <div className="flex gap-3 flex-wrap">
+      <div className="flex items-center gap-2 input rounded-xl px-3 py-2 flex-1 min-w-[160px]">
+        <Search size={14} className="text-secondary"/>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/>
+      </div>
       <button onClick={()=>exportCSV(employees.map(e=>({الاسم:e.name,الرقم:e.jobNum,المسمى:e.title,القسم:e.dept,النوبة:e.shift})),"الموظفون")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/></button>
-      <button onClick={()=>{setAdding(true);setForm({name:"",jobNum:"",title:"",dept:"قسم السيطرة والنظم",shift:"صباحي"});}} className="px-4 py-2 bg-blue-600 text-white rounded-xl flex items-center gap-1"><Plus size={14}/> إضافة</button></div>
+      <button onClick={()=>{setAdding(true);setForm({name:"",jobNum:"",title:"",dept:"قسم السيطرة والنظم",shift:"صباحي"});}} className="px-4 py-2 bg-blue-600 text-white rounded-xl flex items-center gap-1"><Plus size={14}/> إضافة</button>
+      <button onClick={handleMigrate} disabled={migrating} className="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-60 text-white rounded-xl flex items-center gap-1.5 text-sm font-bold">
+        {migrating ? "جاري النقل..." : "🔒 نقل البيانات إلى Firebase"}
+      </button>
+    </div>
+    {migrateMsg && <div className={`p-3 rounded-xl text-sm font-bold ${migrateMsg.startsWith("✅")?"bg-emerald-50 text-emerald-700 border border-emerald-200":"bg-red-50 text-red-700 border border-red-200"}`}>{migrateMsg}</div>}
     {(adding||editId) && (<div className="card rounded-2xl border-color border p-5"><div className="grid grid-cols-2 gap-3">
       <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="الاسم" className="input rounded-xl px-3 py-2"/>
       <input value={form.jobNum} onChange={e=>setForm({...form,jobNum:e.target.value})} placeholder="الرقم الوظيفي" className="input rounded-xl px-3 py-2"/>
