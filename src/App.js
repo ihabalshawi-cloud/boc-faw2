@@ -99,6 +99,11 @@ const storage = {
   get: (key, def = null) => { try { const i = localStorage.getItem(key); return i ? JSON.parse(i) : def; } catch { return def; } },
   set: (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch { return false; } }
 };
+// كلمات المرور المحلية في sessionStorage (تُمسح عند إغلاق المتصفح)
+const passStore = {
+  get: (key) => { try { const i = sessionStorage.getItem(key); return i ? JSON.parse(i) : null; } catch { return null; } },
+  set: (key, val) => { try { sessionStorage.setItem(key, JSON.stringify(val)); return true; } catch { return false; } }
+};
 
 // SHA-256 عبر Web Crypto API (مدمج في المتصفح — لا مكتبات خارجية)
 const PASS_SALT = "BOC_FAW_SCADA_2025#";
@@ -379,7 +384,7 @@ function LoginScreen({ onLogin, dark }) {
     // ── 2. التحقق من كلمة المرور ───────────────────────────────────────────
     let isValid = false;
     const inputHash = await hashPassword(pass.trim());
-    const localPass = storage.get(`pass_${account.id}`);
+    const localPass = passStore.get(`pass_${account.id}`);
 
     if (localPass) {
       if (isHash(localPass)) {
@@ -388,7 +393,7 @@ function LoginScreen({ onLogin, dark }) {
         // ترقية تلقائية من نص إلى hash
         isValid = pass.trim() === localPass;
         if (isValid) {
-          storage.set(`pass_${account.id}`, inputHash);
+          passStore.set(`pass_${account.id}`, inputHash);
           if (isConnected) await FirebaseAPI.savePassword(account.id, inputHash);
         }
       }
@@ -399,7 +404,7 @@ function LoginScreen({ onLogin, dark }) {
         isValid = isHash(fp) ? inputHash === fp : pass.trim() === fp;
         if (isValid) {
           const toStore = isHash(fp) ? fp : inputHash;
-          storage.set(`pass_${account.id}`, toStore);
+          passStore.set(`pass_${account.id}`, toStore);
           if (!isHash(fp)) await FirebaseAPI.savePassword(account.id, inputHash);
         }
       } else {
@@ -484,7 +489,7 @@ function ChangePasswordPage({ emp, onLogout }) {
     setLoading(true);
     try {
       const hashed = await hashPassword(newPass.trim());
-      storage.set(`pass_${emp.id}`, hashed);
+      passStore.set(`pass_${emp.id}`, hashed);
       if (isConnected) await FirebaseAPI.savePassword(emp.id, hashed);
       sessionStorage.removeItem("force_password_change");
       setMsg({ text: "✅ تم تغيير كلمة المرور بنجاح وتشفيرها!", type: "success" });
