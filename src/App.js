@@ -100,6 +100,16 @@ const storage = {
   set: (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch { return false; } }
 };
 
+// SHA-256 عبر Web Crypto API (مدمج في المتصفح — لا مكتبات خارجية)
+const PASS_SALT = "BOC_FAW_SCADA_2025#";
+async function hashPassword(plain) {
+  const data = new TextEncoder().encode(PASS_SALT + plain);
+  const buf  = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
+}
+// هل النص هو hash SHA-256 مخزّن مسبقاً؟ (64 حرف hex)
+const isHash = s => typeof s === "string" && /^[a-f0-9]{64}$/.test(s);
+
 // تشغيل صوت تنبيه
 function playAlert(type = "notification") {
   try {
@@ -255,23 +265,36 @@ function LoginScreen({ onLogin, dark }) {
     setLoading(true);
     let isValid = false;
 
-    // Priority: local custom password > Firebase custom password > hardcoded default
-    // The hardcoded default is only accepted when NO custom password has ever been set.
-    const localPass = storage.get(`pass_${account.id}`);
+    const inputHash  = await hashPassword(pass.trim());
+    const localPass  = storage.get(`pass_${account.id}`);
+
     if (localPass) {
-      // User has a custom password stored locally — only accept that, reject the old default
-      isValid = pass.trim() === localPass;
+      if (isHash(localPass)) {
+        // كلمة المرور مشفّرة — قارن hash بـ hash
+        isValid = inputHash === localPass;
+      } else {
+        // كلمة مرور قديمة غير مشفّرة (ترقية تلقائية) — قارن نصاً ثم احفظ مشفّرة
+        isValid = pass.trim() === localPass;
+        if (isValid) {
+          storage.set(`pass_${account.id}`, inputHash);
+          if (isConnected) await FirebaseAPI.savePassword(account.id, inputHash);
+        }
+      }
     } else if (isConnected) {
       const fp = await FirebaseAPI.getPassword(account.id);
       if (fp) {
-        isValid = pass.trim() === fp;
-        if (isValid) storage.set(`pass_${account.id}`, fp); // cache for offline use
+        isValid = isHash(fp) ? inputHash === fp : pass.trim() === fp;
+        if (isValid) {
+          const toStore = isHash(fp) ? fp : inputHash;
+          storage.set(`pass_${account.id}`, toStore);
+          if (!isHash(fp)) await FirebaseAPI.savePassword(account.id, inputHash);
+        }
       } else {
-        // No custom password anywhere — accept the hardcoded default
+        // لا توجد كلمة مرور مخصصة — قبول الافتراضية
         isValid = pass.trim() === account.password;
       }
     } else {
-      // Offline with no local custom password — fall back to hardcoded default
+      // غير متصل، لا كلمة مرور محلية — الافتراضية فقط
       isValid = pass.trim() === account.password;
     }
 
@@ -324,10 +347,11 @@ function ChangePasswordPage({ emp, onLogout }) {
     if (newPass.trim() !== confirm.trim()) { setMsg({ text: "⚠️ كلمات المرور غير متطابقة", type: "error" }); return; }
     setLoading(true);
     try {
-      storage.set(`pass_${emp.id}`, newPass.trim());
-      if (isConnected) await FirebaseAPI.savePassword(emp.id, newPass.trim());
+      const hashed = await hashPassword(newPass.trim());
+      storage.set(`pass_${emp.id}`, hashed);
+      if (isConnected) await FirebaseAPI.savePassword(emp.id, hashed);
       sessionStorage.removeItem("force_password_change");
-      setMsg({ text: "✅ تم تغيير كلمة المرور بنجاح!", type: "success" });
+      setMsg({ text: "✅ تم تغيير كلمة المرور بنجاح وتشفيرها!", type: "success" });
       setNewPass(""); setConfirm("");
       setTimeout(() => { if (window.confirm("تم تغيير كلمة المرور. هل تريد تسجيل الخروج؟")) onLogout(); }, 1500);
     } catch { setMsg({ text: "❌ حدث خطأ", type: "error" }); }
