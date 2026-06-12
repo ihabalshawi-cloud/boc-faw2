@@ -189,9 +189,10 @@ const FirebaseAPI = {
     try {
       const ctrl = new AbortController();
       const tid = setTimeout(() => ctrl.abort(), 5000);
-      const res = await fetch(`${FIREBASE_URL}/.json`, { signal: ctrl.signal });
+      // أي رد من الخادم (حتى 403) يعني الاتصال موجود — فقط الخطأ الشبكي يعني انقطاع
+      const res = await fetch(`${FIREBASE_URL}/chat.json?limitToLast=1`, { signal: ctrl.signal });
       clearTimeout(tid);
-      return res.ok;
+      return res.status < 500;
     } catch { return false; }
   },
 
