@@ -280,6 +280,33 @@ function useSmartAlerts(employees) {
   return alerts;
 }
 
+// ========== قفل تسجيل الدخول ==========
+const LOCK_LIMIT    = 5;
+const LOCK_DURATION = 15 * 60 * 1000; // 15 دقيقة
+
+function getLockInfo(jobNum) {
+  return storage.get(`login_lock_${jobNum}`) || { count: 0, lockedUntil: 0 };
+}
+function recordFail(jobNum) {
+  const d = getLockInfo(jobNum);
+  const count = d.count + 1;
+  storage.set(`login_lock_${jobNum}`, {
+    count,
+    lockedUntil: count >= LOCK_LIMIT ? Date.now() + LOCK_DURATION : d.lockedUntil,
+  });
+  return count >= LOCK_LIMIT;
+}
+function clearLockData(jobNum) {
+  storage.set(`login_lock_${jobNum}`, { count: 0, lockedUntil: 0 });
+}
+function lockSecsRemaining(jobNum) {
+  const { lockedUntil } = getLockInfo(jobNum);
+  return Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000));
+}
+function fmtTime(s) {
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
 // ========== شاشة تسجيل الدخول ==========
 function LoginScreen({ onLogin, dark }) {
   const [user, setUser] = useState("");
@@ -287,7 +314,29 @@ function LoginScreen({ onLogin, dark }) {
   const [showP, setShowP] = useState(false);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const [lockSecs, setLockSecs] = useState(0);
+  const lockTimer = useRef(null);
   const { isConnected } = useConnectionStatus();
+
+  const startCountdown = useCallback((secs) => {
+    setLockSecs(secs);
+    if (lockTimer.current) clearInterval(lockTimer.current);
+    lockTimer.current = setInterval(() => {
+      setLockSecs(prev => {
+        if (prev <= 1) { clearInterval(lockTimer.current); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  useEffect(() => {
+    if (!user.trim()) { setLockSecs(0); return; }
+    const secs = lockSecsRemaining(user.trim());
+    if (secs > 0) startCountdown(secs);
+    else setLockSecs(0);
+  }, [user, startCountdown]);
+
+  useEffect(() => () => { if (lockTimer.current) clearInterval(lockTimer.current); }, []);
 
   useEffect(() => {
     try {
@@ -307,6 +356,10 @@ function LoginScreen({ onLogin, dark }) {
   const handleLogin = async () => {
     setErr("");
     if (!user || !pass) { setErr("أدخل الرقم الوظيفي وكلمة المرور"); return; }
+
+    const remaining = lockSecsRemaining(user.trim());
+    if (remaining > 0) { startCountdown(remaining); setErr(`الحساب مقفل. حاول بعد ${fmtTime(remaining)}`); return; }
+
     setLoading(true);
 
     // ── 1. جلب بيانات الحساب ───────────────────────────────────────────────
@@ -365,11 +418,22 @@ function LoginScreen({ onLogin, dark }) {
     }
 
     if (isValid) {
+      clearLockData(user.trim());
       sessionStorage.setItem("boc_session", JSON.stringify({ acctId: account.id, expiry: Date.now() + 8 * 3600000 }));
       const defaultPasswords = ["1001","1002","1003","1004","1005","1006","1007","1008","1009","1010","1011","2001","2002","2003","2004","2005","2006","2007","2008","2009","2010","2011","2012","2013","2014","2015","2016","2017","2018","3001","3002","3003","3004"];
       if (defaultPasswords.includes(pass.trim()) && !localPass) sessionStorage.setItem("force_password_change", "true");
       onLogin(account);
-    } else { setErr("كلمة المرور غير صحيحة"); }
+    } else {
+      const locked = recordFail(user.trim());
+      const secs = lockSecsRemaining(user.trim());
+      const { count } = getLockInfo(user.trim());
+      if (locked) {
+        startCountdown(secs);
+        setErr(`تم قفل الحساب لمدة 15 دقيقة بعد ${LOCK_LIMIT} محاولات فاشلة`);
+      } else {
+        setErr(`كلمة المرور غير صحيحة — محاولة ${count} من ${LOCK_LIMIT}`);
+      }
+    }
     setLoading(false);
   };
 
@@ -390,8 +454,14 @@ function LoginScreen({ onLogin, dark }) {
           <div><label className="block text-sm font-bold text-slate-200 mb-2">كلمة المرور</label>
             <div className="relative"><input type={showP?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center text-lg" placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
               <button onClick={()=>setShowP(!showP)} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">{showP?<EyeOff size={18}/>:<Eye size={18}/>}</button></div></div>
+          {lockSecs > 0 && (
+            <div className="bg-red-700/30 border border-red-500/50 text-red-200 text-sm p-3 rounded-xl flex items-center gap-2">
+              <AlertCircle size={16}/>
+              <span>الحساب مقفل — يُفتح بعد <strong className="font-mono">{fmtTime(lockSecs)}</strong></span>
+            </div>
+          )}
           {err && <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-xl flex items-center gap-2"><AlertCircle size={16}/> {err}</div>}
-          <button onClick={handleLogin} disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl transition-all text-lg">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
+          <button onClick={handleLogin} disabled={loading || lockSecs > 0} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all text-lg">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
         </div>
         <div className="mt-6 text-center text-sm text-slate-400"><p>🔑 <strong className="text-blue-300">728004</strong> | كلمة المرور: <strong className="text-blue-300">1001</strong></p></div>
       </div>
