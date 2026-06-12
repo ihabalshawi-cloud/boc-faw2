@@ -20,7 +20,7 @@
       ".read": false,
       ".write": false,
       "$id": {
-        ".read": false,
+        ".read": true,
         ".write": true
       }
     },
