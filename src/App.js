@@ -254,14 +254,31 @@ function LoginScreen({ onLogin, dark }) {
     if (!account) { setErr("الرقم الوظيفي غير موجود"); return; }
     setLoading(true);
     let isValid = false;
-    if (pass.trim() === account.password) isValid = true;
-    if (!isValid) { const sp = storage.get(`pass_${account.id}`); if (sp && pass.trim() === sp) isValid = true; }
-    if (!isValid && isConnected) { const fp = await FirebaseAPI.getPassword(account.id); if (fp && pass.trim() === fp) isValid = true; }
+
+    // Priority: local custom password > Firebase custom password > hardcoded default
+    // The hardcoded default is only accepted when NO custom password has ever been set.
+    const localPass = storage.get(`pass_${account.id}`);
+    if (localPass) {
+      // User has a custom password stored locally — only accept that, reject the old default
+      isValid = pass.trim() === localPass;
+    } else if (isConnected) {
+      const fp = await FirebaseAPI.getPassword(account.id);
+      if (fp) {
+        isValid = pass.trim() === fp;
+        if (isValid) storage.set(`pass_${account.id}`, fp); // cache for offline use
+      } else {
+        // No custom password anywhere — accept the hardcoded default
+        isValid = pass.trim() === account.password;
+      }
+    } else {
+      // Offline with no local custom password — fall back to hardcoded default
+      isValid = pass.trim() === account.password;
+    }
+
     if (isValid) {
-      if (isConnected && pass.trim() === account.password) { await FirebaseAPI.savePassword(account.id, pass.trim()); storage.set(`pass_${account.id}`, pass.trim()); }
       sessionStorage.setItem("boc_session", JSON.stringify({ acctId: account.id, expiry: Date.now() + 8 * 3600000 }));
       const defaultPasswords = ["1001","1002","1003","1004","1005","1006","1007","1008","1009","1010","1011","2001","2002","2003","2004","2005","2006","2007","2008","2009","2010","2011","2012","2013","2014","2015","2016","2017","2018","3001","3002","3003","3004"];
-      if (defaultPasswords.includes(pass.trim())) sessionStorage.setItem("force_password_change", "true");
+      if (defaultPasswords.includes(pass.trim()) && !localPass) sessionStorage.setItem("force_password_change", "true");
       onLogin(account);
     } else { setErr("كلمة المرور غير صحيحة"); }
     setLoading(false);
