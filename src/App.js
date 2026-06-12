@@ -4,9 +4,9 @@ import {
   CheckCircle, Wifi, WifiOff, FileText, Clock, Calendar,
   Bell, ThumbsUp, ThumbsDown, Plus, Trash2, Edit3, X, Users, Package,
   ClipboardList, GraduationCap, BarChart, Star,
-  Printer, Download, Search, Award, Moon, Sun, MessageSquare, 
-  CheckSquare, Mic, MicOff, AlertTriangle,
-  Send
+  Printer, Download, Search, Moon, Sun, MessageSquare,
+  CheckSquare, AlertTriangle,
+  Send, Wrench, Box, TrendingUp, TrendingDown
 } from "lucide-react";
 // No external chart library — pure SVG charts below
 
@@ -74,6 +74,25 @@ const EVAL_CRITERIA = ["الانضباط والالتزام", "جودة العم
 
 const PIE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
 const MONTHS_AR = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+
+const INITIAL_EQUIPMENT = [
+  { id:"P-001", name:"مضخة خام رئيسية 1",  type:"PUMP",       location:"محطة الضخ الرئيسية", status:"جيد",          lastMaintenance:"2024-01-15", nextMaintenance:"2024-04-15", critical:false, totalFailures:2 },
+  { id:"P-002", name:"مضخة خام رئيسية 2",  type:"PUMP",       location:"محطة الضخ الرئيسية", status:"جيد",          lastMaintenance:"2024-01-15", nextMaintenance:"2024-04-15", critical:false, totalFailures:1 },
+  { id:"P-003", name:"مضخة نقل 1",          type:"PUMP",       location:"محطة النقل",          status:"تحتاج صيانة",  lastMaintenance:"2024-02-01", nextMaintenance:"2024-03-15", critical:true,  totalFailures:4 },
+  { id:"P-004", name:"مضخة نقل 2",          type:"PUMP",       location:"محطة النقل",          status:"جيد",          lastMaintenance:"2024-02-10", nextMaintenance:"2024-05-10", critical:false, totalFailures:1 },
+  { id:"T-001", name:"خزان نفط خام 1",      type:"TANK",       location:"منطقة الخزانات",      status:"جيد",          lastMaintenance:"2024-01-20", nextMaintenance:"2024-04-20", critical:false, totalFailures:0 },
+  { id:"T-002", name:"خزان نفط خام 2",      type:"TANK",       location:"منطقة الخزانات",      status:"جيد",          lastMaintenance:"2024-01-20", nextMaintenance:"2024-04-20", critical:false, totalFailures:1 },
+  { id:"DP-001",name:"مضخة تصريف ماء 1",    type:"DRAIN_PUMP", location:"منطقة التصريف",       status:"جيد",          lastMaintenance:"2024-01-25", nextMaintenance:"2024-04-25", critical:false, totalFailures:0 },
+  { id:"DP-002",name:"مضخة تصريف ماء 2",    type:"DRAIN_PUMP", location:"منطقة التصريف",       status:"معطل",         lastMaintenance:"2024-02-20", nextMaintenance:"2024-02-28", critical:true,  totalFailures:3 },
+];
+
+const INITIAL_MAINT_SPARE_PARTS = [
+  { id:"SP-001", code:"BRG-001", name:"رولمان بلي 6204",      category:"ميكانيكية",       qty:8,  minAlert:2, unit:"قطعة", price:25, location:"الرف A1"      },
+  { id:"SP-002", code:"OIL-001", name:"زيت تشحيم (20 لتر)",   category:"مواد استهلاكية", qty:12, minAlert:3, unit:"لتر",  price:15, location:"المستودع B2"  },
+  { id:"SP-003", code:"FLT-001", name:"فلتر زيت",              category:"فلتر",            qty:5,  minAlert:2, unit:"قطعة", price:12, location:"الرف C3"      },
+];
+
+const EQ_STATUS_COLORS = { "جيد":"bg-emerald-100 text-emerald-700", "تحتاج صيانة":"bg-amber-100 text-amber-700", "تحت صيانة":"bg-blue-100 text-blue-700", "معطل":"bg-red-100 text-red-700" };
 
 // ========== الأدوات المشتركة ==========
 const storage = {
@@ -231,8 +250,8 @@ function LoginScreen({ onLogin, dark }) {
   const handleLogin = async () => {
     setErr("");
     if (!user || !pass) { setErr("أدخل الرقم الوظيفي وكلمة المرور"); return; }
-    const account = ACCOUNTS.find(a => a.jobNum === user.trim() || a.username === user.trim().toLowerCase());
-    if (!account) { setErr("اسم المستخدم أو الرقم الوظيفي غير موجود"); return; }
+    const account = ACCOUNTS.find(a => a.jobNum === user.trim());
+    if (!account) { setErr("الرقم الوظيفي غير موجود"); return; }
     setLoading(true);
     let isValid = false;
     if (pass.trim() === account.password) isValid = true;
@@ -260,15 +279,15 @@ function LoginScreen({ onLogin, dark }) {
           </div>
         </div>
         <div className="space-y-4">
-          <div><label className="block text-sm font-bold text-slate-200 mb-2">اسم المستخدم أو الرقم الوظيفي</label>
-            <input type="text" value={user} onChange={e=>setUser(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center text-lg" placeholder="i.shawi أو 728004" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/></div>
+          <div><label className="block text-sm font-bold text-slate-200 mb-2">الرقم الوظيفي</label>
+            <input type="text" value={user} onChange={e=>setUser(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center text-lg" placeholder="728004" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/></div>
           <div><label className="block text-sm font-bold text-slate-200 mb-2">كلمة المرور</label>
             <div className="relative"><input type={showP?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center text-lg" placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
               <button onClick={()=>setShowP(!showP)} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">{showP?<EyeOff size={18}/>:<Eye size={18}/>}</button></div></div>
           {err && <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-xl flex items-center gap-2"><AlertCircle size={16}/> {err}</div>}
           <button onClick={handleLogin} disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl transition-all text-lg">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
         </div>
-        <div className="mt-6 text-center text-sm text-slate-400"><p>🔑 <strong className="text-blue-300">i.shawi</strong> | كلمة المرور: <strong className="text-blue-300">1001</strong></p></div>
+        <div className="mt-6 text-center text-sm text-slate-400"><p>🔑 <strong className="text-blue-300">728004</strong> | كلمة المرور: <strong className="text-blue-300">1001</strong></p></div>
       </div>
     </div>
   );
@@ -1042,7 +1061,6 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
   useEffect(() => { storage.set("tasks_system", tasks); }, [tasks]);
 
-  const myTasks = tasks.filter(t => t.assignedTo === emp.id || (isAdmin && filter !== "الكل" ? t.status === filter : true));
   const displayed = isAdmin ? (filter==="الكل" ? tasks : tasks.filter(t=>t.status===filter)) : tasks.filter(t=>t.assignedTo===emp.id);
 
   const addTask = () => {
@@ -1128,7 +1146,6 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
 function InternalChat({ emp, isConnected }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
-  const [loading, setLoading] = useState(false);
   const bottomRef = useRef(null);
 
   const loadMessages = useCallback(async () => {
@@ -1246,31 +1263,254 @@ function EvaluationSystem({ emp, isAdmin, allEmployees }) {
   );
 }
 
-// ========== البحث الصوتي (جديد) ==========
-function VoiceSearchBar({ onSearch, placeholder = "بحث..." }) {
-  const [query, setQuery] = useState("");
-  const [listening, setListening] = useState(false);
+// ========== المعدات والصيانة ==========
+function EquipmentMaintenance() {
+  const [equipment, setEquipment] = useState(() => storage.get("equipment", INITIAL_EQUIPMENT));
+  const [records, setRecords] = useState(() => storage.get("maintenance_records", []));
+  const [selected, setSelected] = useState(null);
+  const [activeTab, setActiveTab] = useState("list");
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("الكل");
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  useEffect(() => { storage.set("equipment", equipment); }, [equipment]);
+  useEffect(() => { storage.set("maintenance_records", records); }, [records]);
 
-  const startVoice = () => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { alert("المتصفح لا يدعم البحث الصوتي"); return; }
-    const recognition = new SR();
-    recognition.lang = "ar-IQ";
-    recognition.interimResults = false;
-    recognition.onstart = () => setListening(true);
-    recognition.onresult = (e) => { const q = e.results[0][0].transcript; setQuery(q); onSearch(q); };
-    recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
-    recognition.start();
+  const filtered = equipment.filter(e => e.name.includes(search) && (filterStatus==="الكل"||e.status===filterStatus));
+
+  const requestMaintenance = () => {
+    if (!selected) return;
+    const desc = window.prompt("وصف العطل أو سبب الصيانة:");
+    if (!desc) return;
+    const rec = { id:Date.now(), equipmentId:selected.id, equipmentName:selected.name, type:"طارئة", description:desc, status:"قيد التنفيذ", requestedAt:new Date().toISOString() };
+    setRecords([rec, ...records]);
+    setEquipment(equipment.map(e => e.id===selected.id ? {...e, status:"تحت صيانة"} : e));
+    showToast("✅ تم تسجيل طلب الصيانة");
+  };
+
+  const completeMaintenance = (recordId) => {
+    const rec = records.find(r => r.id===recordId);
+    if (!rec) return;
+    setEquipment(equipment.map(e => e.id===rec.equipmentId ? {...e, status:"جيد", lastMaintenance:new Date().toISOString().slice(0,10), nextMaintenance:new Date(Date.now()+90*86400000).toISOString().slice(0,10)} : e));
+    setRecords(records.map(r => r.id===recordId ? {...r, status:"مكتملة", completedAt:new Date().toISOString()} : r));
+    showToast("✅ تم إكمال الصيانة");
   };
 
   return (
-    <div className="flex items-center gap-2 input rounded-xl px-3 py-2 flex-1">
-      <Search size={14} className="text-secondary shrink-0"/>
-      <input value={query} onChange={e=>{setQuery(e.target.value);onSearch(e.target.value);}} placeholder={placeholder} className="bg-transparent text-sm outline-none w-full"/>
-      <button onClick={startVoice} className={`p-1 rounded-lg transition-colors ${listening?"text-red-500 animate-pulse":"text-secondary hover:text-blue-500"}`}>
-        {listening ? <MicOff size={14}/> : <Mic size={14}/>}
-      </button>
+    <div className="space-y-4">
+      <div className="flex gap-2 border-b border-color pb-2">
+        <button onClick={()=>setActiveTab("list")} className={`px-4 py-2 rounded-xl text-sm font-bold ${activeTab==="list"?"bg-blue-600 text-white":"text-secondary hover:bg-hover"}`}>قائمة المعدات</button>
+        <button onClick={()=>setActiveTab("requests")} className={`px-4 py-2 rounded-xl text-sm font-bold ${activeTab==="requests"?"bg-blue-600 text-white":"text-secondary hover:bg-hover"}`}>طلبات الصيانة {records.filter(r=>r.status!=="مكتملة").length>0&&<span className="mr-1 bg-amber-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{records.filter(r=>r.status!=="مكتملة").length}</span>}</button>
+      </div>
+
+      {activeTab==="list" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <div className="flex gap-3 mb-4">
+              <div className="flex-1 flex items-center gap-2 input rounded-xl px-3 py-2"><Search size={14} className="text-secondary"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث في المعدات..." className="bg-transparent text-sm outline-none w-full"/></div>
+              <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} className="input rounded-xl px-3 py-2 text-sm"><option value="الكل">الكل</option><option value="جيد">جيد</option><option value="تحتاج صيانة">تحتاج صيانة</option><option value="تحت صيانة">تحت صيانة</option><option value="معطل">معطل</option></select>
+            </div>
+            <div className="card rounded-2xl border-color border divide-y">
+              {filtered.length===0 ? <p className="p-6 text-center text-secondary text-sm">لا توجد نتائج</p> :
+              filtered.map(eq=>(
+                <div key={eq.id} onClick={()=>setSelected(eq)} className={`p-4 hover:bg-hover cursor-pointer flex justify-between items-center transition-all ${selected?.id===eq.id?"bg-blue-50":""}`}>
+                  <div>
+                    <p className="font-bold text-sm">{eq.name} {eq.critical&&<span className="text-red-500 text-xs">🔴</span>}</p>
+                    <p className="text-xs text-secondary">{eq.location} — آخر صيانة: {eq.lastMaintenance}</p>
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${EQ_STATUS_COLORS[eq.status]||"bg-slate-100"}`}>{eq.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            {selected ? (
+              <div className="card rounded-2xl border-color border p-5 space-y-3">
+                <h3 className="font-bold">{selected.name}</h3>
+                <div className="text-sm space-y-2">
+                  <p><span className="font-bold text-secondary">الرمز:</span> {selected.id}</p>
+                  <p><span className="font-bold text-secondary">الموقع:</span> {selected.location}</p>
+                  <p><span className="font-bold text-secondary">آخر صيانة:</span> {selected.lastMaintenance}</p>
+                  <p><span className="font-bold text-secondary">الصيانة القادمة:</span> {selected.nextMaintenance}</p>
+                  <p><span className="font-bold text-secondary">عدد العطلات:</span> <span className={selected.totalFailures>2?"text-red-600 font-bold":""}>{selected.totalFailures}</span></p>
+                  {selected.critical && <p className="text-red-600 font-bold text-xs">⚠️ معدة حرجة</p>}
+                </div>
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${EQ_STATUS_COLORS[selected.status]||"bg-slate-100"}`}>{selected.status}</span>
+                <button onClick={requestMaintenance} className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold">طلب صيانة</button>
+              </div>
+            ) : (
+              <div className="card rounded-2xl border-color border p-8 text-center">
+                <Wrench size={32} className="mx-auto text-secondary mb-2"/>
+                <p className="text-secondary text-sm">اختر معدة لعرض التفاصيل</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab==="requests" && (
+        <div className="card rounded-2xl border-color border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-color bg-slate-50"><th className="p-3 text-right">المعدة</th><th className="p-3 text-right">الوصف</th><th className="p-3 text-right">تاريخ الطلب</th><th className="p-3 text-right">الحالة</th><th className="p-3"></th></tr></thead>
+              <tbody>
+                {records.length===0 ? <tr><td colSpan={5} className="text-center py-8 text-secondary">لا توجد طلبات صيانة</td></tr> :
+                records.map(r=>(
+                  <tr key={r.id} className="border-t border-color hover:bg-hover">
+                    <td className="p-3 font-bold">{r.equipmentName}</td>
+                    <td className="p-3 text-secondary text-xs max-w-[200px]">{r.description}</td>
+                    <td className="p-3 text-xs text-secondary">{new Date(r.requestedAt).toLocaleDateString("ar-IQ")}</td>
+                    <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.status==="مكتملة"?"bg-emerald-100 text-emerald-700":r.status==="قيد التنفيذ"?"bg-amber-100 text-amber-700":"bg-blue-100 text-blue-700"}`}>{r.status}</span></td>
+                    <td className="p-3">{r.status!=="مكتملة"&&<button onClick={()=>completeMaintenance(r.id)} className="px-2 py-1 bg-emerald-600 text-white rounded text-xs">إكمال</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+    </div>
+  );
+}
+
+// ========== قطع غيار الصيانة ==========
+function MaintenanceParts() {
+  const [parts, setParts] = useState(() => storage.get("maint_spare_parts", INITIAL_MAINT_SPARE_PARTS));
+  const [search, setSearch] = useState("");
+  const [filterCat, setFilterCat] = useState("الكل");
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ code:"", name:"", category:"ميكانيكية", qty:0, minAlert:1, unit:"قطعة", price:0, location:"" });
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  useEffect(() => { storage.set("maint_spare_parts", parts); }, [parts]);
+
+  const categories = ["الكل", ...new Set(parts.map(p => p.category))];
+  const filtered = parts.filter(p => (p.name.includes(search)||p.code.includes(search)) && (filterCat==="الكل"||p.category===filterCat));
+  const lowStock = parts.filter(p => p.qty <= p.minAlert);
+
+  const addPart = () => {
+    if (!form.name || !form.code) return showToast("الاسم والرمز مطلوبان");
+    setParts([...parts, { ...form, id:"SP-"+Date.now() }]);
+    setShowForm(false);
+    setForm({ code:"", name:"", category:"ميكانيكية", qty:0, minAlert:1, unit:"قطعة", price:0, location:"" });
+    showToast("✅ تم الإضافة");
+  };
+  const updateQty = (id, delta) => setParts(parts.map(p => p.id===id ? {...p, qty:Math.max(0,p.qty+delta)} : p));
+
+  return (
+    <div className="space-y-4">
+      {lowStock.length>0 && <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-2"><AlertTriangle size={16} className="text-amber-600 shrink-0"/><div><p className="text-xs font-bold text-amber-800">مخزون منخفض ({lowStock.length} صنف)</p><p className="text-xs text-amber-700">{lowStock.map(p=>p.name).join(" • ")}</p></div></div>}
+      <div className="flex gap-3">
+        <div className="flex-1 flex items-center gap-2 input rounded-xl px-3 py-2"><Search size={14} className="text-secondary"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
+        <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select>
+        <button onClick={()=>{setShowForm(true);setForm({code:"",name:"",category:"ميكانيكية",qty:0,minAlert:1,unit:"قطعة",price:0,location:""});}} className="px-4 py-2 bg-blue-600 text-white rounded-xl flex items-center gap-1.5 text-sm font-bold"><Plus size={14}/> إضافة</button>
+      </div>
+
+      {showForm && (
+        <div className="card rounded-2xl border-2 border-blue-200 p-5">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[["الرمز","code"],["الاسم","name"],["الوحدة","unit"],["الموقع","location"]].map(([l,k])=>(
+              <div key={k}><label className="block text-[10px] font-bold text-secondary mb-1">{l}</label><input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+            ))}
+            <div><label className="block text-[10px] font-bold text-secondary mb-1">الفئة</label><select value={form.category} onChange={e=>setForm({...form,category:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"><option>ميكانيكية</option><option>كهربائية</option><option>مواد استهلاكية</option><option>فلتر</option></select></div>
+            <div><label className="block text-[10px] font-bold text-secondary mb-1">الكمية</label><input type="number" value={form.qty} onChange={e=>setForm({...form,qty:Number(e.target.value)})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+            <div><label className="block text-[10px] font-bold text-secondary mb-1">حد التنبيه</label><input type="number" value={form.minAlert} onChange={e=>setForm({...form,minAlert:Number(e.target.value)})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+            <div><label className="block text-[10px] font-bold text-secondary mb-1">السعر ($)</label><input type="number" value={form.price} onChange={e=>setForm({...form,price:Number(e.target.value)})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+          </div>
+          <div className="flex gap-2 justify-end mt-4"><button onClick={()=>setShowForm(false)} className="px-4 py-2 text-sm btn-secondary rounded-xl border">إلغاء</button><button onClick={addPart} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl">حفظ</button></div>
+        </div>
+      )}
+
+      <div className="card rounded-2xl border-color border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-color bg-slate-50"><th className="px-3 py-2 text-right">الرمز</th><th className="px-3 py-2 text-right">الاسم</th><th className="px-3 py-2 text-right">الفئة</th><th className="px-3 py-2 text-right">الكمية</th><th className="px-3 py-2 text-right">الحد</th><th className="px-3 py-2 text-right">السعر</th><th className="px-3 py-2 text-right">الموقع</th><th className="px-3 py-2"></th></tr></thead>
+            <tbody>
+              {filtered.map(p=>(
+                <tr key={p.id} className={`border-t border-color hover:bg-hover ${p.qty<=p.minAlert?"bg-amber-50/30":""}`}>
+                  <td className="px-3 py-2 font-mono text-xs">{p.code}</td>
+                  <td className="px-3 py-2">{p.name} {p.qty<=p.minAlert&&<span className="text-amber-500">⚠️</span>}</td>
+                  <td className="px-3 py-2 text-xs">{p.category}</td>
+                  <td className="px-3 py-2"><div className="flex items-center gap-1"><button onClick={()=>updateQty(p.id,-1)} className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs font-bold">-</button><span className="w-8 text-center font-bold">{p.qty}</span><button onClick={()=>updateQty(p.id,1)} className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs font-bold">+</button></div></td>
+                  <td className="px-3 py-2 text-xs">{p.minAlert} {p.unit}</td>
+                  <td className="px-3 py-2 text-xs">${p.price}</td>
+                  <td className="px-3 py-2 text-xs text-secondary">{p.location}</td>
+                  <td className="px-3 py-2"><button onClick={()=>{if(window.confirm("حذف؟"))setParts(parts.filter(x=>x.id!==p.id));}} className="p-1 text-red-400 hover:text-red-600"><Trash2 size={13}/></button></td>
+                </tr>
+              ))}
+              {filtered.length===0 && <tr><td colSpan={8} className="text-center py-8 text-secondary">لا توجد نتائج</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+    </div>
+  );
+}
+
+// ========== تقارير الصيانة ==========
+function MaintenanceAnalytics() {
+  const equipment = storage.get("equipment", INITIAL_EQUIPMENT);
+  const parts     = storage.get("maint_spare_parts", INITIAL_MAINT_SPARE_PARTS);
+  const records   = storage.get("maintenance_records", []);
+  const totalCost  = equipment.reduce((s, e) => s + (e.maintenanceCost || 300), 0);
+  const partsValue = parts.reduce((s, p) => s + (p.price * p.qty), 0);
+  const mostFailing = [...equipment].sort((a, b) => b.totalFailures - a.totalFailures).slice(0, 3);
+  const byStatus = [
+    { name:"جيد",          value:equipment.filter(e=>e.status==="جيد").length },
+    { name:"يحتاج صيانة",  value:equipment.filter(e=>e.status==="تحتاج صيانة").length },
+    { name:"تحت صيانة",    value:equipment.filter(e=>e.status==="تحت صيانة").length },
+    { name:"معطل",         value:equipment.filter(e=>e.status==="معطل").length },
+  ].filter(x=>x.value>0);
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-4 text-white"><div className="flex justify-between items-center"><Wrench size={20}/><span className="text-3xl font-bold">{equipment.length}</span></div><p className="text-xs mt-2 opacity-90">إجمالي المعدات</p></div>
+        <div className="bg-gradient-to-r from-red-500 to-red-600 rounded-2xl p-4 text-white"><div className="flex justify-between items-center"><AlertTriangle size={20}/><span className="text-3xl font-bold">{equipment.filter(e=>e.critical).length}</span></div><p className="text-xs mt-2 opacity-90">معدات حرجة</p></div>
+        <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-2xl p-4 text-white"><div className="flex justify-between items-center"><Clock size={20}/><span className="text-3xl font-bold">{equipment.filter(e=>new Date(e.nextMaintenance)<=new Date()).length}</span></div><p className="text-xs mt-2 opacity-90">صيانة مستحقة</p></div>
+        <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl p-4 text-white"><div className="flex justify-between items-center"><Box size={20}/><span className="text-3xl font-bold">{parts.length}</span></div><p className="text-xs mt-2 opacity-90">قطع غيار</p></div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="card rounded-2xl p-5 border-color border">
+          <h3 className="font-bold mb-4 flex items-center gap-2"><TrendingUp size={18}/> تحليل التكاليف</h3>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center p-3 bg-blue-50 rounded-xl"><span className="text-sm">إجمالي تكاليف الصيانة (تقديري)</span><span className="text-xl font-bold text-blue-600">${totalCost.toLocaleString()}</span></div>
+            <div className="flex justify-between items-center p-3 bg-amber-50 rounded-xl"><span className="text-sm">قيمة قطع الغيار</span><span className="text-xl font-bold text-amber-600">${partsValue.toLocaleString()}</span></div>
+            <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-xl"><span className="text-sm">طلبات صيانة مكتملة</span><span className="text-xl font-bold text-emerald-600">{records.filter(r=>r.status==="مكتملة").length}</span></div>
+          </div>
+        </div>
+
+        <div className="card rounded-2xl p-5 border-color border">
+          <h3 className="font-bold mb-4 flex items-center gap-2"><TrendingDown size={18}/> أكثر المعدات عطلاً</h3>
+          <div className="space-y-2">
+            {mostFailing.map((e, idx)=>(
+              <div key={e.id} className="flex justify-between items-center p-2 border-b border-color last:border-0">
+                <div className="flex items-center gap-2"><span className="text-base">{idx===0?"🥇":idx===1?"🥈":"🥉"}</span><span className="text-sm">{e.name}</span></div>
+                <span className={`font-bold text-sm ${e.totalFailures>2?"text-red-600":"text-amber-600"}`}>{e.totalFailures} عطل</span>
+              </div>
+            ))}
+            {mostFailing.length===0 && <p className="text-center text-secondary text-sm py-4">لا توجد بيانات</p>}
+          </div>
+        </div>
+
+        <div className="card rounded-2xl p-5 border-color border">
+          <h3 className="font-bold mb-4 flex items-center gap-2"><BarChart size={18}/> توزيع حالة المعدات</h3>
+          <SVGPieChart data={byStatus} colors={["#10b981","#f59e0b","#3b82f6","#ef4444"]} height={160} donut={true}/>
+        </div>
+
+        <div className="card rounded-2xl p-5 border-color border">
+          <h3 className="font-bold mb-4 flex items-center gap-2"><AlertCircle size={18}/> توصيات</h3>
+          <div className="space-y-3">
+            {equipment.filter(e=>e.critical&&e.status!=="جيد").length>0 && <div className="p-3 bg-red-50 rounded-xl border border-red-100"><p className="font-bold text-red-700 text-sm">⚠️ أولوية عالية</p><p className="text-xs text-red-600 mt-1">معدات حرجة تحتاج صيانة فورية</p></div>}
+            {parts.filter(p=>p.qty<=p.minAlert).length>0 && <div className="p-3 bg-amber-50 rounded-xl border border-amber-100"><p className="font-bold text-amber-700 text-sm">📦 مخزون قطع الغيار</p><p className="text-xs text-amber-600 mt-1">يوجد {parts.filter(p=>p.qty<=p.minAlert).length} صنف بمخزون منخفض</p></div>}
+            {equipment.filter(e=>new Date(e.nextMaintenance)<=new Date()).length>0 && <div className="p-3 bg-blue-50 rounded-xl border border-blue-100"><p className="font-bold text-blue-700 text-sm">🗓️ صيانة مستحقة</p><p className="text-xs text-blue-600 mt-1">{equipment.filter(e=>new Date(e.nextMaintenance)<=new Date()).length} معدة تجاوزت موعد صيانتها</p></div>}
+            {[...Array(3)].every(()=>true) && equipment.filter(e=>e.critical&&e.status!=="جيد").length===0 && parts.filter(p=>p.qty<=p.minAlert).length===0 && equipment.filter(e=>new Date(e.nextMaintenance)<=new Date()).length===0 && <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100"><p className="font-bold text-emerald-700 text-sm">✅ الوضع جيد</p><p className="text-xs text-emerald-600 mt-1">لا توجد تنبيهات حرجة حالياً</p></div>}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1316,6 +1556,9 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
     { id:"tasks", label:"المهام", icon:<CheckSquare size={17}/> },
     { id:"inventory", label:"جرد الآلات الدقيقة", icon:<Package size={17}/> },
     { id:"furniture", label:"جرد الأثاث 2025", icon:<ClipboardList size={17}/> },
+    { id:"maint_equipment", label:"المعدات والصيانة", icon:<Wrench size={17}/> },
+    { id:"maint_parts",    label:"قطع غيار الصيانة", icon:<Box size={17}/> },
+    { id:"maint_reports",  label:"تقارير الصيانة",   icon:<TrendingUp size={17}/> },
     { id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> },
     { id:"evaluation", label:"التقييم", icon:<Star size={17}/> },
     { id:"notifications", label:"الإشعارات", icon:<Bell size={17}/>, badge:unreadNotifs },
@@ -1369,14 +1612,111 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
         {/* Main */}
         <main className="flex-1 p-5">
           {view==="home" && (
-            <div className="space-y-5">
+            <div className="space-y-6">
+              {/* Welcome */}
               <div className="card rounded-2xl p-6 border-color border">
-                <div className="flex items-center gap-4"><div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center"><User size={28} className="text-white"/></div>
-                  <div><h2 className="text-xl font-bold">مرحباً، {emp.name.split(" ")[0]}</h2><p className="text-secondary text-sm">{emp.title} — {emp.dept}</p><p className="text-secondary text-xs">{new Date().toLocaleDateString("ar-IQ",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p></div>
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center"><User size={28} className="text-white"/></div>
+                  <div>
+                    <h2 className="text-xl font-bold">مرحباً، {emp.name.split(" ")[0]}</h2>
+                    <p className="text-secondary text-sm">{emp.title} — {emp.dept}</p>
+                    <p className="text-secondary text-xs">{new Date().toLocaleDateString("ar-IQ",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p>
+                  </div>
                 </div>
               </div>
-              {/* Quick Stats */}
-              <AnalyticsDashboard employees={employees} allRequests={allRequests} />
+
+              {/* ═══ قسم إدارة الموارد البشرية ═══ */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-5 w-1 bg-blue-600 rounded-full"/>
+                  <h3 className="font-bold text-base">إدارة الموارد البشرية والمستودع</h3>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {[
+                    { label:"إجمالي الموظفين",  value:employees.length,                                                        icon:<Users size={22}/>,        color:"from-blue-500 to-blue-600",    action:()=>setView("employees") },
+                    { label:"طلبات معلقة",       value:allRequests.filter(r=>r.status==="بانتظار المراجعة").length,             icon:<Clock size={22}/>,         color:"from-amber-500 to-amber-600",  action:()=>setView(isAdmin?"approvals":"requests") },
+                    { label:"طلبات مقبولة",      value:allRequests.filter(r=>r.status==="موافق عليها").length,                  icon:<CheckCircle size={22}/>,   color:"from-emerald-500 to-emerald-600", action:()=>setView("requests") },
+                    { label:"مخزون الآلات",      value:storage.get("inventory_items",[]).length,                               icon:<Package size={22}/>,       color:"from-violet-500 to-violet-600",  action:()=>setView("inventory") },
+                    { label:"مخزون منخفض",       value:storage.get("inventory_items",[]).filter(i=>i.qty<=(i.minQty||3)).length, icon:<AlertTriangle size={22}/>, color:"from-red-500 to-red-600",       action:()=>setView("inventory") },
+                    { label:"مهام نشطة",         value:storage.get("tasks",[]).filter(t=>t.status!=="مكتملة").length,           icon:<CheckSquare size={22}/>,   color:"from-indigo-500 to-indigo-600",  action:()=>setView("tasks") },
+                  ].map((k,i)=>(
+                    <button key={i} onClick={k.action} className={`bg-gradient-to-r ${k.color} rounded-2xl p-4 text-white text-right hover:opacity-90 transition-opacity`}>
+                      <div className="flex items-center justify-between">{k.icon}<p className="text-3xl font-bold">{k.value}</p></div>
+                      <p className="text-sm mt-2 text-white/80">{k.label}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ═══ قسم الصيانة ═══ */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-5 w-1 bg-orange-500 rounded-full"/>
+                  <h3 className="font-bold text-base">إدارة الصيانة والمعدات</h3>
+                </div>
+                {(() => {
+                  const eq   = storage.get("equipment", INITIAL_EQUIPMENT);
+                  const prts = storage.get("maint_spare_parts", INITIAL_MAINT_SPARE_PARTS);
+                  const recs = storage.get("maintenance_records", []);
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {[
+                        { label:"إجمالي المعدات",   value:eq.length,                                                      icon:<Wrench size={22}/>,        color:"from-blue-600 to-blue-700",    action:()=>setView("maint_equipment") },
+                        { label:"معدات حرجة",        value:eq.filter(e=>e.critical).length,                               icon:<AlertTriangle size={22}/>,  color:"from-red-600 to-red-700",       action:()=>setView("maint_equipment") },
+                        { label:"صيانة مستحقة",      value:eq.filter(e=>new Date(e.nextMaintenance)<=new Date()).length,  icon:<Clock size={22}/>,          color:"from-amber-600 to-amber-700",   action:()=>setView("maint_equipment") },
+                        { label:"طلبات قيد التنفيذ", value:recs.filter(r=>r.status!=="مكتملة").length,                   icon:<CheckCircle size={22}/>,    color:"from-orange-500 to-orange-600", action:()=>setView("maint_equipment") },
+                        { label:"قطع الغيار",        value:prts.length,                                                    icon:<Box size={22}/>,            color:"from-emerald-600 to-emerald-700",action:()=>setView("maint_parts") },
+                        { label:"مخزون قطع منخفض",  value:prts.filter(p=>p.qty<=p.minAlert).length,                     icon:<AlertTriangle size={22}/>,  color:"from-rose-500 to-rose-600",     action:()=>setView("maint_parts") },
+                        { label:"صيانة مكتملة",      value:recs.filter(r=>r.status==="مكتملة").length,                   icon:<CheckCircle size={22}/>,    color:"from-teal-500 to-teal-600",     action:()=>setView("maint_reports") },
+                        { label:"معدات جيدة",        value:eq.filter(e=>e.status==="جيد").length,                        icon:<Wrench size={22}/>,         color:"from-cyan-500 to-cyan-600",     action:()=>setView("maint_equipment") },
+                      ].map((k,i)=>(
+                        <button key={i} onClick={k.action} className={`bg-gradient-to-r ${k.color} rounded-2xl p-4 text-white text-right hover:opacity-90 transition-opacity`}>
+                          <div className="flex items-center justify-between">{k.icon}<p className="text-3xl font-bold">{k.value}</p></div>
+                          <p className="text-sm mt-2 text-white/80">{k.label}</p>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* ═══ أحدث الطلبات والصيانة جنباً إلى جنب ═══ */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* آخر طلبات الإجازة */}
+                <div className="card rounded-2xl border-color border p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-bold text-sm flex items-center gap-1.5"><FileText size={15}/> آخر طلبات الإجازة</h4>
+                    <button onClick={()=>setView(isAdmin?"approvals":"requests")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
+                  </div>
+                  {allRequests.length===0 ? <p className="text-secondary text-xs text-center py-4">لا توجد طلبات</p> :
+                  allRequests.slice(0,4).map(r=>(
+                    <div key={r.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 text-xs">
+                      <span className="font-medium">{r.empName?.split(" ").slice(0,2).join(" ")}</span>
+                      <span className="text-secondary">{r.type} — {r.days} يوم</span>
+                      <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] ${r.status==="موافق عليها"?"bg-emerald-100 text-emerald-700":r.status==="مرفوضة"?"bg-red-100 text-red-700":"bg-amber-100 text-amber-700"}`}>{r.status}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* آخر طلبات الصيانة */}
+                <div className="card rounded-2xl border-color border p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-bold text-sm flex items-center gap-1.5"><Wrench size={15}/> آخر طلبات الصيانة</h4>
+                    <button onClick={()=>setView("maint_equipment")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
+                  </div>
+                  {(() => {
+                    const recs = storage.get("maintenance_records",[]);
+                    return recs.length===0 ? <p className="text-secondary text-xs text-center py-4">لا توجد طلبات صيانة</p> :
+                    recs.slice(0,4).map(r=>(
+                      <div key={r.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 text-xs">
+                        <span className="font-medium truncate max-w-[120px]">{r.equipmentName}</span>
+                        <span className="text-secondary">{new Date(r.requestedAt).toLocaleDateString("ar-IQ")}</span>
+                        <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] ${r.status==="مكتملة"?"bg-emerald-100 text-emerald-700":"bg-amber-100 text-amber-700"}`}>{r.status}</span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
             </div>
           )}
           {view==="analytics" && <AnalyticsDashboard employees={employees} allRequests={allRequests}/>}
@@ -1386,6 +1726,9 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           {view==="tasks" && <TasksSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>}
           {view==="inventory" && <InventorySystem/>}
           {view==="furniture" && <FurnitureInventory/>}
+          {view==="maint_equipment" && <EquipmentMaintenance/>}
+          {view==="maint_parts" && <MaintenanceParts/>}
+          {view==="maint_reports" && <MaintenanceAnalytics/>}
           {view==="chat" && <InternalChat emp={emp} isConnected={isConnected}/>}
           {view==="evaluation" && <EvaluationSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>}
           {view==="notifications" && <NotificationsPage emp={emp}/>}
