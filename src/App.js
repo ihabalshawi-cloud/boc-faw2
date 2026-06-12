@@ -428,15 +428,17 @@ function LoginScreen({ onLogin, dark }) {
           isValid = inputHash === initH;
           if (isValid) passStore.set(`pass_${account.id}`, initH); // احفظ للجلسات القادمة
         } else {
-          // احتياطي نهائي: كلمة المرور الافتراضية في الكود
-          isValid = pass.trim() === (account.password || "");
-          if (isValid) passStore.set(`pass_${account.id}`, inputHash); // حوّل لـ hash وخزّن
+          // احتياطي نهائي: ابحث في ACCOUNTS (الحساب من Firebase لا يحتوي password)
+          const def = (ACCOUNTS.find(a => a.jobNum === user.trim()) || account).password || "";
+          isValid = pass.trim() === def;
+          if (isValid) passStore.set(`pass_${account.id}`, inputHash);
         }
       }
     } else {
       // غير متصل — الاحتياطي المحلي
-      isValid = pass.trim() === (account.password || "");
-      if (isValid) passStore.set(`pass_${account.id}`, inputHash); // حوّل لـ hash وخزّن
+      const def = (ACCOUNTS.find(a => a.jobNum === user.trim()) || account).password || "";
+      isValid = pass.trim() === def;
+      if (isValid) passStore.set(`pass_${account.id}`, inputHash);
     }
 
     if (isValid) {
