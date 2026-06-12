@@ -59,10 +59,23 @@ const storage = {
   get: (key, def = null) => { try { const i = localStorage.getItem(key); return i ? JSON.parse(i) : def; } catch { return def; } },
   set: (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch { return false; } }
 };
-// كلمات المرور المحلية في sessionStorage (تُمسح عند إغلاق المتصفح)
+// كلمات المرور: sessionStorage للجلسة الحالية + localStorage للاستمرارية
 const passStore = {
-  get: (key) => { try { const i = sessionStorage.getItem(key); return i ? JSON.parse(i) : null; } catch { return null; } },
-  set: (key, val) => { try { sessionStorage.setItem(key, JSON.stringify(val)); return true; } catch { return false; } }
+  get: (key) => {
+    try {
+      const s = sessionStorage.getItem(key);
+      if (s) return JSON.parse(s);
+      const l = localStorage.getItem(key);
+      return l ? JSON.parse(l) : null;
+    } catch { return null; }
+  },
+  set: (key, val) => {
+    try {
+      sessionStorage.setItem(key, JSON.stringify(val));
+      localStorage.setItem(key, JSON.stringify(val));
+      return true;
+    } catch { return false; }
+  }
 };
 
 // SHA-256 عبر Web Crypto API (مدمج في المتصفح — لا مكتبات خارجية)
@@ -372,14 +385,17 @@ function LoginScreen({ onLogin, dark }) {
         const initH = await FirebaseAPI.fetchInitHash(user.trim());
         if (initH) {
           isValid = inputHash === initH;
+          if (isValid) passStore.set(`pass_${account.id}`, initH); // احفظ للجلسات القادمة
         } else {
           // احتياطي نهائي: كلمة المرور الافتراضية في الكود
           isValid = pass.trim() === (account.password || "");
+          if (isValid) passStore.set(`pass_${account.id}`, inputHash); // حوّل لـ hash وخزّن
         }
       }
     } else {
       // غير متصل — الاحتياطي المحلي
       isValid = pass.trim() === (account.password || "");
+      if (isValid) passStore.set(`pass_${account.id}`, inputHash); // حوّل لـ hash وخزّن
     }
 
     if (isValid) {
