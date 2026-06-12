@@ -16,47 +16,7 @@ const LOW_STOCK_THRESHOLD = 3;
 
 // ⚠️ بيانات المستخدمين — سري للاستخدام الرسمي فقط
 // المشرف والمخول الوحيد: ايهاب الشاوي (i.shawi)
-const ACCOUNTS = [
-  // ══ موظفو الدوام الصباحي ══
-  {id:1,  username:"i.shawi",    jobNum:"728004", password:"1001", name:"ايهاب عبد اللطيف عودة سلمان الشاوي",        title:"ر. مهندسين",    dept:"قسم السيطرة والنظم",  shift:"صباحي", role:"admin"},
-  {id:2,  username:"o.rubaie",   jobNum:"727466", password:"1002", name:"عدي فيصل عبد الهادي عبد السيد الربيعه",     title:"ر. مهندسين",    dept:"قسم السيطرة والنظم",  shift:"صباحي"},
-  {id:3,  username:"om.miyahi",  jobNum:"737283", password:"1003", name:"عمر طاهر خزعل سبهان المياحي",               title:"م.ر. مهندسين",  dept:"قسم السيطرة والنظم",  shift:"صباحي"},
-  {id:4,  username:"l.rubaie",   jobNum:"756571", password:"1004", name:"ليث شاكر حمود زعيتر الربيعه",               title:"معاون مهندس",   dept:"قسم السيطرة والنظم",  shift:"صباحي"},
-  {id:5,  username:"as.nassari", jobNum:"790850", password:"1005", name:"اسعد عبد الامام يوسف حميد النصاري",         title:"م.مدير فني",    dept:"شعبة مستودع الفاو",   shift:"صباحي"},
-  {id:6,  username:"sb.nassari", jobNum:"758795", password:"1006", name:"صباح عبد الامام يوسف حميد النصاري",         title:"م.مدير فني",    dept:"شعبة مستودع الفاو",   shift:"صباحي"},
-  {id:7,  username:"a.amir",     jobNum:"719242", password:"1007", name:"احمد محمود عبد القادر عبد الكريم الامير",   title:"مدير فني",      dept:"قسم السيطرة والنظم",  shift:"صباحي"},
-  {id:8,  username:"m.mansouri", jobNum:"790869", password:"1008", name:"محمود كاظم هاشم محمد المنصوري",             title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"صباحي"},
-  {id:9,  username:"m.tamimi",   jobNum:"790885", password:"1009", name:"محمد عبد الكاظم جاسم محمد التميمي",         title:"محاسب اقدم",    dept:"قسم السيطرة والنظم",  shift:"صباحي", role:"inventory_manager"},
-  {id:10, username:"m.ali",      jobNum:"813877", password:"1010", name:"محمد اسماعيل احمد رمضان العلي",             title:"مهندس",         dept:"قسم السيطرة والنظم",  shift:"صباحي"},
-  {id:11, username:"al.miyahi",  jobNum:"439193", password:"1011", name:"علي طاهر خزعل سبهان المياحي",               title:"حرفي اقدم",     dept:"شعبة المرافئ",         shift:"صباحي"},
-  // ══ موظفو المناوبة — المجموعة A ══
-  {id:12, username:"ab.abbada",  jobNum:"701130", password:"2001", name:"عبدالله علي زباري",                         title:"م.مدير فني",    dept:"شعبة مستودع الفاو",   shift:"مناوبة", group:"A"},
-  {id:13, username:"am.ali",     jobNum:"751480", password:"2002", name:"امين حميد فاضل حسين العلي",                 title:"م.مدير فني",    dept:"شعبة مستودع الفاو",   shift:"مناوبة", group:"A"},
-  {id:14, username:"h.abadi",    jobNum:"719269", password:"2003", name:"حسين علي احمد قاسم عبادي",                  title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"A"},
-  {id:15, username:"j.hussain",  jobNum:"719498", password:"2004", name:"جاسم مزعل حاتم ديوان الحسين",               title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"A"},
-  {id:16, username:"b.faris",    jobNum:"719277", password:"2005", name:"باسم هاشم جاسم هاشم الفارس",                title:"م.مدير فني",    dept:"شعبة المرافئ",         shift:"مناوبة", group:"A"},
-  // ══ موظفو المناوبة — المجموعة B ══
-  {id:17, username:"h.shnawa",   jobNum:"719293", password:"2006", name:"هاشم جابر جعفر شناوة عباس",                 title:"م.مدير فني",    dept:"شعبة المرافئ",         shift:"مناوبة", group:"B"},
-  {id:18, username:"ab.eissa",   jobNum:"719463", password:"2007", name:"عبد الحميد سامي موسى بدر العيسى",           title:"مدير فني",      dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"B"},
-  {id:19, username:"ih.dawod",   jobNum:"736732", password:"2008", name:"احسان عبد الصمد داود",                      title:"مدير فني",      dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"B"},
-  {id:20, username:"al.jafar",   jobNum:"719048", password:"2009", name:"علاء محسن عذبي جعفر الجعفر",                title:"مدير فني",      dept:"شعبة مستودع الفاو",   shift:"مناوبة", group:"B"},
-  // ══ موظفو المناوبة — المجموعة C ══
-  {id:21, username:"al.aidani",  jobNum:"735922", password:"2010", name:"علي طارق ياسين مهودر العيداني",             title:"م.ر. مهندسين",  dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"C"},
-  {id:22, username:"al.ali",     jobNum:"732249", password:"2011", name:"علي باقر حنتوش مليس العلي",                 title:"م.ر. مبرمجين",  dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"C"},
-  {id:23, username:"y.yaseen",   jobNum:"726508", password:"2012", name:"يوسف عباس ياسين احمد ياسين",                title:"مدير فني",      dept:"شعبة مستودع الفاو",   shift:"مناوبة", group:"C"},
-  {id:24, username:"dh.ghanim",  jobNum:"719129", password:"2013", name:"ضياء بدر حمادي اسماعيل الغانم",             title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"C"},
-  {id:25, username:"ad.atiya",   jobNum:"719099", password:"2014", name:"عدنان جواد كاظم جعفر العطية",               title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"C"},
-  // ══ موظفو المناوبة — المجموعة D ══
-  {id:26, username:"ih.saleem",  jobNum:"732834", password:"2015", name:"احسان جواد كاظم حسين السليم",               title:"مهندس",         dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"D"},
-  {id:27, username:"h.jasim",    jobNum:"724939", password:"2016", name:"حيدر عبد الحسن خضير جاسم",                  title:"مدير فني",      dept:"شعبة المرافئ",         shift:"مناوبة", group:"D"},
-  {id:28, username:"w.mahsen",   jobNum:"718939", password:"2017", name:"واثق حسين عبد الشيخ حسن المحسن",            title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"D"},
-  {id:29, username:"sd.eissa",   jobNum:"719005", password:"2018", name:"صدام عبد الواحد سلمان عيسى العيسى",         title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"D"},
-  // ══ موظفو العقد ══
-  {id:30, username:"ab.mouni",   jobNum:"690414", password:"3001", name:"عبد الله عيسى موسى موني",                   title:"عقد",           dept:"قسم السيطرة والنظم",  shift:"صباحي"},
-  {id:31, username:"ab.eissa2",  jobNum:"689766", password:"3002", name:"اباذر صالح عبد الحسين عيسى",               title:"عقد",           dept:"قسم السيطرة والنظم",  shift:"صباحي", role:"attendance_admin"},
-  {id:32, username:"h.omran",    jobNum:"690174", password:"3003", name:"حسن عادل عمران يوسف",                       title:"عقد",           dept:"قسم السيطرة والنظم",  shift:"صباحي", role:"attendance_admin"},
-  {id:33, username:"sj.ali",     jobNum:"689331", password:"3004", name:"سجاد علي راضي علي",                         title:"عقد",           dept:"قسم السيطرة والنظم",  shift:"صباحي", role:"attendance_admin"},
-];
+
 
 const LEAVE_TYPES = {
   اعتيادية: { label: "إجازة اعتيادية", max: 30, color: "bg-blue-100 text-blue-700" },
