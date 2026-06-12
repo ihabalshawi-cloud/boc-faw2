@@ -1,0 +1,32 @@
+{
+  "rules": {
+    "accounts": {
+      ".read": false,
+      ".write": false,
+      "$jobNum": {
+        ".read": true,
+        ".write": false
+      }
+    },
+    "init_hashes": {
+      ".read": false,
+      ".write": false,
+      "$jobNum": {
+        ".read": true,
+        ".write": false
+      }
+    },
+    "passwords": {
+      ".read": false,
+      ".write": false,
+      "$id": {
+        ".read": false,
+        ".write": true
+      }
+    },
+    "chat": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}
