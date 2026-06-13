@@ -1997,7 +1997,7 @@ function HealthInsuranceForm({ emp }) {
   const STORAGE_KEY = `health_ins_${emp.id}`;
   const toast = useToast();
 
-  const emptyRow = (i) => ({ id:i, beneficiary:"", date:"", procedure:"", opType:"", amount:"", envelope:"", sequence:"" });
+  const emptyRow = (i) => ({ id:i, beneficiary:"", date:"", procedure:"", amount:"", opLarge:"", opMedium:"", opSmall:"" });
   const [phone, setPhone] = useState("");
   const [marital, setMarital] = useState("متزوج");
   const [month, setMonth] = useState(now.getMonth());
@@ -2057,9 +2057,9 @@ function HealthInsuranceForm({ emp }) {
         <td class="td-name">${r.beneficiary||""}</td>
         <td class="td-date">${r.date||""}</td>
         ${PROC_RTL.map(pt=>`<td class="td-amt">${r.procedure===pt?(r.amount||"✓"):""}</td>`).join("")}
-        <td>${r.opType||""}</td>
-        <td>${r.envelope||""}</td>
-        <td>${r.sequence||""}</td>
+        <td>${r.opLarge||""}</td>
+        <td>${r.opMedium||""}</td>
+        <td>${r.opSmall||""}</td>
       </tr>`).join("");
     const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/>
 <title>استمارة طلب التعويض للموظفين</title>
@@ -2127,11 +2127,14 @@ function HealthInsuranceForm({ emp }) {
       <th rowspan="2" style="width:38mm">اسم المنتفع</th>
       <th rowspan="2" style="width:18mm">تاريخ المراجعة</th>
       <th colspan="12" style="font-size:8.5pt;background:#c8d8ee">نوع الإجراء الطبي</th>
-      <th rowspan="2" style="width:15mm">نوع العملية</th>
-      <th rowspan="2" style="width:13mm">رقم الظرف</th>
-      <th rowspan="2" style="width:11mm">التسلسل</th>
+      <th colspan="3" style="font-size:8.5pt;background:#c8d8ee">نوع العملية</th>
     </tr>
-    <tr>${procHeadCols}</tr>
+    <tr>
+      ${procHeadCols}
+      <th style="width:16mm"><div class="th-vert">العمليات فوق الكبرى</div></th>
+      <th style="width:16mm"><div class="th-vert">العمليات الوسطى</div></th>
+      <th style="width:16mm"><div class="th-vert">العمليات الصغرى</div></th>
+    </tr>
   </thead>
   <tbody>${dataRows}</tbody>
 </table>
@@ -2222,14 +2225,17 @@ function HealthInsuranceForm({ emp }) {
           <table className="w-full text-xs" dir="rtl">
             <thead>
               <tr className="bg-gradient-to-r from-blue-700 to-blue-600 text-white">
-                <th className="px-2 py-2.5 text-center w-8">ت</th>
-                <th className="px-2 py-2.5 text-right min-w-[130px]">اسم المنتفع</th>
-                <th className="px-2 py-2.5 text-right min-w-[115px]">تاريخ المراجعة</th>
-                <th className="px-2 py-2.5 text-right min-w-[170px]">نوع الإجراء الطبي</th>
-                <th className="px-2 py-2.5 text-right min-w-[95px]">المبلغ (دينار)</th>
-                <th className="px-2 py-2.5 text-right min-w-[110px]">نوع العملية</th>
-                <th className="px-2 py-2.5 text-right min-w-[80px]">رقم الظرف</th>
-                <th className="px-2 py-2.5 text-right min-w-[70px]">التسلسل</th>
+                <th rowSpan={2} className="px-2 py-2.5 text-center w-8">ت</th>
+                <th rowSpan={2} className="px-2 py-2.5 text-right min-w-[130px]">اسم المنتفع</th>
+                <th rowSpan={2} className="px-2 py-2.5 text-right min-w-[115px]">تاريخ المراجعة</th>
+                <th rowSpan={2} className="px-2 py-2.5 text-right min-w-[170px]">نوع الإجراء الطبي</th>
+                <th rowSpan={2} className="px-2 py-2.5 text-right min-w-[90px]">المبلغ (دينار)</th>
+                <th colSpan={3} className="px-2 py-2 text-center border-b border-blue-400">نوع العملية</th>
+              </tr>
+              <tr className="bg-blue-800 text-white text-[10px]">
+                <th className="px-1 py-1.5 min-w-[90px]">العمليات فوق الكبرى</th>
+                <th className="px-1 py-1.5 min-w-[80px]">العمليات الوسطى</th>
+                <th className="px-1 py-1.5 min-w-[80px]">العمليات الصغرى</th>
               </tr>
             </thead>
             <tbody>
@@ -2248,9 +2254,9 @@ function HealthInsuranceForm({ emp }) {
                       {PROCEDURE_TYPES.map(p=><option key={p} value={p}>{p}</option>)}
                     </select></td>
                   <td className="px-1.5 py-1"><input type="number" min="0" value={row.amount} onChange={e=>updateRow(idx,"amount",e.target.value)} placeholder="0" className="input w-full rounded-lg px-2 py-1.5 text-xs" dir="ltr"/></td>
-                  <td className="px-1.5 py-1"><input value={row.opType||""} onChange={e=>updateRow(idx,"opType",e.target.value)} placeholder="اختياري" className="input w-full rounded-lg px-2 py-1.5 text-xs"/></td>
-                  <td className="px-1.5 py-1"><input value={row.envelope} onChange={e=>updateRow(idx,"envelope",e.target.value)} className="input w-full rounded-lg px-2 py-1.5 text-xs"/></td>
-                  <td className="px-1.5 py-1"><input value={row.sequence} onChange={e=>updateRow(idx,"sequence",e.target.value)} className="input w-full rounded-lg px-2 py-1.5 text-xs"/></td>
+                  <td className="px-1.5 py-1"><input value={row.opLarge||""} onChange={e=>updateRow(idx,"opLarge",e.target.value)} className="input w-full rounded-lg px-2 py-1.5 text-xs"/></td>
+                  <td className="px-1.5 py-1"><input value={row.opMedium||""} onChange={e=>updateRow(idx,"opMedium",e.target.value)} className="input w-full rounded-lg px-2 py-1.5 text-xs"/></td>
+                  <td className="px-1.5 py-1"><input value={row.opSmall||""} onChange={e=>updateRow(idx,"opSmall",e.target.value)} className="input w-full rounded-lg px-2 py-1.5 text-xs"/></td>
                 </tr>
               ))}
             </tbody>
@@ -2258,7 +2264,7 @@ function HealthInsuranceForm({ emp }) {
               <tr className="border-t-2 border-blue-200 bg-blue-50">
                 <td colSpan={4} className="px-3 py-2 font-bold text-blue-800">المجموع الكلي ({filledRows.length} مراجعة)</td>
                 <td className="px-3 py-2 font-bold text-blue-800">{totalAmount.toLocaleString()}</td>
-                <td colSpan={2}></td>
+                <td colSpan={3}></td>
               </tr>
             </tfoot>
           </table>
