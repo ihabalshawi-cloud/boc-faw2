@@ -1997,11 +1997,13 @@ function HealthInsuranceForm({ emp }) {
   const STORAGE_KEY = `health_ins_${emp.id}`;
   const toast = useToast();
 
-  const emptyRow = (i) => ({ id:i, beneficiary:"", date:"", procedure:"", amount:"", envelope:"", sequence:"" });
+  const emptyRow = (i) => ({ id:i, beneficiary:"", date:"", procedure:"", opType:"", amount:"", envelope:"", sequence:"" });
   const [phone, setPhone] = useState("");
   const [marital, setMarital] = useState("متزوج");
   const [month, setMonth] = useState(now.getMonth());
   const [year, setYear] = useState(now.getFullYear());
+  const [formEnvelope, setFormEnvelope] = useState("");
+  const [formSequence, setFormSequence] = useState("");
   const [beneficiaries, setBeneficiaries] = useState([emp.name]);
   const [newBenef, setNewBenef] = useState("");
   const [rows, setRows] = useState(() => Array.from({length:10},(_,i)=>emptyRow(i+1)));
@@ -2011,6 +2013,7 @@ function HealthInsuranceForm({ emp }) {
     if (!d) return;
     setPhone(d.phone||""); setMarital(d.marital||"متزوج");
     setMonth(d.month??now.getMonth()); setYear(d.year??now.getFullYear());
+    setFormEnvelope(d.formEnvelope||""); setFormSequence(d.formSequence||"");
     setBeneficiaries(d.beneficiaries||[emp.name]);
     setRows(d.rows||Array.from({length:10},(_,i)=>emptyRow(i+1)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2035,74 +2038,85 @@ function HealthInsuranceForm({ emp }) {
   };
 
   const save = () => {
-    storage.set(STORAGE_KEY, { phone, marital, month, year, beneficiaries, rows });
+    storage.set(STORAGE_KEY, { phone, marital, month, year, formEnvelope, formSequence, beneficiaries, rows });
     toast.success("✅ تم حفظ الاستمارة");
   };
 
   const printForm = () => {
-    const allPrintRows = [...rows, ...Array.from({length: Math.max(0, 10-rows.length)}, (_,i)=>emptyRow(rows.length+i+1))].slice(0,10);
-    const procCols = PROCEDURE_TYPES.map(pt =>
-      `<th style="width:14mm"><div class="th-vert">${pt}</div></th>`
+    // columns right-to-left: اجور الطبيب first, الامراض المستعصية last
+    const PROC_RTL = [...PROCEDURE_TYPES].reverse();
+    const allPrintRows = rows.slice(0, 10).concat(
+      Array.from({length: Math.max(0, 10-rows.length)}, (_,i)=>emptyRow(rows.length+i+1))
+    );
+    const procHeadCols = PROC_RTL.map(pt =>
+      `<th style="width:13mm"><div class="th-vert">${pt}</div></th>`
     ).join("");
     const dataRows = allPrintRows.map((r,i) => `
-      <tr style="height:9mm">
+      <tr style="height:8.5mm">
         <td>${i+1}</td>
         <td class="td-name">${r.beneficiary||""}</td>
         <td class="td-date">${r.date||""}</td>
-        ${PROCEDURE_TYPES.map(pt=>`<td class="td-amt">${r.procedure===pt?(r.amount||"✓"):""}</td>`).join("")}
+        ${PROC_RTL.map(pt=>`<td class="td-amt">${r.procedure===pt?(r.amount||"✓"):""}</td>`).join("")}
+        <td>${r.opType||""}</td>
         <td>${r.envelope||""}</td>
         <td>${r.sequence||""}</td>
       </tr>`).join("");
-    const sumCols = PROCEDURE_TYPES.map(()=>"<td></td>").join("");
     const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/>
 <title>استمارة طلب التعويض للموظفين</title>
 <style>
-  @page{size:A4 landscape;margin:7mm}
+  @page{size:A4 landscape;margin:6mm}
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Times New Roman',Arial,sans-serif;font-size:8.5pt;direction:rtl}
+  /* ===== Header box ===== */
   .hbox{border:2px solid #000;margin-bottom:3mm}
-  .htitle{text-align:center;font-size:13pt;font-weight:bold;padding:2.5mm 2mm;border-bottom:1px solid #000}
-  .horg{text-align:center;font-size:9.5pt;padding:1.5mm;border-bottom:1px solid #000}
-  .hgrid{display:grid;grid-template-columns:1fr 1fr 1fr}
-  .hcol{padding:2mm 3mm;border-right:1px solid #000}
-  .hcol:last-child{border-right:none}
-  .frow{display:flex;align-items:baseline;gap:4px;padding:1.5px 0;border-bottom:1px dotted #bbb;min-height:17px}
+  .htitle{text-align:center;font-size:13pt;font-weight:bold;padding:2mm;border-bottom:2px solid #000}
+  /* 3-col grid, RTL: col1=RIGHT, col2=MIDDLE, col3=LEFT */
+  .hgrid{display:grid;grid-template-columns:1fr 1fr 1fr;direction:rtl}
+  .hcol{padding:1.5mm 3mm}
+  .hcol:not(:last-child){border-left:1px solid #000}
+  .frow{display:flex;align-items:baseline;gap:3px;padding:1.5px 0;border-bottom:1px dotted #bbb;min-height:16px}
   .frow:last-child{border-bottom:none}
-  .fl{font-weight:bold;white-space:nowrap;font-size:7.5pt;min-width:95px}
-  .fv{flex:1;border-bottom:1px solid #000;font-size:8pt;padding-bottom:1px;padding-right:3px}
+  .fl{font-weight:bold;white-space:nowrap;font-size:7pt;min-width:90px}
+  .fv{flex:1;border-bottom:1px solid #000;font-size:8pt;padding-bottom:0;padding-right:3px;min-width:50px}
+  .center-lbl{text-align:center;font-weight:bold;font-size:9pt;border-bottom:1px solid #000;padding:1.5mm 0;background:#eef2fa}
+  /* ===== Table ===== */
   table{border-collapse:collapse;width:100%;table-layout:fixed}
-  th,td{border:1px solid #000;text-align:center;vertical-align:middle;font-size:7pt;padding:1px 1px}
+  th,td{border:1px solid #000;text-align:center;vertical-align:middle;font-size:6.5pt;padding:0 1px}
   th{background:#dce6f1;font-weight:bold}
-  .th-vert{writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);height:25mm;font-size:6pt;padding:0}
-  .td-name{text-align:right;font-size:8pt;padding-right:2mm}
+  .th-vert{writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);height:24mm;font-size:5.8pt}
+  .td-name{text-align:right;font-size:8pt;padding-right:1.5mm}
   .td-date{font-size:7pt}
   .td-amt{font-size:8pt;font-weight:bold}
-  .auth{margin-top:2.5mm;font-size:8pt}
-  .sigrow{display:grid;grid-template-columns:repeat(4,1fr);gap:8mm;margin-top:3mm;text-align:center}
+  /* ===== Signatures ===== */
+  .auth{margin-top:2mm;font-size:8pt}
+  .sigrow{display:grid;grid-template-columns:repeat(4,1fr);gap:6mm;margin-top:2.5mm;text-align:center;direction:rtl}
   .sigcell{font-weight:bold;font-size:9pt}
-  .sigline{margin-top:10mm;border-top:1px solid #000;padding-top:1.5mm;font-size:7.5pt;font-weight:normal}
+  .sigline{margin-top:9mm;border-top:1px solid #000;padding-top:1mm;font-size:7pt;font-weight:normal}
 </style></head><body>
 <div class="hbox">
   <div class="htitle">استمارة طلب التعويض للموظفين</div>
-  <div class="horg">الصيانة الهندسية / السيطرة والنظم</div>
   <div class="hgrid">
+    <!-- RIGHT col: employee info -->
     <div class="hcol">
-      <div class="frow"><span class="fl">اسم الهيأة/القسم:</span><span class="fv">الصيانة الهندسية</span></div>
-      <div class="frow"><span class="fl">اللجنة:</span><span class="fv">لجنة الضمان الصحي المركزية</span></div>
       <div class="frow"><span class="fl">اسم الموظف:</span><span class="fv">${emp.name}</span></div>
       <div class="frow"><span class="fl">الرقم الوظيفي:</span><span class="fv">${emp.jobNum}</span></div>
-    </div>
-    <div class="hcol">
-      <div class="frow"><span class="fl">رقم الهاتف:</span><span class="fv">${phone}</span></div>
       <div class="frow"><span class="fl">الحالة الزوجية:</span><span class="fv">${marital}</span></div>
-      <div class="frow"><span class="fl">الشهـــر:</span><span class="fv">${MONTHS_IRAQI[month]}</span></div>
-      <div class="frow"><span class="fl">السنة:</span><span class="fv">${year}</span></div>
+      <div class="frow"><span class="fl">توقيع الموظف:</span><span class="fv">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
     </div>
-    <div class="hcol" style="border-right:none">
-      <div class="frow"><span class="fl">تاريخ تقديم الطلب:</span><span class="fv">${now.toLocaleDateString("ar-IQ")}</span></div>
+    <!-- MIDDLE col: committee + month + envelope + sequence -->
+    <div class="hcol">
+      <div class="center-lbl">لجنة الضمان الصحي المركزية</div>
+      <div class="frow"><span class="fl">الشهـــر:</span><span class="fv">${MONTHS_IRAQI[month]} ${year}</span></div>
+      <div class="frow"><span class="fl">رقم الظرف:</span><span class="fv">${formEnvelope}</span></div>
+      <div class="frow"><span class="fl">التسلسل:</span><span class="fv">${formSequence}</span></div>
+    </div>
+    <!-- LEFT col: dept + phone + visits + date + total -->
+    <div class="hcol">
+      <div class="frow"><span class="fl">اسم الهيأة/القسم:</span><span class="fv">الصيانة الهندسية / السيطرة والنظم</span></div>
+      <div class="frow"><span class="fl">رقم الهاتف:</span><span class="fv">${phone}</span></div>
       <div class="frow"><span class="fl">عدد المراجعات:</span><span class="fv">${filledRows.length}</span></div>
-      <div class="frow"><span class="fl">المجموع الكلي للمراجعات:</span><span class="fv">${totalAmount.toLocaleString()} دينار</span></div>
-      <div class="frow"><span class="fl">توقيع الموظف:</span><span class="fv">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+      <div class="frow"><span class="fl">تاريخ تقديم الطلب:</span><span class="fv">${now.toLocaleDateString("ar-IQ")}</span></div>
+      <div class="frow"><span class="fl">المجموع الكلي:</span><span class="fv">${totalAmount.toLocaleString()} دينار</span></div>
     </div>
   </div>
 </div>
@@ -2110,22 +2124,16 @@ function HealthInsuranceForm({ emp }) {
   <thead>
     <tr>
       <th rowspan="2" style="width:7mm">ت</th>
-      <th rowspan="2" style="width:40mm">اسم المنتفع</th>
-      <th rowspan="2" style="width:19mm">تاريخ المراجعة</th>
-      <th colspan="12" style="font-size:9pt">نوع الإجراء الطبي</th>
-      <th rowspan="2" style="width:14mm">رقم الظرف</th>
-      <th rowspan="2" style="width:12mm">التسلسل</th>
+      <th rowspan="2" style="width:38mm">اسم المنتفع</th>
+      <th rowspan="2" style="width:18mm">تاريخ المراجعة</th>
+      <th colspan="12" style="font-size:8.5pt;background:#c8d8ee">نوع الإجراء الطبي</th>
+      <th rowspan="2" style="width:15mm">نوع العملية</th>
+      <th rowspan="2" style="width:13mm">رقم الظرف</th>
+      <th rowspan="2" style="width:11mm">التسلسل</th>
     </tr>
-    <tr>${procCols}</tr>
+    <tr>${procHeadCols}</tr>
   </thead>
   <tbody>${dataRows}</tbody>
-  <tfoot>
-    <tr>
-      <td colspan="3" style="text-align:right;padding-right:3mm;font-weight:bold;font-size:8pt">المجموع الكلي للمراجعات</td>
-      ${sumCols}
-      <td colspan="2" style="font-weight:bold;font-size:8pt">${totalAmount.toLocaleString()}</td>
-    </tr>
-  </tfoot>
 </table>
 <div class="auth">اسم وتوقيع المخول: _________________________________</div>
 <div class="sigrow">
@@ -2169,6 +2177,8 @@ function HealthInsuranceForm({ emp }) {
           <div><label className="block text-[10px] font-bold text-secondary mb-1">اسم الموظف</label><input value={emp.name} readOnly className="input w-full rounded-xl px-3 py-2 text-sm bg-slate-50 opacity-70 cursor-not-allowed"/></div>
           <div><label className="block text-[10px] font-bold text-secondary mb-1">الرقم الوظيفي</label><input value={emp.jobNum} readOnly className="input w-full rounded-xl px-3 py-2 text-sm bg-slate-50 opacity-70 cursor-not-allowed"/></div>
           <div><label className="block text-[10px] font-bold text-secondary mb-1">رقم الهاتف</label><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="07X XXXX XXXX" className="input w-full rounded-xl px-3 py-2 text-sm"/></div>
+          <div><label className="block text-[10px] font-bold text-secondary mb-1">رقم الظرف (استمارة)</label><input value={formEnvelope} onChange={e=>setFormEnvelope(e.target.value)} className="input w-full rounded-xl px-3 py-2 text-sm"/></div>
+          <div><label className="block text-[10px] font-bold text-secondary mb-1">التسلسل (استمارة)</label><input value={formSequence} onChange={e=>setFormSequence(e.target.value)} className="input w-full rounded-xl px-3 py-2 text-sm"/></div>
           <div><label className="block text-[10px] font-bold text-secondary mb-1">الشهر</label>
             <select value={month} onChange={e=>setMonth(Number(e.target.value))} className="input w-full rounded-xl px-3 py-2 text-sm">
               {MONTHS_IRAQI.map((m,i)=><option key={i} value={i}>{m}</option>)}
@@ -2217,6 +2227,7 @@ function HealthInsuranceForm({ emp }) {
                 <th className="px-2 py-2.5 text-right min-w-[115px]">تاريخ المراجعة</th>
                 <th className="px-2 py-2.5 text-right min-w-[170px]">نوع الإجراء الطبي</th>
                 <th className="px-2 py-2.5 text-right min-w-[95px]">المبلغ (دينار)</th>
+                <th className="px-2 py-2.5 text-right min-w-[110px]">نوع العملية</th>
                 <th className="px-2 py-2.5 text-right min-w-[80px]">رقم الظرف</th>
                 <th className="px-2 py-2.5 text-right min-w-[70px]">التسلسل</th>
               </tr>
@@ -2237,6 +2248,7 @@ function HealthInsuranceForm({ emp }) {
                       {PROCEDURE_TYPES.map(p=><option key={p} value={p}>{p}</option>)}
                     </select></td>
                   <td className="px-1.5 py-1"><input type="number" min="0" value={row.amount} onChange={e=>updateRow(idx,"amount",e.target.value)} placeholder="0" className="input w-full rounded-lg px-2 py-1.5 text-xs" dir="ltr"/></td>
+                  <td className="px-1.5 py-1"><input value={row.opType||""} onChange={e=>updateRow(idx,"opType",e.target.value)} placeholder="اختياري" className="input w-full rounded-lg px-2 py-1.5 text-xs"/></td>
                   <td className="px-1.5 py-1"><input value={row.envelope} onChange={e=>updateRow(idx,"envelope",e.target.value)} className="input w-full rounded-lg px-2 py-1.5 text-xs"/></td>
                   <td className="px-1.5 py-1"><input value={row.sequence} onChange={e=>updateRow(idx,"sequence",e.target.value)} className="input w-full rounded-lg px-2 py-1.5 text-xs"/></td>
                 </tr>
