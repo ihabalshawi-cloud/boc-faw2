@@ -2440,6 +2440,7 @@ function AnnualLeaveForm({ emp }) {
   .sig-row{display:flex;gap:10px;margin-top:8px}
   .sig-box{border:1px solid #333;text-align:center;padding:5px 4px;min-height:60px;flex:1}
   .sig-title{font-weight:bold;font-size:8.5pt;margin-bottom:4px}
+  .disclaimer{font-size:6.5pt;text-align:center;margin-top:5px;color:#555;border-top:1px dotted #aaa;padding-top:3px}
 </style></head>
 <body>
 <!-- ترويسة الوثيقة -->
@@ -2449,11 +2450,14 @@ function AnnualLeaveForm({ emp }) {
     <td class="dh-label">عنوان النموذج</td>
     <td colspan="3" class="dh-main">نموذج إجازة اعتيادية</td>
     <td rowspan="2" class="dh-logo">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 54 40" width="50" height="37">
-        <rect width="54" height="40" fill="#003d7c" rx="3"/>
-        <ellipse cx="27" cy="16" rx="9" ry="12" fill="#0066cc"/>
-        <ellipse cx="27" cy="16" rx="5" ry="7" fill="#003d7c"/>
-        <text x="27" y="36" text-anchor="middle" fill="white" font-size="8" font-weight="bold" font-family="Arial">BOC</text>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="52" height="52">
+        <circle cx="50" cy="50" r="49" fill="#c8102e"/>
+        <clipPath id="soc-b"><rect x="0" y="63" width="100" height="40"/></clipPath>
+        <circle cx="50" cy="50" r="49" fill="#111" clip-path="url(#soc-b)"/>
+        <circle cx="50" cy="50" r="33" fill="white"/>
+        <path d="M50,24 C63,38 71,50 71,59 Q71,77 50,77 Q29,77 29,59 C29,50 37,38 50,24Z" fill="#1e8f3a"/>
+        <text x="50" y="15" text-anchor="middle" fill="white" font-family="Arial,sans-serif" font-size="6.8" font-weight="bold">شركة نفط الجنوب</text>
+        <text x="50" y="88" text-anchor="middle" fill="white" font-family="Arial,sans-serif" font-size="9" font-weight="bold" letter-spacing="1">S.O.C</text>
       </svg>
     </td>
   </tr>
@@ -2476,8 +2480,10 @@ function AnnualLeaveForm({ emp }) {
     <span class="lbl">الاسم الثلاثي:</span><span class="val">${name}</span>
   </div>
   <div class="field-row">
-    <span class="lbl">الرقم الوظيفي:</span><span class="val">${jobNum}</span>
     <span class="lbl">العنوان الوظيفي:</span><span class="val">${jobTitle}</span>
+  </div>
+  <div class="field-row">
+    <span class="lbl">الرقم الوظيفي:</span><span class="val">${jobNum}</span>
   </div>
   <div class="sentence">
     يرجى منحي إجازة اعتيادية لمدة
@@ -2491,6 +2497,7 @@ function AnnualLeaveForm({ emp }) {
     <div class="sig-box"><div class="sig-title">توقيع المسؤول</div></div>
   </div>
 </div>
+<div class="disclaimer">يعتبر هذا النموذج ملك لشركة نفط البصرة فقط، لايجوز نسخه او الكشف عن محتواه بدون موافقة خطية مسبقة من قبل شركة نفط البصرة.</div>
 </body></html>`;
     const iframe = document.createElement("iframe");
     iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0";
@@ -2507,14 +2514,9 @@ function AnnualLeaveForm({ emp }) {
         <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center"><FileText size={20} className="text-white"/></div>
         <div><h2 className="text-xl font-bold text-primary">إجازة اعتيادية</h2><p className="text-xs text-secondary">BOC-P-13/F03 — طباعة A5 landscape</p></div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="block text-xs font-bold text-secondary mb-1">الاسم الثلاثي</label><input value={name} onChange={e=>setName(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">الرقم الوظيفي</label><input value={jobNum} onChange={e=>setJobNum(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="block text-xs font-bold text-secondary mb-1">العنوان الوظيفي</label><input value={jobTitle} onChange={e=>setJobTitle(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">القسم / الشعبة</label><input value={dept} onChange={e=>setDept(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-      </div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">الاسم الثلاثي</label><input value={name} onChange={e=>setName(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">العنوان الوظيفي</label><input value={jobTitle} onChange={e=>setJobTitle(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">الرقم الوظيفي</label><input value={jobNum} onChange={e=>setJobNum(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
       <div className="grid grid-cols-3 gap-3">
         <div><label className="block text-xs font-bold text-secondary mb-1">من تاريخ</label><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
         <div><label className="block text-xs font-bold text-secondary mb-1">إلى تاريخ</label><input type="date" value={toDate} onChange={e=>setToDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
