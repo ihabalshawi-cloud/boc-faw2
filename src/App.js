@@ -6,7 +6,7 @@ import {
   ClipboardList, GraduationCap, BarChart, Star,
   Printer, Download, Search, Moon, Sun, MessageSquare,
   CheckSquare, AlertTriangle, ChevronLeft,
-  Send, Wrench, Box, TrendingUp, TrendingDown
+  Send, Wrench, Box, TrendingUp, TrendingDown, Heart, UserPlus
 } from "lucide-react";
 // No external chart library — pure SVG charts below
 
@@ -74,6 +74,9 @@ const EVAL_CRITERIA = ["الانضباط والالتزام", "جودة العم
 
 const PIE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
 const MONTHS_AR = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+const MONTHS_IRAQI = ["كانون الثاني","شباط","آذار","نيسان","أيار","حزيران","تموز","آب","أيلول","تشرين الأول","تشرين الثاني","كانون الأول"];
+const PROCEDURE_TYPES = ["الامراض المستعصية","العمليات الصغرى","العمليات الوسطى","العمليات الكبرى","العمليات فوق الكبرى","معالجة اسنان","اشعة وسونار","نظارات طبية","تحاليل مختبرية","الرنين والمفراس/الايكو/تخطيط القلب","العلاجات (الادوية)","اجور الطبيب"];
+const MARITAL_STATUS_LIST = ["متزوج","أعزب","مطلق","أرمل"];
 
 const INITIAL_EQUIPMENT = [
   { id:"P-001", name:"مضخة خام رئيسية 1",  type:"PUMP",       location:"محطة الضخ الرئيسية", status:"جيد",          lastMaintenance:"2024-01-15", nextMaintenance:"2024-04-15", critical:false, totalFailures:2 },
@@ -257,6 +260,7 @@ const VIEW_LABELS = {
   chat:"الدردشة الداخلية", evaluation:"التقييم", notifications:"الإشعارات",
   audit:"سجل التعديلات", changepass:"تغيير كلمة المرور",
   employees:"إدارة الموظفين", approvals:"الموافقات",
+  health_insurance:"الضمان الصحي",
 };
 
 function GlobalSearch({ setView, onClose }) {
@@ -1987,6 +1991,262 @@ function AuditLogPage() {
   </div>);
 }
 
+// ========== استمارة الضمان الصحي ==========
+function HealthInsuranceForm({ emp }) {
+  const now = new Date();
+  const STORAGE_KEY = `health_ins_${emp.id}`;
+  const toast = useToast();
+
+  const emptyRow = (i) => ({ id:i, beneficiary:"", date:"", procedure:"", amount:"", envelope:"", sequence:"" });
+  const [phone, setPhone] = useState("");
+  const [marital, setMarital] = useState("متزوج");
+  const [month, setMonth] = useState(now.getMonth());
+  const [year, setYear] = useState(now.getFullYear());
+  const [beneficiaries, setBeneficiaries] = useState([emp.name]);
+  const [newBenef, setNewBenef] = useState("");
+  const [rows, setRows] = useState(() => Array.from({length:10},(_,i)=>emptyRow(i+1)));
+
+  useEffect(() => {
+    const d = storage.get(STORAGE_KEY);
+    if (!d) return;
+    setPhone(d.phone||""); setMarital(d.marital||"متزوج");
+    setMonth(d.month??now.getMonth()); setYear(d.year??now.getFullYear());
+    setBeneficiaries(d.beneficiaries||[emp.name]);
+    setRows(d.rows||Array.from({length:10},(_,i)=>emptyRow(i+1)));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // deadline countdown (17th of current month or next)
+  const deadlineBase = new Date(now.getFullYear(), now.getMonth(), 17);
+  const deadline = now.getDate() > 17 ? new Date(now.getFullYear(), now.getMonth()+1, 17) : deadlineBase;
+  const daysLeft = Math.ceil((deadline - now) / 86400000);
+
+  const filledRows = rows.filter(r => r.beneficiary && r.procedure);
+  const totalAmount = rows.reduce((s,r) => s + (Number(r.amount)||0), 0);
+
+  const updateRow = (idx, field, val) => setRows(rows.map((r,i) => i===idx ? {...r,[field]:val} : r));
+
+  const addBenef = () => {
+    const n = newBenef.trim();
+    if (!n) return;
+    if (beneficiaries.includes(n)) { toast.warning("الاسم موجود مسبقاً"); return; }
+    setBeneficiaries([...beneficiaries, n]); setNewBenef("");
+    toast.success("تمت الإضافة");
+  };
+
+  const save = () => {
+    storage.set(STORAGE_KEY, { phone, marital, month, year, beneficiaries, rows });
+    toast.success("✅ تم حفظ الاستمارة");
+  };
+
+  const printForm = () => {
+    const monthLabel = MONTHS_IRAQI[month];
+    const filledForPrint = rows.filter(r => r.beneficiary || r.date || r.procedure);
+    const allRows = [...filledForPrint, ...Array.from({length: Math.max(0, 10-filledForPrint.length)}, (_,i)=>emptyRow(i))];
+    const rowsHtml = allRows.map((r,i) => `
+      <tr>
+        <td style="text-align:center">${i+1}</td>
+        <td>${r.beneficiary||""}</td>
+        <td>${r.date||""}</td>
+        <td>${r.procedure||""}</td>
+        <td style="text-align:center">${r.amount||""}</td>
+        <td style="text-align:center">${r.envelope||""}</td>
+        <td style="text-align:center">${r.sequence||""}</td>
+      </tr>`).join("");
+    const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/>
+    <title>استمارة طلب التعويض</title>
+    <style>
+      *{font-family:Arial,sans-serif;font-size:12px;box-sizing:border-box}
+      body{padding:15mm;margin:0}
+      h1{font-size:16px;text-align:center;margin:0 0 4px}
+      h2{font-size:13px;text-align:center;margin:0 0 12px;color:#444}
+      .top{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;border:1px solid #999;padding:8px;margin-bottom:10px}
+      .field{display:flex;gap:6px;align-items:center;border-bottom:1px dotted #ccc;padding:3px 0}
+      .label{font-weight:bold;white-space:nowrap;min-width:80px}
+      .totals{display:flex;gap:16px;border:1px solid #999;padding:6px 10px;margin-bottom:10px;font-weight:bold}
+      table{border-collapse:collapse;width:100%;margin-bottom:10px}
+      th,td{border:1px solid #666;padding:5px 6px;text-align:right}
+      th{background:#e8f0fe;font-weight:bold}
+      .sig{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:20px;text-align:center}
+      .sig div{border-top:1px solid #333;padding-top:6px}
+      .no-print{display:none}
+    </style></head><body>
+    <h1>استمارة طلب التعويض للموظفين</h1>
+    <h2>الصيانة الهندسية / السيطرة والنظم</h2>
+    <div class="top">
+      <div>
+        <div class="field"><span class="label">اسم الهيأة/القسم:</span><span>الصيانة الهندسية</span></div>
+        <div class="field"><span class="label">لجنة:</span><span>لجنة الضمان الصحي المركزية</span></div>
+      </div>
+      <div>
+        <div class="field"><span class="label">اسم الموظف:</span><span>${emp.name}</span></div>
+        <div class="field"><span class="label">الرقم الوظيفي:</span><span>${emp.jobNum}</span></div>
+        <div class="field"><span class="label">رقم الهاتف:</span><span>${phone}</span></div>
+        <div class="field"><span class="label">الحالة الزوجية:</span><span>${marital}</span></div>
+      </div>
+      <div>
+        <div class="field"><span class="label">الشهر:</span><span>${monthLabel}</span></div>
+        <div class="field"><span class="label">السنة:</span><span>${year}</span></div>
+        <div class="field"><span class="label">تاريخ التقديم:</span><span>${now.toLocaleDateString("ar-IQ")}</span></div>
+        <div class="field"><span class="label">توقيع الموظف:</span><span style="border-bottom:1px solid #333;display:inline-block;width:80px">&nbsp;</span></div>
+      </div>
+    </div>
+    <div class="totals">
+      <span>عدد المراجعات: <u>${filledRows.length}</u></span>
+      <span>المجموع الكلي للمراجعات: <u>${totalAmount.toLocaleString()} دينار</u></span>
+    </div>
+    <table>
+      <thead><tr>
+        <th style="width:30px">ت</th>
+        <th>اسم المنتفع</th>
+        <th>تاريخ المراجعة</th>
+        <th>نوع الإجراء الطبي</th>
+        <th style="width:80px">المبلغ (دينار)</th>
+        <th style="width:70px">رقم الظرف</th>
+        <th style="width:60px">التسلسل</th>
+      </tr></thead>
+      <tbody>${rowsHtml}</tbody>
+      <tfoot><tr>
+        <td colspan="4" style="text-align:left;font-weight:bold">المجموع</td>
+        <td style="text-align:center;font-weight:bold">${totalAmount.toLocaleString()}</td>
+        <td colspan="2"></td>
+      </tr></tfoot>
+    </table>
+    <div class="sig">
+      <div>العضو<br/><br/><small>الاسم والتوقيع</small></div>
+      <div>العضو<br/><br/><small>الاسم والتوقيع</small></div>
+      <div>العضو<br/><br/><small>الاسم والتوقيع</small></div>
+      <div>رئيس اللجنة<br/><br/><small>الاسم والتوقيع</small></div>
+    </div>
+    </body></html>`;
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0";
+    document.body.appendChild(iframe);
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+    iframe.contentWindow.focus();
+    setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 2000); }, 400);
+  };
+
+  return (
+    <div className="space-y-4" dir="rtl">
+      {/* Deadline banner */}
+      <div className={`rounded-2xl p-3 flex items-center gap-3 border ${daysLeft<=3?"bg-red-50 border-red-200":daysLeft<=7?"bg-amber-50 border-amber-200":"bg-blue-50 border-blue-200"}`}>
+        <Clock size={18} className={daysLeft<=3?"text-red-500":daysLeft<=7?"text-amber-500":"text-blue-500"}/>
+        <div>
+          <p className={`font-bold text-sm ${daysLeft<=3?"text-red-700":daysLeft<=7?"text-amber-700":"text-blue-700"}`}>
+            الموعد النهائي لتقديم الاستمارات: اليوم 17 من كل شهر
+          </p>
+          <p className={`text-xs ${daysLeft<=3?"text-red-600":daysLeft<=7?"text-amber-600":"text-blue-600"}`}>
+            {daysLeft===0?"⚠️ اليوم هو آخر يوم للتقديم!":daysLeft===1?"⚠️ باقي يوم واحد فقط!":` باقي ${daysLeft} يوم على الموعد النهائي`}
+          </p>
+        </div>
+      </div>
+
+      {/* Header info card */}
+      <div className="card rounded-2xl border-color border p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-lg flex items-center gap-2"><Heart size={18} className="text-red-500"/> استمارة طلب التعويض الصحي</h3>
+          <span className="text-xs text-secondary">الصيانة الهندسية / السيطرة والنظم</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div><label className="block text-[10px] font-bold text-secondary mb-1">اسم الموظف</label><input value={emp.name} readOnly className="input w-full rounded-xl px-3 py-2 text-sm bg-slate-50 opacity-70 cursor-not-allowed"/></div>
+          <div><label className="block text-[10px] font-bold text-secondary mb-1">الرقم الوظيفي</label><input value={emp.jobNum} readOnly className="input w-full rounded-xl px-3 py-2 text-sm bg-slate-50 opacity-70 cursor-not-allowed"/></div>
+          <div><label className="block text-[10px] font-bold text-secondary mb-1">رقم الهاتف</label><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="07X XXXX XXXX" className="input w-full rounded-xl px-3 py-2 text-sm"/></div>
+          <div><label className="block text-[10px] font-bold text-secondary mb-1">الشهر</label>
+            <select value={month} onChange={e=>setMonth(Number(e.target.value))} className="input w-full rounded-xl px-3 py-2 text-sm">
+              {MONTHS_IRAQI.map((m,i)=><option key={i} value={i}>{m}</option>)}
+            </select></div>
+          <div><label className="block text-[10px] font-bold text-secondary mb-1">السنة</label>
+            <select value={year} onChange={e=>setYear(Number(e.target.value))} className="input w-full rounded-xl px-3 py-2 text-sm">
+              {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+            </select></div>
+          <div><label className="block text-[10px] font-bold text-secondary mb-1">الحالة الزوجية</label>
+            <select value={marital} onChange={e=>setMarital(e.target.value)} className="input w-full rounded-xl px-3 py-2 text-sm">
+              {MARITAL_STATUS_LIST.map(s=><option key={s}>{s}</option>)}
+            </select></div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          <div className="bg-blue-50 rounded-xl p-3 text-center border border-blue-100"><p className="text-2xl font-bold text-blue-700">{filledRows.length}</p><p className="text-xs text-blue-600">عدد المراجعات</p></div>
+          <div className="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-100"><p className="text-xl font-bold text-emerald-700">{totalAmount.toLocaleString()} د.ع</p><p className="text-xs text-emerald-600">المجموع الكلي</p></div>
+        </div>
+      </div>
+
+      {/* Beneficiaries */}
+      <div className="card rounded-2xl border-color border p-5">
+        <h4 className="font-bold mb-3 flex items-center gap-2"><UserPlus size={15} className="text-blue-500"/> المشمولون بالضمان الصحي</h4>
+        <div className="flex gap-2 mb-3">
+          <input value={newBenef} onChange={e=>setNewBenef(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addBenef()} placeholder="اسم أحد أفراد العائلة..." className="input flex-1 rounded-xl px-3 py-2 text-sm"/>
+          <button onClick={addBenef} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold flex items-center gap-1.5"><Plus size={13}/> إضافة</button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {beneficiaries.map((b,i)=>(
+            <span key={i} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium ${i===0?"bg-blue-100 text-blue-800 border border-blue-200":"bg-slate-100 text-slate-700 border border-slate-200"}`}>
+              {i===0&&<span className="opacity-60 text-[10px]">موظف</span>}
+              {b}
+              {i>0&&<button onClick={()=>setBeneficiaries(beneficiaries.filter((_,j)=>j!==i))} className="text-red-400 hover:text-red-600 mr-0.5"><X size={11}/></button>}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="card rounded-2xl border-color border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs" dir="rtl">
+            <thead>
+              <tr className="bg-gradient-to-r from-blue-700 to-blue-600 text-white">
+                <th className="px-2 py-2.5 text-center w-8">ت</th>
+                <th className="px-2 py-2.5 text-right min-w-[130px]">اسم المنتفع</th>
+                <th className="px-2 py-2.5 text-right min-w-[115px]">تاريخ المراجعة</th>
+                <th className="px-2 py-2.5 text-right min-w-[170px]">نوع الإجراء الطبي</th>
+                <th className="px-2 py-2.5 text-right min-w-[95px]">المبلغ (دينار)</th>
+                <th className="px-2 py-2.5 text-right min-w-[80px]">رقم الظرف</th>
+                <th className="px-2 py-2.5 text-right min-w-[70px]">التسلسل</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row,idx)=>(
+                <tr key={idx} className={`border-t border-color transition-colors ${row.beneficiary&&row.procedure?"bg-emerald-50/20":""}  ${idx%2===1?"bg-hover/20":""}`}>
+                  <td className="px-2 py-1.5 text-center font-bold text-secondary">{idx+1}</td>
+                  <td className="px-1.5 py-1">
+                    <select value={row.beneficiary} onChange={e=>updateRow(idx,"beneficiary",e.target.value)} className="input w-full rounded-lg px-2 py-1.5 text-xs">
+                      <option value="">-- اختر --</option>
+                      {beneficiaries.map((b,i)=><option key={i} value={b}>{b}</option>)}
+                    </select></td>
+                  <td className="px-1.5 py-1"><input type="date" value={row.date} onChange={e=>updateRow(idx,"date",e.target.value)} className="input w-full rounded-lg px-2 py-1.5 text-xs"/></td>
+                  <td className="px-1.5 py-1">
+                    <select value={row.procedure} onChange={e=>updateRow(idx,"procedure",e.target.value)} className="input w-full rounded-lg px-2 py-1.5 text-xs">
+                      <option value="">-- اختر --</option>
+                      {PROCEDURE_TYPES.map(p=><option key={p} value={p}>{p}</option>)}
+                    </select></td>
+                  <td className="px-1.5 py-1"><input type="number" min="0" value={row.amount} onChange={e=>updateRow(idx,"amount",e.target.value)} placeholder="0" className="input w-full rounded-lg px-2 py-1.5 text-xs" dir="ltr"/></td>
+                  <td className="px-1.5 py-1"><input value={row.envelope} onChange={e=>updateRow(idx,"envelope",e.target.value)} className="input w-full rounded-lg px-2 py-1.5 text-xs"/></td>
+                  <td className="px-1.5 py-1"><input value={row.sequence} onChange={e=>updateRow(idx,"sequence",e.target.value)} className="input w-full rounded-lg px-2 py-1.5 text-xs"/></td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-blue-200 bg-blue-50">
+                <td colSpan={4} className="px-3 py-2 font-bold text-blue-800">المجموع الكلي ({filledRows.length} مراجعة)</td>
+                <td className="px-3 py-2 font-bold text-blue-800">{totalAmount.toLocaleString()}</td>
+                <td colSpan={2}></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex flex-wrap gap-3 justify-end">
+        <button onClick={()=>exportCSV(filledRows.map(r=>({اسم_المنتفع:r.beneficiary,التاريخ:r.date,الإجراء:r.procedure,المبلغ:r.amount,رقم_الظرف:r.envelope,التسلسل:r.sequence})),"استمارة_الضمان_الصحي")} className="flex items-center gap-2 px-4 py-2.5 btn-secondary border border-color rounded-xl font-bold text-sm"><Download size={14}/> تصدير CSV</button>
+        <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ</button>
+        <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
+      </div>
+    </div>
+  );
+}
+
 // ========== اللوحة الرئيسية ==========
 function Dashboard({ emp, onLogout, dark, setDark }) {
   const [view, setView] = useState("home");
@@ -2033,6 +2293,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
     { id:"notifications", label:"الإشعارات", icon:<Bell size={17}/>, badge:unreadNotifs },
     { id:"audit", label:"سجل التعديلات", icon:<ClipboardList size={17}/> },
     { id:"changepass", label:"تغيير المرور", icon:<Shield size={17}/> },
+    { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
   ];
   if (isAdmin) {
     menuItems.unshift({ id:"approvals", label:"الموافقات", icon:<ThumbsUp size={17}/>, badge:pendingCount });
@@ -2219,6 +2480,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           {view==="changepass" && <ChangePasswordPage emp={emp} onLogout={onLogout}/>}
           {view==="employees" && isAdmin && <EmployeeManager employees={employees} setEmployees={setEmployees}/>}
           {view==="approvals" && isAdmin && <ApprovalsPage emp={emp}/>}
+          {view==="health_insurance" && <HealthInsuranceForm emp={emp}/>}
         </main>
       </div>
       {showSearch && <GlobalSearch setView={setView} onClose={()=>setShowSearch(false)}/>}
