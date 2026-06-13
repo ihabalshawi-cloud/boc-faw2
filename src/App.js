@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, createContext, useContext } from "react";
 import { 
   LogIn, LogOut, Shield, Eye, EyeOff, AlertCircle, Save, Home, User, 
   CheckCircle, Wifi, WifiOff, FileText, Clock, Calendar,
@@ -117,6 +117,40 @@ const passStore = {
     } catch { return false; }
   }
 };
+
+// ========== نظام الإشعارات الفورية ==========
+const ToastContext = createContext(null);
+const useToast = () => useContext(ToastContext);
+
+const TOAST_CFG = {
+  success: { bg: "bg-emerald-500", icon: "✅" },
+  error:   { bg: "bg-red-500",     icon: "❌" },
+  warning: { bg: "bg-amber-500",   icon: "⚠️" },
+  info:    { bg: "bg-blue-500",    icon: "ℹ️" },
+};
+
+function ToastProvider({ children }) {
+  const [toasts, setToasts] = useState([]);
+  const add = useCallback((msg, type = "info", ms = 3500) => {
+    const id = Date.now() + Math.random();
+    setToasts(p => [...p, { id, msg, type }]);
+    setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), ms);
+  }, []);
+  return (
+    <ToastContext.Provider value={add}>
+      {children}
+      <div className="fixed bottom-6 right-6 z-[200] flex flex-col-reverse gap-2 pointer-events-none" dir="rtl">
+        {toasts.map(t => (
+          <div key={t.id} className={`toast-item flex items-center gap-3 px-4 py-3 rounded-xl text-white shadow-2xl pointer-events-auto min-w-[240px] max-w-xs ${TOAST_CFG[t.type].bg}`}>
+            <span>{TOAST_CFG[t.type].icon}</span>
+            <span className="text-sm font-medium flex-1">{t.msg}</span>
+            <button onClick={() => setToasts(p => p.filter(x => x.id !== t.id))} className="opacity-70 hover:opacity-100 shrink-0"><X size={14}/></button>
+          </div>
+        ))}
+      </div>
+    </ToastContext.Provider>
+  );
+}
 
 // SHA-256 عبر Web Crypto API (مدمج في المتصفح — لا مكتبات خارجية)
 const PASS_SALT = "BOC_FAW_SCADA_2025#";
@@ -498,23 +532,23 @@ function ChangePasswordPage({ emp, onLogout }) {
   const [newPass, setNewPass] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showN, setShowN] = useState(false);
-  const [msg, setMsg] = useState(null);
   const [loading, setLoading] = useState(false);
   const { isConnected } = useConnectionStatus();
+  const toast = useToast();
 
   const handleChangePassword = async () => {
-    if (!newPass || newPass.trim().length < 4) { setMsg({ text: "⚠️ كلمة المرور يجب أن تكون 4 خانات أو أكثر", type: "error" }); return; }
-    if (newPass.trim() !== confirm.trim()) { setMsg({ text: "⚠️ كلمات المرور غير متطابقة", type: "error" }); return; }
+    if (!newPass || newPass.trim().length < 4) { toast("كلمة المرور يجب أن تكون 4 خانات أو أكثر", "warning"); return; }
+    if (newPass.trim() !== confirm.trim()) { toast("كلمات المرور غير متطابقة", "error"); return; }
     setLoading(true);
     try {
       const hashed = await hashPassword(newPass.trim());
       passStore.set(`pass_${emp.id}`, hashed);
       if (isConnected) await FirebaseAPI.savePassword(emp.id, hashed);
       sessionStorage.removeItem("force_password_change");
-      setMsg({ text: "✅ تم تغيير كلمة المرور بنجاح وتشفيرها!", type: "success" });
+      toast("تم تغيير كلمة المرور بنجاح وتشفيرها!", "success");
       setNewPass(""); setConfirm("");
       setTimeout(() => { if (window.confirm("تم تغيير كلمة المرور. هل تريد تسجيل الخروج؟")) onLogout(); }, 1500);
-    } catch { setMsg({ text: "❌ حدث خطأ", type: "error" }); }
+    } catch { toast("حدث خطأ أثناء الحفظ", "error"); }
     finally { setLoading(false); }
   };
 
@@ -526,7 +560,6 @@ function ChangePasswordPage({ emp, onLogout }) {
           <div><label className="text-sm font-bold block mb-1">كلمة المرور الجديدة</label><div className="relative"><input type={showN?"text":"password"} value={newPass} onChange={e=>setNewPass(e.target.value)} placeholder="أدخل كلمة المرور الجديدة" className="input w-full rounded-xl px-4 py-3 pl-10"/>
             <button onClick={()=>setShowN(!showN)} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary">{showN?<EyeOff size={16}/>:<Eye size={16}/>}</button></div></div>
           <div><label className="text-sm font-bold block mb-1">تأكيد كلمة المرور</label><input type={showN?"text":"password"} value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="أعد إدخال كلمة المرور" className="input w-full rounded-xl px-4 py-3"/></div>
-          {msg && <div className={`p-3 rounded-xl text-sm text-center ${msg.type==="success"?"bg-emerald-50 text-emerald-700":"bg-red-50 text-red-700"}`}>{msg.text}</div>}
           <button onClick={handleChangePassword} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2"><Save size={16}/> {loading?"جاري الحفظ...":"حفظ كلمة المرور"}</button>
         </div>
       </div>
@@ -540,8 +573,7 @@ function RequestsPage({ emp }) {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" });
   const [errors, setErrors] = useState({});
-  const [toast, setToast] = useState("");
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const showToast = useToast();
 
   const handleSubmit = () => {
     if (!formData.purpose.trim()) { setErrors({purpose:"الغرض مطلوب"}); return; }
@@ -556,7 +588,7 @@ function RequestsPage({ emp }) {
     setShowForm(false);
     setFormData({ type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" });
     setErrors({});
-    showToast("✅ تم إرسال طلبك بنجاح");
+    showToast("تم إرسال طلبك بنجاح", "success");
     sendDesktopNotification("طلب إجازة", "تم إرسال طلبك بنجاح وهو الآن بانتظار المراجعة");
     playAlert("notification");
   };
@@ -566,7 +598,7 @@ function RequestsPage({ emp }) {
       const updated = requests.filter(r => r.id !== id);
       setRequests(updated);
       storage.set(`requests_${emp.id}`, updated);
-      showToast("✅ تم حذف الطلب");
+      showToast("تم حذف الطلب", "success");
     }
   };
 
@@ -593,7 +625,6 @@ function RequestsPage({ emp }) {
         <div><div className="flex gap-2 mb-2"><span className={`px-2 py-1 rounded-full text-xs font-bold ${LEAVE_TYPES[req.type]?.color}`}>{LEAVE_TYPES[req.type]?.label}</span><span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusBadge(req.status)}`}>{req.status}</span></div>
         <p className="text-sm">من {req.dateFrom} إلى {req.dateTo} — {req.days} يوم</p><p className="text-xs text-secondary mt-1">{req.purpose}</p></div>
         {req.status==="بانتظار المراجعة" && <button onClick={()=>deleteRequest(req.id)} className="p-2 text-red-400"><Trash2 size={16}/></button>}</div></div>))}
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
 }
@@ -1087,7 +1118,7 @@ function EmployeeManager({ employees, setEmployees }) {
   const [form, setForm]           = useState({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي" });
   const [adding, setAdding]       = useState(false);
   const [migrating, setMigrating] = useState(false);
-  const [migrateMsg, setMigrateMsg] = useState("");
+  const toast = useToast();
 
   const filtered = employees.filter(e => e.name.includes(search) || e.jobNum.includes(search));
 
@@ -1101,13 +1132,10 @@ function EmployeeManager({ employees, setEmployees }) {
   const handleMigrate = async () => {
     if (!window.confirm("سيتم رفع بيانات جميع الموظفين (بدون كلمات المرور) إلى Firebase.\nهل تريد المتابعة؟")) return;
     setMigrating(true);
-    setMigrateMsg("");
     const ok = await FirebaseAPI.initializeAccounts(ACCOUNTS);
     setMigrating(false);
-    setMigrateMsg(ok
-      ? "✅ تم نقل البيانات إلى Firebase بنجاح! يمكنك الآن إزالة ACCOUNTS من الكود."
-      : "❌ فشل الاتصال بـ Firebase — تحقق من قواعد الأمان."
-    );
+    ok ? toast("تم نقل البيانات إلى Firebase بنجاح!", "success", 5000)
+       : toast("فشل الاتصال بـ Firebase — تحقق من القواعد", "error");
   };
 
   return (<div className="space-y-4">
@@ -1123,8 +1151,7 @@ function EmployeeManager({ employees, setEmployees }) {
         {migrating ? "جاري النقل..." : "🔒 نقل البيانات إلى Firebase"}
       </button>
     </div>
-    {migrateMsg && <div className={`p-3 rounded-xl text-sm font-bold ${migrateMsg.startsWith("✅")?"bg-emerald-50 text-emerald-700 border border-emerald-200":"bg-red-50 text-red-700 border border-red-200"}`}>{migrateMsg}</div>}
-    {(adding||editId) && (<div className="card rounded-2xl border-color border p-5"><div className="grid grid-cols-2 gap-3">
+{(adding||editId) && (<div className="card rounded-2xl border-color border p-5"><div className="grid grid-cols-2 gap-3">
       <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="الاسم" className="input rounded-xl px-3 py-2"/>
       <input value={form.jobNum} onChange={e=>setForm({...form,jobNum:e.target.value})} placeholder="الرقم الوظيفي" className="input rounded-xl px-3 py-2"/>
       <input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="المسمى" className="input rounded-xl px-3 py-2"/>
@@ -1991,15 +2018,17 @@ export default function App() {
     .border-color { border-color: ${dark?"#334155":"#e2e8f0"} !important; }
     select option { background: ${dark?"#1e293b":"#ffffff"}; color: ${dark?"#e2e8f0":"#1e293b"}; }
     * { transition: background-color 0.2s, border-color 0.2s, color 0.1s; }
+    @keyframes toastIn { from { opacity:0; transform:translateX(30px); } to { opacity:1; transform:translateX(0); } }
+    .toast-item { animation: toastIn 0.25s ease-out; }
   `;
 
   return (
-    <>
+    <ToastProvider>
       <style>{style}</style>
-      {user 
+      {user
         ? <Dashboard emp={user} onLogout={()=>{sessionStorage.clear();setUser(null);}} dark={dark} setDark={setDark}/>
         : <LoginScreen onLogin={setUser} dark={dark}/>
       }
-    </>
+    </ToastProvider>
   );
 }
