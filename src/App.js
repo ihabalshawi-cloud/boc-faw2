@@ -152,6 +152,66 @@ function ToastProvider({ children }) {
   );
 }
 
+// ========== مودال تأكيد الإجراءات ==========
+const ConfirmContext = createContext(null);
+const useConfirm = () => useContext(ConfirmContext);
+
+function ConfirmProvider({ children }) {
+  const [dlg, setDlg] = useState(null);
+  const confirm = useCallback((msg, opts = {}) =>
+    new Promise(resolve => setDlg({ msg, opts, resolve }))
+  , []);
+  const close = (val) => { dlg?.resolve(val); setDlg(null); };
+  return (
+    <ConfirmContext.Provider value={confirm}>
+      {children}
+      {dlg && (
+        <div className="fixed inset-0 bg-black/60 z-[300] flex items-center justify-center p-4" dir="rtl">
+          <div className="card rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-color">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`p-2.5 rounded-xl ${dlg.opts.danger ? "bg-red-100" : "bg-blue-100"}`}>
+                <AlertTriangle size={20} className={dlg.opts.danger ? "text-red-600" : "text-blue-600"}/>
+              </div>
+              <h3 className="font-bold text-base">{dlg.opts.title || "تأكيد الإجراء"}</h3>
+            </div>
+            <p className="text-sm text-secondary mb-6 leading-relaxed">{dlg.msg}</p>
+            <div className="flex gap-3">
+              <button onClick={() => close(false)} className="flex-1 py-2.5 border border-color rounded-xl text-sm font-medium hover:bg-hover transition-colors">إلغاء</button>
+              <button onClick={() => close(true)} className={`flex-1 py-2.5 rounded-xl text-white text-sm font-bold transition-colors ${dlg.opts.danger ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"}`}>
+                {dlg.opts.ok || "تأكيد"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </ConfirmContext.Provider>
+  );
+}
+
+// ========== مكونات الهيكل العظمي (Loading Skeleton) ==========
+function Skel({ className = "" }) {
+  return <div className={`skeleton rounded-lg ${className}`}/>;
+}
+function SkeletonCard({ lines = 3 }) {
+  return (
+    <div className="card rounded-2xl p-4 border border-color space-y-3">
+      <Skel className="h-4 w-3/4"/>
+      {lines > 1 && <Skel className="h-3 w-full"/>}
+      {lines > 2 && <Skel className="h-3 w-1/2"/>}
+    </div>
+  );
+}
+function SkeletonMsg({ mine }) {
+  return (
+    <div className={`flex gap-2 mb-3 ${mine ? "flex-row-reverse" : ""}`}>
+      <Skel className="h-8 w-8 rounded-full shrink-0"/>
+      <div className={`space-y-1 ${mine ? "items-end flex flex-col" : ""}`}>
+        <Skel className="h-3 w-20"/><Skel className="h-10 w-48 rounded-xl"/>
+      </div>
+    </div>
+  );
+}
+
 // SHA-256 عبر Web Crypto API (مدمج في المتصفح — لا مكتبات خارجية)
 const PASS_SALT = "BOC_FAW_SCADA_2025#";
 async function hashPassword(plain) {
@@ -535,6 +595,7 @@ function ChangePasswordPage({ emp, onLogout }) {
   const [loading, setLoading] = useState(false);
   const { isConnected } = useConnectionStatus();
   const toast = useToast();
+  const askConfirm = useConfirm();
 
   const handleChangePassword = async () => {
     if (!newPass || newPass.trim().length < 4) { toast("كلمة المرور يجب أن تكون 4 خانات أو أكثر", "warning"); return; }
@@ -545,9 +606,9 @@ function ChangePasswordPage({ emp, onLogout }) {
       passStore.set(`pass_${emp.id}`, hashed);
       if (isConnected) await FirebaseAPI.savePassword(emp.id, hashed);
       sessionStorage.removeItem("force_password_change");
-      toast("تم تغيير كلمة المرور بنجاح وتشفيرها!", "success");
+      toast("تم تغيير كلمة المرور بنجاح!", "success");
       setNewPass(""); setConfirm("");
-      setTimeout(() => { if (window.confirm("تم تغيير كلمة المرور. هل تريد تسجيل الخروج؟")) onLogout(); }, 1500);
+      if (await askConfirm("تم تغيير كلمة المرور. هل تريد تسجيل الخروج الآن؟", { title: "تسجيل الخروج", ok: "خروج" })) onLogout();
     } catch { toast("حدث خطأ أثناء الحفظ", "error"); }
     finally { setLoading(false); }
   };
@@ -573,7 +634,10 @@ function RequestsPage({ emp }) {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" });
   const [errors, setErrors] = useState({});
+  const [pageLoading, setPageLoading] = useState(true);
   const showToast = useToast();
+  const confirm = useConfirm();
+  useEffect(() => { const t = setTimeout(() => setPageLoading(false), 250); return () => clearTimeout(t); }, []);
 
   const handleSubmit = () => {
     if (!formData.purpose.trim()) { setErrors({purpose:"الغرض مطلوب"}); return; }
@@ -593,8 +657,9 @@ function RequestsPage({ emp }) {
     playAlert("notification");
   };
 
-  const deleteRequest = (id) => {
-    if(window.confirm("هل تريد حذف هذا الطلب؟")) {
+  const deleteRequest = async (id) => {
+    if (!await confirm("هل تريد حذف هذا الطلب؟", { danger: true, ok: "حذف", title: "حذف الطلب" })) return;
+    {
       const updated = requests.filter(r => r.id !== id);
       setRequests(updated);
       storage.set(`requests_${emp.id}`, updated);
@@ -620,8 +685,11 @@ function RequestsPage({ emp }) {
           {errors.purpose && <p className="text-red-500 text-xs">{errors.purpose}</p>}{errors.date && <p className="text-red-500 text-xs">{errors.date}</p>}{errors.days && <p className="text-red-500 text-xs">{errors.days}</p>}
           <div className="flex gap-3"><button onClick={()=>setShowForm(false)} className="flex-1 py-2 border border-color rounded-xl">إلغاء</button><button onClick={handleSubmit} className="flex-1 py-2 bg-blue-600 text-white rounded-xl">إرسال</button></div>
         </div></div>)}
-      {requests.length===0?<div className="card rounded-2xl p-8 text-center border-color border"><FileText size={40} className="mx-auto mb-3 text-secondary"/><p className="text-secondary">لا توجد طلبات إجازة</p></div>:
-      requests.map(req=>(<div key={req.id} className="card rounded-2xl p-4 border-color border"><div className="flex justify-between items-start">
+      {pageLoading
+        ? <div className="space-y-3">{[...Array(3)].map((_,i)=><SkeletonCard key={i} lines={3}/>)}</div>
+        : requests.length===0
+          ? <div className="card rounded-2xl p-8 text-center border-color border"><FileText size={40} className="mx-auto mb-3 text-secondary"/><p className="text-secondary">لا توجد طلبات إجازة</p></div>
+          : requests.map(req=>(<div key={req.id} className="card rounded-2xl p-4 border-color border"><div className="flex justify-between items-start">
         <div><div className="flex gap-2 mb-2"><span className={`px-2 py-1 rounded-full text-xs font-bold ${LEAVE_TYPES[req.type]?.color}`}>{LEAVE_TYPES[req.type]?.label}</span><span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusBadge(req.status)}`}>{req.status}</span></div>
         <p className="text-sm">من {req.dateFrom} إلى {req.dateTo} — {req.days} يوم</p><p className="text-xs text-secondary mt-1">{req.purpose}</p></div>
         {req.status==="بانتظار المراجعة" && <button onClick={()=>deleteRequest(req.id)} className="p-2 text-red-400"><Trash2 size={16}/></button>}</div></div>))}
@@ -952,11 +1020,17 @@ function InventorySystem() {
   const [adding, setAdding] = useState(false);
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const confirm = useConfirm();
   useEffect(() => { storage.set("inventory_items", items); }, [items]);
 
   const categories = ["الكل", ...INVENTORY_CATS];
   const filtered = items.filter(i => (i.name.includes(search)||i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
   const lowStock = items.filter(i => i.qty <= (i.minQty || LOW_STOCK_THRESHOLD));
+
+  const deleteItem = async (id) => {
+    if (await confirm("هل تريد حذف هذا الصنف؟", { danger: true, ok: "حذف", title: "حذف الصنف" }))
+      setItems(items.filter(i => i.id !== id));
+  };
 
   const saveItem = () => {
     if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
@@ -989,7 +1063,7 @@ function InventorySystem() {
           <td className="px-3 py-2 font-bold">{it.qty} {it.qty<=(it.minQty||3)&&<span className="text-amber-500">⚠️</span>}</td>
           <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":it.condition==="تالف"||it.condition==="تم الشطب"?"bg-red-100 text-red-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td>
           <td className="px-3 py-2 text-[10px]">{it.location}</td>
-          <td className="px-3 py-2 no-print"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>{if(window.confirm("حذف؟"))setItems(items.filter(i=>i.id!==it.id));}} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
+          <td className="px-3 py-2 no-print"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
@@ -1076,7 +1150,13 @@ function FurnitureInventory() {
   const [adding, setAdding] = useState(false);
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const confirm = useConfirm();
   useEffect(() => { storage.set("furniture_items", items); }, [items]);
+
+  const deleteItem = async (id) => {
+    if (await confirm("هل تريد حذف هذا الصنف؟", { danger: true, ok: "حذف", title: "حذف الصنف" }))
+      setItems(items.filter(i => i.id !== id));
+  };
 
   const categories = ["الكل", ...FURNITURE_CATS];
   const filtered = items.filter(i => (i.name.includes(search)||i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
@@ -1105,7 +1185,7 @@ function FurnitureInventory() {
       <div id="print-furniture" className="card rounded-2xl border-color border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="border-b border-color"><th className="px-3 py-2">الرمز</th><th className="px-3 py-2">الاسم</th><th className="px-3 py-2">الفئة</th><th className="px-3 py-2">الكمية</th><th className="px-3 py-2">الحالة</th><th className="px-3 py-2">الموقع</th><th className="px-3 py-2 no-print">إجراءات</th></tr></thead>
         <tbody>{filtered.map(it=>(<tr key={it.id} className="border-b border-color"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2">{it.name}</td><td className="px-3 py-2">{it.category}</td><td className="px-3 py-2 font-bold">{it.qty}</td>
           <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td>
-          <td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 no-print"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>{if(window.confirm("حذف؟"))setItems(items.filter(i=>i.id!==it.id));}} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
+          <td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 no-print"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
@@ -1119,6 +1199,7 @@ function EmployeeManager({ employees, setEmployees }) {
   const [adding, setAdding]       = useState(false);
   const [migrating, setMigrating] = useState(false);
   const toast = useToast();
+  const confirm = useConfirm();
 
   const filtered = employees.filter(e => e.name.includes(search) || e.jobNum.includes(search));
 
@@ -1130,7 +1211,7 @@ function EmployeeManager({ employees, setEmployees }) {
   };
 
   const handleMigrate = async () => {
-    if (!window.confirm("سيتم رفع بيانات جميع الموظفين (بدون كلمات المرور) إلى Firebase.\nهل تريد المتابعة؟")) return;
+    if (!await confirm("سيتم رفع بيانات جميع الموظفين (بدون كلمات المرور) إلى Firebase. هل تريد المتابعة؟", { title: "ترحيل البيانات", ok: "ترحيل" })) return;
     setMigrating(true);
     const ok = await FirebaseAPI.initializeAccounts(ACCOUNTS);
     setMigrating(false);
@@ -1313,7 +1394,8 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
   const [filter, setFilter] = useState("الكل");
   const [form, setForm] = useState({ title:"", desc:"", assignedTo:"", priority:"متوسطة", dueDate:"", status:"معلقة" });
   const [toast, setToast] = useState("");
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const showToast = (msg, type) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const confirm = useConfirm();
   useEffect(() => { storage.set("tasks_system", tasks); }, [tasks]);
 
   const displayed = isAdmin ? (filter==="الكل" ? tasks : tasks.filter(t=>t.status===filter)) : tasks.filter(t=>t.assignedTo===emp.id);
@@ -1338,8 +1420,8 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
     showToast(`✅ تم تحديث الحالة`);
   };
 
-  const deleteTask = (id) => {
-    if(window.confirm("حذف المهمة؟")) { setTasks(tasks.filter(t=>t.id!==id)); showToast("✅ تم الحذف"); }
+  const deleteTask = async (id) => {
+    if (await confirm("هل تريد حذف هذه المهمة؟", { danger: true, ok: "حذف", title: "حذف المهمة" })) { setTasks(tasks.filter(t=>t.id!==id)); showToast("تم حذف المهمة", "success"); }
   };
 
   const priorityColor = (p) => p==="عالية"?"bg-red-100 text-red-700":p==="متوسطة"?"bg-amber-100 text-amber-700":"bg-blue-100 text-blue-700";
@@ -1401,16 +1483,19 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
 function InternalChat({ emp, isConnected }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
+  const [chatLoading, setChatLoading] = useState(true);
   const bottomRef = useRef(null);
 
   const loadMessages = useCallback(async () => {
     if (!isConnected) {
       setMessages(storage.get("chat_offline", []));
+      setChatLoading(false);
       return;
     }
     const msgs = await FirebaseAPI.getMessages(50);
     setMessages(msgs);
     storage.set("chat_offline", msgs);
+    setChatLoading(false);
   }, [isConnected]);
 
   useEffect(() => { loadMessages(); const t = setInterval(loadMessages, 5000); return () => clearInterval(t); }, [loadMessages]);
@@ -1432,6 +1517,7 @@ function InternalChat({ emp, isConnected }) {
         <div className="flex items-center gap-2 text-xs">{isConnected?<><Wifi size={12} className="text-emerald-500"/><span className="text-emerald-600">متصل</span></>:<><WifiOff size={12} className="text-amber-500"/><span className="text-amber-600">غير متصل (محلي)</span></>}</div>
       </div>
       <div className="flex-1 card rounded-2xl border-color border p-4 overflow-y-auto space-y-3">
+        {chatLoading ? <>{[...Array(4)].map((_,i)=><SkeletonMsg key={i} mine={i%2===0}/>)}</> : <>
         {messages.length === 0 && <div className="text-center text-secondary py-8"><MessageSquare size={40} className="mx-auto mb-2"/><p>لا توجد رسائل بعد</p></div>}
         {messages.map((m,i) => {
           const isMine = m.senderId === emp.id;
@@ -1444,6 +1530,7 @@ function InternalChat({ emp, isConnected }) {
           </div>);
         })}
         <div ref={bottomRef}/>
+        </>}
       </div>
       <div className="flex gap-2 mt-3">
         <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="اكتب رسالة..." className="input flex-1 rounded-xl px-4 py-3"/>
@@ -1638,7 +1725,13 @@ function MaintenanceParts() {
   const [form, setForm] = useState({ code:"", name:"", category:"ميكانيكية", qty:0, minAlert:1, unit:"قطعة", price:0, location:"" });
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const confirm = useConfirm();
   useEffect(() => { storage.set("maint_spare_parts", parts); }, [parts]);
+
+  const deletePart = async (id) => {
+    if (await confirm("هل تريد حذف هذه القطعة؟", { danger: true, ok: "حذف", title: "حذف القطعة" }))
+      setParts(parts.filter(x => x.id !== id));
+  };
 
   const categories = ["الكل", ...new Set(parts.map(p => p.category))];
   const filtered = parts.filter(p => (p.name.includes(search)||p.code.includes(search)) && (filterCat==="الكل"||p.category===filterCat));
@@ -1691,7 +1784,7 @@ function MaintenanceParts() {
                   <td className="px-3 py-2 text-xs">{p.minAlert} {p.unit}</td>
                   <td className="px-3 py-2 text-xs">${p.price}</td>
                   <td className="px-3 py-2 text-xs text-secondary">{p.location}</td>
-                  <td className="px-3 py-2"><button onClick={()=>{if(window.confirm("حذف؟"))setParts(parts.filter(x=>x.id!==p.id));}} className="p-1 text-red-400 hover:text-red-600"><Trash2 size={13}/></button></td>
+                  <td className="px-3 py-2"><button onClick={()=>deletePart(p.id)} className="p-1 text-red-400 hover:text-red-600"><Trash2 size={13}/></button></td>
                 </tr>
               ))}
               {filtered.length===0 && <tr><td colSpan={8} className="text-center py-8 text-secondary">لا توجد نتائج</td></tr>}
@@ -1788,15 +1881,16 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
   const [employees, setEmployees] = useState(ACCOUNTS);
   const { isConnected } = useConnectionStatus();
   const smartAlerts = useSmartAlerts(employees);
+  const confirm = useConfirm();
   const isAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
   const pendingCount = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
   const unreadNotifs = (storage.get(`notifications_${emp.id}`, [])).filter(n => !n.read).length;
 
   useEffect(() => {
     const nc = sessionStorage.getItem("force_password_change");
-    if (nc) { sessionStorage.removeItem("force_password_change"); setTimeout(() => { if(window.confirm("🔐 يرجى تغيير كلمة المرور الافتراضية")) setView("changepass"); }, 500); }
-    // طلب إذن الإشعارات عند الدخول
+    if (nc) { sessionStorage.removeItem("force_password_change"); setTimeout(async () => { if(await confirm("يُنصح بتغيير كلمة المرور الافتراضية الآن لأمان حسابك.", { title: "🔐 تغيير كلمة المرور", ok: "تغيير الآن" })) setView("changepass"); }, 500); }
     if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // تحديث allRequests عند تغيير الـ view
@@ -2020,15 +2114,19 @@ export default function App() {
     * { transition: background-color 0.2s, border-color 0.2s, color 0.1s; }
     @keyframes toastIn { from { opacity:0; transform:translateX(30px); } to { opacity:1; transform:translateX(0); } }
     .toast-item { animation: toastIn 0.25s ease-out; }
+    @keyframes shimmer { from { background-position:-200% 0; } to { background-position:200% 0; } }
+    .skeleton { background: linear-gradient(90deg,${dark?"#334155 25%,#475569 50%,#334155 75%":"#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%"}); background-size:200% 100%; animation:shimmer 1.5s infinite; }
   `;
 
   return (
     <ToastProvider>
-      <style>{style}</style>
-      {user
-        ? <Dashboard emp={user} onLogout={()=>{sessionStorage.clear();setUser(null);}} dark={dark} setDark={setDark}/>
-        : <LoginScreen onLogin={setUser} dark={dark}/>
-      }
+      <ConfirmProvider>
+        <style>{style}</style>
+        {user
+          ? <Dashboard emp={user} onLogout={()=>{sessionStorage.clear();setUser(null);}} dark={dark} setDark={setDark}/>
+          : <LoginScreen onLogin={setUser} dark={dark}/>
+        }
+      </ConfirmProvider>
     </ToastProvider>
   );
 }
