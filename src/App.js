@@ -2040,85 +2040,101 @@ function HealthInsuranceForm({ emp }) {
   };
 
   const printForm = () => {
-    const monthLabel = MONTHS_IRAQI[month];
-    const filledForPrint = rows.filter(r => r.beneficiary || r.date || r.procedure);
-    const allRows = [...filledForPrint, ...Array.from({length: Math.max(0, 10-filledForPrint.length)}, (_,i)=>emptyRow(i))];
-    const rowsHtml = allRows.map((r,i) => `
-      <tr>
-        <td style="text-align:center">${i+1}</td>
-        <td>${r.beneficiary||""}</td>
-        <td>${r.date||""}</td>
-        <td>${r.procedure||""}</td>
-        <td style="text-align:center">${r.amount||""}</td>
-        <td style="text-align:center">${r.envelope||""}</td>
-        <td style="text-align:center">${r.sequence||""}</td>
+    const allPrintRows = [...rows, ...Array.from({length: Math.max(0, 10-rows.length)}, (_,i)=>emptyRow(rows.length+i+1))].slice(0,10);
+    const procCols = PROCEDURE_TYPES.map(pt =>
+      `<th style="width:14mm"><div class="th-vert">${pt}</div></th>`
+    ).join("");
+    const dataRows = allPrintRows.map((r,i) => `
+      <tr style="height:9mm">
+        <td>${i+1}</td>
+        <td class="td-name">${r.beneficiary||""}</td>
+        <td class="td-date">${r.date||""}</td>
+        ${PROCEDURE_TYPES.map(pt=>`<td class="td-amt">${r.procedure===pt?(r.amount||"✓"):""}</td>`).join("")}
+        <td>${r.envelope||""}</td>
+        <td>${r.sequence||""}</td>
       </tr>`).join("");
+    const sumCols = PROCEDURE_TYPES.map(()=>"<td></td>").join("");
     const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/>
-    <title>استمارة طلب التعويض</title>
-    <style>
-      *{font-family:Arial,sans-serif;font-size:12px;box-sizing:border-box}
-      body{padding:15mm;margin:0}
-      h1{font-size:16px;text-align:center;margin:0 0 4px}
-      h2{font-size:13px;text-align:center;margin:0 0 12px;color:#444}
-      .top{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;border:1px solid #999;padding:8px;margin-bottom:10px}
-      .field{display:flex;gap:6px;align-items:center;border-bottom:1px dotted #ccc;padding:3px 0}
-      .label{font-weight:bold;white-space:nowrap;min-width:80px}
-      .totals{display:flex;gap:16px;border:1px solid #999;padding:6px 10px;margin-bottom:10px;font-weight:bold}
-      table{border-collapse:collapse;width:100%;margin-bottom:10px}
-      th,td{border:1px solid #666;padding:5px 6px;text-align:right}
-      th{background:#e8f0fe;font-weight:bold}
-      .sig{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:20px;text-align:center}
-      .sig div{border-top:1px solid #333;padding-top:6px}
-      .no-print{display:none}
-    </style></head><body>
-    <h1>استمارة طلب التعويض للموظفين</h1>
-    <h2>الصيانة الهندسية / السيطرة والنظم</h2>
-    <div class="top">
-      <div>
-        <div class="field"><span class="label">اسم الهيأة/القسم:</span><span>الصيانة الهندسية</span></div>
-        <div class="field"><span class="label">لجنة:</span><span>لجنة الضمان الصحي المركزية</span></div>
-      </div>
-      <div>
-        <div class="field"><span class="label">اسم الموظف:</span><span>${emp.name}</span></div>
-        <div class="field"><span class="label">الرقم الوظيفي:</span><span>${emp.jobNum}</span></div>
-        <div class="field"><span class="label">رقم الهاتف:</span><span>${phone}</span></div>
-        <div class="field"><span class="label">الحالة الزوجية:</span><span>${marital}</span></div>
-      </div>
-      <div>
-        <div class="field"><span class="label">الشهر:</span><span>${monthLabel}</span></div>
-        <div class="field"><span class="label">السنة:</span><span>${year}</span></div>
-        <div class="field"><span class="label">تاريخ التقديم:</span><span>${now.toLocaleDateString("ar-IQ")}</span></div>
-        <div class="field"><span class="label">توقيع الموظف:</span><span style="border-bottom:1px solid #333;display:inline-block;width:80px">&nbsp;</span></div>
-      </div>
+<title>استمارة طلب التعويض للموظفين</title>
+<style>
+  @page{size:A4 landscape;margin:7mm}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Times New Roman',Arial,sans-serif;font-size:8.5pt;direction:rtl}
+  .hbox{border:2px solid #000;margin-bottom:3mm}
+  .htitle{text-align:center;font-size:13pt;font-weight:bold;padding:2.5mm 2mm;border-bottom:1px solid #000}
+  .horg{text-align:center;font-size:9.5pt;padding:1.5mm;border-bottom:1px solid #000}
+  .hgrid{display:grid;grid-template-columns:1fr 1fr 1fr}
+  .hcol{padding:2mm 3mm;border-right:1px solid #000}
+  .hcol:last-child{border-right:none}
+  .frow{display:flex;align-items:baseline;gap:4px;padding:1.5px 0;border-bottom:1px dotted #bbb;min-height:17px}
+  .frow:last-child{border-bottom:none}
+  .fl{font-weight:bold;white-space:nowrap;font-size:7.5pt;min-width:95px}
+  .fv{flex:1;border-bottom:1px solid #000;font-size:8pt;padding-bottom:1px;padding-right:3px}
+  table{border-collapse:collapse;width:100%;table-layout:fixed}
+  th,td{border:1px solid #000;text-align:center;vertical-align:middle;font-size:7pt;padding:1px 1px}
+  th{background:#dce6f1;font-weight:bold}
+  .th-vert{writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);height:25mm;font-size:6pt;padding:0}
+  .td-name{text-align:right;font-size:8pt;padding-right:2mm}
+  .td-date{font-size:7pt}
+  .td-amt{font-size:8pt;font-weight:bold}
+  .auth{margin-top:2.5mm;font-size:8pt}
+  .sigrow{display:grid;grid-template-columns:repeat(4,1fr);gap:8mm;margin-top:3mm;text-align:center}
+  .sigcell{font-weight:bold;font-size:9pt}
+  .sigline{margin-top:10mm;border-top:1px solid #000;padding-top:1.5mm;font-size:7.5pt;font-weight:normal}
+</style></head><body>
+<div class="hbox">
+  <div class="htitle">استمارة طلب التعويض للموظفين</div>
+  <div class="horg">الصيانة الهندسية / السيطرة والنظم</div>
+  <div class="hgrid">
+    <div class="hcol">
+      <div class="frow"><span class="fl">اسم الهيأة/القسم:</span><span class="fv">الصيانة الهندسية</span></div>
+      <div class="frow"><span class="fl">اللجنة:</span><span class="fv">لجنة الضمان الصحي المركزية</span></div>
+      <div class="frow"><span class="fl">اسم الموظف:</span><span class="fv">${emp.name}</span></div>
+      <div class="frow"><span class="fl">الرقم الوظيفي:</span><span class="fv">${emp.jobNum}</span></div>
     </div>
-    <div class="totals">
-      <span>عدد المراجعات: <u>${filledRows.length}</u></span>
-      <span>المجموع الكلي للمراجعات: <u>${totalAmount.toLocaleString()} دينار</u></span>
+    <div class="hcol">
+      <div class="frow"><span class="fl">رقم الهاتف:</span><span class="fv">${phone}</span></div>
+      <div class="frow"><span class="fl">الحالة الزوجية:</span><span class="fv">${marital}</span></div>
+      <div class="frow"><span class="fl">الشهـــر:</span><span class="fv">${MONTHS_IRAQI[month]}</span></div>
+      <div class="frow"><span class="fl">السنة:</span><span class="fv">${year}</span></div>
     </div>
-    <table>
-      <thead><tr>
-        <th style="width:30px">ت</th>
-        <th>اسم المنتفع</th>
-        <th>تاريخ المراجعة</th>
-        <th>نوع الإجراء الطبي</th>
-        <th style="width:80px">المبلغ (دينار)</th>
-        <th style="width:70px">رقم الظرف</th>
-        <th style="width:60px">التسلسل</th>
-      </tr></thead>
-      <tbody>${rowsHtml}</tbody>
-      <tfoot><tr>
-        <td colspan="4" style="text-align:left;font-weight:bold">المجموع</td>
-        <td style="text-align:center;font-weight:bold">${totalAmount.toLocaleString()}</td>
-        <td colspan="2"></td>
-      </tr></tfoot>
-    </table>
-    <div class="sig">
-      <div>العضو<br/><br/><small>الاسم والتوقيع</small></div>
-      <div>العضو<br/><br/><small>الاسم والتوقيع</small></div>
-      <div>العضو<br/><br/><small>الاسم والتوقيع</small></div>
-      <div>رئيس اللجنة<br/><br/><small>الاسم والتوقيع</small></div>
+    <div class="hcol" style="border-right:none">
+      <div class="frow"><span class="fl">تاريخ تقديم الطلب:</span><span class="fv">${now.toLocaleDateString("ar-IQ")}</span></div>
+      <div class="frow"><span class="fl">عدد المراجعات:</span><span class="fv">${filledRows.length}</span></div>
+      <div class="frow"><span class="fl">المجموع الكلي للمراجعات:</span><span class="fv">${totalAmount.toLocaleString()} دينار</span></div>
+      <div class="frow"><span class="fl">توقيع الموظف:</span><span class="fv">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
     </div>
-    </body></html>`;
+  </div>
+</div>
+<table>
+  <thead>
+    <tr>
+      <th rowspan="2" style="width:7mm">ت</th>
+      <th rowspan="2" style="width:40mm">اسم المنتفع</th>
+      <th rowspan="2" style="width:19mm">تاريخ المراجعة</th>
+      <th colspan="12" style="font-size:9pt">نوع الإجراء الطبي</th>
+      <th rowspan="2" style="width:14mm">رقم الظرف</th>
+      <th rowspan="2" style="width:12mm">التسلسل</th>
+    </tr>
+    <tr>${procCols}</tr>
+  </thead>
+  <tbody>${dataRows}</tbody>
+  <tfoot>
+    <tr>
+      <td colspan="3" style="text-align:right;padding-right:3mm;font-weight:bold;font-size:8pt">المجموع الكلي للمراجعات</td>
+      ${sumCols}
+      <td colspan="2" style="font-weight:bold;font-size:8pt">${totalAmount.toLocaleString()}</td>
+    </tr>
+  </tfoot>
+</table>
+<div class="auth">اسم وتوقيع المخول: _________________________________</div>
+<div class="sigrow">
+  <div class="sigcell">العضو<div class="sigline">الاسم والتوقيع</div></div>
+  <div class="sigcell">العضو<div class="sigline">الاسم والتوقيع</div></div>
+  <div class="sigcell">العضو<div class="sigline">الاسم والتوقيع</div></div>
+  <div class="sigcell">رئيس اللجنة<div class="sigline">الاسم والتوقيع</div></div>
+</div>
+</body></html>`;
     const iframe = document.createElement("iframe");
     iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0";
     document.body.appendChild(iframe);
