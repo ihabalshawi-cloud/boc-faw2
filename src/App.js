@@ -2355,13 +2355,13 @@ function AnnualLeaveForm({ emp }) {
   const STORAGE_KEY = `annual_leave_${emp.id}`;
 
   const [name, setName] = useState(emp.name);
+  const [jobNum, setJobNum] = useState(emp.jobNum || "");
   const [jobTitle, setJobTitle] = useState(emp.title || "");
   const [dept, setDept] = useState(emp.dept || "");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [days, setDays] = useState("");
   const [purpose, setPurpose] = useState("");
-  const [sequence, setSequence] = useState("");
   const [reqDate, setReqDate] = useState(now.toISOString().split("T")[0]);
   const [sigDataUrl, setSigDataUrl] = useState(null);
 
@@ -2369,13 +2369,13 @@ function AnnualLeaveForm({ emp }) {
     const saved = storage.get(STORAGE_KEY, null);
     if (saved) {
       setName(saved.name || emp.name);
+      setJobNum(saved.jobNum || emp.jobNum || "");
       setJobTitle(saved.jobTitle || emp.title || "");
       setDept(saved.dept || emp.dept || "");
       setFromDate(saved.fromDate || "");
       setToDate(saved.toDate || "");
       setDays(saved.days || "");
       setPurpose(saved.purpose || "");
-      setSequence(saved.sequence || "");
       setReqDate(saved.reqDate || now.toISOString().split("T")[0]);
       setSigDataUrl(saved.sigDataUrl || null);
     }
@@ -2390,18 +2390,12 @@ function AnnualLeaveForm({ emp }) {
   }, [fromDate, toDate]);
 
   const save = () => {
-    storage.set(STORAGE_KEY, { name, jobTitle, dept, fromDate, toDate, days, purpose, sequence, reqDate, sigDataUrl });
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, fromDate, toDate, days, purpose, reqDate, sigDataUrl });
     toast.success("✅ تم حفظ بيانات الإجازة الاعتيادية");
   };
 
-  const fmtDate = (d) => {
-    if (!d) return "____________";
-    const dt = new Date(d);
-    return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`;
-  };
-
   const fmtDateParts = (d) => {
-    if (!d) return { y:"______", m:"____", day:"__" };
+    if (!d) return { y:"______", m:"______", day:"____" };
     const dt = new Date(d);
     return { y: dt.getFullYear(), m: String(dt.getMonth()+1).padStart(2,"0"), day: String(dt.getDate()).padStart(2,"0") };
   };
@@ -2410,7 +2404,8 @@ function AnnualLeaveForm({ emp }) {
     const sigHtml = sigDataUrl
       ? `<img src="${sigDataUrl}" style="max-width:130px;max-height:55px;display:block;margin:auto;"/>`
       : `<div style="min-height:44px"></div>`;
-    const dp = fmtDateParts(fromDate);
+    const rp = fmtDateParts(reqDate);
+    const fp = fmtDateParts(fromDate);
     const sentenceDays = days || "______";
     const sentencePurpose = purpose || "_________________________________";
 
@@ -2420,69 +2415,77 @@ function AnnualLeaveForm({ emp }) {
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Times New Roman',Arial,sans-serif;font-size:9pt;direction:rtl}
   /* ===== ترويسة الوثيقة ===== */
-  .doc-header{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:8pt}
-  .doc-header td,.doc-header th{border:1px solid #555;padding:3px 6px;text-align:center;vertical-align:middle}
-  .dh-company{font-size:9.5pt;font-weight:bold;white-space:nowrap;background:#f0f0f0;width:15%}
+  .doc-header{width:100%;border-collapse:collapse;font-size:8pt}
+  .doc-header td{border:1px solid #555;padding:3px 6px;text-align:center;vertical-align:middle}
+  .dh-company{font-size:9.5pt;font-weight:bold;background:#f0f0f0;width:16%}
   .dh-label{font-size:7.5pt;color:#444;text-align:right;padding-right:5px;background:#fafafa;width:13%}
-  .dh-value{font-weight:bold;font-size:8.5pt;width:18%}
-  .dh-info{width:10%}
-  .dh-info-lbl{font-size:7pt;color:#555;display:block}
-  .dh-info-val{font-weight:bold;font-size:9pt}
+  .dh-main{font-size:10pt;font-weight:bold;width:40%}
+  .dh-code{font-size:8pt;font-weight:bold;width:18%}
+  .dh-info-cell{width:11%}
+  .dh-info-lbl{font-size:6.5pt;color:#555;display:block;border-bottom:1px solid #ccc;padding-bottom:2px;margin-bottom:2px}
+  .dh-info-val{font-weight:bold;font-size:9pt;display:block}
   .dh-logo{width:10%;padding:2px}
+  .ref-num{text-align:left;direction:ltr;font-size:7.5pt;margin:1px 0 5px;padding-left:4px}
   /* ===== صندوق الاستمارة ===== */
   .main-box{border:2px solid #222;padding:7px 10px}
-  .field-row{display:flex;align-items:baseline;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+  .top-bar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid #ccc}
+  .top-date{font-size:8.5pt;grid-column:1;text-align:left;direction:ltr}
+  .top-title{font-size:11pt;font-weight:bold;grid-column:2;text-align:center}
+  .field-row{display:flex;align-items:baseline;gap:8px;margin-bottom:5px;flex-wrap:wrap}
   .lbl{font-weight:bold;white-space:nowrap;font-size:9pt}
-  .val{border-bottom:1px solid #555;min-width:55px;flex:1;font-size:9pt;padding-bottom:1px}
-  .sentence{font-size:9.5pt;margin:8px 0 8px;line-height:2.2;border:1px solid #ccc;padding:6px 8px;background:#fafafa;border-radius:2px}
-  .blank{display:inline-block;border-bottom:1px solid #333;min-width:36px;text-align:center;font-weight:bold;padding:0 3px}
-  .blank-lg{min-width:120px}
-  .sig-row{display:flex;gap:10px;margin-top:10px}
+  .val{border-bottom:1px solid #555;min-width:50px;flex:1;font-size:9pt;padding-bottom:1px}
+  .sentence{font-size:9.5pt;margin:7px 0;line-height:2.3;border:1px solid #ccc;padding:5px 8px;background:#fafafa}
+  .blank{display:inline-block;border-bottom:1px solid #333;min-width:36px;text-align:center;font-weight:bold;padding:0 2px}
+  .blank-lg{min-width:110px}
+  .sig-row{display:flex;gap:10px;margin-top:8px}
   .sig-box{border:1px solid #333;text-align:center;padding:5px 4px;min-height:60px;flex:1}
   .sig-title{font-weight:bold;font-size:8.5pt;margin-bottom:4px}
-  .seq-row{font-size:8pt;margin-top:6px;display:flex;gap:16px}
 </style></head>
 <body>
-<!-- ترويسة الوثيقة في الأعلى -->
+<!-- ترويسة الوثيقة -->
 <table class="doc-header">
   <tr>
     <td rowspan="2" class="dh-company">شركة نفط البصرة<br/>(شركة عامة)</td>
     <td class="dh-label">عنوان النموذج</td>
-    <td class="dh-value">نموذج إجازة اعتيادية</td>
-    <td rowspan="2" class="dh-info"><span class="dh-info-lbl">رقم الإصدار</span><span class="dh-info-val">2</span></td>
-    <td rowspan="2" class="dh-info"><span class="dh-info-lbl">تاريخ الإصدار</span><span class="dh-info-val">2022/6/1</span></td>
+    <td colspan="3" class="dh-main">نموذج إجازة اعتيادية</td>
     <td rowspan="2" class="dh-logo">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 54 40" width="50" height="37">
         <rect width="54" height="40" fill="#003d7c" rx="3"/>
-        <ellipse cx="27" cy="17" rx="9" ry="12" fill="#0066cc"/>
-        <ellipse cx="27" cy="17" rx="5" ry="8" fill="#003d7c"/>
+        <ellipse cx="27" cy="16" rx="9" ry="12" fill="#0066cc"/>
+        <ellipse cx="27" cy="16" rx="5" ry="7" fill="#003d7c"/>
         <text x="27" y="36" text-anchor="middle" fill="white" font-size="8" font-weight="bold" font-family="Arial">BOC</text>
       </svg>
     </td>
   </tr>
   <tr>
     <td class="dh-label">رمز النموذج</td>
-    <td class="dh-value" style="font-size:8pt">BOC-P-13/F03</td>
+    <td class="dh-code">BOC-P-13/F03</td>
+    <td class="dh-info-cell"><span class="dh-info-lbl">رقم الإصدار</span><span class="dh-info-val">2</span></td>
+    <td class="dh-info-cell"><span class="dh-info-lbl">تاريخ الإصدار</span><span class="dh-info-val">2022/6/1</span></td>
   </tr>
 </table>
+<div class="ref-num">372.3000.450</div>
 <!-- صندوق الاستمارة -->
 <div class="main-box">
+  <div class="top-bar">
+    <div class="top-date">التاريخ: &nbsp;${rp.day}&nbsp; / &nbsp;${rp.m}&nbsp; / &nbsp;${rp.y}</div>
+    <div class="top-title">م/ إجازة اعتيادية</div>
+    <div></div>
+  </div>
   <div class="field-row">
-    <span class="lbl">الاسم:</span><span class="val">${name}</span>
-    <span class="lbl">الوظيفة:</span><span class="val">${jobTitle}</span>
+    <span class="lbl">الاسم الثلاثي:</span><span class="val">${name}</span>
+  </div>
+  <div class="field-row">
+    <span class="lbl">الرقم الوظيفي:</span><span class="val">${jobNum}</span>
+    <span class="lbl">العنوان الوظيفي:</span><span class="val">${jobTitle}</span>
     <span class="lbl">القسم/الشعبة:</span><span class="val">${dept}</span>
   </div>
   <div class="sentence">
     يرجى منحي إجازة اعتيادية لمدة
     (<span class="blank">&nbsp;${sentenceDays}&nbsp;</span>)
     يوماً اعتباراً من
-    (<span class="blank">&nbsp;${dp.day}&nbsp;</span> / <span class="blank">&nbsp;${dp.m}&nbsp;</span> / <span class="blank">&nbsp;${dp.y}&nbsp;</span>)
+    (<span class="blank">&nbsp;${fp.day}&nbsp;</span> / <span class="blank">&nbsp;${fp.m}&nbsp;</span> / <span class="blank">&nbsp;${fp.y}&nbsp;</span>)
     لغرض (<span class="blank blank-lg">&nbsp;${sentencePurpose}&nbsp;</span>)
-  </div>
-  <div class="seq-row">
-    <span><b>تسلسل الطلب:</b> ${sequence || "______"}</span>
-    <span><b>تاريخ الطلب:</b> ${fmtDate(reqDate)}</span>
-    <span><b>إلى تاريخ:</b> ${fmtDate(toDate)}</span>
   </div>
   <div class="sig-row">
     <div class="sig-box"><div class="sig-title">توقيع طالب الإجازة</div>${sigHtml}</div>
@@ -2506,20 +2509,20 @@ function AnnualLeaveForm({ emp }) {
         <div><h2 className="text-xl font-bold text-primary">إجازة اعتيادية</h2><p className="text-xs text-secondary">BOC-P-13/F03 — طباعة A5 landscape</p></div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div><label className="block text-xs font-bold text-secondary mb-1">الاسم</label><input value={name} onChange={e=>setName(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">الوظيفة</label><input value={jobTitle} onChange={e=>setJobTitle(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">الاسم الثلاثي</label><input value={name} onChange={e=>setName(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">الرقم الوظيفي</label><input value={jobNum} onChange={e=>setJobNum(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
       </div>
-      <div><label className="block text-xs font-bold text-secondary mb-1">القسم / الشعبة</label><input value={dept} onChange={e=>setDept(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className="block text-xs font-bold text-secondary mb-1">العنوان الوظيفي</label><input value={jobTitle} onChange={e=>setJobTitle(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">القسم / الشعبة</label><input value={dept} onChange={e=>setDept(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      </div>
       <div className="grid grid-cols-3 gap-3">
         <div><label className="block text-xs font-bold text-secondary mb-1">من تاريخ</label><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
         <div><label className="block text-xs font-bold text-secondary mb-1">إلى تاريخ</label><input type="date" value={toDate} onChange={e=>setToDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
         <div><label className="block text-xs font-bold text-secondary mb-1">عدد الأيام</label><input type="number" min="1" value={days} onChange={e=>setDays(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
       </div>
       <div><label className="block text-xs font-bold text-secondary mb-1">غرض الإجازة</label><input value={purpose} onChange={e=>setPurpose(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="block text-xs font-bold text-secondary mb-1">تسلسل الطلب</label><input value={sequence} onChange={e=>setSequence(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الطلب</label><input type="date" value={reqDate} onChange={e=>setReqDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-      </div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الطلب</label><input type="date" value={reqDate} onChange={e=>setReqDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
       <div>
         <label className="block text-xs font-bold text-secondary mb-2">توقيع طالب الإجازة (إلكتروني)</label>
         <SignaturePad onSave={setSigDataUrl} label="ارسم توقيعك ثم اضغط حفظ التوقيع"/>
