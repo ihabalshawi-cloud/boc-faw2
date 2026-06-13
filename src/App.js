@@ -261,6 +261,7 @@ const VIEW_LABELS = {
   audit:"سجل التعديلات", changepass:"تغيير كلمة المرور",
   employees:"إدارة الموظفين", approvals:"الموافقات",
   health_insurance:"الضمان الصحي",
+  leave_forms:"نماذج الإجازات",
 };
 
 function GlobalSearch({ setView, onClose }) {
@@ -2281,6 +2282,350 @@ function HealthInsuranceForm({ emp }) {
   );
 }
 
+// ========== لوحة رسم التوقيع الإلكتروني ==========
+function SignaturePad({ onSave, label = "التوقيع" }) {
+  const canvasRef = useRef(null);
+  const drawing = useRef(false);
+  const lastPos = useRef(null);
+
+  const getPos = (e, canvas) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if (e.touches) return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY };
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  };
+
+  const startDraw = (e) => { e.preventDefault(); drawing.current = true; lastPos.current = getPos(e, canvasRef.current); };
+  const draw = (e) => {
+    e.preventDefault();
+    if (!drawing.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const pos = getPos(e, canvas);
+    ctx.beginPath();
+    ctx.moveTo(lastPos.current.x, lastPos.current.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.strokeStyle = "#1a1a1a";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    lastPos.current = pos;
+  };
+  const stopDraw = () => { drawing.current = false; };
+
+  const clear = () => {
+    const canvas = canvasRef.current;
+    canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+    onSave && onSave(null);
+  };
+  const save = () => { onSave && onSave(canvasRef.current.toDataURL("image/png")); };
+
+  return (
+    <div className="border border-color rounded-lg p-2 bg-white dark:bg-gray-800">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs text-secondary">{label}</span>
+        <div className="flex gap-1">
+          <button type="button" onClick={clear} className="text-xs px-2 py-0.5 rounded border border-color hover:bg-hover text-secondary">مسح</button>
+          <button type="button" onClick={save} className="text-xs px-2 py-0.5 rounded bg-blue-600 text-white">حفظ التوقيع</button>
+        </div>
+      </div>
+      <canvas
+        ref={canvasRef}
+        width={400}
+        height={90}
+        className="border border-dashed border-gray-300 rounded cursor-crosshair touch-none w-full bg-gray-50"
+        onMouseDown={startDraw}
+        onMouseMove={draw}
+        onMouseUp={stopDraw}
+        onMouseLeave={stopDraw}
+        onTouchStart={startDraw}
+        onTouchMove={draw}
+        onTouchEnd={stopDraw}
+      />
+    </div>
+  );
+}
+
+// ========== نموذج الإجازة الاعتيادية ==========
+function AnnualLeaveForm({ emp }) {
+  const now = new Date();
+  const toast = useToast();
+  const STORAGE_KEY = `annual_leave_${emp.id}`;
+
+  const [name, setName] = useState(emp.name);
+  const [jobTitle, setJobTitle] = useState(emp.title || "");
+  const [dept, setDept] = useState(emp.dept || "");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [days, setDays] = useState("");
+  const [purpose, setPurpose] = useState("");
+  const [leaveStatus, setLeaveStatus] = useState("");
+  const [leavesEarned, setLeavesEarned] = useState("");
+  const [sequence, setSequence] = useState("");
+  const [reqDate, setReqDate] = useState(now.toISOString().split("T")[0]);
+  const [sigDataUrl, setSigDataUrl] = useState(null);
+
+  useEffect(() => {
+    const saved = storage.get(STORAGE_KEY, null);
+    if (saved) {
+      setName(saved.name || emp.name);
+      setJobTitle(saved.jobTitle || emp.title || "");
+      setDept(saved.dept || emp.dept || "");
+      setFromDate(saved.fromDate || "");
+      setToDate(saved.toDate || "");
+      setDays(saved.days || "");
+      setPurpose(saved.purpose || "");
+      setLeaveStatus(saved.leaveStatus || "");
+      setLeavesEarned(saved.leavesEarned || "");
+      setSequence(saved.sequence || "");
+      setReqDate(saved.reqDate || now.toISOString().split("T")[0]);
+      setSigDataUrl(saved.sigDataUrl || null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (fromDate && toDate) {
+      const diff = Math.round((new Date(toDate) - new Date(fromDate)) / 86400000) + 1;
+      if (diff > 0) setDays(String(diff));
+    }
+  }, [fromDate, toDate]);
+
+  const save = () => {
+    storage.set(STORAGE_KEY, { name, jobTitle, dept, fromDate, toDate, days, purpose, leaveStatus, leavesEarned, sequence, reqDate, sigDataUrl });
+    toast.success("✅ تم حفظ بيانات الإجازة الاعتيادية");
+  };
+
+  const fmtDate = (d) => {
+    if (!d) return "___________";
+    const dt = new Date(d);
+    return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`;
+  };
+
+  const printForm = () => {
+    const sigHtml = sigDataUrl ? `<img src="${sigDataUrl}" style="max-width:130px;max-height:55px;display:block;margin:auto;"/>` : `<div style="min-height:40px"></div>`;
+    const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>إجازة اعتيادية</title>
+<style>
+  @page{size:A5 landscape;margin:7mm}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Times New Roman',Arial,sans-serif;font-size:9pt;direction:rtl}
+  .main-box{border:2px solid #222;padding:6px 10px}
+  .form-title{font-size:13pt;font-weight:bold;text-align:center;margin-bottom:7px;border-bottom:1.5px solid #444;padding-bottom:4px}
+  .field-row{display:flex;align-items:baseline;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+  .lbl{font-weight:bold;white-space:nowrap;font-size:9pt}
+  .val{border-bottom:1px solid #555;min-width:60px;flex:1;font-size:9pt;padding-bottom:1px}
+  .sig-row{display:flex;gap:10px;margin-top:10px}
+  .sig-box{border:1px solid #333;width:48%;text-align:center;padding:5px 4px;min-height:65px;flex:1}
+  .sig-title{font-weight:bold;font-size:8.5pt;margin-bottom:4px}
+  .doc-info{display:flex;border:1px solid #888;margin-top:8px;font-size:7.5pt;text-align:center}
+  .dc{border-right:1px solid #888;padding:3px 5px;flex:1}
+  .dc:first-child{border-right:none}
+  .shaded{background:#d0d0d0;font-weight:bold}
+  .logo-dc{flex:0 0 36px;font-weight:bold;font-size:10pt;border-right:1px solid #888;display:flex;align-items:center;justify-content:center}
+</style></head>
+<body>
+<div class="main-box">
+  <div class="form-title">إجازة اعتيادية</div>
+  <div class="field-row"><span class="lbl">الاسم:</span><span class="val">${name}</span><span class="lbl">الوظيفة:</span><span class="val">${jobTitle}</span><span class="lbl">القسم/الشعبة:</span><span class="val">${dept}</span></div>
+  <div class="field-row"><span class="lbl">من تاريخ:</span><span class="val">${fmtDate(fromDate)}</span><span class="lbl">إلى تاريخ:</span><span class="val">${fmtDate(toDate)}</span><span class="lbl">عدد الأيام:</span><span class="val">${days}</span></div>
+  <div class="field-row"><span class="lbl">غرض الإجازة:</span><span class="val">${purpose}</span></div>
+  <div class="field-row"><span class="lbl">حالة المجاز:</span><span class="val">${leaveStatus}</span><span class="lbl">عدد الإجازات المستحقة:</span><span class="val">${leavesEarned}</span></div>
+  <div class="field-row"><span class="lbl">تسلسل الطلب:</span><span class="val">${sequence}</span><span class="lbl">تاريخ الطلب:</span><span class="val">${fmtDate(reqDate)}</span></div>
+  <div class="sig-row">
+    <div class="sig-box"><div class="sig-title">توقيع طالب الإجازة</div>${sigHtml}</div>
+    <div class="sig-box"><div class="sig-title">توقيع المسؤول</div></div>
+  </div>
+</div>
+<div class="doc-info">
+  <div class="logo-dc">BOC</div>
+  <div class="dc shaded">إجازة اعتيادية</div>
+  <div class="dc"><div>رقم النموذج</div><div style="font-weight:bold">BOC-P-13/F03</div></div>
+  <div class="dc"><div>تاريخ الإصدار</div><div>2022/6/1</div></div>
+  <div class="dc"><div>رقم الإصدار</div><div>2</div></div>
+  <div class="dc"><div>آخر تعديل</div><div>—</div></div>
+</div>
+</body></html>`;
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0";
+    document.body.appendChild(iframe);
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+    iframe.contentWindow.focus();
+    setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 2000); }, 400);
+  };
+
+  return (
+    <div className="p-6 max-w-2xl mx-auto space-y-5" dir="rtl">
+      <div className="flex items-center gap-3 pb-3 border-b border-color">
+        <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center"><FileText size={20} className="text-white"/></div>
+        <div><h2 className="text-xl font-bold text-primary">إجازة اعتيادية</h2><p className="text-xs text-secondary">BOC-P-13/F03 — طباعة A5 landscape</p></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className="block text-xs font-bold text-secondary mb-1">الاسم</label><input value={name} onChange={e=>setName(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">الوظيفة</label><input value={jobTitle} onChange={e=>setJobTitle(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      </div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">القسم / الشعبة</label><input value={dept} onChange={e=>setDept(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      <div className="grid grid-cols-3 gap-3">
+        <div><label className="block text-xs font-bold text-secondary mb-1">من تاريخ</label><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">إلى تاريخ</label><input type="date" value={toDate} onChange={e=>setToDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">عدد الأيام</label><input type="number" min="1" value={days} onChange={e=>setDays(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
+      </div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">غرض الإجازة</label><input value={purpose} onChange={e=>setPurpose(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className="block text-xs font-bold text-secondary mb-1">حالة المجاز</label><input value={leaveStatus} onChange={e=>setLeaveStatus(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">عدد الإجازات المستحقة</label><input value={leavesEarned} onChange={e=>setLeavesEarned(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className="block text-xs font-bold text-secondary mb-1">تسلسل الطلب</label><input value={sequence} onChange={e=>setSequence(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الطلب</label><input type="date" value={reqDate} onChange={e=>setReqDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      </div>
+      <div>
+        <label className="block text-xs font-bold text-secondary mb-2">توقيع طالب الإجازة (إلكتروني)</label>
+        <SignaturePad onSave={setSigDataUrl} label="ارسم توقيعك ثم اضغط حفظ التوقيع"/>
+        {sigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={sigDataUrl} alt="توقيع" className="max-h-14"/></div>}
+      </div>
+      <div className="flex flex-wrap gap-3 justify-end pt-2 border-t border-color">
+        <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ</button>
+        <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
+      </div>
+    </div>
+  );
+}
+
+// ========== نموذج الإجازة المرضية ==========
+function SickLeaveForm({ emp }) {
+  const toast = useToast();
+  const STORAGE_KEY = `sick_leave_${emp.id}`;
+
+  const [name, setName] = useState(emp.name);
+  const [jobNum, setJobNum] = useState(emp.jobNum || "");
+  const [jobTitle, setJobTitle] = useState(emp.title || "");
+  const [leaveDateTime, setLeaveDateTime] = useState("");
+  const [clinicDateTime, setClinicDateTime] = useState("");
+  const [returnDateTime, setReturnDateTime] = useState("");
+  const [doctorNotes, setDoctorNotes] = useState("");
+  const [sigDataUrl, setSigDataUrl] = useState(null);
+
+  useEffect(() => {
+    const saved = storage.get(STORAGE_KEY, null);
+    if (saved) {
+      setName(saved.name || emp.name);
+      setJobNum(saved.jobNum || emp.jobNum || "");
+      setJobTitle(saved.jobTitle || emp.title || "");
+      setLeaveDateTime(saved.leaveDateTime || "");
+      setClinicDateTime(saved.clinicDateTime || "");
+      setReturnDateTime(saved.returnDateTime || "");
+      setDoctorNotes(saved.doctorNotes || "");
+      setSigDataUrl(saved.sigDataUrl || null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const save = () => {
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, leaveDateTime, clinicDateTime, returnDateTime, doctorNotes, sigDataUrl });
+    toast.success("✅ تم حفظ بيانات الإجازة المرضية");
+  };
+
+  const fmtDT = (v) => {
+    if (!v) return "___________";
+    const dt = new Date(v);
+    return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}  ${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
+  };
+
+  const printForm = () => {
+    const sigHtml = sigDataUrl ? `<img src="${sigDataUrl}" style="max-width:120px;max-height:50px;display:block;margin:auto;"/>` : `<div style="min-height:38px"></div>`;
+    const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>إجازة مرضية</title>
+<style>
+  @page{size:A5 portrait;margin:8mm}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Times New Roman',Arial,sans-serif;font-size:9pt;direction:rtl}
+  .header{display:flex;border:1.5px solid #333;margin-bottom:5px}
+  .h-logo{width:42px;border-left:1px solid #333;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:10.5pt}
+  .h-mid{flex:1;text-align:center;padding:4px 6px}
+  .h-ref{width:85px;border-right:1px solid #333;padding:3px 5px;font-size:7.5pt;text-align:center;line-height:1.6}
+  .company{font-size:10.5pt;font-weight:bold}
+  .csub{font-size:8pt}
+  .form-title{font-size:11pt;font-weight:bold;text-align:center;margin-bottom:5px;border:1.5px solid #333;padding:3px}
+  .fr{display:flex;align-items:baseline;gap:6px;margin-bottom:5px;border-bottom:1px dotted #bbb;padding-bottom:3px}
+  .lbl{font-weight:bold;font-size:8.5pt;min-width:70px;white-space:nowrap}
+  .val{flex:1;font-size:9pt}
+  .sig-box{border:1.5px solid #333;text-align:center;padding:4px;min-height:58px;margin:5px 0}
+  .stitle{font-weight:bold;font-size:8.5pt;margin-bottom:3px}
+  .divider{border-top:1.5px solid #333;margin:6px 0}
+  .fn{font-size:7pt;margin-top:6px;text-align:center;border-top:1px dotted #aaa;padding-top:3px;color:#555}
+</style></head>
+<body>
+<div class="header">
+  <div class="h-logo">BOC</div>
+  <div class="h-mid"><div class="company">شركة نفط البصرة (شركة عامة)</div><div class="csub">استمارة ترك العمل للعلاج الطبي</div></div>
+  <div class="h-ref"><div>BOC-P-13//F02</div><div>2019/9/7</div><div>372-3000-400</div></div>
+</div>
+<div class="form-title">نموذج إجازة مرضية</div>
+<div class="fr"><span class="lbl">الاسم:</span><span class="val">${name}</span></div>
+<div class="fr"><span class="lbl">الرقم الوظيفي:</span><span class="val">${jobNum}</span></div>
+<div class="fr"><span class="lbl">المهنة:</span><span class="val">${jobTitle}</span></div>
+<div class="fr"><span class="lbl">تاريخ/وقت ترك العمل:</span><span class="val">${fmtDT(leaveDateTime)}</span></div>
+<div class="sig-box"><div class="stitle">توقيع المسؤول</div>${sigHtml}</div>
+<div class="divider"></div>
+<div class="fr"><span class="lbl">تاريخ/وقت مراجعة المستوصف:</span><span class="val">${fmtDT(clinicDateTime)}</span></div>
+<div class="fr"><span class="lbl">ملاحظات الطبيب:</span><span class="val">${doctorNotes}</span></div>
+<div class="sig-box"><div class="stitle">توقيع الطبيب</div></div>
+<div class="fr"><span class="lbl">تاريخ/وقت العودة للعمل:</span><span class="val">${fmtDT(returnDateTime)}</span></div>
+<div class="fn">تحتفظ الجهة بنسخة وتسلم نسخة للموظف</div>
+</body></html>`;
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0";
+    document.body.appendChild(iframe);
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+    iframe.contentWindow.focus();
+    setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 2000); }, 400);
+  };
+
+  return (
+    <div className="p-6 max-w-xl mx-auto space-y-5" dir="rtl">
+      <div className="flex items-center gap-3 pb-3 border-b border-color">
+        <div className="w-10 h-10 bg-rose-500 rounded-xl flex items-center justify-center"><FileText size={20} className="text-white"/></div>
+        <div><h2 className="text-xl font-bold text-primary">إجازة مرضية</h2><p className="text-xs text-secondary">BOC-P-13//F02 — طباعة A5 portrait</p></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className="block text-xs font-bold text-secondary mb-1">الاسم</label><input value={name} onChange={e=>setName(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">الرقم الوظيفي</label><input value={jobNum} onChange={e=>setJobNum(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
+      </div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">المهنة</label><input value={jobTitle} onChange={e=>setJobTitle(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ/وقت ترك العمل</label><input type="datetime-local" value={leaveDateTime} onChange={e=>setLeaveDateTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      <div>
+        <label className="block text-xs font-bold text-secondary mb-2">توقيع المسؤول (إلكتروني)</label>
+        <SignaturePad onSave={setSigDataUrl} label="ارسم التوقيع ثم اضغط حفظ التوقيع"/>
+        {sigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={sigDataUrl} alt="توقيع" className="max-h-14"/></div>}
+      </div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ/وقت مراجعة المستوصف</label><input type="datetime-local" value={clinicDateTime} onChange={e=>setClinicDateTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">ملاحظات الطبيب</label><textarea value={doctorNotes} onChange={e=>setDoctorNotes(e.target.value)} rows={2} className="input w-full rounded-lg px-3 py-2 text-sm resize-none"/></div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ/وقت العودة للعمل</label><input type="datetime-local" value={returnDateTime} onChange={e=>setReturnDateTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      <div className="flex flex-wrap gap-3 justify-end pt-2 border-t border-color">
+        <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ</button>
+        <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-rose-500 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
+      </div>
+    </div>
+  );
+}
+
+// ========== صفحة نماذج الإجازات ==========
+function LeaveFormsPrintPage({ emp }) {
+  const [tab, setTab] = useState("annual");
+  return (
+    <div className="p-4 max-w-3xl mx-auto">
+      <div className="flex gap-2 mb-5">
+        <button onClick={()=>setTab("annual")} className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="annual"?"bg-blue-600 text-white border-blue-600":"btn-secondary border-color"}`}>إجازة اعتيادية</button>
+        <button onClick={()=>setTab("sick")} className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="sick"?"bg-rose-500 text-white border-rose-500":"btn-secondary border-color"}`}>إجازة مرضية</button>
+      </div>
+      {tab==="annual" ? <AnnualLeaveForm emp={emp}/> : <SickLeaveForm emp={emp}/>}
+    </div>
+  );
+}
+
 // ========== اللوحة الرئيسية ==========
 function Dashboard({ emp, onLogout, dark, setDark }) {
   const [view, setView] = useState("home");
@@ -2328,6 +2673,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
     { id:"audit", label:"سجل التعديلات", icon:<ClipboardList size={17}/> },
     { id:"changepass", label:"تغيير المرور", icon:<Shield size={17}/> },
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
+    { id:"leave_forms", label:"نماذج الإجازات", icon:<FileText size={17}/> },
   ];
   if (isAdmin) {
     menuItems.unshift({ id:"approvals", label:"الموافقات", icon:<ThumbsUp size={17}/>, badge:pendingCount });
@@ -2515,6 +2861,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           {view==="employees" && isAdmin && <EmployeeManager employees={employees} setEmployees={setEmployees}/>}
           {view==="approvals" && isAdmin && <ApprovalsPage emp={emp}/>}
           {view==="health_insurance" && <HealthInsuranceForm emp={emp}/>}
+          {view==="leave_forms" && <LeaveFormsPrintPage emp={emp}/>}
         </main>
       </div>
       {showSearch && <GlobalSearch setView={setView} onClose={()=>setShowSearch(false)}/>}
