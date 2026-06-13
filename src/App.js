@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { 
-  LogIn, LogOut, Shield, Eye, EyeOff, AlertCircle, Save, Home, User, 
+import { useState, useEffect, useCallback, useRef, createContext, useContext, useMemo } from "react";
+import {
+  LogIn, LogOut, Shield, Eye, EyeOff, AlertCircle, Save, Home, User,
   CheckCircle, Wifi, WifiOff, FileText, Clock, Calendar,
   Bell, ThumbsUp, ThumbsDown, Plus, Trash2, Edit3, X, Users, Package,
   ClipboardList, GraduationCap, BarChart, Star,
   Printer, Download, Search, Moon, Sun, MessageSquare,
-  CheckSquare, AlertTriangle,
+  CheckSquare, AlertTriangle, ChevronLeft,
   Send, Wrench, Box, TrendingUp, TrendingDown
 } from "lucide-react";
 // No external chart library — pure SVG charts below
@@ -78,6 +78,211 @@ const passStore = {
   }
 };
 
+// ========== نظام الإشعارات الفورية ==========
+const ToastContext = createContext(null);
+const useToast = () => useContext(ToastContext);
+
+const TOAST_CFG = {
+  success: { bg: "bg-emerald-500", icon: "✅" },
+  error:   { bg: "bg-red-500",     icon: "❌" },
+  warning: { bg: "bg-amber-500",   icon: "⚠️" },
+  info:    { bg: "bg-blue-500",    icon: "ℹ️" },
+};
+
+function ToastProvider({ children }) {
+  const [toasts, setToasts] = useState([]);
+  const add = useCallback((msg, type = "info", ms = 3500) => {
+    const id = Date.now() + Math.random();
+    setToasts(p => [...p, { id, msg, type }]);
+    setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), ms);
+  }, []);
+  return (
+    <ToastContext.Provider value={add}>
+      {children}
+      <div className="fixed bottom-6 right-6 z-[200] flex flex-col-reverse gap-2 pointer-events-none" dir="rtl">
+        {toasts.map(t => (
+          <div key={t.id} className={`toast-item flex items-center gap-3 px-4 py-3 rounded-xl text-white shadow-2xl pointer-events-auto min-w-[240px] max-w-xs ${TOAST_CFG[t.type].bg}`}>
+            <span>{TOAST_CFG[t.type].icon}</span>
+            <span className="text-sm font-medium flex-1">{t.msg}</span>
+            <button onClick={() => setToasts(p => p.filter(x => x.id !== t.id))} className="opacity-70 hover:opacity-100 shrink-0"><X size={14}/></button>
+          </div>
+        ))}
+      </div>
+    </ToastContext.Provider>
+  );
+}
+
+// ========== مودال تأكيد الإجراءات ==========
+const ConfirmContext = createContext(null);
+const useConfirm = () => useContext(ConfirmContext);
+
+function ConfirmProvider({ children }) {
+  const [dlg, setDlg] = useState(null);
+  const confirm = useCallback((msg, opts = {}) =>
+    new Promise(resolve => setDlg({ msg, opts, resolve }))
+  , []);
+  const close = (val) => { dlg?.resolve(val); setDlg(null); };
+  return (
+    <ConfirmContext.Provider value={confirm}>
+      {children}
+      {dlg && (
+        <div className="fixed inset-0 bg-black/60 z-[300] flex items-center justify-center p-4" dir="rtl">
+          <div className="card rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-color">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`p-2.5 rounded-xl ${dlg.opts.danger ? "bg-red-100" : "bg-blue-100"}`}>
+                <AlertTriangle size={20} className={dlg.opts.danger ? "text-red-600" : "text-blue-600"}/>
+              </div>
+              <h3 className="font-bold text-base">{dlg.opts.title || "تأكيد الإجراء"}</h3>
+            </div>
+            <p className="text-sm text-secondary mb-6 leading-relaxed">{dlg.msg}</p>
+            <div className="flex gap-3">
+              <button onClick={() => close(false)} className="flex-1 py-2.5 border border-color rounded-xl text-sm font-medium hover:bg-hover transition-colors">إلغاء</button>
+              <button onClick={() => close(true)} className={`flex-1 py-2.5 rounded-xl text-white text-sm font-bold transition-colors ${dlg.opts.danger ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"}`}>
+                {dlg.opts.ok || "تأكيد"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </ConfirmContext.Provider>
+  );
+}
+
+// ========== مكونات الهيكل العظمي (Loading Skeleton) ==========
+function Skel({ className = "" }) {
+  return <div className={`skeleton rounded-lg ${className}`}/>;
+}
+function SkeletonCard({ lines = 3 }) {
+  return (
+    <div className="card rounded-2xl p-4 border border-color space-y-3">
+      <Skel className="h-4 w-3/4"/>
+      {lines > 1 && <Skel className="h-3 w-full"/>}
+      {lines > 2 && <Skel className="h-3 w-1/2"/>}
+    </div>
+  );
+}
+function SkeletonMsg({ mine }) {
+  return (
+    <div className={`flex gap-2 mb-3 ${mine ? "flex-row-reverse" : ""}`}>
+      <Skel className="h-8 w-8 rounded-full shrink-0"/>
+      <div className={`space-y-1 ${mine ? "items-end flex flex-col" : ""}`}>
+        <Skel className="h-3 w-20"/><Skel className="h-10 w-48 rounded-xl"/>
+      </div>
+    </div>
+  );
+}
+
+// ========== بطاقة الموظف السريعة ==========
+function EmpPopover({ emp, children }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+  if (!emp) return <span>{children}</span>;
+  return (
+    <span ref={ref} className="relative inline-block">
+      <button onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
+        className="font-medium hover:text-blue-600 hover:underline transition-colors">
+        {children}
+      </button>
+      {open && (
+        <div className="absolute z-[150] card rounded-2xl shadow-2xl border border-color p-4 min-w-[220px] top-full mt-1 right-0">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shrink-0">
+              <span className="text-white text-sm font-bold">{emp.name?.[0]}</span>
+            </div>
+            <div><p className="font-bold text-sm">{emp.name}</p><p className="text-xs text-secondary">{emp.jobNum}</p></div>
+          </div>
+          <div className="space-y-1.5 text-xs border-t border-color pt-2">
+            <div className="flex justify-between gap-2"><span className="text-secondary">المنصب</span><span className="font-medium text-left">{emp.title}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-secondary shrink-0">القسم</span><span className="font-medium text-left text-[11px]">{emp.dept}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-secondary">الدوام</span><span className="font-medium">{emp.shift || "—"}</span></div>
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
+
+// ========== البحث العالمي ==========
+const VIEW_LABELS = {
+  home:"الرئيسية", analytics:"التحليلات", requests:"طلبات الإجازة",
+  attendance:"الحضور والانصراف", training:"التدريب", tasks:"المهام",
+  inventory:"المخزون", furniture:"الأثاث", maint_equipment:"صيانة المعدات",
+  maint_parts:"قطع الغيار", maint_reports:"تقارير الصيانة",
+  chat:"الدردشة الداخلية", evaluation:"التقييم", notifications:"الإشعارات",
+  audit:"سجل التعديلات", changepass:"تغيير كلمة المرور",
+  employees:"إدارة الموظفين", approvals:"الموافقات",
+};
+
+function GlobalSearch({ setView, onClose }) {
+  const [q, setQ] = useState("");
+  const inputRef = useRef(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  const results = useMemo(() => {
+    const ql = q.trim();
+    if (ql.length < 2) return [];
+    const out = [];
+    ACCOUNTS.filter(e => e.name.includes(ql) || e.jobNum.includes(ql)).slice(0,4)
+      .forEach(e => out.push({ type:"موظف", label:e.name, sub:e.dept, view:"employees", icon:"👤" }));
+    storage.get("all_requests",[]).filter(r => r.empName?.includes(ql)||r.purpose?.includes(ql)).slice(0,3)
+      .forEach(r => out.push({ type:"إجازة", label:r.empName, sub:`${r.type} — ${r.status}`, view:"requests", icon:"📋" }));
+    storage.get("tasks_system",[]).filter(t => t.title?.includes(ql)||t.desc?.includes(ql)).slice(0,3)
+      .forEach(t => out.push({ type:"مهمة", label:t.title, sub:t.status, view:"tasks", icon:"✅" }));
+    storage.get("inventory_items",[]).filter(i => i.name.includes(ql)||i.code.includes(ql)).slice(0,3)
+      .forEach(i => out.push({ type:"مخزون", label:i.name, sub:i.code, view:"inventory", icon:"📦" }));
+    storage.get("maint_spare_parts",[]).filter(p => p.name.includes(ql)||p.code?.includes(ql)).slice(0,3)
+      .forEach(p => out.push({ type:"قطعة غيار", label:p.name, sub:p.category, view:"maint_parts", icon:"🔧" }));
+    return out.slice(0,10);
+  }, [q]);
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-[400] flex items-start justify-center pt-16 px-4" dir="rtl"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="card rounded-2xl shadow-2xl border border-color w-full max-w-lg">
+        <div className="flex items-center gap-3 p-4 border-b border-color">
+          <Search size={18} className="text-secondary shrink-0"/>
+          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)}
+            placeholder="ابحث عن موظف، طلب، مهمة، صنف..." className="flex-1 bg-transparent outline-none text-sm"/>
+          <button onClick={onClose} className="text-secondary hover:text-primary"><X size={16}/></button>
+        </div>
+        {q.trim().length >= 2 ? (
+          <div className="max-h-80 overflow-y-auto">
+            {results.length === 0
+              ? <p className="text-center text-secondary text-sm py-8">لا توجد نتائج لـ «{q}»</p>
+              : results.map((r,i) => (
+                <button key={i} onClick={() => { setView(r.view); onClose(); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-hover text-right border-b border-color last:border-0 transition-colors">
+                  <span className="text-lg shrink-0">{r.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{r.label}</p>
+                    <p className="text-xs text-secondary truncate">{r.sub}</p>
+                  </div>
+                  <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full shrink-0">{r.type}</span>
+                </button>
+              ))
+            }
+          </div>
+        ) : (
+          <p className="p-4 text-center text-secondary text-xs">
+            اكتب حرفين للبدء &nbsp;•&nbsp; <kbd className="px-1.5 py-0.5 bg-hover rounded text-[10px] font-mono">Esc</kbd> للإغلاق
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // SHA-256 عبر Web Crypto API (مدمج في المتصفح — لا مكتبات خارجية)
 const PASS_SALT = "BOC_FAW_SCADA_2025#";
 async function hashPassword(plain) {
@@ -149,9 +354,10 @@ const FirebaseAPI = {
     try {
       const ctrl = new AbortController();
       const tid = setTimeout(() => ctrl.abort(), 5000);
-      const res = await fetch(`${FIREBASE_URL}/.json`, { signal: ctrl.signal });
+      // أي رد من الخادم (حتى 403) يعني الاتصال موجود — فقط الخطأ الشبكي يعني انقطاع
+      const res = await fetch(`${FIREBASE_URL}/chat.json?limitToLast=1`, { signal: ctrl.signal });
       clearTimeout(tid);
-      return res.ok;
+      return res.status < 500;
     } catch { return false; }
   },
 
@@ -387,15 +593,17 @@ function LoginScreen({ onLogin, dark }) {
           isValid = inputHash === initH;
           if (isValid) passStore.set(`pass_${account.id}`, initH); // احفظ للجلسات القادمة
         } else {
-          // احتياطي نهائي: كلمة المرور الافتراضية في الكود
-          isValid = pass.trim() === (account.password || "");
-          if (isValid) passStore.set(`pass_${account.id}`, inputHash); // حوّل لـ hash وخزّن
+          // احتياطي نهائي: ابحث في ACCOUNTS (الحساب من Firebase لا يحتوي password)
+          const def = (ACCOUNTS.find(a => a.jobNum === user.trim()) || account).password || "";
+          isValid = pass.trim() === def;
+          if (isValid) passStore.set(`pass_${account.id}`, inputHash);
         }
       }
     } else {
       // غير متصل — الاحتياطي المحلي
-      isValid = pass.trim() === (account.password || "");
-      if (isValid) passStore.set(`pass_${account.id}`, inputHash); // حوّل لـ hash وخزّن
+      const def = (ACCOUNTS.find(a => a.jobNum === user.trim()) || account).password || "";
+      isValid = pass.trim() === def;
+      if (isValid) passStore.set(`pass_${account.id}`, inputHash);
     }
 
     if (isValid) {
@@ -455,23 +663,24 @@ function ChangePasswordPage({ emp, onLogout }) {
   const [newPass, setNewPass] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showN, setShowN] = useState(false);
-  const [msg, setMsg] = useState(null);
   const [loading, setLoading] = useState(false);
   const { isConnected } = useConnectionStatus();
+  const toast = useToast();
+  const askConfirm = useConfirm();
 
   const handleChangePassword = async () => {
-    if (!newPass || newPass.trim().length < 4) { setMsg({ text: "⚠️ كلمة المرور يجب أن تكون 4 خانات أو أكثر", type: "error" }); return; }
-    if (newPass.trim() !== confirm.trim()) { setMsg({ text: "⚠️ كلمات المرور غير متطابقة", type: "error" }); return; }
+    if (!newPass || newPass.trim().length < 4) { toast("كلمة المرور يجب أن تكون 4 خانات أو أكثر", "warning"); return; }
+    if (newPass.trim() !== confirm.trim()) { toast("كلمات المرور غير متطابقة", "error"); return; }
     setLoading(true);
     try {
       const hashed = await hashPassword(newPass.trim());
       passStore.set(`pass_${emp.id}`, hashed);
       if (isConnected) await FirebaseAPI.savePassword(emp.id, hashed);
       sessionStorage.removeItem("force_password_change");
-      setMsg({ text: "✅ تم تغيير كلمة المرور بنجاح وتشفيرها!", type: "success" });
+      toast("تم تغيير كلمة المرور بنجاح!", "success");
       setNewPass(""); setConfirm("");
-      setTimeout(() => { if (window.confirm("تم تغيير كلمة المرور. هل تريد تسجيل الخروج؟")) onLogout(); }, 1500);
-    } catch { setMsg({ text: "❌ حدث خطأ", type: "error" }); }
+      if (await askConfirm("تم تغيير كلمة المرور. هل تريد تسجيل الخروج الآن؟", { title: "تسجيل الخروج", ok: "خروج" })) onLogout();
+    } catch { toast("حدث خطأ أثناء الحفظ", "error"); }
     finally { setLoading(false); }
   };
 
@@ -483,7 +692,6 @@ function ChangePasswordPage({ emp, onLogout }) {
           <div><label className="text-sm font-bold block mb-1">كلمة المرور الجديدة</label><div className="relative"><input type={showN?"text":"password"} value={newPass} onChange={e=>setNewPass(e.target.value)} placeholder="أدخل كلمة المرور الجديدة" className="input w-full rounded-xl px-4 py-3 pl-10"/>
             <button onClick={()=>setShowN(!showN)} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary">{showN?<EyeOff size={16}/>:<Eye size={16}/>}</button></div></div>
           <div><label className="text-sm font-bold block mb-1">تأكيد كلمة المرور</label><input type={showN?"text":"password"} value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="أعد إدخال كلمة المرور" className="input w-full rounded-xl px-4 py-3"/></div>
-          {msg && <div className={`p-3 rounded-xl text-sm text-center ${msg.type==="success"?"bg-emerald-50 text-emerald-700":"bg-red-50 text-red-700"}`}>{msg.text}</div>}
           <button onClick={handleChangePassword} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2"><Save size={16}/> {loading?"جاري الحفظ...":"حفظ كلمة المرور"}</button>
         </div>
       </div>
@@ -497,8 +705,10 @@ function RequestsPage({ emp }) {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" });
   const [errors, setErrors] = useState({});
-  const [toast, setToast] = useState("");
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const [pageLoading, setPageLoading] = useState(true);
+  const showToast = useToast();
+  const confirm = useConfirm();
+  useEffect(() => { const t = setTimeout(() => setPageLoading(false), 250); return () => clearTimeout(t); }, []);
 
   const handleSubmit = () => {
     if (!formData.purpose.trim()) { setErrors({purpose:"الغرض مطلوب"}); return; }
@@ -513,17 +723,18 @@ function RequestsPage({ emp }) {
     setShowForm(false);
     setFormData({ type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" });
     setErrors({});
-    showToast("✅ تم إرسال طلبك بنجاح");
+    showToast("تم إرسال طلبك بنجاح", "success");
     sendDesktopNotification("طلب إجازة", "تم إرسال طلبك بنجاح وهو الآن بانتظار المراجعة");
     playAlert("notification");
   };
 
-  const deleteRequest = (id) => {
-    if(window.confirm("هل تريد حذف هذا الطلب؟")) {
+  const deleteRequest = async (id) => {
+    if (!await confirm("هل تريد حذف هذا الطلب؟", { danger: true, ok: "حذف", title: "حذف الطلب" })) return;
+    {
       const updated = requests.filter(r => r.id !== id);
       setRequests(updated);
       storage.set(`requests_${emp.id}`, updated);
-      showToast("✅ تم حذف الطلب");
+      showToast("تم حذف الطلب", "success");
     }
   };
 
@@ -533,7 +744,7 @@ function RequestsPage({ emp }) {
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-bold text-lg">طلبات الإجازة</h3>
         <div className="flex gap-2">
-          <button onClick={()=>exportCSV(requests.map(r=>({الاسم:r.empName,النوع:r.type,من:r.dateFrom,إلى:r.dateTo,أيام:r.days,الحالة:r.status})),"طلبات_الإجازة")} className="btn-secondary flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/> تصدير</button>
+          <button onClick={()=>exportCSV(requests.map(r=>({الاسم:r.empName,نوع_الإجازة:r.type,من:r.dateFrom,إلى:r.dateTo,عدد_الأيام:r.days,الحالة:r.status,الغرض:r.purpose})),"طلبات_الإجازة")} className="btn-secondary flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border border-color"><Download size={13}/> CSV</button>
           <button onClick={()=>setShowForm(!showForm)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><Plus size={16}/> طلب جديد</button>
         </div>
       </div>
@@ -545,12 +756,14 @@ function RequestsPage({ emp }) {
           {errors.purpose && <p className="text-red-500 text-xs">{errors.purpose}</p>}{errors.date && <p className="text-red-500 text-xs">{errors.date}</p>}{errors.days && <p className="text-red-500 text-xs">{errors.days}</p>}
           <div className="flex gap-3"><button onClick={()=>setShowForm(false)} className="flex-1 py-2 border border-color rounded-xl">إلغاء</button><button onClick={handleSubmit} className="flex-1 py-2 bg-blue-600 text-white rounded-xl">إرسال</button></div>
         </div></div>)}
-      {requests.length===0?<div className="card rounded-2xl p-8 text-center border-color border"><FileText size={40} className="mx-auto mb-3 text-secondary"/><p className="text-secondary">لا توجد طلبات إجازة</p></div>:
-      requests.map(req=>(<div key={req.id} className="card rounded-2xl p-4 border-color border"><div className="flex justify-between items-start">
+      {pageLoading
+        ? <div className="space-y-3">{[...Array(3)].map((_,i)=><SkeletonCard key={i} lines={3}/>)}</div>
+        : requests.length===0
+          ? <div className="card rounded-2xl p-8 text-center border-color border"><FileText size={40} className="mx-auto mb-3 text-secondary"/><p className="text-secondary">لا توجد طلبات إجازة</p></div>
+          : requests.map(req=>(<div key={req.id} className="card rounded-2xl p-4 border-color border"><div className="flex justify-between items-start">
         <div><div className="flex gap-2 mb-2"><span className={`px-2 py-1 rounded-full text-xs font-bold ${LEAVE_TYPES[req.type]?.color}`}>{LEAVE_TYPES[req.type]?.label}</span><span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusBadge(req.status)}`}>{req.status}</span></div>
         <p className="text-sm">من {req.dateFrom} إلى {req.dateTo} — {req.days} يوم</p><p className="text-xs text-secondary mt-1">{req.purpose}</p></div>
         {req.status==="بانتظار المراجعة" && <button onClick={()=>deleteRequest(req.id)} className="p-2 text-red-400"><Trash2 size={16}/></button>}</div></div>))}
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
 }
@@ -579,9 +792,9 @@ function ApprovalsPage({ emp }) {
 
   return (<div className="space-y-4"><h3 className="font-bold text-lg">الطلبات المعلقة ({requests.length})</h3>
     {requests.length===0?<div className="card rounded-2xl p-8 text-center border-color border"><CheckCircle size={40} className="mx-auto text-secondary"/><p className="text-secondary">لا توجد طلبات معلقة</p></div>:
-    requests.map(req=>(<div key={req.id} className="card rounded-2xl p-4 border-color border"><div className="flex justify-between"><div><p className="font-bold">{req.empName}</p><p className="text-sm">{req.type} — {req.days} يوم</p><p className="text-xs text-secondary">{req.purpose}</p>
+    requests.map(req=>{const reqEmp=ACCOUNTS.find(e=>e.id===req.empId)||{name:req.empName};return(<div key={req.id} className="card rounded-2xl p-4 border-color border"><div className="flex justify-between"><div><p className="font-bold"><EmpPopover emp={reqEmp}>{req.empName}</EmpPopover></p><p className="text-sm">{req.type} — {req.days} يوم</p><p className="text-xs text-secondary">{req.purpose}</p>
     <p className="text-xs text-secondary mt-1">{new Date(req.submittedAt).toLocaleDateString("ar-IQ")}</p></div>
-    <div className="flex gap-2 items-start"><button onClick={()=>updateStatus(req.id,"موافق عليها")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs">قبول</button><button onClick={()=>updateStatus(req.id,"مرفوضة")} className="px-3 py-1.5 bg-red-600 text-white rounded-xl text-xs">رفض</button></div></div></div>))}
+    <div className="flex gap-2 items-start"><button onClick={()=>updateStatus(req.id,"موافق عليها")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs">قبول</button><button onClick={()=>updateStatus(req.id,"مرفوضة")} className="px-3 py-1.5 bg-red-600 text-white rounded-xl text-xs">رفض</button></div></div></div>)})}
     {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
   </div>);
 }
@@ -878,11 +1091,17 @@ function InventorySystem() {
   const [adding, setAdding] = useState(false);
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const confirm = useConfirm();
   useEffect(() => { storage.set("inventory_items", items); }, [items]);
 
   const categories = ["الكل", ...INVENTORY_CATS];
   const filtered = items.filter(i => (i.name.includes(search)||i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
   const lowStock = items.filter(i => i.qty <= (i.minQty || LOW_STOCK_THRESHOLD));
+
+  const deleteItem = async (id) => {
+    if (await confirm("هل تريد حذف هذا الصنف؟", { danger: true, ok: "حذف", title: "حذف الصنف" }))
+      setItems(items.filter(i => i.id !== id));
+  };
 
   const saveItem = () => {
     if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
@@ -915,7 +1134,7 @@ function InventorySystem() {
           <td className="px-3 py-2 font-bold">{it.qty} {it.qty<=(it.minQty||3)&&<span className="text-amber-500">⚠️</span>}</td>
           <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":it.condition==="تالف"||it.condition==="تم الشطب"?"bg-red-100 text-red-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td>
           <td className="px-3 py-2 text-[10px]">{it.location}</td>
-          <td className="px-3 py-2 no-print"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>{if(window.confirm("حذف؟"))setItems(items.filter(i=>i.id!==it.id));}} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
+          <td className="px-3 py-2 no-print"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
@@ -1002,7 +1221,13 @@ function FurnitureInventory() {
   const [adding, setAdding] = useState(false);
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const confirm = useConfirm();
   useEffect(() => { storage.set("furniture_items", items); }, [items]);
+
+  const deleteItem = async (id) => {
+    if (await confirm("هل تريد حذف هذا الصنف؟", { danger: true, ok: "حذف", title: "حذف الصنف" }))
+      setItems(items.filter(i => i.id !== id));
+  };
 
   const categories = ["الكل", ...FURNITURE_CATS];
   const filtered = items.filter(i => (i.name.includes(search)||i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
@@ -1031,7 +1256,7 @@ function FurnitureInventory() {
       <div id="print-furniture" className="card rounded-2xl border-color border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="border-b border-color"><th className="px-3 py-2">الرمز</th><th className="px-3 py-2">الاسم</th><th className="px-3 py-2">الفئة</th><th className="px-3 py-2">الكمية</th><th className="px-3 py-2">الحالة</th><th className="px-3 py-2">الموقع</th><th className="px-3 py-2 no-print">إجراءات</th></tr></thead>
         <tbody>{filtered.map(it=>(<tr key={it.id} className="border-b border-color"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2">{it.name}</td><td className="px-3 py-2">{it.category}</td><td className="px-3 py-2 font-bold">{it.qty}</td>
           <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td>
-          <td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 no-print"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>{if(window.confirm("حذف؟"))setItems(items.filter(i=>i.id!==it.id));}} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
+          <td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 no-print"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
@@ -1044,7 +1269,8 @@ function EmployeeManager({ employees, setEmployees }) {
   const [form, setForm]           = useState({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي" });
   const [adding, setAdding]       = useState(false);
   const [migrating, setMigrating] = useState(false);
-  const [migrateMsg, setMigrateMsg] = useState("");
+  const toast = useToast();
+  const confirm = useConfirm();
 
   const filtered = employees.filter(e => e.name.includes(search) || e.jobNum.includes(search));
 
@@ -1056,15 +1282,12 @@ function EmployeeManager({ employees, setEmployees }) {
   };
 
   const handleMigrate = async () => {
-    if (!window.confirm("سيتم رفع بيانات جميع الموظفين (بدون كلمات المرور) إلى Firebase.\nهل تريد المتابعة؟")) return;
+    if (!await confirm("سيتم رفع بيانات جميع الموظفين (بدون كلمات المرور) إلى Firebase. هل تريد المتابعة؟", { title: "ترحيل البيانات", ok: "ترحيل" })) return;
     setMigrating(true);
-    setMigrateMsg("");
     const ok = await FirebaseAPI.initializeAccounts(ACCOUNTS);
     setMigrating(false);
-    setMigrateMsg(ok
-      ? "✅ تم نقل البيانات إلى Firebase بنجاح! يمكنك الآن إزالة ACCOUNTS من الكود."
-      : "❌ فشل الاتصال بـ Firebase — تحقق من قواعد الأمان."
-    );
+    ok ? toast("تم نقل البيانات إلى Firebase بنجاح!", "success", 5000)
+       : toast("فشل الاتصال بـ Firebase — تحقق من القواعد", "error");
   };
 
   return (<div className="space-y-4">
@@ -1080,8 +1303,7 @@ function EmployeeManager({ employees, setEmployees }) {
         {migrating ? "جاري النقل..." : "🔒 نقل البيانات إلى Firebase"}
       </button>
     </div>
-    {migrateMsg && <div className={`p-3 rounded-xl text-sm font-bold ${migrateMsg.startsWith("✅")?"bg-emerald-50 text-emerald-700 border border-emerald-200":"bg-red-50 text-red-700 border border-red-200"}`}>{migrateMsg}</div>}
-    {(adding||editId) && (<div className="card rounded-2xl border-color border p-5"><div className="grid grid-cols-2 gap-3">
+{(adding||editId) && (<div className="card rounded-2xl border-color border p-5"><div className="grid grid-cols-2 gap-3">
       <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="الاسم" className="input rounded-xl px-3 py-2"/>
       <input value={form.jobNum} onChange={e=>setForm({...form,jobNum:e.target.value})} placeholder="الرقم الوظيفي" className="input rounded-xl px-3 py-2"/>
       <input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="المسمى" className="input rounded-xl px-3 py-2"/>
@@ -1243,7 +1465,8 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
   const [filter, setFilter] = useState("الكل");
   const [form, setForm] = useState({ title:"", desc:"", assignedTo:"", priority:"متوسطة", dueDate:"", status:"معلقة" });
   const [toast, setToast] = useState("");
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const showToast = (msg, type) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const confirm = useConfirm();
   useEffect(() => { storage.set("tasks_system", tasks); }, [tasks]);
 
   const displayed = isAdmin ? (filter==="الكل" ? tasks : tasks.filter(t=>t.status===filter)) : tasks.filter(t=>t.assignedTo===emp.id);
@@ -1268,8 +1491,8 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
     showToast(`✅ تم تحديث الحالة`);
   };
 
-  const deleteTask = (id) => {
-    if(window.confirm("حذف المهمة؟")) { setTasks(tasks.filter(t=>t.id!==id)); showToast("✅ تم الحذف"); }
+  const deleteTask = async (id) => {
+    if (await confirm("هل تريد حذف هذه المهمة؟", { danger: true, ok: "حذف", title: "حذف المهمة" })) { setTasks(tasks.filter(t=>t.id!==id)); showToast("تم حذف المهمة", "success"); }
   };
 
   const priorityColor = (p) => p==="عالية"?"bg-red-100 text-red-700":p==="متوسطة"?"bg-amber-100 text-amber-700":"bg-blue-100 text-blue-700";
@@ -1282,6 +1505,7 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
       <div className="flex justify-between items-center"><h3 className="font-bold text-lg">نظام المهام</h3>
         <div className="flex gap-2">
           <select value={filter} onChange={e=>setFilter(e.target.value)} className="input rounded-xl px-3 py-2 text-sm"><option>الكل</option>{TASK_STATUSES.map(s=><option key={s}>{s}</option>)}</select>
+          <button onClick={()=>exportCSV(tasks.map(t=>({العنوان:t.title,الوصف:t.desc||"",المكلف:t.assignedToName,الأولوية:t.priority,الحالة:t.status,الاستحقاق:t.dueDate||"",بواسطة:t.createdBy})),"المهام")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/> CSV</button>
           {isAdmin && <button onClick={()=>setShowForm(!showForm)} className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 px-3 py-2 rounded-xl"><Plus size={13}/> مهمة جديدة</button>}
         </div>
       </div>
@@ -1312,7 +1536,7 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
             <p className="font-bold">{t.title}</p>
             {t.desc && <p className="text-xs text-secondary mt-1">{t.desc}</p>}
             <div className="flex gap-3 text-[10px] text-secondary mt-2">
-              <span>👤 {t.assignedToName}</span>
+              <span>👤 <EmpPopover emp={allEmployees.find(e=>e.id===Number(t.assignedTo))}>{t.assignedToName}</EmpPopover></span>
               {t.dueDate && <span>📅 {t.dueDate}</span>}
               <span>بواسطة {t.createdBy}</span>
             </div></div>
@@ -1331,16 +1555,19 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
 function InternalChat({ emp, isConnected }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
+  const [chatLoading, setChatLoading] = useState(true);
   const bottomRef = useRef(null);
 
   const loadMessages = useCallback(async () => {
     if (!isConnected) {
       setMessages(storage.get("chat_offline", []));
+      setChatLoading(false);
       return;
     }
     const msgs = await FirebaseAPI.getMessages(50);
     setMessages(msgs);
     storage.set("chat_offline", msgs);
+    setChatLoading(false);
   }, [isConnected]);
 
   useEffect(() => { loadMessages(); const t = setInterval(loadMessages, 5000); return () => clearInterval(t); }, [loadMessages]);
@@ -1362,6 +1589,7 @@ function InternalChat({ emp, isConnected }) {
         <div className="flex items-center gap-2 text-xs">{isConnected?<><Wifi size={12} className="text-emerald-500"/><span className="text-emerald-600">متصل</span></>:<><WifiOff size={12} className="text-amber-500"/><span className="text-amber-600">غير متصل (محلي)</span></>}</div>
       </div>
       <div className="flex-1 card rounded-2xl border-color border p-4 overflow-y-auto space-y-3">
+        {chatLoading ? <>{[...Array(4)].map((_,i)=><SkeletonMsg key={i} mine={i%2===0}/>)}</> : <>
         {messages.length === 0 && <div className="text-center text-secondary py-8"><MessageSquare size={40} className="mx-auto mb-2"/><p>لا توجد رسائل بعد</p></div>}
         {messages.map((m,i) => {
           const isMine = m.senderId === emp.id;
@@ -1374,6 +1602,7 @@ function InternalChat({ emp, isConnected }) {
           </div>);
         })}
         <div ref={bottomRef}/>
+        </>}
       </div>
       <div className="flex gap-2 mt-3">
         <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="اكتب رسالة..." className="input flex-1 rounded-xl px-4 py-3"/>
@@ -1568,7 +1797,13 @@ function MaintenanceParts() {
   const [form, setForm] = useState({ code:"", name:"", category:"ميكانيكية", qty:0, minAlert:1, unit:"قطعة", price:0, location:"" });
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const confirm = useConfirm();
   useEffect(() => { storage.set("maint_spare_parts", parts); }, [parts]);
+
+  const deletePart = async (id) => {
+    if (await confirm("هل تريد حذف هذه القطعة؟", { danger: true, ok: "حذف", title: "حذف القطعة" }))
+      setParts(parts.filter(x => x.id !== id));
+  };
 
   const categories = ["الكل", ...new Set(parts.map(p => p.category))];
   const filtered = parts.filter(p => (p.name.includes(search)||p.code.includes(search)) && (filterCat==="الكل"||p.category===filterCat));
@@ -1589,6 +1824,7 @@ function MaintenanceParts() {
       <div className="flex gap-3">
         <div className="flex-1 flex items-center gap-2 input rounded-xl px-3 py-2"><Search size={14} className="text-secondary"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
         <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select>
+        <button onClick={()=>exportCSV(parts.map(p=>({الرمز:p.code,الاسم:p.name,الفئة:p.category,الكمية:p.qty,الوحدة:p.unit,السعر:p.price,الموقع:p.location})),"قطع_الغيار")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/> CSV</button>
         <button onClick={()=>{setShowForm(true);setForm({code:"",name:"",category:"ميكانيكية",qty:0,minAlert:1,unit:"قطعة",price:0,location:""});}} className="px-4 py-2 bg-blue-600 text-white rounded-xl flex items-center gap-1.5 text-sm font-bold"><Plus size={14}/> إضافة</button>
       </div>
 
@@ -1621,7 +1857,7 @@ function MaintenanceParts() {
                   <td className="px-3 py-2 text-xs">{p.minAlert} {p.unit}</td>
                   <td className="px-3 py-2 text-xs">${p.price}</td>
                   <td className="px-3 py-2 text-xs text-secondary">{p.location}</td>
-                  <td className="px-3 py-2"><button onClick={()=>{if(window.confirm("حذف؟"))setParts(parts.filter(x=>x.id!==p.id));}} className="p-1 text-red-400 hover:text-red-600"><Trash2 size={13}/></button></td>
+                  <td className="px-3 py-2"><button onClick={()=>deletePart(p.id)} className="p-1 text-red-400 hover:text-red-600"><Trash2 size={13}/></button></td>
                 </tr>
               ))}
               {filtered.length===0 && <tr><td colSpan={8} className="text-center py-8 text-secondary">لا توجد نتائج</td></tr>}
@@ -1718,15 +1954,23 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
   const [employees, setEmployees] = useState(ACCOUNTS);
   const { isConnected } = useConnectionStatus();
   const smartAlerts = useSmartAlerts(employees);
+  const confirm = useConfirm();
+  const [showSearch, setShowSearch] = useState(false);
   const isAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
   const pendingCount = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
   const unreadNotifs = (storage.get(`notifications_${emp.id}`, [])).filter(n => !n.read).length;
 
   useEffect(() => {
     const nc = sessionStorage.getItem("force_password_change");
-    if (nc) { sessionStorage.removeItem("force_password_change"); setTimeout(() => { if(window.confirm("🔐 يرجى تغيير كلمة المرور الافتراضية")) setView("changepass"); }, 500); }
-    // طلب إذن الإشعارات عند الدخول
+    if (nc) { sessionStorage.removeItem("force_password_change"); setTimeout(async () => { if(await confirm("يُنصح بتغيير كلمة المرور الافتراضية الآن لأمان حسابك.", { title: "🔐 تغيير كلمة المرور", ok: "تغيير الآن" })) setView("changepass"); }, 500); }
     if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const h = (e) => { if ((e.ctrlKey||e.metaKey) && e.key==="k") { e.preventDefault(); setShowSearch(true); } };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
   }, []);
 
   // تحديث allRequests عند تغيير الـ view
@@ -1764,6 +2008,10 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           <div><h1 className="font-bold">شركة نفط البصرة</h1><p className="text-xs text-secondary">شعبة مستودع الفاو</p></div>
         </div>
         <div className="flex items-center gap-3">
+          {/* Global Search Button */}
+          <button onClick={()=>setShowSearch(true)} className="flex items-center gap-2 px-3 py-1.5 rounded-xl btn-secondary border border-color text-secondary hover:text-primary text-xs">
+            <Search size={14}/> <span className="hidden md:inline">بحث</span> <kbd className="hidden md:inline px-1 bg-hover rounded text-[10px]">Ctrl K</kbd>
+          </button>
           {/* Smart Alerts badge */}
           {smartAlerts.length > 0 && <div className="relative"><AlertTriangle size={20} className="text-amber-500"/><span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center">{smartAlerts.length}</span></div>}
           {/* Connection */}
@@ -1796,6 +2044,16 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
 
         {/* Main */}
         <main className="flex-1 p-5">
+          {/* Breadcrumb */}
+          {view !== "home" && (
+            <div className="flex items-center gap-1.5 text-sm text-secondary mb-4">
+              <button onClick={()=>setView("home")} className="hover:text-blue-600 transition-colors flex items-center gap-1">
+                <Home size={13}/> الرئيسية
+              </button>
+              <ChevronLeft size={13}/>
+              <span className="font-semibold text-primary">{VIEW_LABELS[view] || view}</span>
+            </div>
+          )}
           {view==="home" && (
             <div className="space-y-6">
               {/* Welcome */}
@@ -1923,6 +2181,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           {view==="approvals" && isAdmin && <ApprovalsPage emp={emp}/>}
         </main>
       </div>
+      {showSearch && <GlobalSearch setView={setView} onClose={()=>setShowSearch(false)}/>}
     </div>
   );
 }
@@ -1948,15 +2207,21 @@ export default function App() {
     .border-color { border-color: ${dark?"#334155":"#e2e8f0"} !important; }
     select option { background: ${dark?"#1e293b":"#ffffff"}; color: ${dark?"#e2e8f0":"#1e293b"}; }
     * { transition: background-color 0.2s, border-color 0.2s, color 0.1s; }
+    @keyframes toastIn { from { opacity:0; transform:translateX(30px); } to { opacity:1; transform:translateX(0); } }
+    .toast-item { animation: toastIn 0.25s ease-out; }
+    @keyframes shimmer { from { background-position:-200% 0; } to { background-position:200% 0; } }
+    .skeleton { background: linear-gradient(90deg,${dark?"#334155 25%,#475569 50%,#334155 75%":"#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%"}); background-size:200% 100%; animation:shimmer 1.5s infinite; }
   `;
 
   return (
-    <>
-      <style>{style}</style>
-      {user 
-        ? <Dashboard emp={user} onLogout={()=>{sessionStorage.clear();setUser(null);}} dark={dark} setDark={setDark}/>
-        : <LoginScreen onLogin={setUser} dark={dark}/>
-      }
-    </>
+    <ToastProvider>
+      <ConfirmProvider>
+        <style>{style}</style>
+        {user
+          ? <Dashboard emp={user} onLogout={()=>{sessionStorage.clear();setUser(null);}} dark={dark} setDark={setDark}/>
+          : <LoginScreen onLogin={setUser} dark={dark}/>
+        }
+      </ConfirmProvider>
+    </ToastProvider>
   );
 }
