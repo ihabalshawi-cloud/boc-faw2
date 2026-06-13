@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useRef, createContext, useContext } from "react";
-import { 
-  LogIn, LogOut, Shield, Eye, EyeOff, AlertCircle, Save, Home, User, 
+import { useState, useEffect, useCallback, useRef, createContext, useContext, useMemo } from "react";
+import {
+  LogIn, LogOut, Shield, Eye, EyeOff, AlertCircle, Save, Home, User,
   CheckCircle, Wifi, WifiOff, FileText, Clock, Calendar,
   Bell, ThumbsUp, ThumbsDown, Plus, Trash2, Edit3, X, Users, Package,
   ClipboardList, GraduationCap, BarChart, Star,
   Printer, Download, Search, Moon, Sun, MessageSquare,
-  CheckSquare, AlertTriangle,
+  CheckSquare, AlertTriangle, ChevronLeft,
   Send, Wrench, Box, TrendingUp, TrendingDown
 } from "lucide-react";
 // No external chart library — pure SVG charts below
@@ -207,6 +207,117 @@ function SkeletonMsg({ mine }) {
       <Skel className="h-8 w-8 rounded-full shrink-0"/>
       <div className={`space-y-1 ${mine ? "items-end flex flex-col" : ""}`}>
         <Skel className="h-3 w-20"/><Skel className="h-10 w-48 rounded-xl"/>
+      </div>
+    </div>
+  );
+}
+
+// ========== بطاقة الموظف السريعة ==========
+function EmpPopover({ emp, children }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+  if (!emp) return <span>{children}</span>;
+  return (
+    <span ref={ref} className="relative inline-block">
+      <button onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
+        className="font-medium hover:text-blue-600 hover:underline transition-colors">
+        {children}
+      </button>
+      {open && (
+        <div className="absolute z-[150] card rounded-2xl shadow-2xl border border-color p-4 min-w-[220px] top-full mt-1 right-0">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shrink-0">
+              <span className="text-white text-sm font-bold">{emp.name?.[0]}</span>
+            </div>
+            <div><p className="font-bold text-sm">{emp.name}</p><p className="text-xs text-secondary">{emp.jobNum}</p></div>
+          </div>
+          <div className="space-y-1.5 text-xs border-t border-color pt-2">
+            <div className="flex justify-between gap-2"><span className="text-secondary">المنصب</span><span className="font-medium text-left">{emp.title}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-secondary shrink-0">القسم</span><span className="font-medium text-left text-[11px]">{emp.dept}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-secondary">الدوام</span><span className="font-medium">{emp.shift || "—"}</span></div>
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
+
+// ========== البحث العالمي ==========
+const VIEW_LABELS = {
+  home:"الرئيسية", analytics:"التحليلات", requests:"طلبات الإجازة",
+  attendance:"الحضور والانصراف", training:"التدريب", tasks:"المهام",
+  inventory:"المخزون", furniture:"الأثاث", maint_equipment:"صيانة المعدات",
+  maint_parts:"قطع الغيار", maint_reports:"تقارير الصيانة",
+  chat:"الدردشة الداخلية", evaluation:"التقييم", notifications:"الإشعارات",
+  audit:"سجل التعديلات", changepass:"تغيير كلمة المرور",
+  employees:"إدارة الموظفين", approvals:"الموافقات",
+};
+
+function GlobalSearch({ setView, onClose }) {
+  const [q, setQ] = useState("");
+  const inputRef = useRef(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  const results = useMemo(() => {
+    const ql = q.trim();
+    if (ql.length < 2) return [];
+    const out = [];
+    ACCOUNTS.filter(e => e.name.includes(ql) || e.jobNum.includes(ql)).slice(0,4)
+      .forEach(e => out.push({ type:"موظف", label:e.name, sub:e.dept, view:"employees", icon:"👤" }));
+    storage.get("all_requests",[]).filter(r => r.empName?.includes(ql)||r.purpose?.includes(ql)).slice(0,3)
+      .forEach(r => out.push({ type:"إجازة", label:r.empName, sub:`${r.type} — ${r.status}`, view:"requests", icon:"📋" }));
+    storage.get("tasks_system",[]).filter(t => t.title?.includes(ql)||t.desc?.includes(ql)).slice(0,3)
+      .forEach(t => out.push({ type:"مهمة", label:t.title, sub:t.status, view:"tasks", icon:"✅" }));
+    storage.get("inventory_items",[]).filter(i => i.name.includes(ql)||i.code.includes(ql)).slice(0,3)
+      .forEach(i => out.push({ type:"مخزون", label:i.name, sub:i.code, view:"inventory", icon:"📦" }));
+    storage.get("maint_spare_parts",[]).filter(p => p.name.includes(ql)||p.code?.includes(ql)).slice(0,3)
+      .forEach(p => out.push({ type:"قطعة غيار", label:p.name, sub:p.category, view:"maint_parts", icon:"🔧" }));
+    return out.slice(0,10);
+  }, [q]);
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-[400] flex items-start justify-center pt-16 px-4" dir="rtl"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="card rounded-2xl shadow-2xl border border-color w-full max-w-lg">
+        <div className="flex items-center gap-3 p-4 border-b border-color">
+          <Search size={18} className="text-secondary shrink-0"/>
+          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)}
+            placeholder="ابحث عن موظف، طلب، مهمة، صنف..." className="flex-1 bg-transparent outline-none text-sm"/>
+          <button onClick={onClose} className="text-secondary hover:text-primary"><X size={16}/></button>
+        </div>
+        {q.trim().length >= 2 ? (
+          <div className="max-h-80 overflow-y-auto">
+            {results.length === 0
+              ? <p className="text-center text-secondary text-sm py-8">لا توجد نتائج لـ «{q}»</p>
+              : results.map((r,i) => (
+                <button key={i} onClick={() => { setView(r.view); onClose(); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-hover text-right border-b border-color last:border-0 transition-colors">
+                  <span className="text-lg shrink-0">{r.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{r.label}</p>
+                    <p className="text-xs text-secondary truncate">{r.sub}</p>
+                  </div>
+                  <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full shrink-0">{r.type}</span>
+                </button>
+              ))
+            }
+          </div>
+        ) : (
+          <p className="p-4 text-center text-secondary text-xs">
+            اكتب حرفين للبدء &nbsp;•&nbsp; <kbd className="px-1.5 py-0.5 bg-hover rounded text-[10px] font-mono">Esc</kbd> للإغلاق
+          </p>
+        )}
       </div>
     </div>
   );
@@ -673,7 +784,7 @@ function RequestsPage({ emp }) {
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-bold text-lg">طلبات الإجازة</h3>
         <div className="flex gap-2">
-          <button onClick={()=>exportCSV(requests.map(r=>({الاسم:r.empName,النوع:r.type,من:r.dateFrom,إلى:r.dateTo,أيام:r.days,الحالة:r.status})),"طلبات_الإجازة")} className="btn-secondary flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/> تصدير</button>
+          <button onClick={()=>exportCSV(requests.map(r=>({الاسم:r.empName,نوع_الإجازة:r.type,من:r.dateFrom,إلى:r.dateTo,عدد_الأيام:r.days,الحالة:r.status,الغرض:r.purpose})),"طلبات_الإجازة")} className="btn-secondary flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border border-color"><Download size={13}/> CSV</button>
           <button onClick={()=>setShowForm(!showForm)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><Plus size={16}/> طلب جديد</button>
         </div>
       </div>
@@ -721,9 +832,9 @@ function ApprovalsPage({ emp }) {
 
   return (<div className="space-y-4"><h3 className="font-bold text-lg">الطلبات المعلقة ({requests.length})</h3>
     {requests.length===0?<div className="card rounded-2xl p-8 text-center border-color border"><CheckCircle size={40} className="mx-auto text-secondary"/><p className="text-secondary">لا توجد طلبات معلقة</p></div>:
-    requests.map(req=>(<div key={req.id} className="card rounded-2xl p-4 border-color border"><div className="flex justify-between"><div><p className="font-bold">{req.empName}</p><p className="text-sm">{req.type} — {req.days} يوم</p><p className="text-xs text-secondary">{req.purpose}</p>
+    requests.map(req=>{const reqEmp=ACCOUNTS.find(e=>e.id===req.empId)||{name:req.empName};return(<div key={req.id} className="card rounded-2xl p-4 border-color border"><div className="flex justify-between"><div><p className="font-bold"><EmpPopover emp={reqEmp}>{req.empName}</EmpPopover></p><p className="text-sm">{req.type} — {req.days} يوم</p><p className="text-xs text-secondary">{req.purpose}</p>
     <p className="text-xs text-secondary mt-1">{new Date(req.submittedAt).toLocaleDateString("ar-IQ")}</p></div>
-    <div className="flex gap-2 items-start"><button onClick={()=>updateStatus(req.id,"موافق عليها")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs">قبول</button><button onClick={()=>updateStatus(req.id,"مرفوضة")} className="px-3 py-1.5 bg-red-600 text-white rounded-xl text-xs">رفض</button></div></div></div>))}
+    <div className="flex gap-2 items-start"><button onClick={()=>updateStatus(req.id,"موافق عليها")} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs">قبول</button><button onClick={()=>updateStatus(req.id,"مرفوضة")} className="px-3 py-1.5 bg-red-600 text-white rounded-xl text-xs">رفض</button></div></div></div>)})}
     {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
   </div>);
 }
@@ -1434,6 +1545,7 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
       <div className="flex justify-between items-center"><h3 className="font-bold text-lg">نظام المهام</h3>
         <div className="flex gap-2">
           <select value={filter} onChange={e=>setFilter(e.target.value)} className="input rounded-xl px-3 py-2 text-sm"><option>الكل</option>{TASK_STATUSES.map(s=><option key={s}>{s}</option>)}</select>
+          <button onClick={()=>exportCSV(tasks.map(t=>({العنوان:t.title,الوصف:t.desc||"",المكلف:t.assignedToName,الأولوية:t.priority,الحالة:t.status,الاستحقاق:t.dueDate||"",بواسطة:t.createdBy})),"المهام")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/> CSV</button>
           {isAdmin && <button onClick={()=>setShowForm(!showForm)} className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 px-3 py-2 rounded-xl"><Plus size={13}/> مهمة جديدة</button>}
         </div>
       </div>
@@ -1464,7 +1576,7 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
             <p className="font-bold">{t.title}</p>
             {t.desc && <p className="text-xs text-secondary mt-1">{t.desc}</p>}
             <div className="flex gap-3 text-[10px] text-secondary mt-2">
-              <span>👤 {t.assignedToName}</span>
+              <span>👤 <EmpPopover emp={allEmployees.find(e=>e.id===Number(t.assignedTo))}>{t.assignedToName}</EmpPopover></span>
               {t.dueDate && <span>📅 {t.dueDate}</span>}
               <span>بواسطة {t.createdBy}</span>
             </div></div>
@@ -1752,6 +1864,7 @@ function MaintenanceParts() {
       <div className="flex gap-3">
         <div className="flex-1 flex items-center gap-2 input rounded-xl px-3 py-2"><Search size={14} className="text-secondary"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
         <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select>
+        <button onClick={()=>exportCSV(parts.map(p=>({الرمز:p.code,الاسم:p.name,الفئة:p.category,الكمية:p.qty,الوحدة:p.unit,السعر:p.price,الموقع:p.location})),"قطع_الغيار")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/> CSV</button>
         <button onClick={()=>{setShowForm(true);setForm({code:"",name:"",category:"ميكانيكية",qty:0,minAlert:1,unit:"قطعة",price:0,location:""});}} className="px-4 py-2 bg-blue-600 text-white rounded-xl flex items-center gap-1.5 text-sm font-bold"><Plus size={14}/> إضافة</button>
       </div>
 
@@ -1882,6 +1995,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
   const { isConnected } = useConnectionStatus();
   const smartAlerts = useSmartAlerts(employees);
   const confirm = useConfirm();
+  const [showSearch, setShowSearch] = useState(false);
   const isAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
   const pendingCount = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
   const unreadNotifs = (storage.get(`notifications_${emp.id}`, [])).filter(n => !n.read).length;
@@ -1891,6 +2005,12 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
     if (nc) { sessionStorage.removeItem("force_password_change"); setTimeout(async () => { if(await confirm("يُنصح بتغيير كلمة المرور الافتراضية الآن لأمان حسابك.", { title: "🔐 تغيير كلمة المرور", ok: "تغيير الآن" })) setView("changepass"); }, 500); }
     if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const h = (e) => { if ((e.ctrlKey||e.metaKey) && e.key==="k") { e.preventDefault(); setShowSearch(true); } };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
   }, []);
 
   // تحديث allRequests عند تغيير الـ view
@@ -1928,6 +2048,10 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           <div><h1 className="font-bold">شركة نفط البصرة</h1><p className="text-xs text-secondary">شعبة مستودع الفاو</p></div>
         </div>
         <div className="flex items-center gap-3">
+          {/* Global Search Button */}
+          <button onClick={()=>setShowSearch(true)} className="flex items-center gap-2 px-3 py-1.5 rounded-xl btn-secondary border border-color text-secondary hover:text-primary text-xs">
+            <Search size={14}/> <span className="hidden md:inline">بحث</span> <kbd className="hidden md:inline px-1 bg-hover rounded text-[10px]">Ctrl K</kbd>
+          </button>
           {/* Smart Alerts badge */}
           {smartAlerts.length > 0 && <div className="relative"><AlertTriangle size={20} className="text-amber-500"/><span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center">{smartAlerts.length}</span></div>}
           {/* Connection */}
@@ -1960,6 +2084,16 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
 
         {/* Main */}
         <main className="flex-1 p-5">
+          {/* Breadcrumb */}
+          {view !== "home" && (
+            <div className="flex items-center gap-1.5 text-sm text-secondary mb-4">
+              <button onClick={()=>setView("home")} className="hover:text-blue-600 transition-colors flex items-center gap-1">
+                <Home size={13}/> الرئيسية
+              </button>
+              <ChevronLeft size={13}/>
+              <span className="font-semibold text-primary">{VIEW_LABELS[view] || view}</span>
+            </div>
+          )}
           {view==="home" && (
             <div className="space-y-6">
               {/* Welcome */}
@@ -2087,6 +2221,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           {view==="approvals" && isAdmin && <ApprovalsPage emp={emp}/>}
         </main>
       </div>
+      {showSearch && <GlobalSearch setView={setView} onClose={()=>setShowSearch(false)}/>}
     </div>
   );
 }
