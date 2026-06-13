@@ -2460,8 +2460,8 @@ function AnnualLeaveForm({ emp }) {
   <tr>
     <td class="dh-label">رمز النموذج</td>
     <td class="dh-code">BOC-P-13/F03</td>
-    <td class="dh-info-cell"><span class="dh-info-lbl">رقم الإصدار</span><span class="dh-info-val">2</span></td>
-    <td class="dh-info-cell"><span class="dh-info-lbl">تاريخ الإصدار</span><span class="dh-info-val">2022/6/1</span></td>
+    <td class="dh-info-cell">رقم الإصدار: 2</td>
+    <td class="dh-info-cell">تاريخ الإصدار: 2022/6/1</td>
   </tr>
 </table>
 <div class="ref-num">372.3000.450</div>
@@ -2478,7 +2478,6 @@ function AnnualLeaveForm({ emp }) {
   <div class="field-row">
     <span class="lbl">الرقم الوظيفي:</span><span class="val">${jobNum}</span>
     <span class="lbl">العنوان الوظيفي:</span><span class="val">${jobTitle}</span>
-    <span class="lbl">القسم/الشعبة:</span><span class="val">${dept}</span>
   </div>
   <div class="sentence">
     يرجى منحي إجازة اعتيادية لمدة
