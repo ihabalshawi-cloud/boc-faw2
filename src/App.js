@@ -4748,48 +4748,31 @@ const TS_CODES_ALL = {
 const TS_CODES_GENERAL = ["O","2","3","R","L","S","Y","X","N","V"];
 const TS_CODES_DRIVER  = ["ف","ر","ب","غ","R","Y","L","S","X"];
 const MONTHS_AR_TS = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+const DAY_NAMES_AR = ['أحد','إثن','ثلا','أرب','خمي','جمع','سبت'];
+const getShiftForDay = (year, month, day) => {
+  const anchor = new Date(2026, 5, 14);
+  const current = new Date(year, month, day);
+  const diff = Math.floor((current - anchor) / (1000 * 60 * 60 * 24));
+  return ['أ','ب','ج','د'][((diff % 4) + 4) % 4];
+};
+const SHIFT_TEXT_COLORS = { 'أ':'#dc2626','ب':'#2563eb','ج':'#16a34a','د':'#7c3aed' };
 
 const INITIAL_TS = {
   malak:[
-    {id:"690414",name:"عبد الله عيسى موسى موني الربيعي",movement:"",days:{"1":"R","2":"Y","7":"L","8":"R","9":"Y","10":"L","12":"L","15":"R","16":"Y","19":"L","21":"L","22":"R","23":"Y","25":"L","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
-    {id:"689766",name:"اباذر صالح عبد الحسين عيسى",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","15":"R","16":"Y","22":"R","23":"Y","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
-    {id:"690174",name:"حسن عادل عمران",movement:"",days:{"1":"R","8":"R","15":"R","22":"R","29":"R"},hours:{"2":3,"3":2,"4":2,"5":2,"6":2,"7":2,"9":3,"10":2,"11":2,"12":2,"13":2,"14":2,"16":3,"17":2,"18":2,"19":2,"20":2,"21":2,"23":3,"24":1,"25":1,"26":3,"27":3,"28":3,"30":3,"31":1},notes:""},
-    {id:"689331",name:"سجاد علي راضي علي",movement:"",days:{"1":"R","8":"R","15":"R","22":"R","29":"R"},hours:{"2":3,"3":2,"4":2,"5":2,"6":2,"7":2,"9":3,"10":2,"11":2,"12":2,"13":2,"14":2,"16":3,"17":2,"18":2,"19":2,"20":2,"21":2,"23":3,"24":1,"25":1,"26":3,"27":3,"28":3,"30":3,"31":1},notes:""},
+    {id:"690414",name:"عبد الله عيسى موسى موني الربيعي",movement:"",isMorning:true,days:{},hours:{},notes:""},
+    {id:"689766",name:"اباذر صالح عبد الحسين عيسى",movement:"",isMorning:true,days:{},hours:{},notes:""},
+    {id:"690174",name:"حسن عادل عمران",movement:"",isMorning:true,days:{},hours:{},notes:""},
+    {id:"689331",name:"سجاد علي راضي علي",movement:"",isMorning:true,days:{},hours:{},notes:""},
   ],
   contracts:[
-    {id:"728004",name:"ايهاب عبد اللطيف عودة",movement:"",days:{"1":"R","2":"Y","7":"L","8":"R","14":"L","15":"R","20":"L","21":"L","22":"R","27":"Y","28":"Y"},hours:{"2":3,"3":2,"4":2,"5":2,"6":2,"9":3,"10":2,"11":2,"12":3,"13":3,"16":3,"17":3,"18":2,"19":3,"23":3,"24":3,"25":2,"26":3,"29":3,"30":3,"31":2},notes:""},
-    {id:"727466",name:"عدي فيصل عبد الهادي عبد السيد",movement:"",days:{"1":"R","2":"Y","4":"L","5":"L","6":"L","7":"L","8":"R","9":"Y","12":"L","14":"L","15":"R","16":"Y","17":"L","18":"L","21":"L","22":"R","23":"Y","25":"L","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{"3":2,"10":2,"11":2,"13":2,"19":2,"20":2,"24":2,"31":2},notes:""},
-    {id:"737283",name:"عمر طاهر خزعل",movement:"",days:{"1":"R","2":"Y","5":"L","8":"R","9":"Y","15":"R","16":"Y","17":"L","22":"R","23":"Y","24":"L","25":"L","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
-    {id:"756571",name:"ليث شاكر حمود",movement:"",days:{"1":"R","2":"Y","5":"L","8":"R","9":"Y","10":"L","15":"R","16":"Y","18":"L","22":"R","23":"Y","26":"Y","27":"Y","30":"Y"},hours:{"3":2,"4":2,"6":3,"7":2,"11":2,"12":2,"13":1,"14":2,"17":2,"19":1,"20":2,"21":2,"24":1,"25":1,"28":3,"29":3,"31":2},notes:""},
-    {id:"813877",name:"محمد اسماعيل احمد",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","10":"L","13":"L","15":"R","16":"Y","20":"L","22":"R","23":"Y","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
-    {id:"790885",name:"محمد عبدالكاظم جاسم محمد التميمي",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","15":"R","16":"Y","22":"R","23":"Y","25":"L","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
-    {id:"719242",name:"احمد محمود عبد القادر",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","15":"R","16":"Y","17":"L","22":"R","23":"Y","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{"3":1,"4":1,"5":1,"6":1,"7":1,"10":1,"11":1,"12":1,"13":1,"14":1,"18":1,"19":1,"20":1,"21":1,"24":1,"25":1,"31":1},notes:""},
-    {id:"758795",name:"صباح عبد الامام يوسف",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","15":"R","16":"Y","22":"R","23":"Y","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
-    {id:"790850",name:"اسعد عبد الامام يوسف",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","15":"R","16":"Y","22":"R","23":"Y","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
-    {id:"790869",name:"محمود كاظم هاشم محمد المنصوري",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","15":"R","16":"Y","22":"R","23":"Y","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
-    {id:"439193",name:"علي طاهر خزعل",movement:"",days:{"1":"R","2":"Y","3":"L","8":"R","9":"Y","13":"L","14":"L","15":"R","16":"Y","22":"R","23":"Y","24":"L","26":"Y","28":"Y","30":"Y"},hours:{"4":1,"5":1,"6":1,"7":1,"10":1,"11":1,"12":1,"17":1,"18":1,"19":1,"20":1,"21":1,"25":1,"27":3,"29":3,"31":1},notes:""},
-    {id:"701130",name:"عبدالله علي ازباري يسر عبادة",movement:"أ",days:{"1":"3","2":"N","3":"N","4":"N","5":"3","6":"N","7":"N","8":"N","9":"3","10":"N","11":"N","12":"N","13":"3","14":"N","15":"N","16":"N","17":"3","18":"N","19":"N","20":"N","21":"L","22":"N","23":"N","24":"N","25":"3","26":"N","27":"N","28":"N","29":"3","30":"N","31":"N"},hours:{},notes:""},
-    {id:"719277",name:"باسم هاشم جاسم",movement:"",days:{"1":"3","2":"N","3":"N","4":"N","5":"3","6":"N","7":"N","8":"N","9":"3","10":"N","11":"N","12":"N","13":"3","14":"N","15":"N","16":"N","17":"3","18":"N","19":"N","20":"N","21":"3","22":"N","23":"N","24":"N","25":"3","26":"N","27":"N","28":"N","29":"3","30":"N","31":"N"},hours:{},notes:""},
-    {id:"719269",name:"حسين علي احمد",movement:"",days:{"1":"3","2":"N","3":"N","4":"N","5":"3","6":"N","7":"N","8":"N","9":"3","10":"N","11":"N","12":"N","13":"3","14":"N","15":"N","16":"N","17":"3","18":"N","19":"N","20":"N","21":"3","22":"N","23":"N","24":"N","25":"3","26":"N","27":"N","28":"N","29":"3","30":"N","31":"N"},hours:{},notes:""},
-    {id:"719498",name:"جاسم مزعل حاتم ديوان",movement:"",days:{"1":"3","2":"N","3":"N","4":"N","5":"3","6":"N","7":"N","8":"N","9":"3","10":"N","11":"N","12":"N","13":"3","14":"N","15":"N","16":"N","17":"3","18":"N","19":"N","20":"N","21":"3","22":"N","23":"N","24":"N","25":"3","26":"N","27":"N","28":"N","29":"3","30":"N","31":"N"},hours:{},notes:""},
-    {id:"751480",name:"امين حميد فاضل حسين",movement:"",days:{"1":"3","2":"N","3":"N","4":"N","5":"3","6":"N","7":"N","8":"N","9":"3","10":"N","11":"N","12":"N","13":"3","14":"N","15":"N","16":"N","17":"3","18":"N","19":"N","20":"N","21":"3","22":"N","23":"N","24":"N","25":"3","26":"N","27":"N","28":"N","29":"3","30":"N","31":"N"},hours:{},notes:""},
-    {id:"719293",name:"هاشم جابرجعفر",movement:"ب",days:{"1":"N","2":"3","3":"N","4":"N","5":"N","6":"3","7":"N","8":"N","9":"N","10":"3","11":"N","12":"N","13":"N","14":"3","15":"N","16":"N","17":"N","18":"3","19":"N","20":"N","21":"N","22":"3","23":"N","24":"N","25":"N","26":"3","27":"N","28":"N","29":"N","30":"3","31":"N"},hours:{},notes:""},
-    {id:"736732",name:"احسان عبد الصمد داود",movement:"",days:{"1":"N","2":"3","3":"N","4":"N","5":"N","6":"3","7":"N","8":"N","9":"N","10":"3","11":"N","12":"N","13":"N","14":"3","15":"N","16":"N","17":"N","18":"3","19":"N","20":"N","21":"N","22":"3","23":"N","24":"N","25":"N","26":"3","27":"N","28":"N","29":"N","30":"3","31":"N"},hours:{},notes:""},
-    {id:"719048",name:"علاء محسن عذبي جعفر",movement:"",days:{"1":"N","2":"3","3":"N","4":"N","5":"N","6":"3","7":"N","8":"N","9":"N","10":"3","11":"N","12":"N","13":"N","14":"3","15":"N","16":"N","17":"N","18":"3","19":"N","20":"N","21":"N","22":"3","23":"N","24":"N","25":"N","26":"3","27":"N","28":"N","29":"N","30":"3","31":"N"},hours:{},notes:""},
-    {id:"719463",name:"عبد الحميد سامي موسى",movement:"",days:{"1":"N","2":"3","3":"N","4":"N","5":"N","6":"3","7":"N","8":"N","9":"N","10":"3","11":"N","12":"N","13":"N","14":"3","15":"N","16":"N","17":"N","18":"3","19":"N","20":"N","21":"N","22":"3","23":"N","24":"N","25":"N","26":"3","27":"N","28":"N","29":"N","30":"3","31":"N"},hours:{},notes:""},
-    {id:"732249",name:"علي باقر حنتوش",movement:"ج",days:{"1":"N","2":"N","3":"3","4":"N","5":"N","6":"N","7":"3","8":"N","9":"N","10":"N","11":"3","12":"N","13":"N","14":"N","15":"3","16":"N","17":"N","18":"N","19":"3","20":"N","21":"N","22":"N","23":"3","24":"N","25":"N","26":"N","27":"3","28":"N","29":"N","30":"N","31":"3"},hours:{},notes:""},
-    {id:"726508",name:"يوسف عباس ياسين",movement:"",days:{"1":"N","2":"N","3":"3","4":"N","5":"N","6":"N","7":"3","8":"N","9":"N","10":"N","11":"3","12":"N","13":"N","14":"N","15":"3","16":"N","17":"N","18":"N","19":"3","20":"N","21":"N","22":"N","23":"3","24":"N","25":"N","26":"N","27":"3","28":"N","29":"N","30":"N","31":"3"},hours:{},notes:""},
-    {id:"735922",name:"علي طارق ياسين",movement:"",days:{"1":"N","2":"N","3":"L","4":"N","5":"N","6":"N","7":"3","8":"N","9":"N","10":"N","11":"3","12":"N","13":"N","14":"N","15":"3","16":"N","17":"N","18":"N","19":"3","20":"N","21":"N","22":"N","23":"3","24":"N","25":"N","26":"N","27":"3","28":"N","29":"N","30":"N","31":"3"},hours:{},notes:""},
-    {id:"719129",name:"ضياء بدر حمادي اسماعيل",movement:"",days:{"1":"N","2":"N","3":"3","4":"N","5":"N","6":"N","7":"3","8":"N","9":"N","10":"N","11":"3","12":"N","13":"N","14":"N","15":"3","16":"N","17":"N","18":"N","19":"3","20":"N","21":"N","22":"N","23":"3","24":"N","25":"N","26":"N","27":"3","28":"N","29":"N","30":"N","31":"3"},hours:{},notes:""},
-    {id:"719099",name:"عدنان جواد كاظم",movement:"",days:{"1":"N","2":"N","3":"3","4":"N","5":"N","6":"N","7":"3","8":"N","9":"N","10":"N","11":"3","12":"N","13":"N","14":"N","15":"3","16":"N","17":"N","18":"N","19":"3","20":"N","21":"N","22":"N","23":"3","24":"N","25":"N","26":"N","27":"3","28":"N","29":"N","30":"N","31":"3"},hours:{},notes:""},
-    {id:"732834",name:"احسان جواد كاظم حسين",movement:"د",days:{"1":"N","2":"N","3":"N","4":"3","5":"N","6":"N","7":"N","8":"3","9":"N","10":"N","11":"N","12":"3","13":"N","14":"N","15":"N","16":"3","17":"N","18":"N","19":"N","20":"3","21":"N","22":"N","23":"N","24":"3","25":"N","26":"N","27":"N","28":"3","29":"N","30":"N","31":"N"},hours:{},notes:""},
-    {id:"718939",name:"واثق حسين عبد الشيخ حسن",movement:"",days:{"1":"N","2":"N","3":"N","4":"3","5":"N","6":"N","7":"N","8":"3","9":"N","10":"N","11":"N","12":"3","13":"N","14":"N","15":"N","16":"3","17":"N","18":"N","19":"N","20":"3","21":"N","22":"N","23":"N","24":"3","25":"N","26":"N","27":"N","28":"3","29":"N","30":"N","31":"N"},hours:{},notes:""},
-    {id:"719005",name:"صدام عبد الواحد سلمان عيسى",movement:"",days:{"1":"N","2":"N","3":"N","4":"3","5":"N","6":"N","7":"N","8":"3","9":"N","10":"N","11":"N","12":"3","13":"N","14":"N","15":"N","16":"3","17":"N","18":"N","19":"N","20":"3","21":"N","22":"N","23":"N","24":"3","25":"N","26":"N","27":"N","28":"3","29":"N","30":"N","31":"N"},hours:{},notes:""},
-    {id:"724939",name:"حيدر عبد الحسن خضير",movement:"",days:{"1":"N","2":"N","3":"N","4":"3","5":"N","6":"N","7":"N","8":"3","9":"N","10":"N","11":"N","12":"3","13":"N","14":"N","15":"N","16":"3","17":"N","18":"N","19":"N","20":"3","21":"N","22":"N","23":"N","24":"3","25":"N","26":"N","27":"N","28":"3","29":"N","30":"N","31":"N"},hours:{},notes:""},
+    {id:"690414",name:"عبد الله عيسى موسى موني الربيعي",movement:"",isMorning:true,days:{},hours:{},notes:""},
+    {id:"689766",name:"اباذر صالح عبد الحسين عيسى",movement:"",isMorning:true,days:{},hours:{},notes:""},
+    {id:"690174",name:"حسن عادل عمران",movement:"",isMorning:true,days:{},hours:{},notes:""},
+    {id:"689331",name:"سجاد علي راضي علي",movement:"",isMorning:true,days:{},hours:{},notes:""},
   ],
   drivers:[
-    {id:"محمد نعيم فاضل",name:"محمد نعيم فاضل",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","15":"R","16":"Y","22":"R","23":"Y","29":"R","30":"Y"},hours:{},notes:""},
-    {id:"علي جاسم محمد",name:"علي جاسم محمد",movement:"",days:{"1":"R","2":"Y","3":"ف","4":"ف","5":"غ","6":"غ","7":"غ","8":"R","9":"Y","10":"ف","11":"ف","12":"ف","13":"ف","14":"غ","15":"R","16":"Y","17":"غ","18":"غ","19":"ف","20":"ف","21":"غ","22":"R","23":"Y","24":"غ","29":"R","30":"Y"},hours:{},notes:""},
+    {id:"محمد نعيم فاضل",name:"محمد نعيم فاضل",movement:"",days:{},hours:{},notes:""},
+    {id:"علي جاسم محمد",name:"علي جاسم محمد",movement:"",days:{},hours:{},notes:""},
   ],
 };
 
@@ -4834,11 +4817,11 @@ function TsCodePicker({ codesArr, current, onSelect, onClose }) {
 function TimeSheetPage({ emp }) {
   const addToast = useToast();
   const confirm  = useConfirm();
-  const STORAGE_KEY = "boc_timesheet_v2";
+  const STORAGE_KEY = "boc_timesheet_v3";
 
   const [tsMonth, setTsMonth] = useState(4);
   const [tsYear,  setTsYear]  = useState(2026);
-  const [activeTab, setActiveTab] = useState("contracts");
+  const [activeTab, setActiveTab] = useState("malak");
   const [data, setData] = useState(() => storage.get(STORAGE_KEY, null) || INITIAL_TS);
   const [editCell, setEditCell] = useState(null);
   const [showLegend, setShowLegend] = useState(false);
@@ -4925,11 +4908,50 @@ function TimeSheetPage({ emp }) {
   };
 
   const resetData = async () => {
-    const ok = await confirm("هل تريد إعادة تعيين جميع البيانات للبيانات الأصلية من ملفات Excel؟");
+    const ok = await confirm("هل تريد إعادة تعيين جميع البيانات للبيانات الأصلية؟");
     if (!ok) return;
     storage.set(STORAGE_KEY, INITIAL_TS);
     setData(INITIAL_TS);
     addToast("تمت إعادة التعيين للبيانات الأصلية", "success");
+  };
+
+  const resetTab = async () => {
+    const ok = await confirm(`هل تريد تصفير جميع رموز الحضور لتبويب ${TAB_INFO[activeTab].label}؟`);
+    if (!ok) return;
+    setData(prev => {
+      const updated = {
+        ...prev,
+        [activeTab]: prev[activeTab].map(e => ({...e, days:{}, hours:{}}))
+      };
+      storage.set(STORAGE_KEY, updated);
+      return updated;
+    });
+    addToast(`تم تصفير بيانات ${TAB_INFO[activeTab].label}`, "success");
+  };
+
+  const fillWeekend = async () => {
+    const morningCount = (data[activeTab]||[]).filter(e=>e.isMorning).length;
+    if (morningCount === 0) { addToast("لا يوجد كادر صباحي في هذا التبويب", "warning"); return; }
+    const ok = await confirm(`ملء أيام الجمعة (R) والسبت (Y) للكادر الصباحي في ${TAB_INFO[activeTab].label}؟`);
+    if (!ok) return;
+    setData(prev => {
+      const updated = {
+        ...prev,
+        [activeTab]: prev[activeTab].map(e => {
+          if (!e.isMorning) return e;
+          const newDays = {...e.days};
+          days.forEach(d => {
+            const dow = new Date(tsYear, tsMonth, d).getDay();
+            if (dow === 5) newDays[String(d)] = "R";
+            if (dow === 6) newDays[String(d)] = "Y";
+          });
+          return {...e, days: newDays};
+        })
+      };
+      storage.set(STORAGE_KEY, updated);
+      return updated;
+    });
+    addToast("تم ملء رموز عطلة نهاية الأسبوع للكادر الصباحي", "success");
   };
 
   const buildHTMLTable = (tab) => {
@@ -4967,15 +4989,17 @@ function TimeSheetPage({ emp }) {
     emps.forEach((e, idx) => {
       const stats = calcTsStats(e);
       const bg = idx%2===0 ? "#fff" : "#f9fafb";
-      // A row
       rows += `<tr style="background:${bg}">`;
       rows += `<td rowspan="2" style="${cellStyle}font-size:10px;color:#6b7280;">${e.id}</td>`;
       rows += `<td rowspan="2" style="${cellStyle}text-align:right;font-weight:600;min-width:130px;font-size:12px;">${e.name}</td>`;
       rows += `<td style="${cellStyle}color:#2563eb;font-weight:bold;">أ</td>`;
       daysList.forEach(d => {
+        const dow = new Date(tsYear, tsMonth, d).getDay();
+        const isWe = dow===5||dow===6;
         const code = e.days[String(d)] || "";
         const cs = codeStyle(code);
-        rows += `<td style="${cellStyle}${cs};font-weight:bold;">${code}</td>`;
+        const weBg = isWe && !code ? "background:#fff7ed;" : "";
+        rows += `<td style="${cellStyle}${cs||weBg}font-weight:bold;">${code}</td>`;
       });
       rows += `<td rowspan="2" style="${cellStyle}color:#1d4ed8;font-weight:bold;">${stats.totalHours||""}</td>`;
       rows += `<td rowspan="2" style="${cellStyle}color:#15803d;">${stats.leaveDays||""}</td>`;
@@ -4983,17 +5007,27 @@ function TimeSheetPage({ emp }) {
       rows += `<td rowspan="2" style="${cellStyle}color:#6b7280;">${stats.restDays||""}</td>`;
       rows += `<td rowspan="2" style="${cellStyle}text-align:right;font-size:10px;color:#6b7280;">${e.notes||""}</td>`;
       rows += `</tr>`;
-      // Q row
       rows += `<tr style="background:${bg}">`;
       rows += `<td style="${cellStyle}color:#7c3aed;font-weight:bold;">ق</td>`;
       daysList.forEach(d => {
+        const dow = new Date(tsYear, tsMonth, d).getDay();
+        const isWe = dow===5||dow===6;
         const h = e.hours[String(d)];
-        rows += `<td style="${cellStyle}${h?"background:#f5f3ff;color:#7c3aed;font-weight:600":""};">${h!=null?h:""}</td>`;
+        const weBg = isWe && h==null ? "background:#fff7ed;" : "";
+        rows += `<td style="${cellStyle}${h!=null?"background:#f5f3ff;color:#7c3aed;font-weight:600":weBg}">${h!=null?h:""}</td>`;
       });
       rows += `</tr>`;
     });
 
-    const dayHeaders = daysList.map(d => `<th style="border:1px solid #d1d5db;padding:3px;text-align:center;font-size:11px;min-width:26px;background:#eff6ff;">${d}</th>`).join("");
+    const dayHeaders = daysList.map(d => {
+      const dow = new Date(tsYear, tsMonth, d).getDay();
+      const shift = getShiftForDay(tsYear, tsMonth, d);
+      const isWe = dow===5||dow===6;
+      const weBg = isWe ? "background:#fff7ed;" : "background:#eff6ff;";
+      const dayColor = isWe ? "color:#ea580c;" : "";
+      const shiftColor = `color:${SHIFT_TEXT_COLORS[shift]||"#374151"};`;
+      return `<th style="border:1px solid #d1d5db;padding:1px;text-align:center;font-size:9px;min-width:28px;${weBg}"><div style="font-weight:bold;font-size:10px;${dayColor}">${d}</div><div style="font-size:8px;${dayColor}">${DAY_NAMES_AR[dow]}</div><div style="font-size:8px;font-weight:bold;${shiftColor}">${shift}</div></th>`;
+    }).join("");
 
     return `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/>
 <style>body{font-family:Arial,sans-serif;direction:rtl;} table{border-collapse:collapse;width:100%;} th{padding:4px;border:1px solid #9ca3af;font-size:12px;}</style>
@@ -5047,6 +5081,8 @@ function TimeSheetPage({ emp }) {
   };
 
   const getCellColor = (code) => TS_CODES_ALL[code]?.color || "";
+  const isWeekendDay = (d) => { const dow = new Date(tsYear, tsMonth, d).getDay(); return dow===5||dow===6; };
+  const dayIsToday = (d) => d===new Date().getDate()&&tsMonth===new Date().getMonth()&&tsYear===new Date().getFullYear();
 
   return (
     <div className="p-4 md:p-6 space-y-4" dir="rtl">
@@ -5065,6 +5101,14 @@ function TimeSheetPage({ emp }) {
             className="text-sm border border-color rounded-lg px-2 py-1.5 bg-surface text-primary">
             {[2024,2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}
           </select>
+          <button onClick={fillWeekend}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-orange-500 text-white hover:bg-orange-600">
+            <Calendar size={14}/> ج/س صباحي
+          </button>
+          <button onClick={resetTab}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-amber-500 text-white hover:bg-amber-600">
+            <X size={14}/> تصفير
+          </button>
           <button onClick={()=>setShowLegend(v=>!v)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm btn-secondary">
             <AlertTriangle size={14}/> دليل الرموز
@@ -5146,9 +5190,21 @@ function TimeSheetPage({ emp }) {
                 <th className="border border-gray-300 px-2 py-2 text-center bg-blue-50" style={{position:"sticky",right:0,zIndex:10,minWidth:"70px",backgroundColor:"#eff6ff"}}>الرقم</th>
                 <th className="border border-gray-300 px-2 py-2 text-right bg-blue-50" style={{position:"sticky",right:"70px",zIndex:10,minWidth:"150px",backgroundColor:"#eff6ff"}}>الاسم</th>
                 <th className="border border-gray-300 px-1 py-2 text-center bg-blue-50" style={{minWidth:"34px"}}>ح/ق</th>
-                {days.map(d=>(
-                  <th key={d} className={`border border-gray-300 py-2 text-center font-bold ${d===new Date().getDate()&&tsMonth===new Date().getMonth()&&tsYear===new Date().getFullYear()?"bg-blue-200":"bg-blue-50"}`} style={{minWidth:"30px",fontSize:"11px"}}>{d}</th>
-                ))}
+                {days.map(d=>{
+                  const dow = new Date(tsYear, tsMonth, d).getDay();
+                  const isWe = dow===5||dow===6;
+                  const shift = getShiftForDay(tsYear, tsMonth, d);
+                  const todayFlag = dayIsToday(d);
+                  const bgColor = todayFlag?"#bfdbfe":isWe?"#fff7ed":"#eff6ff";
+                  const numColor = todayFlag?"#1d4ed8":isWe?"#ea580c":undefined;
+                  return (
+                    <th key={d} className="border border-gray-300 py-1 text-center" style={{minWidth:"30px",backgroundColor:bgColor}}>
+                      <div style={{fontSize:"11px",fontWeight:"bold",color:numColor}}>{d}</div>
+                      <div style={{fontSize:"8px",color:isWe?"#ea580c":"#9ca3af",lineHeight:"1"}}>{DAY_NAMES_AR[dow]}</div>
+                      <div style={{fontSize:"8px",fontWeight:"bold",color:SHIFT_TEXT_COLORS[shift]||"#374151",lineHeight:"1.2"}}>{shift}</div>
+                    </th>
+                  );
+                })}
                 <th className="border border-gray-300 px-1 py-2 text-center bg-blue-50 text-blue-700" style={{minWidth:"52px"}}>ساعات</th>
                 <th className="border border-gray-300 px-1 py-2 text-center bg-green-50 text-green-700" style={{minWidth:"40px"}}>إجازة</th>
                 <th className="border border-gray-300 px-1 py-2 text-center bg-red-50 text-red-700" style={{minWidth:"40px"}}>غياب</th>
@@ -5175,11 +5231,13 @@ function TimeSheetPage({ emp }) {
                       </td>
                       <td className="border border-gray-300 text-center font-black text-blue-600" style={{backgroundColor:bgBase,fontSize:"10px"}}>أ</td>
                       {days.map(d=>{
+                        const isWe = isWeekendDay(d);
                         const code = e.days[String(d)] || "";
                         const isEd = editCell?.empId===e.id && editCell?.day===d && editCell?.type==="code";
+                        const cellBg = code ? "" : isWe ? "#fff7ed" : bgBase;
                         return (
-                          <td key={d} className={`border border-gray-300 text-center cursor-pointer relative select-none ${code?getCellColor(code):"hover:bg-blue-50"}`}
-                            style={{height:"22px",minWidth:"30px",backgroundColor:code?"":bgBase}}
+                          <td key={d} className={`border border-gray-300 text-center cursor-pointer relative select-none ${code?getCellColor(code):""}`}
+                            style={{height:"22px",minWidth:"30px",backgroundColor:cellBg}}
                             onClick={()=>setEditCell({empId:e.id,day:d,type:"code",tabKey:activeTab})}>
                             <span className="font-bold" style={{fontSize:"11px"}}>{code}</span>
                             {isEd && <TsCodePicker codesArr={codes} current={code} onSelect={v=>{updateCell(activeTab,e.id,d,"code",v);setEditCell(null);}} onClose={()=>setEditCell(null)}/>}
@@ -5203,11 +5261,13 @@ function TimeSheetPage({ emp }) {
                     <tr>
                       <td className="border border-gray-300 text-center font-black text-purple-600" style={{backgroundColor:bgBase,fontSize:"10px"}}>ق</td>
                       {days.map(d=>{
+                        const isWe = isWeekendDay(d);
                         const h = e.hours[String(d)];
                         const isEd = editCell?.empId===e.id && editCell?.day===d && editCell?.type==="hours";
+                        const cellBg = h!=null ? "#f5f3ff" : isWe ? "#fff7ed" : bgBase;
                         return (
-                          <td key={d} className={`border border-gray-300 text-center cursor-pointer relative ${h!=null?"bg-purple-50 text-purple-700":"hover:bg-purple-50"}`}
-                            style={{height:"20px",minWidth:"30px",backgroundColor:h!=null?"#f5f3ff":bgBase}}
+                          <td key={d} className={`border border-gray-300 text-center cursor-pointer relative ${h!=null?"text-purple-700":""}`}
+                            style={{height:"20px",minWidth:"30px",backgroundColor:cellBg}}
                             onClick={()=>setEditCell({empId:e.id,day:d,type:"hours",tabKey:activeTab})}>
                             {isEd ? (
                               <input type="number" min="0" max="24" defaultValue={h??""} autoFocus
