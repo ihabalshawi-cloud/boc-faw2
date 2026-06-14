@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, createContext, useContext, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useRef, createContext, useContext, useMemo } from "react";
 import {
   LogIn, LogOut, Shield, Eye, EyeOff, AlertCircle, Save, Home, User,
   CheckCircle, Wifi, WifiOff, FileText, Clock, Calendar,
@@ -289,6 +289,7 @@ const VIEW_LABELS = {
   health_insurance:"الضمان الصحي",
   leave_forms:"نماذج الإجازات",
   projects:"إدارة المشاريع",
+  timesheet:"التايم شيت",
 };
 
 function GlobalSearch({ setView, onClose }) {
@@ -4066,6 +4067,532 @@ function AddProjectModal({ onClose, onAdd, existingIds }) {
   );
 }
 
+// ========== التايم شيت ==========
+const TS_CODES_ALL = {
+  "O": { label:"المقيم الصباحي",  color:"bg-orange-100 text-orange-700",  type:"work" },
+  "2": { label:"مناوبة ثنائية",   color:"bg-blue-100 text-blue-700",      type:"work" },
+  "3": { label:"مناوبة ثلاثية",   color:"bg-purple-100 text-purple-700",  type:"work" },
+  "R": { label:"استراحة",         color:"bg-gray-100 text-gray-600",      type:"rest" },
+  "L": { label:"إجازة اعتيادية", color:"bg-green-100 text-green-700",    type:"leave" },
+  "S": { label:"إجازة مرضية",    color:"bg-red-100 text-red-600",        type:"sick" },
+  "Y": { label:"عطلة رسمية",     color:"bg-yellow-100 text-yellow-700",  type:"holiday" },
+  "X": { label:"غياب",           color:"bg-red-200 text-red-800",        type:"absent" },
+  "N": { label:"استراحة مناوبة", color:"bg-slate-100 text-slate-600",    type:"rest" },
+  "V": { label:"استراحة مقيم",   color:"bg-slate-200 text-slate-500",    type:"rest" },
+  "ف": { label:"فاو",            color:"bg-amber-100 text-amber-700",    type:"work" },
+  "ر": { label:"رميلة",          color:"bg-teal-100 text-teal-700",      type:"work" },
+  "ب": { label:"باب الزبير",     color:"bg-cyan-100 text-cyan-700",      type:"work" },
+  "غ": { label:"إجازة/غياب",    color:"bg-red-100 text-red-700",        type:"absent" },
+};
+const TS_CODES_GENERAL = ["O","2","3","R","L","S","Y","X","N","V"];
+const TS_CODES_DRIVER  = ["ف","ر","ب","غ","R","Y","L","S","X"];
+const MONTHS_AR_TS = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+
+const INITIAL_TS = {
+  malak:[
+    {id:"690414",name:"عبد الله عيسى موسى موني الربيعي",movement:"",days:{"1":"R","2":"Y","7":"L","8":"R","9":"Y","10":"L","12":"L","15":"R","16":"Y","19":"L","21":"L","22":"R","23":"Y","25":"L","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
+    {id:"689766",name:"اباذر صالح عبد الحسين عيسى",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","15":"R","16":"Y","22":"R","23":"Y","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
+    {id:"690174",name:"حسن عادل عمران",movement:"",days:{"1":"R","8":"R","15":"R","22":"R","29":"R"},hours:{"2":3,"3":2,"4":2,"5":2,"6":2,"7":2,"9":3,"10":2,"11":2,"12":2,"13":2,"14":2,"16":3,"17":2,"18":2,"19":2,"20":2,"21":2,"23":3,"24":1,"25":1,"26":3,"27":3,"28":3,"30":3,"31":1},notes:""},
+    {id:"689331",name:"سجاد علي راضي علي",movement:"",days:{"1":"R","8":"R","15":"R","22":"R","29":"R"},hours:{"2":3,"3":2,"4":2,"5":2,"6":2,"7":2,"9":3,"10":2,"11":2,"12":2,"13":2,"14":2,"16":3,"17":2,"18":2,"19":2,"20":2,"21":2,"23":3,"24":1,"25":1,"26":3,"27":3,"28":3,"30":3,"31":1},notes:""},
+  ],
+  contracts:[
+    {id:"728004",name:"ايهاب عبد اللطيف عودة",movement:"",days:{"1":"R","2":"Y","7":"L","8":"R","14":"L","15":"R","20":"L","21":"L","22":"R","27":"Y","28":"Y"},hours:{"2":3,"3":2,"4":2,"5":2,"6":2,"9":3,"10":2,"11":2,"12":3,"13":3,"16":3,"17":3,"18":2,"19":3,"23":3,"24":3,"25":2,"26":3,"29":3,"30":3,"31":2},notes:""},
+    {id:"727466",name:"عدي فيصل عبد الهادي عبد السيد",movement:"",days:{"1":"R","2":"Y","4":"L","5":"L","6":"L","7":"L","8":"R","9":"Y","12":"L","14":"L","15":"R","16":"Y","17":"L","18":"L","21":"L","22":"R","23":"Y","25":"L","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{"3":2,"10":2,"11":2,"13":2,"19":2,"20":2,"24":2,"31":2},notes:""},
+    {id:"737283",name:"عمر طاهر خزعل",movement:"",days:{"1":"R","2":"Y","5":"L","8":"R","9":"Y","15":"R","16":"Y","17":"L","22":"R","23":"Y","24":"L","25":"L","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
+    {id:"756571",name:"ليث شاكر حمود",movement:"",days:{"1":"R","2":"Y","5":"L","8":"R","9":"Y","10":"L","15":"R","16":"Y","18":"L","22":"R","23":"Y","26":"Y","27":"Y","30":"Y"},hours:{"3":2,"4":2,"6":3,"7":2,"11":2,"12":2,"13":1,"14":2,"17":2,"19":1,"20":2,"21":2,"24":1,"25":1,"28":3,"29":3,"31":2},notes:""},
+    {id:"813877",name:"محمد اسماعيل احمد",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","10":"L","13":"L","15":"R","16":"Y","20":"L","22":"R","23":"Y","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
+    {id:"790885",name:"محمد عبدالكاظم جاسم محمد التميمي",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","15":"R","16":"Y","22":"R","23":"Y","25":"L","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
+    {id:"719242",name:"احمد محمود عبد القادر",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","15":"R","16":"Y","17":"L","22":"R","23":"Y","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{"3":1,"4":1,"5":1,"6":1,"7":1,"10":1,"11":1,"12":1,"13":1,"14":1,"18":1,"19":1,"20":1,"21":1,"24":1,"25":1,"31":1},notes:""},
+    {id:"758795",name:"صباح عبد الامام يوسف",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","15":"R","16":"Y","22":"R","23":"Y","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
+    {id:"790850",name:"اسعد عبد الامام يوسف",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","15":"R","16":"Y","22":"R","23":"Y","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
+    {id:"790869",name:"محمود كاظم هاشم محمد المنصوري",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","15":"R","16":"Y","22":"R","23":"Y","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
+    {id:"439193",name:"علي طاهر خزعل",movement:"",days:{"1":"R","2":"Y","3":"L","8":"R","9":"Y","13":"L","14":"L","15":"R","16":"Y","22":"R","23":"Y","24":"L","26":"Y","28":"Y","30":"Y"},hours:{"4":1,"5":1,"6":1,"7":1,"10":1,"11":1,"12":1,"17":1,"18":1,"19":1,"20":1,"21":1,"25":1,"27":3,"29":3,"31":1},notes:""},
+    {id:"701130",name:"عبدالله علي ازباري يسر عبادة",movement:"أ",days:{"1":"3","2":"N","3":"N","4":"N","5":"3","6":"N","7":"N","8":"N","9":"3","10":"N","11":"N","12":"N","13":"3","14":"N","15":"N","16":"N","17":"3","18":"N","19":"N","20":"N","21":"L","22":"N","23":"N","24":"N","25":"3","26":"N","27":"N","28":"N","29":"3","30":"N","31":"N"},hours:{},notes:""},
+    {id:"719277",name:"باسم هاشم جاسم",movement:"",days:{"1":"3","2":"N","3":"N","4":"N","5":"3","6":"N","7":"N","8":"N","9":"3","10":"N","11":"N","12":"N","13":"3","14":"N","15":"N","16":"N","17":"3","18":"N","19":"N","20":"N","21":"3","22":"N","23":"N","24":"N","25":"3","26":"N","27":"N","28":"N","29":"3","30":"N","31":"N"},hours:{},notes:""},
+    {id:"719269",name:"حسين علي احمد",movement:"",days:{"1":"3","2":"N","3":"N","4":"N","5":"3","6":"N","7":"N","8":"N","9":"3","10":"N","11":"N","12":"N","13":"3","14":"N","15":"N","16":"N","17":"3","18":"N","19":"N","20":"N","21":"3","22":"N","23":"N","24":"N","25":"3","26":"N","27":"N","28":"N","29":"3","30":"N","31":"N"},hours:{},notes:""},
+    {id:"719498",name:"جاسم مزعل حاتم ديوان",movement:"",days:{"1":"3","2":"N","3":"N","4":"N","5":"3","6":"N","7":"N","8":"N","9":"3","10":"N","11":"N","12":"N","13":"3","14":"N","15":"N","16":"N","17":"3","18":"N","19":"N","20":"N","21":"3","22":"N","23":"N","24":"N","25":"3","26":"N","27":"N","28":"N","29":"3","30":"N","31":"N"},hours:{},notes:""},
+    {id:"751480",name:"امين حميد فاضل حسين",movement:"",days:{"1":"3","2":"N","3":"N","4":"N","5":"3","6":"N","7":"N","8":"N","9":"3","10":"N","11":"N","12":"N","13":"3","14":"N","15":"N","16":"N","17":"3","18":"N","19":"N","20":"N","21":"3","22":"N","23":"N","24":"N","25":"3","26":"N","27":"N","28":"N","29":"3","30":"N","31":"N"},hours:{},notes:""},
+    {id:"719293",name:"هاشم جابرجعفر",movement:"ب",days:{"1":"N","2":"3","3":"N","4":"N","5":"N","6":"3","7":"N","8":"N","9":"N","10":"3","11":"N","12":"N","13":"N","14":"3","15":"N","16":"N","17":"N","18":"3","19":"N","20":"N","21":"N","22":"3","23":"N","24":"N","25":"N","26":"3","27":"N","28":"N","29":"N","30":"3","31":"N"},hours:{},notes:""},
+    {id:"736732",name:"احسان عبد الصمد داود",movement:"",days:{"1":"N","2":"3","3":"N","4":"N","5":"N","6":"3","7":"N","8":"N","9":"N","10":"3","11":"N","12":"N","13":"N","14":"3","15":"N","16":"N","17":"N","18":"3","19":"N","20":"N","21":"N","22":"3","23":"N","24":"N","25":"N","26":"3","27":"N","28":"N","29":"N","30":"3","31":"N"},hours:{},notes:""},
+    {id:"719048",name:"علاء محسن عذبي جعفر",movement:"",days:{"1":"N","2":"3","3":"N","4":"N","5":"N","6":"3","7":"N","8":"N","9":"N","10":"3","11":"N","12":"N","13":"N","14":"3","15":"N","16":"N","17":"N","18":"3","19":"N","20":"N","21":"N","22":"3","23":"N","24":"N","25":"N","26":"3","27":"N","28":"N","29":"N","30":"3","31":"N"},hours:{},notes:""},
+    {id:"719463",name:"عبد الحميد سامي موسى",movement:"",days:{"1":"N","2":"3","3":"N","4":"N","5":"N","6":"3","7":"N","8":"N","9":"N","10":"3","11":"N","12":"N","13":"N","14":"3","15":"N","16":"N","17":"N","18":"3","19":"N","20":"N","21":"N","22":"3","23":"N","24":"N","25":"N","26":"3","27":"N","28":"N","29":"N","30":"3","31":"N"},hours:{},notes:""},
+    {id:"732249",name:"علي باقر حنتوش",movement:"ج",days:{"1":"N","2":"N","3":"3","4":"N","5":"N","6":"N","7":"3","8":"N","9":"N","10":"N","11":"3","12":"N","13":"N","14":"N","15":"3","16":"N","17":"N","18":"N","19":"3","20":"N","21":"N","22":"N","23":"3","24":"N","25":"N","26":"N","27":"3","28":"N","29":"N","30":"N","31":"3"},hours:{},notes:""},
+    {id:"726508",name:"يوسف عباس ياسين",movement:"",days:{"1":"N","2":"N","3":"3","4":"N","5":"N","6":"N","7":"3","8":"N","9":"N","10":"N","11":"3","12":"N","13":"N","14":"N","15":"3","16":"N","17":"N","18":"N","19":"3","20":"N","21":"N","22":"N","23":"3","24":"N","25":"N","26":"N","27":"3","28":"N","29":"N","30":"N","31":"3"},hours:{},notes:""},
+    {id:"735922",name:"علي طارق ياسين",movement:"",days:{"1":"N","2":"N","3":"L","4":"N","5":"N","6":"N","7":"3","8":"N","9":"N","10":"N","11":"3","12":"N","13":"N","14":"N","15":"3","16":"N","17":"N","18":"N","19":"3","20":"N","21":"N","22":"N","23":"3","24":"N","25":"N","26":"N","27":"3","28":"N","29":"N","30":"N","31":"3"},hours:{},notes:""},
+    {id:"719129",name:"ضياء بدر حمادي اسماعيل",movement:"",days:{"1":"N","2":"N","3":"3","4":"N","5":"N","6":"N","7":"3","8":"N","9":"N","10":"N","11":"3","12":"N","13":"N","14":"N","15":"3","16":"N","17":"N","18":"N","19":"3","20":"N","21":"N","22":"N","23":"3","24":"N","25":"N","26":"N","27":"3","28":"N","29":"N","30":"N","31":"3"},hours:{},notes:""},
+    {id:"719099",name:"عدنان جواد كاظم",movement:"",days:{"1":"N","2":"N","3":"3","4":"N","5":"N","6":"N","7":"3","8":"N","9":"N","10":"N","11":"3","12":"N","13":"N","14":"N","15":"3","16":"N","17":"N","18":"N","19":"3","20":"N","21":"N","22":"N","23":"3","24":"N","25":"N","26":"N","27":"3","28":"N","29":"N","30":"N","31":"3"},hours:{},notes:""},
+    {id:"732834",name:"احسان جواد كاظم حسين",movement:"د",days:{"1":"N","2":"N","3":"N","4":"3","5":"N","6":"N","7":"N","8":"3","9":"N","10":"N","11":"N","12":"3","13":"N","14":"N","15":"N","16":"3","17":"N","18":"N","19":"N","20":"3","21":"N","22":"N","23":"N","24":"3","25":"N","26":"N","27":"N","28":"3","29":"N","30":"N","31":"N"},hours:{},notes:""},
+    {id:"718939",name:"واثق حسين عبد الشيخ حسن",movement:"",days:{"1":"N","2":"N","3":"N","4":"3","5":"N","6":"N","7":"N","8":"3","9":"N","10":"N","11":"N","12":"3","13":"N","14":"N","15":"N","16":"3","17":"N","18":"N","19":"N","20":"3","21":"N","22":"N","23":"N","24":"3","25":"N","26":"N","27":"N","28":"3","29":"N","30":"N","31":"N"},hours:{},notes:""},
+    {id:"719005",name:"صدام عبد الواحد سلمان عيسى",movement:"",days:{"1":"N","2":"N","3":"N","4":"3","5":"N","6":"N","7":"N","8":"3","9":"N","10":"N","11":"N","12":"3","13":"N","14":"N","15":"N","16":"3","17":"N","18":"N","19":"N","20":"3","21":"N","22":"N","23":"N","24":"3","25":"N","26":"N","27":"N","28":"3","29":"N","30":"N","31":"N"},hours:{},notes:""},
+    {id:"724939",name:"حيدر عبد الحسن خضير",movement:"",days:{"1":"N","2":"N","3":"N","4":"3","5":"N","6":"N","7":"N","8":"3","9":"N","10":"N","11":"N","12":"3","13":"N","14":"N","15":"N","16":"3","17":"N","18":"N","19":"N","20":"3","21":"N","22":"N","23":"N","24":"3","25":"N","26":"N","27":"N","28":"3","29":"N","30":"N","31":"N"},hours:{},notes:""},
+  ],
+  drivers:[
+    {id:"محمد نعيم فاضل",name:"محمد نعيم فاضل",movement:"",days:{"1":"R","2":"Y","8":"R","9":"Y","15":"R","16":"Y","22":"R","23":"Y","29":"R","30":"Y"},hours:{},notes:""},
+    {id:"علي جاسم محمد",name:"علي جاسم محمد",movement:"",days:{"1":"R","2":"Y","3":"ف","4":"ف","5":"غ","6":"غ","7":"غ","8":"R","9":"Y","10":"ف","11":"ف","12":"ف","13":"ف","14":"غ","15":"R","16":"Y","17":"غ","18":"غ","19":"ف","20":"ف","21":"غ","22":"R","23":"Y","24":"غ","29":"R","30":"Y"},hours:{},notes:""},
+  ],
+};
+
+function calcTsStats(emp) {
+  const vals = Object.values(emp.days || {});
+  return {
+    totalHours: Object.values(emp.hours || {}).reduce((a,b) => a+b, 0),
+    leaveDays:  vals.filter(v => v === "L").length,
+    sickDays:   vals.filter(v => v === "S").length,
+    absenceDays:vals.filter(v => ["X","غ"].includes(v)).length,
+    restDays:   vals.filter(v => ["R","Y"].includes(v)).length,
+    workDays:   vals.filter(v => ["O","2","3","N","V","ف","ر","ب"].includes(v)).length,
+  };
+}
+
+function TsCodePicker({ codesArr, current, onSelect, onClose }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const h = (e) => { if (!ref.current?.contains(e.target)) onClose(); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [onClose]);
+  return (
+    <div ref={ref} dir="rtl"
+      className="absolute z-[200] bg-white border border-gray-300 rounded-xl shadow-2xl p-2"
+      style={{top:"100%", right:"-10px", minWidth:"160px"}}>
+      <button onClick={() => onSelect("")}
+        className="w-full text-right text-xs text-red-500 hover:text-red-700 mb-1.5 px-1">× مسح الخلية</button>
+      <div className="grid grid-cols-3 gap-1">
+        {codesArr.map(code => (
+          <button key={code} onClick={() => onSelect(code)}
+            className={`px-1.5 py-1 rounded-lg text-xs font-bold border-2 transition-all ${TS_CODES_ALL[code]?.color||""} ${current===code?"border-blue-500 scale-105":"border-transparent"}`}>
+            <div>{code}</div>
+            <div className="text-[8px] font-normal leading-tight">{(TS_CODES_ALL[code]?.label||"").split(" ")[0]}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TimeSheetPage({ emp }) {
+  const addToast = useToast();
+  const confirm  = useConfirm();
+  const STORAGE_KEY = "boc_timesheet_v2";
+
+  const [tsMonth, setTsMonth] = useState(4);
+  const [tsYear,  setTsYear]  = useState(2026);
+  const [activeTab, setActiveTab] = useState("contracts");
+  const [data, setData] = useState(() => storage.get(STORAGE_KEY, null) || INITIAL_TS);
+  const [editCell, setEditCell] = useState(null);
+  const [showLegend, setShowLegend] = useState(false);
+  const [searchEmp, setSearchEmp] = useState("");
+
+  const TAB_INFO = {
+    malak:     { label:"الملاك",     title:"استمارة ضبط وقت العمال المؤقتين (بعقد)", codes:TS_CODES_GENERAL },
+    contracts: { label:"العقود",    title:"استمارة تفاصيل الدوام",                   codes:TS_CODES_GENERAL },
+    drivers:   { label:"السواقين",  title:"استمارة ضبط الوقت للسيارات المؤجرة",       codes:TS_CODES_DRIVER  },
+  };
+
+  useEffect(() => {
+    const today = new Date();
+    if (today.getDate() === 25) {
+      addToast("تذكير: اليوم الخامس والعشرون — يُرجى تصدير تقرير التايم شيت", "warning");
+    }
+  }, []);
+
+  const daysInMonth = new Date(tsYear, tsMonth + 1, 0).getDate();
+  const days = Array.from({length: daysInMonth}, (_, i) => i + 1);
+
+  const employees = useMemo(() => {
+    const list = data[activeTab] || [];
+    if (!searchEmp.trim()) return list;
+    return list.filter(e => e.name.includes(searchEmp.trim()) || e.id.includes(searchEmp.trim()));
+  }, [data, activeTab, searchEmp]);
+
+  const updateCell = (tabKey, empId, day, field, value) => {
+    setData(prev => {
+      const updated = {
+        ...prev,
+        [tabKey]: prev[tabKey].map(e => {
+          if (e.id !== empId) return e;
+          if (field === "code") {
+            const newDays = {...e.days};
+            if (value === "") delete newDays[String(day)];
+            else newDays[String(day)] = value;
+            return {...e, days: newDays};
+          } else {
+            const newHours = {...e.hours};
+            const n = parseInt(value);
+            if (!value || isNaN(n)) delete newHours[String(day)];
+            else newHours[String(day)] = n;
+            return {...e, hours: newHours};
+          }
+        })
+      };
+      storage.set(STORAGE_KEY, updated);
+      return updated;
+    });
+  };
+
+  const updateNotes = (tabKey, empId, notes) => {
+    setData(prev => {
+      const updated = {...prev, [tabKey]: prev[tabKey].map(e => e.id===empId ? {...e, notes} : e)};
+      storage.set(STORAGE_KEY, updated);
+      return updated;
+    });
+  };
+
+  const addEmployee = (tabKey) => {
+    const id = prompt("أدخل الرقم الوظيفي (أو الاسم للسائقين):");
+    if (!id?.trim()) return;
+    const name = prompt("أدخل الاسم الكامل:");
+    if (!name?.trim()) return;
+    const newEmp = {id:id.trim(), name:name.trim(), movement:"", days:{}, hours:{}, notes:""};
+    setData(prev => {
+      const updated = {...prev, [tabKey]: [...prev[tabKey], newEmp]};
+      storage.set(STORAGE_KEY, updated);
+      return updated;
+    });
+    addToast("تمت إضافة الموظف", "success");
+  };
+
+  const deleteEmployee = async (tabKey, empId, empName) => {
+    const ok = await confirm(`هل تريد حذف ${empName}؟`);
+    if (!ok) return;
+    setData(prev => {
+      const updated = {...prev, [tabKey]: prev[tabKey].filter(e => e.id !== empId)};
+      storage.set(STORAGE_KEY, updated);
+      return updated;
+    });
+    addToast("تم حذف الموظف", "success");
+  };
+
+  const resetData = async () => {
+    const ok = await confirm("هل تريد إعادة تعيين جميع البيانات للبيانات الأصلية من ملفات Excel؟");
+    if (!ok) return;
+    storage.set(STORAGE_KEY, INITIAL_TS);
+    setData(INITIAL_TS);
+    addToast("تمت إعادة التعيين للبيانات الأصلية", "success");
+  };
+
+  const buildHTMLTable = (tab) => {
+    const emps = data[tab] || [];
+    const title = TAB_INFO[tab].title;
+    const monthLabel = MONTHS_AR_TS[tsMonth];
+    const daysList = days;
+
+    const codeStyle = (code) => {
+      if (!code) return "";
+      const c = TS_CODES_ALL[code];
+      if (!c) return "";
+      const map = {
+        "bg-orange-100 text-orange-700": "background:#ffedd5;color:#c2410c",
+        "bg-blue-100 text-blue-700": "background:#dbeafe;color:#1d4ed8",
+        "bg-purple-100 text-purple-700": "background:#f3e8ff;color:#7e22ce",
+        "bg-gray-100 text-gray-600": "background:#f3f4f6;color:#4b5563",
+        "bg-green-100 text-green-700": "background:#dcfce7;color:#15803d",
+        "bg-red-100 text-red-600": "background:#fee2e2;color:#dc2626",
+        "bg-yellow-100 text-yellow-700": "background:#fef9c3;color:#a16207",
+        "bg-red-200 text-red-800": "background:#fecaca;color:#991b1b",
+        "bg-slate-100 text-slate-600": "background:#f1f5f9;color:#475569",
+        "bg-slate-200 text-slate-500": "background:#e2e8f0;color:#64748b",
+        "bg-amber-100 text-amber-700": "background:#fef3c7;color:#b45309",
+        "bg-teal-100 text-teal-700": "background:#ccfbf1;color:#0f766e",
+        "bg-cyan-100 text-cyan-700": "background:#cffafe;color:#0e7490",
+        "bg-red-100 text-red-700": "background:#fee2e2;color:#b91c1c",
+      };
+      return map[c.color] || "";
+    };
+
+    const cellStyle = "border:1px solid #d1d5db;padding:2px;text-align:center;font-size:11px;min-width:26px;";
+
+    let rows = "";
+    emps.forEach((e, idx) => {
+      const stats = calcTsStats(e);
+      const bg = idx%2===0 ? "#fff" : "#f9fafb";
+      // A row
+      rows += `<tr style="background:${bg}">`;
+      rows += `<td rowspan="2" style="${cellStyle}font-size:10px;color:#6b7280;">${e.id}</td>`;
+      rows += `<td rowspan="2" style="${cellStyle}text-align:right;font-weight:600;min-width:130px;font-size:12px;">${e.name}</td>`;
+      rows += `<td style="${cellStyle}color:#2563eb;font-weight:bold;">أ</td>`;
+      daysList.forEach(d => {
+        const code = e.days[String(d)] || "";
+        const cs = codeStyle(code);
+        rows += `<td style="${cellStyle}${cs};font-weight:bold;">${code}</td>`;
+      });
+      rows += `<td rowspan="2" style="${cellStyle}color:#1d4ed8;font-weight:bold;">${stats.totalHours||""}</td>`;
+      rows += `<td rowspan="2" style="${cellStyle}color:#15803d;">${stats.leaveDays||""}</td>`;
+      rows += `<td rowspan="2" style="${cellStyle}color:#dc2626;">${stats.absenceDays||""}</td>`;
+      rows += `<td rowspan="2" style="${cellStyle}color:#6b7280;">${stats.restDays||""}</td>`;
+      rows += `<td rowspan="2" style="${cellStyle}text-align:right;font-size:10px;color:#6b7280;">${e.notes||""}</td>`;
+      rows += `</tr>`;
+      // Q row
+      rows += `<tr style="background:${bg}">`;
+      rows += `<td style="${cellStyle}color:#7c3aed;font-weight:bold;">ق</td>`;
+      daysList.forEach(d => {
+        const h = e.hours[String(d)];
+        rows += `<td style="${cellStyle}${h?"background:#f5f3ff;color:#7c3aed;font-weight:600":""};">${h!=null?h:""}</td>`;
+      });
+      rows += `</tr>`;
+    });
+
+    const dayHeaders = daysList.map(d => `<th style="border:1px solid #d1d5db;padding:3px;text-align:center;font-size:11px;min-width:26px;background:#eff6ff;">${d}</th>`).join("");
+
+    return `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/>
+<style>body{font-family:Arial,sans-serif;direction:rtl;} table{border-collapse:collapse;width:100%;} th{padding:4px;border:1px solid #9ca3af;font-size:12px;}</style>
+</head><body>
+<h3 style="text-align:center;margin-bottom:4px;">${title}</h3>
+<p style="text-align:center;margin-bottom:8px;font-size:13px;">شهر ${monthLabel} ${tsYear}</p>
+<table>
+<thead><tr style="background:#dbeafe;">
+  <th style="border:1px solid #9ca3af;padding:4px;min-width:68px;">الرقم الوظيفي</th>
+  <th style="border:1px solid #9ca3af;padding:4px;min-width:130px;">الاسم</th>
+  <th style="border:1px solid #9ca3af;padding:4px;min-width:30px;">ح/ق</th>
+  ${dayHeaders}
+  <th style="border:1px solid #9ca3af;padding:4px;min-width:50px;">الساعات</th>
+  <th style="border:1px solid #9ca3af;padding:4px;min-width:40px;">إجازة</th>
+  <th style="border:1px solid #9ca3af;padding:4px;min-width:40px;">غياب</th>
+  <th style="border:1px solid #9ca3af;padding:4px;min-width:40px;">عطل</th>
+  <th style="border:1px solid #9ca3af;padding:4px;min-width:80px;">ملاحظات</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table>
+</body></html>`;
+  };
+
+  const exportExcel = () => {
+    const html = buildHTMLTable(activeTab);
+    const blob = new Blob(["﻿" + html], {type:"application/vnd.ms-excel;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `تايم_شيت_${TAB_INFO[activeTab].label}_${tsYear}_${String(tsMonth+1).padStart(2,"0")}.xls`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+    addToast("تم تصدير الملف بتنسيق Excel", "success");
+  };
+
+  const exportPDF = () => {
+    const html = buildHTMLTable(activeTab);
+    const printHTML = html.replace("<body>", `<body><style>@page{size:A3 landscape;margin:10mm;} @media print{body{zoom:0.7;}}</style>`);
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;top:-999px;left:-999px;width:1400px;height:900px;border:none;";
+    document.body.appendChild(iframe);
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(printHTML);
+    iframe.contentDocument.close();
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      setTimeout(() => document.body.removeChild(iframe), 3000);
+    }, 800);
+    addToast("جارٍ فتح نافذة الطباعة / تصدير PDF", "info");
+  };
+
+  const getCellColor = (code) => TS_CODES_ALL[code]?.color || "";
+
+  return (
+    <div className="p-4 md:p-6 space-y-4" dir="rtl">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-primary">سجل الحضور والانصراف (تايم شيت)</h1>
+          <p className="text-sm text-secondary mt-0.5">رقم العمل: 3432960600 — مستودع الفاو — قسم السيطرة والنظم</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={tsMonth} onChange={e=>setTsMonth(+e.target.value)}
+            className="text-sm border border-color rounded-lg px-2 py-1.5 bg-surface text-primary">
+            {MONTHS_AR_TS.map((m,i)=><option key={i} value={i}>{m}</option>)}
+          </select>
+          <select value={tsYear} onChange={e=>setTsYear(+e.target.value)}
+            className="text-sm border border-color rounded-lg px-2 py-1.5 bg-surface text-primary">
+            {[2024,2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+          <button onClick={()=>setShowLegend(v=>!v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm btn-secondary">
+            <AlertTriangle size={14}/> دليل الرموز
+          </button>
+          <button onClick={exportExcel}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-green-600 text-white hover:bg-green-700">
+            <Download size={14}/> Excel
+          </button>
+          <button onClick={exportPDF}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700">
+            <Printer size={14}/> PDF
+          </button>
+        </div>
+      </div>
+
+      {/* Legend */}
+      {showLegend && (
+        <div className="card rounded-xl p-4 border border-color">
+          <h3 className="font-bold text-sm mb-3 text-primary">دليل رموز الحضور والانصراف</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {Object.entries(TS_CODES_ALL).map(([code,info])=>(
+              <div key={code} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs ${info.color}`}>
+                <span className="font-black text-sm w-5 text-center">{code}</span>
+                <span>{info.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Day 25 reminder banner */}
+      {new Date().getDate() === 25 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 flex items-center gap-3">
+          <Bell size={18} className="text-amber-600 shrink-0"/>
+          <p className="text-sm text-amber-800 font-medium">تذكير: اليوم الخامس والعشرون — يُرجى مراجعة وتصدير تقرير التايم شيت</p>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex items-center gap-1 border-b border-color pb-0">
+        {Object.entries(TAB_INFO).map(([key,info])=>(
+          <button key={key} onClick={()=>{setActiveTab(key);setSearchEmp("");setEditCell(null);}}
+            className={`px-5 py-2.5 text-sm font-semibold rounded-t-xl transition-colors border-b-2 ${activeTab===key?"border-blue-500 text-blue-600 bg-blue-50":"border-transparent text-secondary hover:text-primary"}`}>
+            {info.label}
+            <span className="mr-1.5 text-xs text-gray-400">({data[key]?.length||0})</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Tab title + search + add */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-primary">{TAB_INFO[activeTab].title}</p>
+          <p className="text-xs text-secondary">شهر {MONTHS_AR_TS[tsMonth]} {tsYear} — {daysInMonth} يوم</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search size={14} className="absolute top-1/2 -translate-y-1/2 right-3 text-gray-400"/>
+            <input value={searchEmp} onChange={e=>setSearchEmp(e.target.value)} placeholder="بحث عن موظف..."
+              className="text-sm border border-color rounded-lg pr-8 pl-3 py-1.5 bg-surface text-primary w-48"/>
+          </div>
+          <button onClick={()=>addEmployee(activeTab)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700">
+            <Plus size={14}/> إضافة
+          </button>
+          <button onClick={resetData} title="إعادة تعيين للبيانات الأصلية"
+            className="p-1.5 rounded-lg text-sm btn-secondary text-red-500 hover:text-red-700">
+            <Trash2 size={14}/>
+          </button>
+        </div>
+      </div>
+
+      {/* Grid */}
+      <div className="card rounded-xl border border-color overflow-hidden">
+        <div className="overflow-x-auto" dir="rtl">
+          <table className="text-xs border-collapse" style={{minWidth:`${200+daysInMonth*30+240}px`}} dir="rtl">
+            <thead>
+              <tr>
+                <th className="border border-gray-300 px-2 py-2 text-center bg-blue-50" style={{position:"sticky",right:0,zIndex:10,minWidth:"70px",backgroundColor:"#eff6ff"}}>الرقم</th>
+                <th className="border border-gray-300 px-2 py-2 text-right bg-blue-50" style={{position:"sticky",right:"70px",zIndex:10,minWidth:"150px",backgroundColor:"#eff6ff"}}>الاسم</th>
+                <th className="border border-gray-300 px-1 py-2 text-center bg-blue-50" style={{minWidth:"34px"}}>ح/ق</th>
+                {days.map(d=>(
+                  <th key={d} className={`border border-gray-300 py-2 text-center font-bold ${d===new Date().getDate()&&tsMonth===new Date().getMonth()&&tsYear===new Date().getFullYear()?"bg-blue-200":"bg-blue-50"}`} style={{minWidth:"30px",fontSize:"11px"}}>{d}</th>
+                ))}
+                <th className="border border-gray-300 px-1 py-2 text-center bg-blue-50 text-blue-700" style={{minWidth:"52px"}}>ساعات</th>
+                <th className="border border-gray-300 px-1 py-2 text-center bg-green-50 text-green-700" style={{minWidth:"40px"}}>إجازة</th>
+                <th className="border border-gray-300 px-1 py-2 text-center bg-red-50 text-red-700" style={{minWidth:"40px"}}>غياب</th>
+                <th className="border border-gray-300 px-1 py-2 text-center bg-gray-50 text-gray-600" style={{minWidth:"40px"}}>عطل</th>
+                <th className="border border-gray-300 px-2 py-2 text-right bg-gray-50" style={{minWidth:"100px"}}>ملاحظات</th>
+                <th className="border border-gray-300 px-1 py-2 text-center bg-gray-50" style={{minWidth:"32px"}}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {employees.map((e, idx) => {
+                const stats = calcTsStats(e);
+                const bgBase = idx%2===0 ? "#ffffff" : "#f9fafb";
+                const codes = TAB_INFO[activeTab].codes;
+                return (
+                  <React.Fragment key={e.id}>
+                    {/* A row - attendance codes */}
+                    <tr>
+                      <td rowSpan={2} className="border border-gray-300 text-center text-gray-500 align-middle" style={{position:"sticky",right:0,zIndex:5,backgroundColor:bgBase,fontSize:"10px"}}>
+                        {e.id}
+                      </td>
+                      <td rowSpan={2} className="border border-gray-300 px-1 text-right font-semibold align-middle" style={{position:"sticky",right:"70px",zIndex:5,backgroundColor:bgBase,maxWidth:"150px",fontSize:"11px"}}>
+                        {e.name}
+                        {e.movement && <span className="mr-1 text-[10px] text-blue-500 font-normal">({e.movement})</span>}
+                      </td>
+                      <td className="border border-gray-300 text-center font-black text-blue-600" style={{backgroundColor:bgBase,fontSize:"10px"}}>أ</td>
+                      {days.map(d=>{
+                        const code = e.days[String(d)] || "";
+                        const isEd = editCell?.empId===e.id && editCell?.day===d && editCell?.type==="code";
+                        return (
+                          <td key={d} className={`border border-gray-300 text-center cursor-pointer relative select-none ${code?getCellColor(code):"hover:bg-blue-50"}`}
+                            style={{height:"22px",minWidth:"30px",backgroundColor:code?"":bgBase}}
+                            onClick={()=>setEditCell({empId:e.id,day:d,type:"code",tabKey:activeTab})}>
+                            <span className="font-bold" style={{fontSize:"11px"}}>{code}</span>
+                            {isEd && <TsCodePicker codesArr={codes} current={code} onSelect={v=>{updateCell(activeTab,e.id,d,"code",v);setEditCell(null);}} onClose={()=>setEditCell(null)}/>}
+                          </td>
+                        );
+                      })}
+                      <td rowSpan={2} className="border border-gray-300 text-center font-bold text-blue-700 align-middle" style={{backgroundColor:bgBase}}>{stats.totalHours||""}</td>
+                      <td rowSpan={2} className="border border-gray-300 text-center text-green-700 font-medium align-middle" style={{backgroundColor:bgBase}}>{stats.leaveDays||""}</td>
+                      <td rowSpan={2} className="border border-gray-300 text-center text-red-700 font-medium align-middle" style={{backgroundColor:bgBase}}>{stats.absenceDays||""}</td>
+                      <td rowSpan={2} className="border border-gray-300 text-center text-gray-500 font-medium align-middle" style={{backgroundColor:bgBase}}>{stats.restDays||""}</td>
+                      <td rowSpan={2} className="border border-gray-300 px-1 align-middle" style={{backgroundColor:bgBase}}>
+                        <input value={e.notes||""} onChange={ev=>updateNotes(activeTab,e.id,ev.target.value)}
+                          className="w-full text-xs bg-transparent outline-none text-gray-500"
+                          placeholder="ملاحظة..." style={{minWidth:"90px"}}/>
+                      </td>
+                      <td rowSpan={2} className="border border-gray-300 text-center align-middle" style={{backgroundColor:bgBase}}>
+                        <button onClick={()=>deleteEmployee(activeTab,e.id,e.name)} className="text-red-400 hover:text-red-600 p-0.5"><Trash2 size={12}/></button>
+                      </td>
+                    </tr>
+                    {/* Q row - hours */}
+                    <tr>
+                      <td className="border border-gray-300 text-center font-black text-purple-600" style={{backgroundColor:bgBase,fontSize:"10px"}}>ق</td>
+                      {days.map(d=>{
+                        const h = e.hours[String(d)];
+                        const isEd = editCell?.empId===e.id && editCell?.day===d && editCell?.type==="hours";
+                        return (
+                          <td key={d} className={`border border-gray-300 text-center cursor-pointer relative ${h!=null?"bg-purple-50 text-purple-700":"hover:bg-purple-50"}`}
+                            style={{height:"20px",minWidth:"30px",backgroundColor:h!=null?"#f5f3ff":bgBase}}
+                            onClick={()=>setEditCell({empId:e.id,day:d,type:"hours",tabKey:activeTab})}>
+                            {isEd ? (
+                              <input type="number" min="0" max="24" defaultValue={h??""} autoFocus
+                                className="w-full h-full text-center bg-yellow-100 border-0 outline-none text-purple-700 font-bold"
+                                style={{fontSize:"11px",width:"30px"}}
+                                onBlur={ev=>{updateCell(activeTab,e.id,d,"hours",ev.target.value);setEditCell(null);}}
+                                onKeyDown={ev=>{if(ev.key==="Enter"){updateCell(activeTab,e.id,d,"hours",ev.target.value);setEditCell(null);}else if(ev.key==="Escape")setEditCell(null);}}/>
+                            ) : (
+                              <span className="font-semibold" style={{fontSize:"11px"}}>{h!=null?h:""}</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </React.Fragment>
+                );
+              })}
+              {employees.length === 0 && (
+                <tr><td colSpan={9+daysInMonth} className="text-center py-8 text-secondary text-sm">لا توجد نتائج</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Summary stats */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {[
+          {label:"إجمالي الموظفين", val:data[activeTab]?.length||0, color:"text-blue-600"},
+          {label:"إجمالي ساعات العمل", val:(data[activeTab]||[]).reduce((s,e)=>s+calcTsStats(e).totalHours,0), color:"text-indigo-600"},
+          {label:"إجمالي أيام الإجازة", val:(data[activeTab]||[]).reduce((s,e)=>s+calcTsStats(e).leaveDays,0), color:"text-green-600"},
+          {label:"إجمالي أيام الغياب", val:(data[activeTab]||[]).reduce((s,e)=>s+calcTsStats(e).absenceDays,0), color:"text-red-600"},
+          {label:"إجمالي أيام العطل", val:(data[activeTab]||[]).reduce((s,e)=>s+calcTsStats(e).restDays,0), color:"text-gray-600"},
+        ].map(s=>(
+          <div key={s.label} className="card rounded-xl p-3 border border-color text-center">
+            <p className={`text-2xl font-black ${s.color}`}>{s.val}</p>
+            <p className="text-xs text-secondary mt-1">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-xs text-secondary text-center">انقر على أي خلية في صف (أ) لتغيير رمز الحضور • انقر على أي خلية في صف (ق) لإدخال عدد الساعات • يتم الحفظ تلقائياً</p>
+    </div>
+  );
+}
+
 // ========== اللوحة الرئيسية ==========
 function Dashboard({ emp, onLogout, dark, setDark }) {
   const [view, setView] = useState("home");
@@ -4115,6 +4642,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
     { id:"leave_forms", label:"نماذج الإجازات", icon:<FileText size={17}/> },
     { id:"projects", label:"إدارة المشاريع", icon:<Briefcase size={17}/> },
+    { id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> },
   ];
   if (isAdmin) {
     menuItems.unshift({ id:"approvals", label:"الموافقات", icon:<ThumbsUp size={17}/>, badge:pendingCount });
@@ -4304,6 +4832,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           {view==="health_insurance" && <HealthInsuranceForm emp={emp}/>}
           {view==="leave_forms" && <LeaveFormsPrintPage emp={emp}/>}
           {view==="projects" && <ProjectManagementPage emp={emp}/>}
+          {view==="timesheet" && <TimeSheetPage emp={emp}/>}
         </main>
       </div>
       {showSearch && <GlobalSearch setView={setView} onClose={()=>setShowSearch(false)}/>}
