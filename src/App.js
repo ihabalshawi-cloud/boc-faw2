@@ -442,6 +442,9 @@ const FirebaseAPI = {
   getPassword: async (empId) => {
     try { const res = await fetch(`${FIREBASE_URL}/passwords/${empId}.json`); if (!res.ok) return null; const d = await res.json(); return typeof d === "string" ? d : null; } catch { return null; }
   },
+  deletePassword: async (empId) => {
+    try { await fetch(`${FIREBASE_URL}/passwords/${empId}.json`, { method: "DELETE" }); return true; } catch { return false; }
+  },
 
   // ── بيانات الحسابات (مخفية في Firebase) ────────────────────────────────
   // قراءة حساب واحد بالرقم الوظيفي (مسموح بالقراءة لمن يعرف الرقم)
@@ -775,6 +778,12 @@ function LoginScreen({ onLogin, dark }) {
           passStore.set(`pass_${account.id}`, toStore);
           if (!isHash(fp)) await FirebaseAPI.savePassword(account.id, inputHash);
         }
+        // Fallback: Firebase hash doesn't match — try default password anyway
+        if (!isValid && defaultPass && pass.trim() === defaultPass) {
+          isValid = true;
+          passStore.set(`pass_${account.id}`, inputHash);
+          await FirebaseAPI.savePassword(account.id, inputHash);
+        }
       } else {
         // حاول /init_hashes/{jobNum} (كلمة المرور الافتراضية المشفّرة في Firebase)
         const initH = await FirebaseAPI.fetchInitHash(user.trim());
@@ -845,13 +854,17 @@ function LoginScreen({ onLogin, dark }) {
           )}
           {err && <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-xl flex items-center gap-2"><AlertCircle size={16}/> {err}</div>}
           <button onClick={handleLogin} disabled={loading || lockSecs > 0} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all text-lg">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
-          <button onClick={() => {
+          <button onClick={async () => {
             const acc = ACCOUNTS.find(a => a.jobNum === user.trim());
             if (!user.trim()) { setErr("أدخل الرقم الوظيفي أولاً"); return; }
             if (!acc) { setErr("الرقم الوظيفي غير موجود"); return; }
-            passStore.set(`pass_${acc.id}`, null);
+            // Clear local storage
             sessionStorage.removeItem(`pass_${acc.id}`);
             localStorage.removeItem(`pass_${acc.id}`);
+            // Clear login lock
+            localStorage.removeItem(`login_lock_${acc.jobNum}`);
+            // Clear Firebase password so default password works again
+            if (isConnected) await FirebaseAPI.deletePassword(acc.id);
             setErr("");
             setPass("");
             alert(`تمت إعادة ضبط كلمة مرور ${acc.name}\nالرقم الوظيفي: ${acc.jobNum}\nكلمة المرور الافتراضية: ${acc.password}`);
