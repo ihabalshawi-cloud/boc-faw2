@@ -468,19 +468,32 @@ const FirebaseAPI = {
   // ترحيل مرة واحدة: رفع جميع الحسابات + هاشات البداية إلى Firebase
   initializeAccounts: async (accounts) => {
     try {
+      // اختبار الاتصال أولاً
+      const testRes = await fetch(`${FIREBASE_URL}/accounts.json`, { method: "GET" });
+      if (testRes.status === 401 || testRes.status === 403) {
+        const body = await testRes.text().catch(()=>"");
+        return { ok: false, status: testRes.status, reason: "permission_denied", body };
+      }
+
       const accountsData = {};
       const hashesData   = {};
       for (const acc of accounts) {
         const { password, ...rest } = acc;
         accountsData[acc.jobNum] = rest;
-        hashesData[acc.jobNum]   = await hashPassword(password); // hash كلمة المرور الافتراضية
+        hashesData[acc.jobNum]   = await hashPassword(password);
       }
       const [r1, r2] = await Promise.all([
-        fetch(`${FIREBASE_URL}/accounts.json`,    { method: "PUT", body: JSON.stringify(accountsData) }),
-        fetch(`${FIREBASE_URL}/init_hashes.json`, { method: "PUT", body: JSON.stringify(hashesData)   }),
+        fetch(`${FIREBASE_URL}/accounts.json`,    { method: "PUT", body: JSON.stringify(accountsData),    headers: {"Content-Type":"application/json"} }),
+        fetch(`${FIREBASE_URL}/init_hashes.json`, { method: "PUT", body: JSON.stringify(hashesData),      headers: {"Content-Type":"application/json"} }),
       ]);
-      return r1.ok && r2.ok;
-    } catch { return false; }
+      if (!r1.ok || !r2.ok) {
+        const b = await (r1.ok ? r2 : r1).text().catch(()=>"");
+        return { ok: false, status: r1.ok ? r2.status : r1.status, reason: "write_failed", body: b };
+      }
+      return { ok: true };
+    } catch(e) {
+      return { ok: false, status: 0, reason: "network_error", body: e.message };
+    }
   },
 
   // ── الدردشة ───────────────────────────────────────────────────────────────
@@ -1506,11 +1519,25 @@ function EmployeeManager({ employees, setEmployees }) {
   };
 
   const handleMigrate = async () => {
-    if (!await confirm("سيتم رفع بيانات جميع الموظفين إلى Firebase. المتابعة؟", {title:"ترحيل البيانات",ok:"ترحيل"})) return;
+    if (!await confirm("سيتم رفع بيانات جميع الموظفين (بدون كلمات المرور) + هاشات المرور الافتراضية إلى Firebase. المتابعة؟", {title:"ترحيل البيانات",ok:"ترحيل"})) return;
     setMigrating(true);
-    const ok = await FirebaseAPI.initializeAccounts(ACCOUNTS);
+    const result = await FirebaseAPI.initializeAccounts(ACCOUNTS);
     setMigrating(false);
-    ok ? addToast("تم نقل البيانات إلى Firebase بنجاح!","success") : addToast("فشل الاتصال بـ Firebase","error");
+
+    if (result.ok) {
+      addToast("تم نقل البيانات إلى Firebase بنجاح! ✅","success",5000);
+      return;
+    }
+
+    // عرض تشخيص تفصيلي
+    const statusMap = {
+      permission_denied: `🔒 مرفوض (${result.status}) — قواعد Firebase تمنع الكتابة.\n\nالحل: افتح Firebase Console ← Realtime Database ← Rules واستبدل القواعد بـ:\n\n{\n  "rules": {\n    ".read": true,\n    ".write": true\n  }\n}\n\nثم انقر Publish وأعد المحاولة.`,
+      write_failed:      `❌ فشل الكتابة (HTTP ${result.status})\n\nتفاصيل: ${result.body||"لا تفاصيل"}\n\nتحقق من قواعد Firebase Realtime Database.`,
+      network_error:     `🌐 خطأ في الاتصال بالشبكة.\n\nالسبب: ${result.body||"timeout"}\n\nتأكد من الاتصال بالإنترنت وحاول مجدداً.`,
+    };
+    const msg = statusMap[result.reason] || `فشل غير متوقع: ${JSON.stringify(result)}`;
+    alert(msg);
+    addToast(`فشل الترحيل — ${result.reason} (${result.status})`, "error", 8000);
   };
 
   const roleBadge = (roleKey) => {
