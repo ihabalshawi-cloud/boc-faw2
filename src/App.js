@@ -290,6 +290,7 @@ const VIEW_LABELS = {
   leave_forms:"نماذج الإجازات",
   projects:"إدارة المشاريع",
   timesheet:"التايم شيت",
+  admin_dashboard:"لوحة الإدارة",
 };
 
 function GlobalSearch({ setView, onClose }) {
@@ -564,6 +565,101 @@ function fmtTime(s) {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
+// ========== كشف الجهاز والمتصفح ==========
+function detectDevice() {
+  const ua = navigator.userAgent;
+  let device = "كمبيوتر";
+  if (/iPad/.test(ua)) device = "iPad";
+  else if (/iPhone/.test(ua)) device = "iPhone";
+  else if (/Android.*Mobile/.test(ua)) device = "هاتف ذكي";
+  else if (/Android/.test(ua)) device = "تابلت";
+  let browser = "متصفح";
+  if (/Edg\//.test(ua)) browser = "Edge";
+  else if (/Chrome/.test(ua)) browser = "Chrome";
+  else if (/Firefox/.test(ua)) browser = "Firefox";
+  else if (/Safari/.test(ua)) browser = "Safari";
+  let os = "—";
+  if (/Windows/.test(ua)) os = "Windows";
+  else if (/iPhone|iPad/.test(ua)) os = "iOS";
+  else if (/Android/.test(ua)) os = "Android";
+  else if (/Mac/.test(ua)) os = "macOS";
+  else if (/Linux/.test(ua)) os = "Linux";
+  return { device, browser, os };
+}
+
+// ========== RBAC ==========
+const PERMISSIONS_DEF = {
+  FULL_ACCESS:       { label:"صلاحية كاملة",        icon:"🛡" },
+  MANAGE_USERS:      { label:"إدارة الموظفين",       icon:"👥" },
+  VIEW_LOGIN_HIST:   { label:"سجل الدخول",          icon:"📋" },
+  KILL_SESSIONS:     { label:"إنهاء جلسات",         icon:"🔌" },
+  MANAGE_ROLES:      { label:"إدارة الصلاحيات",     icon:"🔑" },
+  MANAGE_EQUIPMENT:  { label:"إدارة المعدات",        icon:"⚙" },
+  MANAGE_SPAREPARTS: { label:"إدارة قطع الغيار",    icon:"🔧" },
+  APPROVE_REQUESTS:  { label:"الموافقة على الطلبات",icon:"✅" },
+  SYSTEM_SETTINGS:   { label:"إعدادات النظام",       icon:"🔩" },
+  VIEW_AUDIT:        { label:"سجل التعديلات",        icon:"📊" },
+};
+const BUILT_IN_ROLES = {
+  SUPER_ADMIN: { label:"مشرف عام",    color:"bg-red-100 text-red-800",      permissions:["FULL_ACCESS"] },
+  ADMIN:       { label:"مدير إداري",  color:"bg-blue-100 text-blue-800",    permissions:["MANAGE_USERS","VIEW_LOGIN_HIST","APPROVE_REQUESTS","VIEW_AUDIT","KILL_SESSIONS"] },
+  MAINTENANCE: { label:"مدير صيانة", color:"bg-orange-100 text-orange-800", permissions:["MANAGE_EQUIPMENT","MANAGE_SPAREPARTS"] },
+  EMPLOYEE:    { label:"موظف",        color:"bg-gray-100 text-gray-700",    permissions:[] },
+};
+function getEmpStatus(empId) { return storage.get(`emp_status_${empId}`, { active:true, role:"EMPLOYEE" }); }
+function setEmpStatus(empId, val) { storage.set(`emp_status_${empId}`, val); }
+function hasPermission(emp, perm) {
+  if (!emp) return false;
+  const s = getEmpStatus(emp.id);
+  const roleName = s.role || (emp.role === "admin" ? "SUPER_ADMIN" : "EMPLOYEE");
+  const customRoles = storage.get("custom_roles", {});
+  const roleDef = customRoles[roleName] || BUILT_IN_ROLES[roleName] || BUILT_IN_ROLES.EMPLOYEE;
+  return (roleDef.permissions || []).some(p => p === "FULL_ACCESS" || p === perm);
+}
+
+// ========== سجل الدخول ==========
+function recordLoginAttempt(account, status, failReason = null) {
+  const { device, browser, os } = detectDevice();
+  const sessionId = status === "success" ? `sess_${Date.now()}_${Math.random().toString(36).slice(2,7)}` : null;
+  const rec = {
+    id: `${Date.now()}_${Math.random()}`,
+    userId: account?.id ?? null,
+    userName: account?.name ?? "—",
+    userJobNum: account?.jobNum ?? "—",
+    loginTime: new Date().toISOString(),
+    device, browser, os,
+    ip: "شبكة داخلية",
+    status, failReason, sessionId,
+    logoutTime: null, sessionDuration: null,
+  };
+  const hist = storage.get("login_history", []);
+  hist.unshift(rec);
+  if (hist.length > 500) hist.length = 500;
+  storage.set("login_history", hist);
+  if (status === "success" && sessionId) {
+    sessionStorage.setItem("boc_session_id", sessionId);
+    const sessions = storage.get("active_sessions", []);
+    const idx = sessions.findIndex(s => s.userId === account.id);
+    const sess = { sessionId, userId:account.id, userName:account.name, userJobNum:account.jobNum, loginTime:rec.loginTime, device, browser, os };
+    if (idx >= 0) sessions[idx] = sess; else sessions.push(sess);
+    storage.set("active_sessions", sessions);
+  }
+}
+function recordLogoutFn(userId) {
+  const sessionId = sessionStorage.getItem("boc_session_id");
+  if (!sessionId) return;
+  const hist = storage.get("login_history", []);
+  const i = hist.findIndex(h => h.sessionId === sessionId);
+  if (i >= 0) {
+    hist[i].logoutTime = new Date().toISOString();
+    hist[i].sessionDuration = Math.floor((Date.now() - new Date(hist[i].loginTime).getTime()) / 1000);
+    storage.set("login_history", hist);
+  }
+  const sessions = storage.get("active_sessions", []);
+  storage.set("active_sessions", sessions.filter(s => s.sessionId !== sessionId));
+  sessionStorage.removeItem("boc_session_id");
+}
+
 // ========== شاشة تسجيل الدخول ==========
 function LoginScreen({ onLogin, dark }) {
   const [user, setUser] = useState("");
@@ -684,11 +780,16 @@ function LoginScreen({ onLogin, dark }) {
       sessionStorage.setItem("boc_session", JSON.stringify({ acctId: account.id, expiry: Date.now() + 8 * 3600000 }));
       const defaultPasswords = ["1001","1002","1003","1004","1005","1006","1007","1008","1009","1010","1011","2001","2002","2003","2004","2005","2006","2007","2008","2009","2010","2011","2012","2013","2014","2015","2016","2017","2018","3001","3002","3003","3004"];
       if (defaultPasswords.includes(pass.trim()) && !localPass) sessionStorage.setItem("force_password_change", "true");
+      // Check if account is disabled
+      const empSt = getEmpStatus(account.id);
+      if (!empSt.active) { setErr("هذا الحساب معطّل. تواصل مع المشرف."); setLoading(false); recordLoginAttempt(account, "failed", "account_disabled"); return; }
+      recordLoginAttempt(account, "success");
       onLogin(account);
     } else {
       const locked = recordFail(user.trim());
       const secs = lockSecsRemaining(user.trim());
       const { count } = getLockInfo(user.trim());
+      recordLoginAttempt(account || {jobNum:user.trim()}, "failed", locked ? "too_many_attempts" : "wrong_password");
       if (locked) {
         startCountdown(secs);
         setErr(`تم قفل الحساب لمدة 15 دقيقة بعد ${LOCK_LIMIT} محاولات فاشلة`);
@@ -1335,58 +1436,238 @@ function FurnitureInventory() {
   );
 }
 
-// ========== إدارة الموظفين ==========
+// ========== إدارة الموظفين (المحسّنة) ==========
 function EmployeeManager({ employees, setEmployees }) {
-  const [search, setSearch]       = useState("");
-  const [editId, setEditId]       = useState(null);
-  const [form, setForm]           = useState({ name:"", jobNum:"", title:"", dept:"قسم السيطرة والنظم", shift:"صباحي" });
-  const [adding, setAdding]       = useState(false);
+  const [search, setSearch]   = useState("");
+  const [filterDept, setFilterDept] = useState("الكل");
+  const [filterStatus, setFilterStatus] = useState("الكل");
+  const [filterRole, setFilterRole] = useState("الكل");
+  const [editId, setEditId]   = useState(null);
+  const [adding, setAdding]   = useState(false);
   const [migrating, setMigrating] = useState(false);
-  const toast = useToast();
-  const confirm = useConfirm();
+  const [page, setPage]       = useState(1);
+  const [perPage, setPerPage] = useState(10);
+  const [form, setForm]       = useState({name:"",jobNum:"",title:"",dept:"قسم السيطرة والنظم",shift:"صباحي",phone:"",email:""});
+  const [, forceUpdate] = useState(0);
+  const addToast = useToast();
+  const confirm  = useConfirm();
 
-  const filtered = employees.filter(e => e.name.includes(search) || e.jobNum.includes(search));
+  const depts = ["الكل", ...new Set(employees.map(e=>e.dept).filter(Boolean))];
+  const roleNames = ["الكل", ...Object.keys(BUILT_IN_ROLES)];
+
+  const getStatus = (e) => getEmpStatus(e.id);
+  const getLastLogin = (e) => {
+    const hist = storage.get("login_history", []);
+    const rec = hist.find(h => h.userId === e.id && h.status === "success");
+    return rec ? new Date(rec.loginTime).toLocaleString("ar-IQ") : "—";
+  };
+
+  const filtered = employees.filter(e => {
+    const st = getStatus(e);
+    const q = search.trim();
+    if (q && !e.name.includes(q) && !e.jobNum.includes(q) && !(e.dept||"").includes(q)) return false;
+    if (filterDept !== "الكل" && e.dept !== filterDept) return false;
+    if (filterStatus === "نشط" && !st.active) return false;
+    if (filterStatus === "معطّل" && st.active) return false;
+    if (filterRole !== "الكل" && st.role !== filterRole) return false;
+    return true;
+  });
+
+  const totalPages = Math.ceil(filtered.length / perPage);
+  const paged = filtered.slice((page-1)*perPage, page*perPage);
 
   const saveEmp = () => {
     if (!form.name || !form.jobNum) return;
-    if (adding) setEmployees([...employees, { ...form, id: Date.now(), password:"1000" }]);
-    else setEmployees(employees.map(e => e.id===editId ? { ...form, id:editId } : e));
+    if (adding) setEmployees([...employees, {...form, id:Date.now(), password:"1000"}]);
+    else setEmployees(employees.map(e => e.id===editId ? {...e,...form} : e));
     setAdding(false); setEditId(null);
+    addToast(adding?"تمت إضافة الموظف":"تم تحديث البيانات","success");
+  };
+
+  const toggleStatus = (e) => {
+    const st = getStatus(e);
+    setEmpStatus(e.id, {...st, active:!st.active});
+    forceUpdate(n=>n+1);
+    addToast(st.active?"تم تعطيل الحساب":"تم تفعيل الحساب", st.active?"warning":"success");
+  };
+
+  const setRole = (e, role) => {
+    const st = getStatus(e);
+    setEmpStatus(e.id, {...st, role});
+    forceUpdate(n=>n+1);
+    addToast("تم تغيير الدور","success");
+  };
+
+  const resetPass = async (e) => {
+    const ok = await confirm(`إعادة تعيين كلمة مرور ${e.name} إلى "1000"؟`);
+    if (!ok) return;
+    passStore.set(`pass_${e.id}`, null);
+    addToast("تم إعادة تعيين كلمة المرور إلى 1000","success");
   };
 
   const handleMigrate = async () => {
-    if (!await confirm("سيتم رفع بيانات جميع الموظفين (بدون كلمات المرور) إلى Firebase. هل تريد المتابعة؟", { title: "ترحيل البيانات", ok: "ترحيل" })) return;
+    if (!await confirm("سيتم رفع بيانات جميع الموظفين إلى Firebase. المتابعة؟", {title:"ترحيل البيانات",ok:"ترحيل"})) return;
     setMigrating(true);
     const ok = await FirebaseAPI.initializeAccounts(ACCOUNTS);
     setMigrating(false);
-    ok ? toast("تم نقل البيانات إلى Firebase بنجاح!", "success", 5000)
-       : toast("فشل الاتصال بـ Firebase — تحقق من القواعد", "error");
+    ok ? addToast("تم نقل البيانات إلى Firebase بنجاح!","success") : addToast("فشل الاتصال بـ Firebase","error");
   };
 
-  return (<div className="space-y-4">
-    {/* شريط أدوات */}
-    <div className="flex gap-3 flex-wrap">
-      <div className="flex items-center gap-2 input rounded-xl px-3 py-2 flex-1 min-w-[160px]">
-        <Search size={14} className="text-secondary"/>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/>
+  const roleBadge = (roleKey) => {
+    const r = BUILT_IN_ROLES[roleKey] || BUILT_IN_ROLES.EMPLOYEE;
+    return <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.color}`}>{r.label}</span>;
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* شريط الأدوات */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="flex items-center gap-2 input rounded-xl px-3 py-2 flex-1 min-w-[180px]">
+          <Search size={14} className="text-secondary shrink-0"/>
+          <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="بحث بالاسم أو الرقم..." className="bg-transparent text-sm outline-none w-full"/>
+        </div>
+        <select value={filterDept} onChange={e=>{setFilterDept(e.target.value);setPage(1);}} className="input rounded-xl px-3 py-2 text-sm">
+          {depts.map(d=><option key={d}>{d}</option>)}
+        </select>
+        <select value={filterStatus} onChange={e=>{setFilterStatus(e.target.value);setPage(1);}} className="input rounded-xl px-3 py-2 text-sm">
+          {["الكل","نشط","معطّل"].map(s=><option key={s}>{s}</option>)}
+        </select>
+        <select value={filterRole} onChange={e=>{setFilterRole(e.target.value);setPage(1);}} className="input rounded-xl px-3 py-2 text-sm">
+          {roleNames.map(r=><option key={r}>{r}</option>)}
+        </select>
+        <button onClick={()=>exportCSV(employees.map(e=>({الاسم:e.name,الرقم:e.jobNum,المسمى:e.title,القسم:e.dept,النوبة:e.shift})),"الموظفون")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/></button>
+        <button onClick={()=>{setAdding(true);setForm({name:"",jobNum:"",title:"",dept:"قسم السيطرة والنظم",shift:"صباحي",phone:"",email:""});}} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><Plus size={14}/> إضافة</button>
+        <button onClick={handleMigrate} disabled={migrating} className="px-3 py-2 bg-orange-600 text-white rounded-xl text-sm font-bold disabled:opacity-60">{migrating?"جاري النقل...":"نقل Firebase"}</button>
       </div>
-      <button onClick={()=>exportCSV(employees.map(e=>({الاسم:e.name,الرقم:e.jobNum,المسمى:e.title,القسم:e.dept,النوبة:e.shift})),"الموظفون")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/></button>
-      <button onClick={()=>{setAdding(true);setForm({name:"",jobNum:"",title:"",dept:"قسم السيطرة والنظم",shift:"صباحي"});}} className="px-4 py-2 bg-blue-600 text-white rounded-xl flex items-center gap-1"><Plus size={14}/> إضافة</button>
-      <button onClick={handleMigrate} disabled={migrating} className="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-60 text-white rounded-xl flex items-center gap-1.5 text-sm font-bold">
-        {migrating ? "جاري النقل..." : "🔒 نقل البيانات إلى Firebase"}
-      </button>
+
+      {/* نموذج الإضافة / التعديل */}
+      {(adding||editId) && (
+        <div className="card rounded-2xl border-2 border-blue-200 p-5">
+          <div className="flex justify-between mb-4">
+            <h4 className="font-bold text-primary">{adding?"إضافة موظف جديد":"تعديل بيانات الموظف"}</h4>
+            <button onClick={()=>{setAdding(false);setEditId(null);}}><X size={16}/></button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {[["الاسم الكامل *","name"],["الرقم الوظيفي *","jobNum"],["المسمى الوظيفي","title"],["رقم الهاتف","phone"],["البريد الإلكتروني","email"]].map(([l,k])=>(
+              <div key={k}>
+                <label className="block text-xs font-bold text-secondary mb-1">{l}</label>
+                <input value={form[k]||""} onChange={e=>setForm({...form,[k]:e.target.value})} className="input w-full rounded-xl px-3 py-2 text-sm"/>
+              </div>
+            ))}
+            <div>
+              <label className="block text-xs font-bold text-secondary mb-1">القسم</label>
+              <select value={form.dept} onChange={e=>setForm({...form,dept:e.target.value})} className="input w-full rounded-xl px-3 py-2 text-sm">
+                {["قسم السيطرة والنظم","شعبة مستودع الفاو","شعبة المرافئ"].map(d=><option key={d}>{d}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-secondary mb-1">نوع الدوام</label>
+              <select value={form.shift} onChange={e=>setForm({...form,shift:e.target.value})} className="input w-full rounded-xl px-3 py-2 text-sm">
+                {["صباحي","مناوبة"].map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4 justify-end">
+            <button onClick={()=>{setAdding(false);setEditId(null);}} className="px-5 py-2 btn-secondary border border-color rounded-xl text-sm">إلغاء</button>
+            <button onClick={saveEmp} className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><Save size={13} className="inline ml-1"/>حفظ</button>
+          </div>
+        </div>
+      )}
+
+      {/* إحصائيات سريعة */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          {label:"إجمالي الموظفين", val:employees.length, color:"text-blue-600"},
+          {label:"حسابات نشطة", val:employees.filter(e=>getStatus(e).active).length, color:"text-green-600"},
+          {label:"حسابات معطّلة", val:employees.filter(e=>!getStatus(e).active).length, color:"text-red-600"},
+          {label:"نتائج البحث", val:filtered.length, color:"text-purple-600"},
+        ].map(s=>(
+          <div key={s.label} className="card rounded-xl p-3 border border-color text-center">
+            <p className={`text-2xl font-black ${s.color}`}>{s.val}</p>
+            <p className="text-xs text-secondary mt-0.5">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* جدول الموظفين */}
+      <div className="card rounded-2xl border border-color overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm" dir="rtl">
+            <thead>
+              <tr className="border-b border-color bg-gray-50">
+                <th className="px-3 py-2.5 text-right font-semibold">الاسم</th>
+                <th className="px-3 py-2.5 text-right font-semibold">الرقم</th>
+                <th className="px-3 py-2.5 text-right font-semibold hidden md:table-cell">المسمى</th>
+                <th className="px-3 py-2.5 text-right font-semibold hidden md:table-cell">القسم</th>
+                <th className="px-3 py-2.5 text-center font-semibold">الدور</th>
+                <th className="px-3 py-2.5 text-center font-semibold">الحالة</th>
+                <th className="px-3 py-2.5 text-right font-semibold hidden lg:table-cell">آخر دخول</th>
+                <th className="px-3 py-2.5 text-center font-semibold">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paged.length === 0 && (
+                <tr><td colSpan={8} className="text-center py-8 text-secondary">لا توجد نتائج</td></tr>
+              )}
+              {paged.map(e => {
+                const st = getStatus(e);
+                const roleName = st.role || (e.role==="admin"?"SUPER_ADMIN":"EMPLOYEE");
+                return (
+                  <tr key={e.id} className="border-b border-color hover:bg-gray-50 transition-colors">
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-full flex items-center justify-center shrink-0">
+                          <span className="text-white text-xs font-bold">{e.name?.[0]}</span>
+                        </div>
+                        <span className="font-medium">{e.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-secondary">{e.jobNum}</td>
+                    <td className="px-3 py-2 text-secondary hidden md:table-cell">{e.title||"—"}</td>
+                    <td className="px-3 py-2 text-secondary text-xs hidden md:table-cell">{e.dept||"—"}</td>
+                    <td className="px-3 py-2 text-center">
+                      <select value={roleName} onChange={ev=>setRole(e,ev.target.value)}
+                        className="text-[11px] border border-color rounded-lg px-1.5 py-0.5 bg-surface">
+                        {Object.keys(BUILT_IN_ROLES).map(r=><option key={r} value={r}>{BUILT_IN_ROLES[r].label}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <button onClick={()=>toggleStatus(e)}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${st.active?"bg-green-100 text-green-800 hover:bg-red-100 hover:text-red-800":"bg-red-100 text-red-800 hover:bg-green-100 hover:text-green-800"}`}>
+                        {st.active?"نشط":"معطّل"}
+                      </button>
+                    </td>
+                    <td className="px-3 py-2 text-secondary text-xs hidden lg:table-cell">{getLastLogin(e)}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1 justify-center">
+                        <button onClick={()=>{setEditId(e.id);setAdding(false);setForm({...e});}} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg" title="تعديل"><Edit3 size={13}/></button>
+                        <button onClick={()=>resetPass(e)} className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg" title="إعادة تعيين كلمة المرور"><Shield size={13}/></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {/* pagination */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-color">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-secondary">عرض</span>
+            <select value={perPage} onChange={e=>{setPerPage(+e.target.value);setPage(1);}} className="text-xs border border-color rounded px-1.5 py-1 bg-surface">
+              {[10,25,50,100].map(n=><option key={n}>{n}</option>)}
+            </select>
+            <span className="text-xs text-secondary">لكل صفحة — {filtered.length} إجمالي</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button disabled={page<=1} onClick={()=>setPage(p=>p-1)} className="px-3 py-1 text-xs border border-color rounded-lg disabled:opacity-40">السابق</button>
+            <span className="text-xs px-2">{page} / {totalPages||1}</span>
+            <button disabled={page>=totalPages} onClick={()=>setPage(p=>p+1)} className="px-3 py-1 text-xs border border-color rounded-lg disabled:opacity-40">التالي</button>
+          </div>
+        </div>
+      </div>
     </div>
-{(adding||editId) && (<div className="card rounded-2xl border-color border p-5"><div className="grid grid-cols-2 gap-3">
-      <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="الاسم" className="input rounded-xl px-3 py-2"/>
-      <input value={form.jobNum} onChange={e=>setForm({...form,jobNum:e.target.value})} placeholder="الرقم الوظيفي" className="input rounded-xl px-3 py-2"/>
-      <input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="المسمى" className="input rounded-xl px-3 py-2"/>
-      <select value={form.dept} onChange={e=>setForm({...form,dept:e.target.value})} className="input rounded-xl px-3 py-2"><option>قسم السيطرة والنظم</option><option>شعبة مستودع الفاو</option><option>شعبة المرافئ</option></select>
-      <select value={form.shift} onChange={e=>setForm({...form,shift:e.target.value})} className="input rounded-xl px-3 py-2"><option>صباحي</option><option>مناوبة</option></select></div>
-      <div className="flex gap-2 mt-4"><button onClick={()=>{setAdding(false);setEditId(null);}} className="flex-1 py-2 border border-color rounded-xl">إلغاء</button><button onClick={saveEmp} className="flex-1 py-2 bg-blue-600 text-white rounded-xl">حفظ</button></div></div>)}
-    <div className="card rounded-2xl border-color border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-color"><th className="px-3 py-2">الاسم</th><th className="px-3 py-2">الرقم</th><th className="px-3 py-2">المسمى</th><th className="px-3 py-2">القسم</th><th></th></tr></thead>
-      <tbody>{filtered.map(e=><tr key={e.id} className="border-b border-color"><td className="px-3 py-2">{e.name}</td><td className="px-3 py-2">{e.jobNum}</td><td className="px-3 py-2">{e.title}</td><td className="px-3 py-2">{e.dept}</td>
-        <td className="px-3 py-2"><button onClick={()=>{setEditId(e.id);setForm(e);}} className="text-blue-500"><Edit3 size={14}/></button></td></tr>)}</tbody></table></div></div>
-  </div>);
+  );
 }
 
 // ========== SVG Charts — بدون مكتبات خارجية ==========
@@ -2444,6 +2725,359 @@ function MaintenanceAnalytics() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ========== لوحة الإدارة المتكاملة ==========
+function AdminDashboard({ emp, employees, setEmployees }) {
+  const addToast = useToast();
+  const confirm  = useConfirm();
+  const [tab, setTab] = useState("overview");
+  const [histSearch, setHistSearch] = useState("");
+  const [histFilter, setHistFilter] = useState("الكل");
+  const [histDate, setHistDate] = useState("");
+  const [histPage, setHistPage] = useState(1);
+  const HIST_PER_PAGE = 20;
+
+  // Live data refresh every 30s
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n+1), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  const loginHistory = storage.get("login_history", []);
+  const activeSessions = storage.get("active_sessions", []);
+  const today = new Date().toDateString();
+
+  // Stats
+  const todayHist = loginHistory.filter(h => new Date(h.loginTime).toDateString() === today);
+  const todaySuccess = todayHist.filter(h => h.status === "success").length;
+  const todayFailed  = todayHist.filter(h => h.status === "failed").length;
+  const deviceCounts = loginHistory.reduce((acc, h) => { acc[h.device] = (acc[h.device]||0)+1; return acc; }, {});
+  const topDevice = Object.entries(deviceCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] || "—";
+
+  // Peak hour
+  const hourCounts = todayHist.reduce((acc, h) => {
+    const hr = new Date(h.loginTime).getHours();
+    acc[hr] = (acc[hr]||0)+1; return acc;
+  }, {});
+  const peakHour = Object.entries(hourCounts).sort((a,b)=>b[1]-a[1])[0];
+  const peakHourLabel = peakHour ? `${peakHour[0]}:00` : "—";
+
+  // Filtered history
+  const filteredHist = loginHistory.filter(h => {
+    const q = histSearch.trim();
+    if (q && !h.userName.includes(q) && !h.userJobNum.includes(q)) return false;
+    if (histFilter === "نجاح" && h.status !== "success") return false;
+    if (histFilter === "فشل"  && h.status !== "failed")  return false;
+    if (histDate && !h.loginTime.startsWith(histDate)) return false;
+    return true;
+  });
+  const histPages = Math.ceil(filteredHist.length / HIST_PER_PAGE);
+  const pagedHist = filteredHist.slice((histPage-1)*HIST_PER_PAGE, histPage*HIST_PER_PAGE);
+
+  const clearHistory = async () => {
+    if (!await confirm("هل تريد مسح سجل الدخول بالكامل؟")) return;
+    storage.set("login_history", []);
+    setTick(n=>n+1);
+    addToast("تم مسح سجل الدخول","success");
+  };
+
+  const killSession = async (sess) => {
+    if (!await confirm(`إنهاء جلسة ${sess.userName}؟`)) return;
+    const sessions = storage.get("active_sessions", []);
+    storage.set("active_sessions", sessions.filter(s => s.sessionId !== sess.sessionId));
+    setTick(n=>n+1);
+    addToast("تم إنهاء الجلسة","success");
+  };
+
+  const fmtDuration = (secs) => {
+    if (!secs) return "—";
+    const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60);
+    return h>0 ? `${h}س ${m}د` : `${m}د`;
+  };
+
+  const fmtDt = (iso) => {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleString("ar-IQ", {dateStyle:"short", timeStyle:"short"});
+  };
+
+  const deviceIcon = (d) => ({
+    "iPad":"📱", "iPhone":"📱", "هاتف ذكي":"📱", "تابلت":"📱", "كمبيوتر":"💻"
+  }[d] || "🖥");
+
+  const ADMIN_TABS = [
+    {id:"overview",   label:"الملخص",       icon:<BarChart size={15}/>},
+    {id:"history",    label:"سجل الدخول",   icon:<Clock size={15}/>},
+    {id:"sessions",   label:"الجلسات النشطة",icon:<Wifi size={15}/>},
+    {id:"accounts",   label:"إدارة الحسابات",icon:<Users size={15}/>},
+    {id:"roles",      label:"الأدوار والصلاحيات",icon:<Shield size={15}/>},
+  ];
+
+  return (
+    <div className="p-4 md:p-6 space-y-4" dir="rtl">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-rose-700 rounded-xl flex items-center justify-center">
+          <Shield size={20} className="text-white"/>
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-primary">لوحة الإدارة المتكاملة</h1>
+          <p className="text-xs text-secondary">نظام المراقبة والتحكم — مستودع الفاو</p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-color overflow-x-auto pb-0">
+        {ADMIN_TABS.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold rounded-t-xl whitespace-nowrap border-b-2 transition-colors ${tab===t.id?"border-blue-500 text-blue-600 bg-blue-50":"border-transparent text-secondary hover:text-primary"}`}>
+            {t.icon}{t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── ملخص ── */}
+      {tab === "overview" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              {label:"موظفون اليوم (دخلوا)", val:todaySuccess, sub:`فاشلة: ${todayFailed}`, color:"text-green-600", bg:"bg-green-50"},
+              {label:"جلسات نشطة الآن", val:activeSessions.length, sub:"مستخدم متصل", color:"text-blue-600", bg:"bg-blue-50"},
+              {label:"أكثر جهاز استخداماً", val:topDevice, sub:"", color:"text-purple-600", bg:"bg-purple-50"},
+              {label:"ذروة النشاط اليوم", val:peakHourLabel, sub:"", color:"text-amber-600", bg:"bg-amber-50"},
+            ].map(s=>(
+              <div key={s.label} className={`rounded-xl p-4 border border-color ${s.bg}`}>
+                <p className={`text-2xl font-black ${s.color}`}>{s.val}</p>
+                <p className="text-xs text-secondary mt-1">{s.label}</p>
+                {s.sub && <p className="text-[10px] text-secondary">{s.sub}</p>}
+              </div>
+            ))}
+          </div>
+
+          {/* آخر 10 محاولات دخول */}
+          <div className="card rounded-xl border border-color overflow-hidden">
+            <div className="px-4 py-3 border-b border-color font-semibold text-sm text-primary">آخر محاولات تسجيل الدخول</div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead><tr className="border-b border-color bg-gray-50">
+                  <th className="px-3 py-2 text-right">الموظف</th>
+                  <th className="px-3 py-2 text-right">الوقت</th>
+                  <th className="px-3 py-2 text-center">الجهاز</th>
+                  <th className="px-3 py-2 text-center">النتيجة</th>
+                </tr></thead>
+                <tbody>
+                  {loginHistory.slice(0,10).map(h=>(
+                    <tr key={h.id} className="border-b border-color hover:bg-gray-50">
+                      <td className="px-3 py-2">
+                        <div className="font-medium">{h.userName}</div>
+                        <div className="text-secondary">{h.userJobNum}</div>
+                      </td>
+                      <td className="px-3 py-2 text-secondary">{fmtDt(h.loginTime)}</td>
+                      <td className="px-3 py-2 text-center">{deviceIcon(h.device)} {h.device}</td>
+                      <td className="px-3 py-2 text-center">
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${h.status==="success"?"bg-green-100 text-green-800":"bg-red-100 text-red-800"}`}>
+                          {h.status==="success"?"نجاح":"فشل"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {loginHistory.length===0 && <tr><td colSpan={4} className="text-center py-6 text-secondary">لا توجد سجلات</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* توزيع المستخدمين بالأدوار */}
+          <div className="card rounded-xl border border-color p-4">
+            <p className="font-semibold text-sm mb-3">توزيع الأدوار</p>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(BUILT_IN_ROLES).map(([key,r])=>{
+                const cnt = employees.filter(e=>{const s=getEmpStatus(e.id);return (s.role||"EMPLOYEE")===key || (key==="SUPER_ADMIN" && e.role==="admin" && !s.role);}).length;
+                return <div key={key} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm ${r.color}`}>
+                  <span className="font-black text-base">{cnt}</span>
+                  <span>{r.label}</span>
+                </div>;
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── سجل الدخول ── */}
+      {tab === "history" && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex items-center gap-2 input rounded-xl px-3 py-2 flex-1 min-w-[180px]">
+              <Search size={14} className="text-secondary shrink-0"/>
+              <input value={histSearch} onChange={e=>{setHistSearch(e.target.value);setHistPage(1);}} placeholder="بحث بالاسم أو الرقم..." className="bg-transparent text-sm outline-none w-full"/>
+            </div>
+            <select value={histFilter} onChange={e=>{setHistFilter(e.target.value);setHistPage(1);}} className="input rounded-xl px-3 py-2 text-sm">
+              {["الكل","نجاح","فشل"].map(v=><option key={v}>{v}</option>)}
+            </select>
+            <input type="date" value={histDate} onChange={e=>{setHistDate(e.target.value);setHistPage(1);}} className="input rounded-xl px-3 py-2 text-sm"/>
+            <button onClick={clearHistory} className="flex items-center gap-1 px-3 py-2 text-sm text-red-600 border border-red-200 rounded-xl hover:bg-red-50"><Trash2 size={13}/> مسح الكل</button>
+          </div>
+          <p className="text-xs text-secondary">{filteredHist.length} سجل — إجمالي اليوم: {todaySuccess} نجاح + {todayFailed} فشل</p>
+          <div className="card rounded-xl border border-color overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead><tr className="border-b border-color bg-gray-50">
+                  <th className="px-3 py-2.5 text-right">الموظف</th>
+                  <th className="px-3 py-2.5 text-right">وقت الدخول</th>
+                  <th className="px-3 py-2.5 text-right hidden md:table-cell">وقت الخروج</th>
+                  <th className="px-3 py-2.5 text-center">الجهاز</th>
+                  <th className="px-3 py-2.5 text-center hidden md:table-cell">المتصفح/النظام</th>
+                  <th className="px-3 py-2.5 text-center">النتيجة</th>
+                  <th className="px-3 py-2.5 text-center hidden md:table-cell">المدة</th>
+                </tr></thead>
+                <tbody>
+                  {pagedHist.map(h=>(
+                    <tr key={h.id} className="border-b border-color hover:bg-gray-50">
+                      <td className="px-3 py-2">
+                        <div className="font-medium">{h.userName}</div>
+                        <div className="text-secondary">{h.userJobNum}</div>
+                      </td>
+                      <td className="px-3 py-2 text-secondary">{fmtDt(h.loginTime)}</td>
+                      <td className="px-3 py-2 text-secondary hidden md:table-cell">{fmtDt(h.logoutTime)}</td>
+                      <td className="px-3 py-2 text-center">{deviceIcon(h.device)} {h.device}</td>
+                      <td className="px-3 py-2 text-center text-secondary hidden md:table-cell">{h.browser} / {h.os}</td>
+                      <td className="px-3 py-2 text-center">
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${h.status==="success"?"bg-green-100 text-green-800":"bg-red-100 text-red-800"}`}>
+                          {h.status==="success"?"✓ نجاح":"✗ فشل"}
+                        </span>
+                        {h.failReason && <div className="text-[9px] text-red-500 mt-0.5">{{wrong_password:"كلمة خاطئة",account_disabled:"حساب معطّل",too_many_attempts:"محاولات كثيرة"}[h.failReason]||h.failReason}</div>}
+                      </td>
+                      <td className="px-3 py-2 text-center text-secondary hidden md:table-cell">{fmtDuration(h.sessionDuration)}</td>
+                    </tr>
+                  ))}
+                  {pagedHist.length===0 && <tr><td colSpan={7} className="text-center py-8 text-secondary">لا توجد سجلات</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center justify-between px-4 py-3 border-t border-color">
+              <span className="text-xs text-secondary">{filteredHist.length} سجل</span>
+              <div className="flex gap-1">
+                <button disabled={histPage<=1} onClick={()=>setHistPage(p=>p-1)} className="px-3 py-1 text-xs border border-color rounded-lg disabled:opacity-40">السابق</button>
+                <span className="px-2 text-xs">{histPage}/{histPages||1}</span>
+                <button disabled={histPage>=histPages} onClick={()=>setHistPage(p=>p+1)} className="px-3 py-1 text-xs border border-color rounded-lg disabled:opacity-40">التالي</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── الجلسات النشطة ── */}
+      {tab === "sessions" && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-primary">{activeSessions.length} جلسة نشطة حالياً</p>
+            <button onClick={()=>setTick(n=>n+1)} className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline"><CheckCircle size={14}/> تحديث</button>
+          </div>
+          {activeSessions.length === 0 ? (
+            <div className="card rounded-xl border border-color p-8 text-center text-secondary">لا توجد جلسات نشطة</div>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-3">
+              {activeSessions.map(sess=>{
+                const dur = Math.floor((Date.now()-new Date(sess.loginTime).getTime())/1000);
+                const isMe = sessionStorage.getItem("boc_session_id") === sess.sessionId;
+                return (
+                  <div key={sess.sessionId} className={`card rounded-xl border p-4 ${isMe?"border-blue-300 bg-blue-50":"border-color"}`}>
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-teal-600 rounded-full flex items-center justify-center">
+                          <span className="text-white font-bold text-sm">{sess.userName?.[0]}</span>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm">{sess.userName}</p>
+                          <p className="text-xs text-secondary">{sess.userJobNum}</p>
+                        </div>
+                      </div>
+                      {!isMe && (
+                        <button onClick={()=>killSession(sess)} className="flex items-center gap-1 text-xs text-red-600 border border-red-200 rounded-lg px-2 py-1 hover:bg-red-50">
+                          <X size={11}/> إنهاء
+                        </button>
+                      )}
+                      {isMe && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">جلستك</span>}
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-secondary">
+                      <div className="flex items-center gap-1">{deviceIcon(sess.device)} {sess.device} — {sess.browser}</div>
+                      <div className="flex items-center gap-1"><Clock size={11}/> منذ {fmtDuration(dur)}</div>
+                      <div className="col-span-2 text-[10px]">بدأ: {fmtDt(sess.loginTime)}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── إدارة الحسابات ── */}
+      {tab === "accounts" && (
+        <EmployeeManager employees={employees} setEmployees={setEmployees}/>
+      )}
+
+      {/* ── الأدوار والصلاحيات ── */}
+      {tab === "roles" && (
+        <div className="space-y-4">
+          <h3 className="font-semibold text-primary">الأدوار المدمجة في النظام</h3>
+          <div className="grid md:grid-cols-2 gap-4">
+            {Object.entries(BUILT_IN_ROLES).map(([key, role]) => (
+              <div key={key} className="card rounded-xl border border-color p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className={`px-3 py-1 rounded-xl text-sm font-bold ${role.color}`}>{role.label}</span>
+                  <span className="text-xs text-secondary">{key}</span>
+                </div>
+                <div className="space-y-1.5">
+                  {role.permissions.length === 0
+                    ? <p className="text-xs text-secondary">صلاحيات محدودة (موظف عادي)</p>
+                    : role.permissions.map(p => (
+                      <div key={p} className="flex items-center gap-2 text-xs">
+                        <span className="text-green-500">✓</span>
+                        <span className="font-medium">{PERMISSIONS_DEF[p]?.icon} {PERMISSIONS_DEF[p]?.label || p}</span>
+                      </div>
+                    ))
+                  }
+                </div>
+                <div className="mt-3 pt-3 border-t border-color">
+                  <p className="text-xs text-secondary">
+                    الموظفون: <span className="font-bold text-primary">
+                      {employees.filter(e=>{const s=getEmpStatus(e.id);return (s.role||"EMPLOYEE")===key||(key==="SUPER_ADMIN"&&e.role==="admin"&&!s.role);}).length}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="card rounded-xl border border-color overflow-hidden">
+            <div className="px-4 py-3 border-b border-color font-semibold text-sm">جدول الصلاحيات التفصيلي</div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead><tr className="border-b border-color bg-gray-50">
+                  <th className="px-3 py-2 text-right">الصلاحية</th>
+                  {Object.entries(BUILT_IN_ROLES).map(([k,r])=>(
+                    <th key={k} className={`px-3 py-2 text-center`}><span className={`px-2 py-0.5 rounded-full font-bold ${r.color}`}>{r.label}</span></th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {Object.entries(PERMISSIONS_DEF).map(([perm,def])=>(
+                    <tr key={perm} className="border-b border-color">
+                      <td className="px-3 py-2 font-medium">{def.icon} {def.label}</td>
+                      {Object.entries(BUILT_IN_ROLES).map(([rk,r])=>{
+                        const has = r.permissions.includes("FULL_ACCESS") || r.permissions.includes(perm);
+                        return <td key={rk} className="px-3 py-2 text-center">{has?"✅":"—"}</td>;
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4647,6 +5281,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
   if (isAdmin) {
     menuItems.unshift({ id:"approvals", label:"الموافقات", icon:<ThumbsUp size={17}/>, badge:pendingCount });
     menuItems.unshift({ id:"employees", label:"الموظفين", icon:<Users size={17}/> });
+    menuItems.unshift({ id:"admin_dashboard", label:"لوحة الإدارة", icon:<Shield size={17}/> });
   }
 
   return (
@@ -4833,6 +5468,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           {view==="leave_forms" && <LeaveFormsPrintPage emp={emp}/>}
           {view==="projects" && <ProjectManagementPage emp={emp}/>}
           {view==="timesheet" && <TimeSheetPage emp={emp}/>}
+          {view==="admin_dashboard" && isAdmin && <AdminDashboard emp={emp} employees={employees} setEmployees={setEmployees}/>}
         </main>
       </div>
       {showSearch && <GlobalSearch setView={setView} onClose={()=>setShowSearch(false)}/>}
@@ -4872,7 +5508,7 @@ export default function App() {
       <ConfirmProvider>
         <style>{style}</style>
         {user
-          ? <Dashboard emp={user} onLogout={()=>{sessionStorage.clear();setUser(null);}} dark={dark} setDark={setDark}/>
+          ? <Dashboard emp={user} onLogout={()=>{recordLogoutFn(user?.id);sessionStorage.clear();setUser(null);}} dark={dark} setDark={setDark}/>
           : <LoginScreen onLogin={setUser} dark={dark}/>
         }
       </ConfirmProvider>
