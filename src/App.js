@@ -746,6 +746,7 @@ function LoginScreen({ onLogin, dark }) {
     let isValid = false;
     const inputHash = await hashPassword(pass.trim());
     const localPass = passStore.get(`pass_${account.id}`);
+    const defaultPass = (ACCOUNTS.find(a => a.jobNum === user.trim()) || {}).password || "";
 
     if (localPass) {
       if (isHash(localPass)) {
@@ -757,6 +758,12 @@ function LoginScreen({ onLogin, dark }) {
           passStore.set(`pass_${account.id}`, inputHash);
           if (isConnected) await FirebaseAPI.savePassword(account.id, inputHash);
         }
+      }
+      // احتياطي: إذا فشل الهاش المخزّن وأدخل المستخدم كلمة المرور الافتراضية — أعد الضبط
+      if (!isValid && defaultPass && pass.trim() === defaultPass) {
+        isValid = true;
+        passStore.set(`pass_${account.id}`, inputHash);
+        if (isConnected) await FirebaseAPI.savePassword(account.id, inputHash);
       }
     } else if (isConnected) {
       // حاول /passwords/{id} أولاً (كلمة مرور مغيّرة)
@@ -838,6 +845,19 @@ function LoginScreen({ onLogin, dark }) {
           )}
           {err && <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-xl flex items-center gap-2"><AlertCircle size={16}/> {err}</div>}
           <button onClick={handleLogin} disabled={loading || lockSecs > 0} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all text-lg">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
+          <button onClick={() => {
+            const acc = ACCOUNTS.find(a => a.jobNum === user.trim());
+            if (!user.trim()) { setErr("أدخل الرقم الوظيفي أولاً"); return; }
+            if (!acc) { setErr("الرقم الوظيفي غير موجود"); return; }
+            passStore.set(`pass_${acc.id}`, null);
+            sessionStorage.removeItem(`pass_${acc.id}`);
+            localStorage.removeItem(`pass_${acc.id}`);
+            setErr("");
+            setPass("");
+            alert(`تمت إعادة ضبط كلمة مرور ${acc.name}\nالرقم الوظيفي: ${acc.jobNum}\nكلمة المرور الافتراضية: ${acc.password}`);
+          }} className="w-full text-slate-400 hover:text-slate-200 text-xs py-1 underline text-center transition-colors">
+            نسيت كلمة المرور؟ (إعادة الضبط للافتراضية)
+          </button>
         </div>
         <div className="mt-6 text-center text-sm text-slate-400"><p>🔑 <strong className="text-blue-300">728004</strong> | كلمة المرور: <strong className="text-blue-300">1001</strong></p></div>
       </div>
