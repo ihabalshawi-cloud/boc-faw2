@@ -489,7 +489,10 @@ const GDRIVE_PROXY    = "/api/drive-proxy";
 const GDriveAPI = {
   checkConnection: async () => {
     try {
-      const res = await fetch(`${GDRIVE_PROXY}?action=ping`);
+      const ctrl = new AbortController();
+      const tid  = setTimeout(() => ctrl.abort(), 5000);
+      const res  = await fetch(`${GDRIVE_PROXY}?action=ping`, { signal: ctrl.signal });
+      clearTimeout(tid);
       if (!res.ok) return false;
       const data = await res.json();
       return data.ok === true;
@@ -962,6 +965,7 @@ function LoginScreen({ onLogin, dark }) {
     if (remaining > 0) { startCountdown(remaining); setErr(`الحساب مقفل. حاول بعد ${fmtTime(remaining)}`); return; }
 
     setLoading(true);
+    try {
 
     // ── 1. جلب بيانات الحساب ───────────────────────────────────────────────
     // الأولوية: Firebase ← كاش localStorage ← ACCOUNTS (احتياطي)
@@ -975,7 +979,7 @@ function LoginScreen({ onLogin, dark }) {
     }
     if (!account) account = storage.get(`cached_account_${user.trim()}`)
                          || ACCOUNTS.find(a => a.jobNum === user.trim());
-    if (!account) { setErr("الرقم الوظيفي غير موجود"); setLoading(false); return; }
+    if (!account) { setErr("الرقم الوظيفي غير موجود"); return; }
 
     // ── 2. التحقق من كلمة المرور ───────────────────────────────────────────
     let isValid = false;
@@ -1043,7 +1047,7 @@ function LoginScreen({ onLogin, dark }) {
       if (defaultPasswords.includes(pass.trim()) && !localPass) sessionStorage.setItem("force_password_change", "true");
       // Check if account is disabled
       const empSt = getEmpStatus(account.id);
-      if (!empSt.active) { setErr("هذا الحساب معطّل. تواصل مع المشرف."); setLoading(false); recordLoginAttempt(account, "failed", "account_disabled"); return; }
+      if (!empSt.active) { setErr("هذا الحساب معطّل. تواصل مع المشرف."); recordLoginAttempt(account, "failed", "account_disabled"); return; }
       recordLoginAttempt(account, "success");
       onLogin(account);
     } else {
@@ -1058,7 +1062,13 @@ function LoginScreen({ onLogin, dark }) {
         setErr(`كلمة المرور غير صحيحة — محاولة ${count} من ${LOCK_LIMIT}`);
       }
     }
-    setLoading(false);
+
+    } catch (e) {
+      console.error("login error:", e);
+      setErr("حدث خطأ غير متوقع — حاول مجدداً");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
