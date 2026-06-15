@@ -532,12 +532,16 @@ const GDriveAPI = {
   _tokenClient: null,
 
   _loadGIS: () => new Promise((resolve, reject) => {
+    // Already ready
     if (window.google?.accounts?.oauth2) { resolve(); return; }
-    const s = document.createElement("script");
-    s.src = "https://accounts.google.com/gsi/client";
-    s.async = true; s.defer = true;
-    s.onload = resolve; s.onerror = reject;
-    document.head.appendChild(s);
+    // Poll for up to 10 seconds (script loaded via index.html <script async>)
+    let attempts = 0;
+    const poll = () => {
+      if (window.google?.accounts?.oauth2) { resolve(); return; }
+      if (++attempts > 100) { reject(new Error("timeout")); return; }
+      setTimeout(poll, 100);
+    };
+    poll();
   }),
 
   init: async (clientId) => {
