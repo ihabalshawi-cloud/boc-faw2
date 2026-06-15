@@ -360,9 +360,13 @@ function GlobalSearch({ setView, onClose }) {
 // SHA-256 عبر Web Crypto API (مدمج في المتصفح — لا مكتبات خارجية)
 const PASS_SALT = "BOC_FAW_SCADA_2025#";
 async function hashPassword(plain) {
-  const data = new TextEncoder().encode(PASS_SALT + plain);
-  const buf  = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
+  try {
+    const data = new TextEncoder().encode(PASS_SALT + plain);
+    const buf  = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
+  } catch {
+    return null; // crypto.subtle غير متاح (متصفح قديم أو سياق غير آمن)
+  }
 }
 // هل النص هو hash SHA-256 مخزّن مسبقاً؟ (64 حرف hex)
 const isHash = s => typeof s === "string" && /^[a-f0-9]{64}$/.test(s);
@@ -1029,11 +1033,11 @@ function LoginScreen({ onLogin, dark }) {
 
     if (localPass) {
       if (isHash(localPass)) {
-        isValid = inputHash === localPass;
+        isValid = inputHash !== null && inputHash === localPass;
       } else {
         // ترقية تلقائية من نص إلى hash
         isValid = pass.trim() === localPass;
-        if (isValid) {
+        if (isValid && inputHash) {
           passStore.set(`pass_${account.id}`, inputHash);
           if (isConnected) await FirebaseAPI.savePassword(account.id, inputHash);
         }
@@ -1041,43 +1045,48 @@ function LoginScreen({ onLogin, dark }) {
       // احتياطي: إذا فشل الهاش المخزّن وأدخل المستخدم كلمة المرور الافتراضية — أعد الضبط
       if (!isValid && defaultPass && pass.trim() === defaultPass) {
         isValid = true;
-        passStore.set(`pass_${account.id}`, inputHash);
-        if (isConnected) await FirebaseAPI.savePassword(account.id, inputHash);
+        if (inputHash) {
+          passStore.set(`pass_${account.id}`, inputHash);
+          if (isConnected) await FirebaseAPI.savePassword(account.id, inputHash);
+        }
       }
     } else if (isConnected) {
       // حاول /passwords/{id} أولاً (كلمة مرور مغيّرة)
       const fp = await FirebaseAPI.getPassword(account.id);
       if (fp) {
-        isValid = isHash(fp) ? inputHash === fp : pass.trim() === fp;
+        isValid = isHash(fp) ? (inputHash !== null && inputHash === fp) : pass.trim() === fp;
         if (isValid) {
-          const toStore = isHash(fp) ? fp : inputHash;
-          passStore.set(`pass_${account.id}`, toStore);
-          if (!isHash(fp)) await FirebaseAPI.savePassword(account.id, inputHash);
+          const toStore = isHash(fp) ? fp : (inputHash || null);
+          if (toStore) passStore.set(`pass_${account.id}`, toStore);
+          if (!isHash(fp) && inputHash) await FirebaseAPI.savePassword(account.id, inputHash);
         }
         // Fallback: Firebase hash doesn't match — try default password anyway
         if (!isValid && defaultPass && pass.trim() === defaultPass) {
           isValid = true;
-          passStore.set(`pass_${account.id}`, inputHash);
-          await FirebaseAPI.savePassword(account.id, inputHash);
+          if (inputHash) {
+            passStore.set(`pass_${account.id}`, inputHash);
+            await FirebaseAPI.savePassword(account.id, inputHash);
+          }
         }
       } else {
         // حاول /init_hashes/{jobNum} (كلمة المرور الافتراضية المشفّرة في Firebase)
         const initH = await FirebaseAPI.fetchInitHash(user.trim());
         if (initH) {
-          isValid = inputHash === initH;
+          isValid = inputHash !== null && inputHash === initH;
           if (isValid) passStore.set(`pass_${account.id}`, initH); // احفظ للجلسات القادمة
-        } else {
-          // احتياطي نهائي: ابحث في ACCOUNTS (الحساب من Firebase لا يحتوي password)
+        }
+        // احتياطي نهائي: ابحث في ACCOUNTS (الحساب من Firebase لا يحتوي password)
+        if (!isValid) {
           const def = (ACCOUNTS.find(a => a.jobNum === user.trim()) || account).password || "";
           isValid = pass.trim() === def;
-          if (isValid) passStore.set(`pass_${account.id}`, inputHash);
+          if (isValid && inputHash) passStore.set(`pass_${account.id}`, inputHash);
         }
       }
     } else {
       // غير متصل — الاحتياطي المحلي
       const def = (ACCOUNTS.find(a => a.jobNum === user.trim()) || account).password || "";
       isValid = pass.trim() === def;
-      if (isValid) passStore.set(`pass_${account.id}`, inputHash);
+      if (isValid && inputHash) passStore.set(`pass_${account.id}`, inputHash);
     }
 
     if (isValid) {
@@ -1176,6 +1185,7 @@ function ChangePasswordPage({ emp, onLogout }) {
     setLoading(true);
     try {
       const hashed = await hashPassword(newPass.trim());
+      if (!hashed) { toast("المتصفح لا يدعم التشفير — حاول مجدداً أو استخدم متصفحاً حديثاً", "error"); return; }
       passStore.set(`pass_${emp.id}`, hashed);
       if (isConnected) await FirebaseAPI.savePassword(emp.id, hashed);
       sessionStorage.removeItem("force_password_change");
