@@ -134,16 +134,16 @@ const passStore = {
     try {
       const s = sessionStorage.getItem(key);
       if (s) return JSON.parse(s);
+    } catch {}
+    try {
       const l = localStorage.getItem(key);
       return l ? JSON.parse(l) : null;
     } catch { return null; }
   },
   set: (key, val) => {
-    try {
-      sessionStorage.setItem(key, JSON.stringify(val));
-      localStorage.setItem(key, JSON.stringify(val));
-      return true;
-    } catch { return false; }
+    // استدعاء كل منهما بشكل مستقل — sessionStorage قد يُعطي خطأً في بيئات الشركات
+    try { sessionStorage.setItem(key, JSON.stringify(val)); } catch {}
+    try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch { return false; }
   }
 };
 
@@ -957,13 +957,15 @@ function recordLoginAttempt(account, status, failReason = null) {
     status, failReason, sessionId,
     logoutTime: null, sessionDuration: null,
   };
-  const hist = storage.get("login_history", []);
+  const histRaw = storage.get("login_history", []);
+  const hist = Array.isArray(histRaw) ? histRaw : [];
   hist.unshift(rec);
   if (hist.length > 500) hist.length = 500;
   storage.set("login_history", hist);
   if (status === "success" && sessionId) {
     try { sessionStorage.setItem("boc_session_id", sessionId); } catch {}
-    const sessions = storage.get("active_sessions", []);
+    const sessionsRaw = storage.get("active_sessions", []);
+    const sessions = Array.isArray(sessionsRaw) ? sessionsRaw : [];
     const idx = sessions.findIndex(s => s.userId === account.id);
     const sess = { sessionId, userId:account.id, userName:account.name, userJobNum:account.jobNum, loginTime:rec.loginTime, device, browser, os };
     if (idx >= 0) sessions[idx] = sess; else sessions.push(sess);
@@ -974,14 +976,16 @@ function recordLogoutFn(userId) {
   let sessionId = null;
   try { sessionId = sessionStorage.getItem("boc_session_id"); } catch {}
   if (!sessionId) return;
-  const hist = storage.get("login_history", []);
+  const histRaw = storage.get("login_history", []);
+  const hist = Array.isArray(histRaw) ? histRaw : [];
   const i = hist.findIndex(h => h.sessionId === sessionId);
   if (i >= 0) {
     hist[i].logoutTime = new Date().toISOString();
     hist[i].sessionDuration = Math.floor((Date.now() - new Date(hist[i].loginTime).getTime()) / 1000);
     storage.set("login_history", hist);
   }
-  const sessions = storage.get("active_sessions", []);
+  const sessionsRaw = storage.get("active_sessions", []);
+  const sessions = Array.isArray(sessionsRaw) ? sessionsRaw : [];
   storage.set("active_sessions", sessions.filter(s => s.sessionId !== sessionId));
   try { sessionStorage.removeItem("boc_session_id"); } catch {}
 }
@@ -3155,8 +3159,10 @@ function AdminDashboard({ emp, employees, setEmployees }) {
     return () => clearInterval(t);
   }, []);
 
-  const loginHistory = storage.get("login_history", []);
-  const activeSessions = storage.get("active_sessions", []);
+  const loginHistoryRaw = storage.get("login_history", []);
+  const loginHistory = Array.isArray(loginHistoryRaw) ? loginHistoryRaw : [];
+  const activeSessionsRaw = storage.get("active_sessions", []);
+  const activeSessions = Array.isArray(activeSessionsRaw) ? activeSessionsRaw : [];
   const today = new Date().toDateString();
 
   // Stats
@@ -3195,7 +3201,8 @@ function AdminDashboard({ emp, employees, setEmployees }) {
 
   const killSession = async (sess) => {
     if (!await confirm(`إنهاء جلسة ${sess.userName}؟`)) return;
-    const sessions = storage.get("active_sessions", []);
+    const sessionsRaw = storage.get("active_sessions", []);
+    const sessions = Array.isArray(sessionsRaw) ? sessionsRaw : [];
     storage.set("active_sessions", sessions.filter(s => s.sessionId !== sess.sessionId));
     setTick(n=>n+1);
     addToast("تم إنهاء الجلسة","success");
