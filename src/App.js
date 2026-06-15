@@ -468,6 +468,13 @@ const FirebaseAPI = {
       return typeof d === "string" ? d : null;
     } catch { return null; }
   },
+  // حفظ وتحميل صلاحيات الموظفين
+  saveRoles: async (rolesMap) => {
+    try { await fetch(`${FIREBASE_URL}/emp_statuses.json`, { method:"PUT", body:JSON.stringify(rolesMap) }); return true; } catch { return false; }
+  },
+  loadRoles: async () => {
+    try { const res = await fetch(`${FIREBASE_URL}/emp_statuses.json`); if (!res.ok) return null; const d = await res.json(); return d && typeof d === "object" ? d : null; } catch { return null; }
+  },
   // ترحيل مرة واحدة: رفع جميع الحسابات + هاشات البداية إلى Firebase
   initializeAccounts: async (accounts) => {
     try {
@@ -1491,12 +1498,26 @@ function EmployeeManager({ employees, setEmployees }) {
   const [editId, setEditId]   = useState(null);
   const [adding, setAdding]   = useState(false);
   const [migrating, setMigrating] = useState(false);
+  const [syncingRoles, setSyncingRoles] = useState(false);
   const [page, setPage]       = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [form, setForm]       = useState({name:"",jobNum:"",title:"",dept:"قسم السيطرة والنظم",shift:"صباحي",phone:"",email:""});
   const [, forceUpdate] = useState(0);
   const addToast = useToast();
   const confirm  = useConfirm();
+  const { isConnected } = useConnectionStatus();
+
+  // Auto-load roles from Firebase on mount
+  useEffect(() => {
+    if (!isConnected) return;
+    FirebaseAPI.loadRoles().then(rolesMap => {
+      if (!rolesMap) return;
+      Object.entries(rolesMap).forEach(([empId, st]) => {
+        if (st && typeof st === "object") storage.set(`emp_status_${empId}`, st);
+      });
+      forceUpdate(n => n + 1);
+    });
+  }, [isConnected]);
 
   const depts = ["الكل", ...new Set(employees.map(e=>e.dept).filter(Boolean))];
   const roleNames = ["الكل", ...Object.keys(BUILT_IN_ROLES)];
@@ -1573,6 +1594,17 @@ function EmployeeManager({ employees, setEmployees }) {
     addToast(`فشل الترحيل — ${result.reason} (${result.status})`, "error", 8000);
   };
 
+  const syncRolesToFirebase = async () => {
+    if (!isConnected) { addToast("غير متصل بالإنترنت", "error"); return; }
+    setSyncingRoles(true);
+    const rolesMap = {};
+    employees.forEach(e => { rolesMap[e.id] = getEmpStatus(e.id); });
+    const ok = await FirebaseAPI.saveRoles(rolesMap);
+    setSyncingRoles(false);
+    if (ok) addToast("تم حفظ الصلاحيات في Firebase بنجاح ✅", "success");
+    else addToast("فشل الحفظ — تحقق من إعدادات Firebase", "error");
+  };
+
   const roleBadge = (roleKey) => {
     const r = BUILT_IN_ROLES[roleKey] || BUILT_IN_ROLES.EMPLOYEE;
     return <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.color}`}>{r.label}</span>;
@@ -1598,6 +1630,7 @@ function EmployeeManager({ employees, setEmployees }) {
         <button onClick={()=>exportCSV(employees.map(e=>({الاسم:e.name,الرقم:e.jobNum,المسمى:e.title,القسم:e.dept,النوبة:e.shift})),"الموظفون")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/></button>
         <button onClick={()=>{setAdding(true);setForm({name:"",jobNum:"",title:"",dept:"قسم السيطرة والنظم",shift:"صباحي",phone:"",email:""});}} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><Plus size={14}/> إضافة</button>
         <button onClick={handleMigrate} disabled={migrating} className="px-3 py-2 bg-orange-600 text-white rounded-xl text-sm font-bold disabled:opacity-60">{migrating?"جاري النقل...":"نقل Firebase"}</button>
+        <button onClick={syncRolesToFirebase} disabled={syncingRoles||!isConnected} className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 text-white rounded-xl text-sm font-bold disabled:opacity-60" title="حفظ الصلاحيات للأبد في Firebase"><Shield size={13}/>{syncingRoles?"جاري الحفظ...":"حفظ الصلاحيات"}</button>
       </div>
 
       {/* نموذج الإضافة / التعديل */}
@@ -4567,32 +4600,82 @@ function ReportsTab({ proj, addReport, delReport, emp }) {
 function DocsTab({ proj, addDoc, delDoc, emp }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name:"", type:"وثيقة هندسية", date:new Date().toISOString().split("T")[0], size:"", uploadedBy:emp.name });
+  const [fileData, setFileData] = useState(null);
+  const [fileMime, setFileMime] = useState("");
+  const [previewDoc, setPreviewDoc] = useState(null);
+  const fileRef = useRef(null);
   const addToast = useToast();
   const confirm = useConfirm();
 
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) { addToast("حجم الملف يتجاوز 3 ميغابايت — اختر ملفاً أصغر", "error"); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setFileData(ev.target.result);
+      setFileMime(file.type);
+      setForm(prev => ({ ...prev, name: prev.name || file.name, size: (file.size / 1024).toFixed(0) + " KB" }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   const submit = () => {
     if (!form.name.trim()) return;
-    addDoc(proj.id, form); setShowAdd(false); setForm({ name:"", type:"وثيقة هندسية", date:new Date().toISOString().split("T")[0], size:"", uploadedBy:emp.name });
+    addDoc(proj.id, { ...form, fileData: fileData || null, fileMime: fileMime || null });
+    setShowAdd(false);
+    setForm({ name:"", type:"وثيقة هندسية", date:new Date().toISOString().split("T")[0], size:"", uploadedBy:emp.name });
+    setFileData(null); setFileMime("");
+    if (fileRef.current) fileRef.current.value = "";
     addToast("تمت إضافة الوثيقة","success");
   };
+
   const doDelete = async (dId) => {
     if (await confirm("حذف هذه الوثيقة؟", { title:"حذف الوثيقة", ok:"حذف" })) { delDoc(proj.id, dId); addToast("تم الحذف","info"); }
   };
 
+  const downloadFile = (d) => {
+    if (!d.fileData) return;
+    const a = document.createElement("a");
+    a.href = d.fileData;
+    a.download = d.name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  };
+
   const docIcons = { "وثيقة هندسية":"🗂️","عقد":"📋","تقرير":"📊","خطة":"📅","رسم":"📐","أخرى":"📄" };
+  const isImage = (mime) => mime && mime.startsWith("image/");
 
   return (
     <div className="space-y-4">
+      {/* Image/file preview modal */}
+      {previewDoc && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={()=>setPreviewDoc(null)}>
+          <div className="bg-white rounded-2xl p-4 max-w-3xl max-h-[90vh] overflow-auto" onClick={e=>e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3">
+              <span className="font-bold">{previewDoc.name}</span>
+              <button onClick={()=>setPreviewDoc(null)} className="p-1 rounded-lg hover:bg-gray-100"><X size={18}/></button>
+            </div>
+            {isImage(previewDoc.fileMime)
+              ? <img src={previewDoc.fileData} alt={previewDoc.name} className="max-w-full rounded-xl"/>
+              : <div className="text-center py-8 text-secondary"><p className="text-5xl mb-3">📄</p><p>{previewDoc.name}</p></div>
+            }
+            <button onClick={()=>downloadFile(previewDoc)} className="mt-3 w-full py-2 bg-blue-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2">
+              <Download size={14}/> تحميل الملف
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <h3 className="font-bold flex items-center gap-2"><FolderOpen size={16}/> وثائق المشروع</h3>
         <button onClick={()=>setShowAdd(!showAdd)} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">
-          <Plus size={14}/> إضافة وثيقة
+          <Plus size={14}/> إضافة وثيقة / صورة
         </button>
       </div>
 
       {showAdd && (
         <div className="card rounded-2xl border border-color p-4">
-          <h4 className="font-bold text-sm mb-3">إضافة وثيقة جديدة</h4>
+          <h4 className="font-bold text-sm mb-3">إضافة وثيقة أو صورة جديدة</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div><label className="block text-xs font-bold text-secondary mb-1">اسم الوثيقة</label>
               <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm" placeholder="اسم الملف أو الوثيقة"/></div>
@@ -4601,13 +4684,28 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
                 {DOC_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
             <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الرفع</label>
               <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-            <div><label className="block text-xs font-bold text-secondary mb-1">الحجم (اختياري)</label>
-              <input value={form.size} onChange={e=>setForm({...form,size:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm" placeholder="مثال: 2.5 MB"/></div>
             <div><label className="block text-xs font-bold text-secondary mb-1">رُفع بواسطة</label>
               <input value={form.uploadedBy} onChange={e=>setForm({...form,uploadedBy:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold text-secondary mb-1">رفع ملف أو صورة (اختياري — حد أقصى 3 ميغابايت)</label>
+              <div className="flex items-center gap-3">
+                <input ref={fileRef} type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
+                  onChange={handleFileSelect}
+                  className="block text-sm text-secondary file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
+                {fileData && (
+                  <button onClick={()=>{ setFileData(null); setFileMime(""); if(fileRef.current) fileRef.current.value=""; }} className="text-red-400 hover:text-red-600"><X size={16}/></button>
+                )}
+              </div>
+              {fileData && isImage(fileMime) && (
+                <img src={fileData} alt="معاينة" className="mt-2 max-h-32 rounded-lg border border-color object-contain"/>
+              )}
+              {fileData && !isImage(fileMime) && (
+                <p className="mt-1 text-xs text-emerald-600 font-medium">✓ تم اختيار الملف: {form.name}</p>
+              )}
+            </div>
           </div>
           <div className="flex gap-2 justify-end mt-3 pt-3 border-t border-color">
-            <button onClick={()=>setShowAdd(false)} className="px-4 py-2 rounded-xl btn-secondary text-sm">إلغاء</button>
+            <button onClick={()=>{ setShowAdd(false); setFileData(null); setFileMime(""); if(fileRef.current) fileRef.current.value=""; }} className="px-4 py-2 rounded-xl btn-secondary text-sm">إلغاء</button>
             <button onClick={submit} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> إضافة</button>
           </div>
         </div>
@@ -4619,17 +4717,35 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {(proj.docs||[]).map(d => (
-          <div key={d.id} className="card rounded-xl border border-color p-4 flex items-start gap-3">
-            <div className="text-2xl">{docIcons[d.type] || "📄"}</div>
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-sm truncate">{d.name}</p>
-              <p className="text-xs text-secondary mt-0.5">{d.type} · {d.date}</p>
-              <div className="flex items-center gap-2 mt-1">
-                {d.size && <span className="text-[10px] bg-gray-100 px-1.5 py-0.5 rounded font-mono">{d.size}</span>}
-                <span className="text-[10px] text-secondary">{d.uploadedBy}</span>
+          <div key={d.id} className="card rounded-xl border border-color p-3">
+            {/* Image thumbnail */}
+            {d.fileData && isImage(d.fileMime) && (
+              <div className="mb-2 cursor-pointer" onClick={()=>setPreviewDoc(d)}>
+                <img src={d.fileData} alt={d.name} className="w-full h-32 object-cover rounded-lg border border-color hover:opacity-90 transition-opacity"/>
               </div>
+            )}
+            <div className="flex items-start gap-3">
+              <div className="text-2xl cursor-pointer" onClick={()=>d.fileData && setPreviewDoc(d)}>
+                {d.fileData && isImage(d.fileMime) ? "🖼️" : d.fileData ? "📎" : (docIcons[d.type] || "📄")}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm truncate">{d.name}</p>
+                <p className="text-xs text-secondary mt-0.5">{d.type} · {d.date}</p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {d.size && <span className="text-[10px] bg-gray-100 px-1.5 py-0.5 rounded font-mono">{d.size}</span>}
+                  <span className="text-[10px] text-secondary">{d.uploadedBy}</span>
+                  {d.fileData && (
+                    <button onClick={()=>downloadFile(d)} className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5">
+                      <Download size={10}/> تحميل
+                    </button>
+                  )}
+                  {d.fileData && isImage(d.fileMime) && (
+                    <button onClick={()=>setPreviewDoc(d)} className="text-[10px] text-purple-600 hover:underline">عرض</button>
+                  )}
+                </div>
+              </div>
+              <button onClick={()=>doDelete(d.id)} className="p-1.5 hover:bg-red-50 text-red-400 rounded-lg flex-shrink-0"><Trash2 size={14}/></button>
             </div>
-            <button onClick={()=>doDelete(d.id)} className="p-1.5 hover:bg-red-50 text-red-400 rounded-lg flex-shrink-0"><Trash2 size={14}/></button>
           </div>
         ))}
       </div>
@@ -5152,6 +5268,118 @@ function TimeSheetPage({ emp }) {
     addToast("جارٍ فتح نافذة الطباعة / تصدير PDF", "info");
   };
 
+  const exportOfficialForm = () => {
+    const emps = data[activeTab] || [];
+    const monthLabel = MONTHS_AR_TS[tsMonth];
+    const tabTitle = TAB_INFO[activeTab].title;
+    const cellS = "border:1px solid #374151;padding:2px 1px;text-align:center;font-size:9px;";
+    const weStyle = "background:#fff7ed;";
+    let bodyRows = "";
+    emps.forEach((e, idx) => {
+      const stats = calcTsStats(e);
+      const bg = idx % 2 === 0 ? "" : "background:#f9fafb;";
+      bodyRows += `<tr style="${bg}">`;
+      bodyRows += `<td rowspan="2" style="${cellS}font-weight:bold;font-size:10px;">${idx+1}</td>`;
+      bodyRows += `<td rowspan="2" style="${cellS}text-align:right;min-width:100px;font-weight:bold;">${e.name}</td>`;
+      bodyRows += `<td rowspan="2" style="${cellS}font-size:9px;color:#555;">${e.id}</td>`;
+      bodyRows += `<td style="${cellS}font-size:8px;color:#1d4ed8;font-weight:bold;">رمز</td>`;
+      days.forEach(d => {
+        const dow = new Date(tsYear, tsMonth, d).getDay();
+        const isWe = dow===5||dow===6;
+        const code = e.days[String(d)] || "";
+        const cSt = code ? (TS_CODES_ALL[code] ? {
+          "bg-orange-100 text-orange-700":"background:#ffedd5;color:#c2410c",
+          "bg-blue-100 text-blue-700":"background:#dbeafe;color:#1d4ed8",
+          "bg-green-100 text-green-700":"background:#dcfce7;color:#15803d",
+          "bg-red-100 text-red-600":"background:#fee2e2;color:#dc2626",
+          "bg-yellow-100 text-yellow-700":"background:#fef9c3;color:#a16207",
+          "bg-gray-100 text-gray-600":"background:#f3f4f6;color:#4b5563",
+          "bg-purple-100 text-purple-700":"background:#f3e8ff;color:#7e22ce",
+          "bg-red-200 text-red-800":"background:#fecaca;color:#991b1b",
+          "bg-amber-100 text-amber-700":"background:#fef3c7;color:#b45309",
+          "bg-teal-100 text-teal-700":"background:#ccfbf1;color:#0f766e",
+          "bg-cyan-100 text-cyan-700":"background:#cffafe;color:#0e7490",
+          "bg-red-100 text-red-700":"background:#fee2e2;color:#b91c1c",
+          "bg-slate-100 text-slate-600":"background:#f1f5f9;color:#475569",
+          "bg-slate-200 text-slate-500":"background:#e2e8f0;color:#64748b",
+        }[TS_CODES_ALL[code].color] || "" : "") : (isWe ? weStyle : "");
+        bodyRows += `<td style="${cellS}${cSt}font-weight:bold;">${code}</td>`;
+      });
+      bodyRows += `<td rowspan="2" style="${cellS}font-weight:bold;color:#1d4ed8;">${stats.totalHours||""}</td>`;
+      bodyRows += `<td rowspan="2" style="${cellS}color:#15803d;">${stats.leaveDays||""}</td>`;
+      bodyRows += `<td rowspan="2" style="${cellS}color:#dc2626;">${stats.absenceDays||""}</td>`;
+      bodyRows += `<td rowspan="2" style="${cellS}color:#6b7280;">${stats.restDays||""}</td>`;
+      bodyRows += `<td rowspan="2" style="${cellS}font-size:8px;text-align:right;">${e.notes||""}</td>`;
+      bodyRows += `</tr><tr style="${bg}">`;
+      bodyRows += `<td style="${cellS}font-size:8px;color:#7c3aed;font-weight:bold;">ساعة</td>`;
+      days.forEach(d => {
+        const dow = new Date(tsYear, tsMonth, d).getDay();
+        const isWe = dow===5||dow===6;
+        const h = e.hours[String(d)];
+        bodyRows += `<td style="${cellS}${h!=null?"background:#f5f3ff;color:#7c3aed;font-weight:600":isWe?"background:#fff7ed;":""}">${h!=null?h:""}</td>`;
+      });
+      bodyRows += `</tr>`;
+    });
+    const dayHdrs = days.map(d => {
+      const dow = new Date(tsYear, tsMonth, d).getDay();
+      const isWe = dow===5||dow===6;
+      const shift = getShiftForDay(tsYear, tsMonth, d);
+      const sc = SHIFT_TEXT_COLORS[shift]||"#374151";
+      return `<th style="border:1px solid #374151;padding:1px;text-align:center;font-size:8px;min-width:22px;${isWe?weStyle:"background:#eff6ff;"}">`+
+        `<div style="font-weight:bold;font-size:9px;${isWe?"color:#ea580c;":""}">${d}</div>`+
+        `<div style="font-size:7px;${isWe?"color:#ea580c;":""}">${DAY_NAMES_AR[dow]}</div>`+
+        `<div style="font-size:7px;font-weight:bold;color:${sc};">${shift}</div></th>`;
+    }).join("");
+    const html = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/>
+<style>
+  @page{size:A3 landscape;margin:8mm;}
+  body{font-family:'Arial',sans-serif;direction:rtl;margin:0;padding:0;}
+  table{border-collapse:collapse;width:100%;}
+  @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
+</style></head><body>
+<div style="text-align:center;margin-bottom:4px;border:2px solid #1d3557;padding:6px;border-radius:4px;">
+  <div style="font-size:13px;font-weight:bold;">الجمهورية العراقية — وزارة النفط</div>
+  <div style="font-size:12px;font-weight:bold;">شركة نفط البصرة</div>
+  <div style="font-size:11px;">شعبة مستودع الفاو — قسم السيطرة والنظم</div>
+  <div style="font-size:14px;font-weight:bold;margin-top:3px;">سجل الحضور والانصراف — ${tabTitle}</div>
+  <div style="font-size:11px;">شهر: <strong>${monthLabel} ${tsYear}</strong> &nbsp;|&nbsp; رقم العمل: 3432960600</div>
+</div>
+<table>
+<thead>
+<tr style="background:#1d3557;color:#fff;">
+  <th rowspan="2" style="border:1px solid #374151;padding:3px;font-size:9px;min-width:20px;">ت</th>
+  <th rowspan="2" style="border:1px solid #374151;padding:3px;font-size:9px;min-width:90px;">الاسم</th>
+  <th rowspan="2" style="border:1px solid #374151;padding:3px;font-size:9px;">الرقم</th>
+  <th rowspan="2" style="border:1px solid #374151;padding:3px;font-size:8px;width:28px;">نوع</th>
+  ${dayHdrs}
+  <th rowspan="2" style="border:1px solid #374151;padding:3px;font-size:9px;">الساعات</th>
+  <th rowspan="2" style="border:1px solid #374151;padding:3px;font-size:9px;">إجازة</th>
+  <th rowspan="2" style="border:1px solid #374151;padding:3px;font-size:9px;">غياب</th>
+  <th rowspan="2" style="border:1px solid #374151;padding:3px;font-size:9px;">عطل</th>
+  <th rowspan="2" style="border:1px solid #374151;padding:3px;font-size:9px;min-width:50px;">ملاحظات</th>
+</tr></thead>
+<tbody>${bodyRows}</tbody>
+</table>
+<div style="display:flex;justify-content:space-between;margin-top:20px;font-size:11px;">
+  <div style="text-align:center;"><div style="border-top:1px solid #000;width:150px;margin-top:40px;padding-top:3px;">توقيع المسؤول المباشر</div></div>
+  <div style="text-align:center;"><div style="border-top:1px solid #000;width:150px;margin-top:40px;padding-top:3px;">توقيع رئيس القسم</div></div>
+  <div style="text-align:center;"><div style="border-top:1px solid #000;width:150px;margin-top:40px;padding-top:3px;">توقيع مدير الشعبة</div></div>
+</div>
+</body></html>`;
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;top:-999px;left:-999px;width:1500px;height:1000px;border:none;";
+    document.body.appendChild(iframe);
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      setTimeout(() => document.body.removeChild(iframe), 3000);
+    }, 900);
+    addToast("جارٍ طباعة الفورمة الرسمية", "info");
+  };
+
   const getCellColor = (code) => TS_CODES_ALL[code]?.color || "";
   const isWeekendDay = (d) => { const dow = new Date(tsYear, tsMonth, d).getDay(); return dow===5||dow===6; };
   const dayIsToday = (d) => d===new Date().getDate()&&tsMonth===new Date().getMonth()&&tsYear===new Date().getFullYear();
@@ -5192,6 +5420,10 @@ function TimeSheetPage({ emp }) {
           <button onClick={exportPDF}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700">
             <Printer size={14}/> PDF
+          </button>
+          <button onClick={exportOfficialForm}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-indigo-700 text-white hover:bg-indigo-800">
+            <FileCheck size={14}/> فورمة رسمية
           </button>
         </div>
       </div>
