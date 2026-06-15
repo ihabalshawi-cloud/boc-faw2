@@ -962,7 +962,7 @@ function recordLoginAttempt(account, status, failReason = null) {
   if (hist.length > 500) hist.length = 500;
   storage.set("login_history", hist);
   if (status === "success" && sessionId) {
-    sessionStorage.setItem("boc_session_id", sessionId);
+    try { sessionStorage.setItem("boc_session_id", sessionId); } catch {}
     const sessions = storage.get("active_sessions", []);
     const idx = sessions.findIndex(s => s.userId === account.id);
     const sess = { sessionId, userId:account.id, userName:account.name, userJobNum:account.jobNum, loginTime:rec.loginTime, device, browser, os };
@@ -971,7 +971,8 @@ function recordLoginAttempt(account, status, failReason = null) {
   }
 }
 function recordLogoutFn(userId) {
-  const sessionId = sessionStorage.getItem("boc_session_id");
+  let sessionId = null;
+  try { sessionId = sessionStorage.getItem("boc_session_id"); } catch {}
   if (!sessionId) return;
   const hist = storage.get("login_history", []);
   const i = hist.findIndex(h => h.sessionId === sessionId);
@@ -982,7 +983,7 @@ function recordLogoutFn(userId) {
   }
   const sessions = storage.get("active_sessions", []);
   storage.set("active_sessions", sessions.filter(s => s.sessionId !== sessionId));
-  sessionStorage.removeItem("boc_session_id");
+  try { sessionStorage.removeItem("boc_session_id"); } catch {}
 }
 
 // ========== شاشة تسجيل الدخول ==========
@@ -1042,11 +1043,9 @@ function LoginScreen({ onLogin, dark }) {
     try {
 
     // ── 1. جلب بيانات الحساب ───────────────────────────────────────────────
-    console.log("[login] step1: fetch account, isConnected=", isConnected);
     let account = null;
     if (isConnected) {
       const fb = await FirebaseAPI.fetchAccount(user.trim());
-      console.log("[login] firebase account=", fb ? "found" : "null");
       if (fb) {
         account = fb;
         storage.set(`cached_account_${fb.id}`, fb);
@@ -1054,14 +1053,11 @@ function LoginScreen({ onLogin, dark }) {
     }
     if (!account) account = storage.get(`cached_account_${user.trim()}`)
                          || ACCOUNTS.find(a => a.jobNum === user.trim());
-    console.log("[login] step1 done, account=", account ? `id=${account.id}` : "not found");
     if (!account) { setErr("الرقم الوظيفي غير موجود"); return; }
 
     // ── 2. التحقق من كلمة المرور ───────────────────────────────────────────
-    console.log("[login] step2: password check");
     let isValid = false;
     const inputHash = await hashPassword(pass.trim());
-    console.log("[login] hashPassword done, inputHash=", inputHash ? "ok" : "null (no crypto.subtle)");
     const localPass = passStore.get(`pass_${account.id}`);
     const defaultPass = (ACCOUNTS.find(a => a.jobNum === user.trim()) || {}).password || "";
 
@@ -1123,21 +1119,16 @@ function LoginScreen({ onLogin, dark }) {
       if (isValid && inputHash) passStore.set(`pass_${account.id}`, inputHash);
     }
 
-    console.log("[login] step3: isValid=", isValid);
     if (isValid) {
-      console.log("[login] step3a: success path");
       clearLockData(user.trim());
-      sessionStorage.setItem("boc_session", JSON.stringify({ acctId: account.id, expiry: Date.now() + 8 * 3600000 }));
+      try { sessionStorage.setItem("boc_session", JSON.stringify({ acctId: account.id, expiry: Date.now() + 8 * 3600000 })); } catch {}
       const defaultPasswords = ["1001","1002","1003","1004","1005","1006","1007","1008","1009","1010","1011","2001","2002","2003","2004","2005","2006","2007","2008","2009","2010","2011","2012","2013","2014","2015","2016","2017","2018","3001","3002","3003","3004"];
-      if (defaultPasswords.includes(pass.trim()) && !localPass) sessionStorage.setItem("force_password_change", "true");
-      console.log("[login] step3b: calling recordLoginAttempt");
+      if (defaultPasswords.includes(pass.trim()) && !localPass) { try { sessionStorage.setItem("force_password_change", "true"); } catch {} }
       // Check if account is disabled
       const empSt = getEmpStatus(account.id);
       if (!empSt.active) { setErr("هذا الحساب معطّل. تواصل مع المشرف."); recordLoginAttempt(account, "failed", "account_disabled"); return; }
       recordLoginAttempt(account, "success");
-      console.log("[login] step3c: calling onLogin");
       onLogin(account);
-      console.log("[login] step3d: onLogin done");
     } else {
       const locked = recordFail(user.trim());
       const secs = lockSecsRemaining(user.trim());
@@ -1153,7 +1144,7 @@ function LoginScreen({ onLogin, dark }) {
 
     } catch (e) {
       console.error("login error:", e);
-      setErr(`خطأ: ${e?.message || String(e)}`);
+      setErr("حدث خطأ غير متوقع — حاول مجدداً");
     } finally {
       setLoading(false);
     }
