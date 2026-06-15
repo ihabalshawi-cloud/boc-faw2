@@ -521,6 +521,284 @@ const FirebaseAPI = {
   },
 };
 
+// ========== Google Drive API ==========
+const GDRIVE_CLIENT_ID_KEY = "gdrive_client_id";
+const GDRIVE_SCOPES = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly";
+const GDRIVE_WARN_PCT  = 80; // تحذير عند 80%
+const GDRIVE_CRIT_PCT  = 95; // تنبيه حرج عند 95%
+
+const GDriveAPI = {
+  _token: null,
+  _tokenClient: null,
+
+  _loadGIS: () => new Promise((resolve, reject) => {
+    if (window.google?.accounts?.oauth2) { resolve(); return; }
+    const s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client";
+    s.async = true; s.defer = true;
+    s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  }),
+
+  init: async (clientId) => {
+    if (!clientId) throw new Error("Client ID مفقود");
+    await GDriveAPI._loadGIS();
+    GDriveAPI._tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: GDRIVE_SCOPES,
+      callback: () => {},
+    });
+    const stored = sessionStorage.getItem("gdrive_token");
+    if (stored) GDriveAPI._token = stored;
+  },
+
+  authenticate: (forceConsent = false) => new Promise((resolve, reject) => {
+    if (!GDriveAPI._tokenClient) { reject(new Error("GDrive غير مهيأ")); return; }
+    GDriveAPI._tokenClient.callback = (response) => {
+      if (response.error) { reject(response); return; }
+      GDriveAPI._token = response.access_token;
+      sessionStorage.setItem("gdrive_token", response.access_token);
+      resolve(response);
+    };
+    GDriveAPI._tokenClient.requestAccessToken({ prompt: forceConsent ? "consent" : "" });
+  }),
+
+  isReady: () => !!GDriveAPI._token,
+
+  uploadFile: async (file, onProgress) => {
+    if (!GDriveAPI._token) throw new Error("غير متصل بـ Google Drive");
+    const meta = { name: file.name, mimeType: file.type || "application/octet-stream" };
+    const form = new FormData();
+    form.append("metadata", new Blob([JSON.stringify(meta)], { type: "application/json" }));
+    form.append("file", file);
+    const res = await fetch(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,size",
+      { method: "POST", headers: { Authorization: `Bearer ${GDriveAPI._token}` }, body: form }
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 401) { GDriveAPI._token = null; sessionStorage.removeItem("gdrive_token"); }
+      throw new Error(err.error?.message || `خطأ ${res.status}`);
+    }
+    return await res.json();
+  },
+
+  getQuota: async () => {
+    if (!GDriveAPI._token) return null;
+    try {
+      const res = await fetch(
+        "https://www.googleapis.com/drive/v3/about?fields=storageQuota",
+        { headers: { Authorization: `Bearer ${GDriveAPI._token}` } }
+      );
+      if (!res.ok) return null;
+      const { storageQuota } = await res.json();
+      const limit = Number(storageQuota.limit || 0);
+      const usage = Number(storageQuota.usage || 0);
+      const pct = limit > 0 ? Math.round((usage / limit) * 100) : 0;
+      const fmtGB = (b) => b > 1e9 ? (b/1e9).toFixed(2)+" GB" : b > 1e6 ? (b/1e6).toFixed(1)+" MB" : (b/1e3).toFixed(0)+" KB";
+      return { limit, usage, pct, limitStr: fmtGB(limit), usageStr: fmtGB(usage), freeStr: fmtGB(limit - usage) };
+    } catch { return null; }
+  },
+
+  deleteFile: async (fileId) => {
+    if (!GDriveAPI._token || !fileId) return;
+    try {
+      await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${GDriveAPI._token}` }
+      });
+    } catch {}
+  },
+};
+
+// ── سياق Google Drive ──
+const GDriveContext = createContext({
+  isReady: false, quota: null, connecting: false,
+  connect: async () => {}, disconnect: () => {}, refreshQuota: async () => {},
+  uploadFile: async () => { throw new Error("not connected"); }, deleteFile: async () => {},
+});
+const useGDrive = () => useContext(GDriveContext);
+
+function GDriveProvider({ children }) {
+  const [isReady, setIsReady] = useState(() => !!sessionStorage.getItem("gdrive_token"));
+  const [quota, setQuota]     = useState(null);
+  const [connecting, setConnecting] = useState(false);
+  const addToast = useToast();
+
+  const refreshQuota = useCallback(async () => {
+    const q = await GDriveAPI.getQuota();
+    if (q) setQuota(q);
+  }, []);
+
+  // استعادة الجلسة عند التحميل
+  useEffect(() => {
+    const clientId = storage.get(GDRIVE_CLIENT_ID_KEY, "");
+    const token = sessionStorage.getItem("gdrive_token");
+    if (clientId && token) {
+      GDriveAPI.init(clientId).then(() => { if (GDriveAPI.isReady()) refreshQuota(); }).catch(() => {});
+    }
+  }, [refreshQuota]);
+
+  const connect = useCallback(async (clientId) => {
+    if (!clientId?.trim()) { addToast("أدخل Client ID أولاً", "error"); return; }
+    setConnecting(true);
+    try {
+      storage.set(GDRIVE_CLIENT_ID_KEY, clientId.trim());
+      await GDriveAPI.init(clientId.trim());
+      await GDriveAPI.authenticate(true);
+      setIsReady(true);
+      const q = await GDriveAPI.getQuota();
+      if (q) setQuota(q);
+      addToast("تم الاتصال بـ Google Drive ✅", "success");
+    } catch (e) {
+      addToast("فشل الاتصال — تحقق من Client ID وإعدادات OAuth", "error");
+    }
+    setConnecting(false);
+  }, [addToast]);
+
+  const disconnect = useCallback(() => {
+    GDriveAPI._token = null;
+    sessionStorage.removeItem("gdrive_token");
+    setIsReady(false);
+    setQuota(null);
+    addToast("تم قطع الاتصال بـ Google Drive", "info");
+  }, [addToast]);
+
+  const uploadFile = useCallback(async (file) => {
+    if (!GDriveAPI.isReady()) throw new Error("غير متصل");
+    const result = await GDriveAPI.uploadFile(file);
+    // تحديث الكوتا بعد كل رفع
+    const q = await GDriveAPI.getQuota();
+    if (q) setQuota(q);
+    return result;
+  }, []);
+
+  const deleteFile = useCallback(async (fileId) => {
+    await GDriveAPI.deleteFile(fileId);
+    const q = await GDriveAPI.getQuota();
+    if (q) setQuota(q);
+  }, []);
+
+  return (
+    <GDriveContext.Provider value={{ isReady, quota, connecting, connect, disconnect, refreshQuota, uploadFile, deleteFile }}>
+      {children}
+    </GDriveContext.Provider>
+  );
+}
+
+// ── مكوّن إعدادات Google Drive ──
+function GDriveSettingsModal({ onClose }) {
+  const { isReady, quota, connecting, connect, disconnect } = useGDrive();
+  const [clientId, setClientId] = useState(storage.get(GDRIVE_CLIENT_ID_KEY, ""));
+  const [showGuide, setShowGuide] = useState(false);
+
+  const warnColor = quota?.pct >= GDRIVE_CRIT_PCT ? "text-red-600" : quota?.pct >= GDRIVE_WARN_PCT ? "text-amber-600" : "text-emerald-600";
+  const barColor  = quota?.pct >= GDRIVE_CRIT_PCT ? "bg-red-500" : quota?.pct >= GDRIVE_WARN_PCT ? "bg-amber-500" : "bg-emerald-500";
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl" dir="rtl" onClick={e=>e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-5">
+          <h3 className="font-bold text-lg flex items-center gap-2">
+            <span className="text-2xl">☁️</span> إعدادات Google Drive
+          </h3>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18}/></button>
+        </div>
+
+        {isReady ? (
+          <div className="space-y-4">
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-2">
+              <span className="text-emerald-600 text-lg">✅</span>
+              <span className="font-medium text-emerald-800">متصل بـ Google Drive</span>
+            </div>
+
+            {quota && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm font-medium">
+                  <span>مساحة التخزين</span>
+                  <span className={warnColor}>{quota.pct}% مستخدم</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                  <div className={`h-3 rounded-full transition-all ${barColor}`} style={{width:`${Math.min(quota.pct,100)}%`}}/>
+                </div>
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>المستخدم: {quota.usageStr}</span>
+                  <span>الحد: {quota.limitStr}</span>
+                </div>
+                <div className="text-xs text-center text-gray-500">المتاح: <strong>{quota.freeStr}</strong></div>
+                {quota.pct >= GDRIVE_CRIT_PCT && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">
+                    ⚠️ تحذير حرج: المساحة تكاد تكتمل! احذف ملفات قديمة أو وسّع مساحتك.
+                  </div>
+                )}
+                {quota.pct >= GDRIVE_WARN_PCT && quota.pct < GDRIVE_CRIT_PCT && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
+                    📦 تحذير: اقتربت من الحد الأقصى ({quota.pct}%). يُنصح بتوسيع المساحة.
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button onClick={disconnect} className="w-full py-2 border border-red-300 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 transition-colors">
+              قطع الاتصال
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold mb-1">Google OAuth2 Client ID</label>
+              <input value={clientId} onChange={e=>setClientId(e.target.value)}
+                placeholder="xxxxxx.apps.googleusercontent.com"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono" dir="ltr"/>
+            </div>
+
+            <button onClick={()=>setShowGuide(!showGuide)} className="text-xs text-blue-600 hover:underline">
+              {showGuide ? "▲ إخفاء دليل الإعداد" : "▼ كيف أحصل على Client ID؟"}
+            </button>
+
+            {showGuide && (
+              <div className="bg-blue-50 rounded-xl p-4 text-xs space-y-1.5 border border-blue-100 text-right">
+                <p className="font-bold text-blue-800 mb-2">خطوات إعداد Google Drive API:</p>
+                <p>1️⃣ اذهب إلى <strong>console.cloud.google.com</strong></p>
+                <p>2️⃣ أنشئ مشروعاً جديداً أو اختر موجوداً</p>
+                <p>3️⃣ فعّل <strong>Google Drive API</strong> من مكتبة APIs</p>
+                <p>4️⃣ اذهب إلى <strong>Credentials ← Create OAuth 2.0 Client ID</strong></p>
+                <p>5️⃣ النوع: <strong>Web application</strong></p>
+                <p>6️⃣ في "Authorized JavaScript origins" أضف عنوان التطبيق</p>
+                <p>7️⃣ انسخ الـ <strong>Client ID</strong> وضعه أعلاه</p>
+              </div>
+            )}
+
+            <button onClick={()=>connect(clientId)} disabled={connecting || !clientId.trim()}
+              className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm disabled:opacity-50 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+              {connecting ? "جاري الاتصال..." : <><span>☁️</span> ربط Google Drive</>}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── شريط تحذير المساحة ──
+function GDriveQuotaBar() {
+  const { isReady, quota } = useGDrive();
+  if (!isReady || !quota || quota.pct < GDRIVE_WARN_PCT) return null;
+  const isCrit = quota.pct >= GDRIVE_CRIT_PCT;
+  return (
+    <div className={`px-4 py-2 text-sm font-medium flex items-center gap-2 ${isCrit ? "bg-red-600 text-white" : "bg-amber-500 text-white"}`}>
+      <AlertTriangle size={15} className="shrink-0"/>
+      <span>
+        {isCrit
+          ? `🚨 Google Drive ممتلئ تقريباً (${quota.pct}%) — المتاح: ${quota.freeStr} فقط!`
+          : `⚠️ تحذير: مساحة Google Drive وصلت ${quota.pct}% (متاح: ${quota.freeStr})`
+        }
+      </span>
+    </div>
+  );
+}
+
+
 // ========== Hook: حالة الاتصال ==========
 function useConnectionStatus() {
   const [isConnected, setIsConnected] = useState(false);
@@ -4602,39 +4880,73 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
   const [form, setForm] = useState({ name:"", type:"وثيقة هندسية", date:new Date().toISOString().split("T")[0], size:"", uploadedBy:emp.name });
   const [fileData, setFileData] = useState(null);
   const [fileMime, setFileMime] = useState("");
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [previewDoc, setPreviewDoc] = useState(null);
   const fileRef = useRef(null);
   const addToast = useToast();
   const confirm = useConfirm();
+  const gDrive = useGDrive();
 
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 3 * 1024 * 1024) { addToast("حجم الملف يتجاوز 3 ميغابايت — اختر ملفاً أصغر", "error"); return; }
+    // Google Drive: no size limit warning needed. Local: 3 MB cap.
+    if (!gDrive.isReady && file.size > 3 * 1024 * 1024) { addToast("حجم الملف يتجاوز 3 ميغابايت — فعّل Google Drive لرفع ملفات أكبر", "warning"); return; }
+    setSelectedFile(file);
+    setFileMime(file.type);
+    setForm(prev => ({ ...prev, name: prev.name || file.name, size: (file.size / 1024).toFixed(0) + " KB" }));
+    // Preview (images + local fallback)
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      setFileData(ev.target.result);
-      setFileMime(file.type);
-      setForm(prev => ({ ...prev, name: prev.name || file.name, size: (file.size / 1024).toFixed(0) + " KB" }));
-    };
+    reader.onload = (ev) => setFileData(ev.target.result);
     reader.readAsDataURL(file);
   };
 
-  const submit = () => {
-    if (!form.name.trim()) return;
-    addDoc(proj.id, { ...form, fileData: fileData || null, fileMime: fileMime || null });
+  const resetForm = () => {
     setShowAdd(false);
     setForm({ name:"", type:"وثيقة هندسية", date:new Date().toISOString().split("T")[0], size:"", uploadedBy:emp.name });
-    setFileData(null); setFileMime("");
+    setFileData(null); setFileMime(""); setSelectedFile(null);
     if (fileRef.current) fileRef.current.value = "";
-    addToast("تمت إضافة الوثيقة","success");
   };
 
-  const doDelete = async (dId) => {
-    if (await confirm("حذف هذه الوثيقة؟", { title:"حذف الوثيقة", ok:"حذف" })) { delDoc(proj.id, dId); addToast("تم الحذف","info"); }
+  const submit = async () => {
+    if (!form.name.trim()) return;
+    setUploading(true);
+    try {
+      if (selectedFile && gDrive.isReady) {
+        // رفع إلى Google Drive
+        const result = await gDrive.uploadFile(selectedFile);
+        addDoc(proj.id, {
+          ...form,
+          fileData: null, fileMime: fileMime || null,
+          driveFileId: result.id,
+          driveViewLink: result.webViewLink,
+          driveDownloadLink: result.webContentLink,
+          size: form.size || (Number(result.size)/1024).toFixed(0) + " KB",
+        });
+        addToast("تم رفع الملف إلى Google Drive ✅", "success");
+      } else {
+        addDoc(proj.id, { ...form, fileData: fileData || null, fileMime: fileMime || null });
+        addToast("تمت إضافة الوثيقة","success");
+      }
+      resetForm();
+    } catch (e) {
+      addToast(`فشل الرفع: ${e.message}`, "error");
+    }
+    setUploading(false);
+  };
+
+  const doDelete = async (d) => {
+    if (!await confirm("حذف هذه الوثيقة؟", { title:"حذف الوثيقة", ok:"حذف" })) return;
+    if (d.driveFileId && gDrive.isReady) {
+      await gDrive.deleteFile(d.driveFileId);
+    }
+    delDoc(proj.id, d.id);
+    addToast("تم الحذف","info");
   };
 
   const downloadFile = (d) => {
+    if (d.driveDownloadLink) { window.open(d.driveDownloadLink, "_blank"); return; }
     if (!d.fileData) return;
     const a = document.createElement("a");
     a.href = d.fileData;
@@ -4655,12 +4967,12 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
               <span className="font-bold">{previewDoc.name}</span>
               <button onClick={()=>setPreviewDoc(null)} className="p-1 rounded-lg hover:bg-gray-100"><X size={18}/></button>
             </div>
-            {isImage(previewDoc.fileMime)
+            {isImage(previewDoc.fileMime) && previewDoc.fileData
               ? <img src={previewDoc.fileData} alt={previewDoc.name} className="max-w-full rounded-xl"/>
-              : <div className="text-center py-8 text-secondary"><p className="text-5xl mb-3">📄</p><p>{previewDoc.name}</p></div>
+              : <div className="text-center py-8 text-secondary"><p className="text-5xl mb-3">{previewDoc.driveFileId ? "☁️" : "📄"}</p><p>{previewDoc.name}</p></div>
             }
             <button onClick={()=>downloadFile(previewDoc)} className="mt-3 w-full py-2 bg-blue-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-              <Download size={14}/> تحميل الملف
+              <Download size={14}/> {previewDoc.driveFileId ? "فتح في Google Drive" : "تحميل الملف"}
             </button>
           </div>
         </div>
@@ -4668,14 +4980,26 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
 
       <div className="flex justify-between items-center">
         <h3 className="font-bold flex items-center gap-2"><FolderOpen size={16}/> وثائق المشروع</h3>
-        <button onClick={()=>setShowAdd(!showAdd)} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">
-          <Plus size={14}/> إضافة وثيقة / صورة
-        </button>
+        <div className="flex items-center gap-2">
+          {gDrive.isReady
+            ? <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">☁️ Drive متصل</span>
+            : <span className="text-xs text-gray-400 flex items-center gap-1">📦 تخزين محلي</span>
+          }
+          <button onClick={()=>setShowAdd(!showAdd)} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">
+            <Plus size={14}/> إضافة وثيقة / صورة
+          </button>
+        </div>
       </div>
 
       {showAdd && (
         <div className="card rounded-2xl border border-color p-4">
-          <h4 className="font-bold text-sm mb-3">إضافة وثيقة أو صورة جديدة</h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-bold text-sm">إضافة وثيقة أو صورة</h4>
+            {gDrive.isReady
+              ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">☁️ سيُرفع إلى Google Drive</span>
+              : <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">📦 تخزين محلي (حد 3 MB)</span>
+            }
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div><label className="block text-xs font-bold text-secondary mb-1">اسم الوثيقة</label>
               <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm" placeholder="اسم الملف أو الوثيقة"/></div>
@@ -4687,26 +5011,30 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
             <div><label className="block text-xs font-bold text-secondary mb-1">رُفع بواسطة</label>
               <input value={form.uploadedBy} onChange={e=>setForm({...form,uploadedBy:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
             <div className="md:col-span-2">
-              <label className="block text-xs font-bold text-secondary mb-1">رفع ملف أو صورة (اختياري — حد أقصى 3 ميغابايت)</label>
+              <label className="block text-xs font-bold text-secondary mb-1">
+                اختر ملف أو صورة {gDrive.isReady ? "(بدون حد — Google Drive)" : "(حد أقصى 3 ميغابايت محلياً)"}
+              </label>
               <div className="flex items-center gap-3">
-                <input ref={fileRef} type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
+                <input ref={fileRef} type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
                   onChange={handleFileSelect}
                   className="block text-sm text-secondary file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
-                {fileData && (
-                  <button onClick={()=>{ setFileData(null); setFileMime(""); if(fileRef.current) fileRef.current.value=""; }} className="text-red-400 hover:text-red-600"><X size={16}/></button>
+                {selectedFile && (
+                  <button onClick={()=>{ setFileData(null); setFileMime(""); setSelectedFile(null); if(fileRef.current) fileRef.current.value=""; }} className="text-red-400 hover:text-red-600"><X size={16}/></button>
                 )}
               </div>
               {fileData && isImage(fileMime) && (
                 <img src={fileData} alt="معاينة" className="mt-2 max-h-32 rounded-lg border border-color object-contain"/>
               )}
-              {fileData && !isImage(fileMime) && (
-                <p className="mt-1 text-xs text-emerald-600 font-medium">✓ تم اختيار الملف: {form.name}</p>
+              {selectedFile && !isImage(fileMime) && (
+                <p className="mt-1 text-xs text-emerald-600 font-medium">✓ تم اختيار: {selectedFile.name} ({form.size})</p>
               )}
             </div>
           </div>
           <div className="flex gap-2 justify-end mt-3 pt-3 border-t border-color">
-            <button onClick={()=>{ setShowAdd(false); setFileData(null); setFileMime(""); if(fileRef.current) fileRef.current.value=""; }} className="px-4 py-2 rounded-xl btn-secondary text-sm">إلغاء</button>
-            <button onClick={submit} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> إضافة</button>
+            <button onClick={resetForm} className="px-4 py-2 rounded-xl btn-secondary text-sm">إلغاء</button>
+            <button onClick={submit} disabled={uploading} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm disabled:opacity-60">
+              {uploading ? <><span className="animate-spin">⏳</span> جارٍ الرفع...</> : <><Save size={14}/> إضافة</>}
+            </button>
           </div>
         </div>
       )}
@@ -4744,8 +5072,14 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
                   )}
                 </div>
               </div>
-              <button onClick={()=>doDelete(d.id)} className="p-1.5 hover:bg-red-50 text-red-400 rounded-lg flex-shrink-0"><Trash2 size={14}/></button>
+              <button onClick={()=>doDelete(d)} className="p-1.5 hover:bg-red-50 text-red-400 rounded-lg flex-shrink-0"><Trash2 size={14}/></button>
             </div>
+            {d.driveFileId && (
+              <div className="mt-1 pt-1 border-t border-color flex items-center gap-1">
+                <span className="text-[10px] text-emerald-600 font-medium">☁️ Google Drive</span>
+                <a href={d.driveViewLink} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 hover:underline">فتح</a>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -5678,8 +6012,14 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
     menuItems.unshift({ id:"admin_dashboard", label:"لوحة الإدارة", icon:<Shield size={17}/> });
   }
 
+  const [showDriveSettings, setShowDriveSettings] = useState(false);
+  const gDrive = useGDrive();
+
   return (
     <div className="min-h-screen bg-main" dir="rtl">
+      {showDriveSettings && <GDriveSettingsModal onClose={()=>setShowDriveSettings(false)}/>}
+      {/* Google Drive quota warning bar */}
+      <GDriveQuotaBar/>
       {/* Header */}
       <div className="header-bar px-6 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
@@ -5687,6 +6027,14 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           <div><h1 className="font-bold">شركة نفط البصرة</h1><p className="text-xs text-secondary">شعبة مستودع الفاو</p></div>
         </div>
         <div className="flex items-center gap-3">
+          {/* Google Drive Button */}
+          <button onClick={()=>setShowDriveSettings(true)}
+            title={gDrive.isReady ? `Google Drive متصل — ${gDrive.quota?.pct||0}% مستخدم` : "ربط Google Drive"}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-colors ${gDrive.isReady ? "border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100" : "btn-secondary border-color text-secondary hover:text-primary"}`}>
+            <span>☁️</span>
+            <span className="hidden md:inline">{gDrive.isReady ? `Drive ${gDrive.quota?.pct||""}%` : "Drive"}</span>
+            {gDrive.isReady && gDrive.quota?.pct >= GDRIVE_WARN_PCT && <span className="text-amber-500">⚠️</span>}
+          </button>
           {/* Global Search Button */}
           <button onClick={()=>setShowSearch(true)} className="flex items-center gap-2 px-3 py-1.5 rounded-xl btn-secondary border border-color text-secondary hover:text-primary text-xs">
             <Search size={14}/> <span className="hidden md:inline">بحث</span> <kbd className="hidden md:inline px-1 bg-hover rounded text-[10px]">Ctrl K</kbd>
@@ -5900,11 +6248,13 @@ export default function App() {
   return (
     <ToastProvider>
       <ConfirmProvider>
-        <style>{style}</style>
-        {user
-          ? <Dashboard emp={user} onLogout={()=>{recordLogoutFn(user?.id);sessionStorage.clear();setUser(null);}} dark={dark} setDark={setDark}/>
-          : <LoginScreen onLogin={setUser} dark={dark}/>
-        }
+        <GDriveProvider>
+          <style>{style}</style>
+          {user
+            ? <Dashboard emp={user} onLogout={()=>{recordLogoutFn(user?.id);sessionStorage.clear();setUser(null);}} dark={dark} setDark={setDark}/>
+            : <LoginScreen onLogin={setUser} dark={dark}/>
+          }
+        </GDriveProvider>
       </ConfirmProvider>
     </ToastProvider>
   );
