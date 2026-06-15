@@ -1104,7 +1104,7 @@ function LoginScreen({ onLogin, dark }) {
 
     } catch (e) {
       console.error("login error:", e);
-      setErr("حدث خطأ غير متوقع — حاول مجدداً");
+      setErr(`خطأ: ${e?.message || String(e)}`);
     } finally {
       setLoading(false);
     }
