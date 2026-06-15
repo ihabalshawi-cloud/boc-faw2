@@ -544,7 +544,7 @@ const GDriveAPI = {
 
   // ── OAuth بدون مكتبة GIS (fallback إذا كانت المكتبة محجوبة) ──
   oauthPopup: (clientId) => new Promise((resolve, reject) => {
-    const redirectUri = window.location.origin + "/";
+    const redirectUri = window.location.origin + "/oauth-callback.html";
     const state = Math.random().toString(36).slice(2, 10);
     const params = new URLSearchParams({
       client_id: clientId,
@@ -554,38 +554,54 @@ const GDriveAPI = {
       state,
       include_granted_scopes: "true",
     });
+
+    let settled = false;
+    const settle = (fn) => { if (!settled) { settled = true; fn(); } };
+
+    const cleanup = (timer, closedCheck) => {
+      clearTimeout(timer); clearInterval(closedCheck);
+      window.removeEventListener("message", handleMessage);
+    };
+
+    const handleMessage = (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (!event.data || event.data.type !== "gdrive_oauth_callback") return;
+      cleanup(timer, closedCheck);
+      const { access_token, state: retState, error } = event.data;
+      if (error) { settle(() => reject(new Error(error))); return; }
+      if (retState !== state) { settle(() => reject(new Error("state_mismatch"))); return; }
+      if (!access_token) { settle(() => reject(new Error("no_access_token"))); return; }
+      settle(() => resolve(access_token));
+    };
+
+    window.addEventListener("message", handleMessage);
+
     const popup = window.open(
       "https://accounts.google.com/o/oauth2/v2/auth?" + params.toString(),
       "gdrive_oauth",
       "width=520,height=660,menubar=no,toolbar=no,scrollbars=yes,resizable=yes"
     );
-    if (!popup || popup.closed) { reject(new Error("popup_blocked")); return; }
+    if (!popup || popup.closed) {
+      window.removeEventListener("message", handleMessage);
+      reject(new Error("popup_blocked")); return;
+    }
 
     const timer = setTimeout(() => {
-      clearInterval(interval);
+      cleanup(timer, closedCheck);
       try { popup.close(); } catch {}
-      reject(new Error("timeout"));
+      settle(() => reject(new Error("timeout")));
     }, 120000);
 
-    const interval = setInterval(() => {
-      try {
-        if (popup.closed) {
-          clearInterval(interval); clearTimeout(timer);
-          reject(new Error("popup_closed_by_user")); return;
-        }
-        const href = popup.location.href;
-        if (href.startsWith(window.location.origin)) {
-          clearInterval(interval); clearTimeout(timer);
-          const hash = new URLSearchParams(popup.location.hash.replace(/^#/, ""));
-          const token = hash.get("access_token");
-          const retState = hash.get("state");
-          try { popup.close(); } catch {}
-          if (retState !== state) { reject(new Error("state_mismatch")); return; }
-          if (!token) { reject(new Error("no_access_token")); return; }
-          resolve(token);
-        }
-      } catch {} // cross-origin while on google.com — keep waiting
-    }, 400);
+    // راقب إغلاق النافذة — أعطِ 700ms فرصة لـ postMessage أن يصل أولاً
+    const closedCheck = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(closedCheck);
+        setTimeout(() => {
+          cleanup(timer, closedCheck);
+          settle(() => reject(new Error("popup_closed_by_user")));
+        }, 700);
+      }
+    }, 500);
   }),
 
   init: async (clientId) => {
@@ -749,7 +765,7 @@ function GDriveSettingsModal({ onClose }) {
 
   const warnColor = quota?.pct >= GDRIVE_CRIT_PCT ? "text-red-600" : quota?.pct >= GDRIVE_WARN_PCT ? "text-amber-600" : "text-emerald-600";
   const barColor  = quota?.pct >= GDRIVE_CRIT_PCT ? "bg-red-500" : quota?.pct >= GDRIVE_WARN_PCT ? "bg-amber-500" : "bg-emerald-500";
-  const redirectUri = window.location.origin + "/";
+  const redirectUri = window.location.origin + "/oauth-callback.html";
 
   // تحميل GIS عند فتح المودال
   useEffect(() => {
