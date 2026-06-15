@@ -565,7 +565,11 @@ const GDriveAPI = {
         const b = await res.json().catch(() => ({}));
         const r = b.error?.errors?.[0]?.reason || "";
         const m = b.error?.message || b.error || "";
-        if (r === "storageQuotaExceeded") throw new Error("امتلأت مساحة Google Drive");
+        if (r === "storageQuotaExceeded") {
+          if (b.error?._quotaFix === "service_account_quota")
+            throw new Error("خطأ في إعداد Drive: Service Account لا يملك مساحة تخزين — أضف GDRIVE_REFRESH_TOKEN في إعدادات Vercel");
+          throw new Error("امتلأت مساحة Google Drive — احذف ملفات قديمة أو رفّع الحصة");
+        }
         throw new Error(String(m) || `خطأ HTTP ${res.status}`);
       }
       onProgress?.(100);
@@ -587,6 +591,8 @@ const GDriveAPI = {
     } catch { throw new Error("تعذّر الوصول إلى خادم الرفع"); }
     if (!initRes.ok) {
       const b = await initRes.json().catch(() => ({}));
+      if (b._quotaFix === "service_account_quota")
+        throw new Error("خطأ في إعداد Drive: Service Account لا يملك مساحة تخزين — أضف GDRIVE_REFRESH_TOKEN في إعدادات Vercel");
       throw new Error(b.error || `فشل بدء الجلسة: HTTP ${initRes.status}`);
     }
     const { sessionUri } = await initRes.json();
@@ -622,7 +628,11 @@ const GDriveAPI = {
       } else {
         const b = await chunkRes.json().catch(() => ({}));
         const r = b.error?.errors?.[0]?.reason || "";
-        if (r === "storageQuotaExceeded") throw new Error("امتلأت مساحة Google Drive");
+        if (r === "storageQuotaExceeded") {
+          if (b.error?._quotaFix === "service_account_quota")
+            throw new Error("خطأ في إعداد Drive: Service Account لا يملك مساحة تخزين — أضف GDRIVE_REFRESH_TOKEN في إعدادات Vercel");
+          throw new Error("امتلأت مساحة Google Drive — احذف ملفات قديمة أو رفّع الحصة");
+        }
         throw new Error(b.error?.message || `خطأ في الجزء ${chunkRes.status}`);
       }
     }
@@ -633,12 +643,20 @@ const GDriveAPI = {
     try {
       const res = await fetch(`${GDRIVE_PROXY}?action=quota`);
       if (!res.ok) return null;
-      const { storageQuota } = await res.json();
+      const data = await res.json();
+      const { storageQuota, _authWarning } = data;
+      if (!storageQuota) return null;
       const limit = Number(storageQuota.limit || 0);
       const usage = Number(storageQuota.usage || 0);
-      const pct = limit > 0 ? Math.round((usage / limit) * 100) : 0;
-      const fmtGB = (b) => b > 1e9 ? (b/1e9).toFixed(2)+" GB" : b > 1e6 ? (b/1e6).toFixed(1)+" MB" : (b/1e3).toFixed(0)+" KB";
-      return { limit, usage, pct, limitStr: fmtGB(limit), usageStr: fmtGB(usage), freeStr: fmtGB(limit - usage) };
+      const pct   = limit > 0 ? Math.round((usage / limit) * 100) : 0;
+      const fmtGB = (b) => b >= 1e9 ? (b/1e9).toFixed(2)+" GB" : b >= 1e6 ? (b/1e6).toFixed(1)+" MB" : b >= 1e3 ? (b/1e3).toFixed(0)+" KB" : b+" B";
+      return {
+        limit, usage, pct,
+        limitStr: limit > 0 ? fmtGB(limit) : "—",
+        usageStr: fmtGB(usage),
+        freeStr:  limit > 0 ? fmtGB(limit - usage) : "غير محدود",
+        serviceAccountWarning: _authWarning === "service_account_no_quota",
+      };
     } catch { return null; }
   },
 
@@ -743,6 +761,15 @@ function GDriveSettingsModal({ onClose }) {
                 <div className="text-xs text-center text-gray-500">المتاح: <strong>{quota.freeStr}</strong></div>
                 {quota.pct >= GDRIVE_CRIT_PCT && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">⚠️ تحذير حرج: المساحة تكاد تكتمل!</div>}
                 {quota.pct >= GDRIVE_WARN_PCT && quota.pct < GDRIVE_CRIT_PCT && <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">📦 تحذير: اقتربت من الحد ({quota.pct}%).</div>}
+                {quota.serviceAccountWarning && (
+                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-sm text-orange-800 space-y-1">
+                    <p className="font-bold">⚠️ Service Account لا يملك مساحة تخزين شخصية</p>
+                    <p className="text-xs">لرفع الملفات بشكل صحيح أضف متغيرات OAuth2 في Vercel:</p>
+                    <p className="text-xs font-mono bg-orange-100 rounded p-1">GDRIVE_CLIENT_ID</p>
+                    <p className="text-xs font-mono bg-orange-100 rounded p-1">GDRIVE_CLIENT_SECRET</p>
+                    <p className="text-xs font-mono bg-orange-100 rounded p-1">GDRIVE_REFRESH_TOKEN</p>
+                  </div>
+                )}
               </div>
             )}
             <button onClick={handleRefresh} disabled={refreshing}
@@ -759,13 +786,16 @@ function GDriveSettingsModal({ onClose }) {
             <div className="bg-blue-50 rounded-xl p-4 text-xs space-y-1.5 border border-blue-100">
               <p className="font-bold text-blue-800 mb-2">خطوات الإعداد (للمسؤول — مرة واحدة فقط):</p>
               <p>1️⃣ <strong>console.cloud.google.com</strong> ← IAM & Admin ← Service Accounts</p>
-              <p>2️⃣ أنشئ Service Account جديداً وامنحه دور Editor</p>
-              <p>3️⃣ أنشئ مفتاح JSON وحمّله</p>
-              <p>4️⃣ أنشئ مجلداً في Google Drive وشاركه مع بريد الـ Service Account</p>
-              <p>5️⃣ في <strong>Vercel ← Settings ← Environment Variables</strong> أضف:</p>
-              <p className="pl-3">• <code className="bg-blue-100 px-1">GDRIVE_SERVICE_ACCOUNT</code> = محتوى ملف JSON كاملاً</p>
-              <p className="pl-3">• <code className="bg-blue-100 px-1">GDRIVE_FOLDER_ID</code> = ID المجلد المشارك (اختياري)</p>
-              <p>6️⃣ أعد نشر التطبيق من Vercel Dashboard</p>
+              <p className="font-bold text-orange-700 mt-1">الطريقة المثلى (OAuth2 — مساحة 15 GB مجاناً):</p>
+              <p>1️⃣ في <strong>console.cloud.google.com</strong> ← APIs & Services ← Credentials أنشئ OAuth 2.0 Client ID (Web)</p>
+              <p>2️⃣ في <strong>developers.google.com/oauthplayground</strong> سجّل دخولك، اختر Drive API v3 ← كل النطاقات ← احصل على Refresh Token</p>
+              <p>3️⃣ في <strong>Vercel ← Settings ← Environment Variables</strong> أضف:</p>
+              <p className="pl-3">• <code className="bg-blue-100 px-1">GDRIVE_CLIENT_ID</code></p>
+              <p className="pl-3">• <code className="bg-blue-100 px-1">GDRIVE_CLIENT_SECRET</code></p>
+              <p className="pl-3">• <code className="bg-blue-100 px-1">GDRIVE_REFRESH_TOKEN</code></p>
+              <p className="pl-3">• <code className="bg-blue-100 px-1">GDRIVE_FOLDER_ID</code> = ID مجلد Drive (اختياري)</p>
+              <p>4️⃣ أعد نشر التطبيق من Vercel Dashboard</p>
+              <p className="text-gray-400 mt-1">أو استخدم Service Account مع GDRIVE_SERVICE_ACCOUNT (لكن قد تواجه مشكلة حصة التخزين)</p>
             </div>
           </div>
         )}

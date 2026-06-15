@@ -1,41 +1,61 @@
-// Vercel serverless function — Google Drive proxy using Service Account
-// All users share one Drive without individual OAuth login.
-// Required env vars: GDRIVE_SERVICE_ACCOUNT (JSON key), GDRIVE_FOLDER_ID (optional)
+// Vercel serverless function — Google Drive proxy
+//
+// Auth priority (first configured wins):
+//   1. OAuth2 Refresh Token  — GDRIVE_CLIENT_ID + GDRIVE_CLIENT_SECRET + GDRIVE_REFRESH_TOKEN
+//      → files are owned by a real Google user → full 15 GB quota
+//   2. Service Account JWT   — GDRIVE_SERVICE_ACCOUNT (JSON key)
+//      ⚠️  Service accounts have NO personal Drive storage; uploads fail with
+//          storageQuotaExceeded unless GDRIVE_FOLDER_ID points to a Shared Drive.
+//
+// Optional: GDRIVE_FOLDER_ID — parent folder ID for uploaded files
 
 const { createSign } = require("crypto");
 
-let _cachedToken   = null;
-let _tokenExpiry   = 0;
+let _cachedToken  = null;
+let _tokenExpiry  = 0;
+let _authMethod   = null; // "oauth2" | "service_account"
 
+// ── OAuth2 Refresh Token ──────────────────────────────────────────────────────
+async function getTokenViaRefresh() {
+  const r = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id:     process.env.GDRIVE_CLIENT_ID,
+      client_secret: process.env.GDRIVE_CLIENT_SECRET,
+      refresh_token: process.env.GDRIVE_REFRESH_TOKEN,
+      grant_type:    "refresh_token",
+    }),
+  });
+  const data = await r.json();
+  if (!data.access_token)
+    throw new Error(data.error_description || data.error || "Failed to refresh OAuth2 token");
+  return { token: data.access_token, expiresIn: data.expires_in || 3600 };
+}
+
+// ── Service Account JWT ───────────────────────────────────────────────────────
 function base64url(obj) {
   const str = typeof obj === "string" ? obj : JSON.stringify(obj);
   return Buffer.from(str).toString("base64")
     .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
-async function getToken() {
-  if (_cachedToken && Date.now() < _tokenExpiry - 60000) return _cachedToken;
-
-  const raw = process.env.GDRIVE_SERVICE_ACCOUNT;
-  if (!raw) throw new Error("GDRIVE_SERVICE_ACCOUNT not configured");
-
-  const sa  = JSON.parse(raw);
+async function getTokenViaServiceAccount() {
+  const sa  = JSON.parse(process.env.GDRIVE_SERVICE_ACCOUNT);
   const now = Math.floor(Date.now() / 1000);
   const hdr = base64url({ alg: "RS256", typ: "JWT" });
   const cla = base64url({
-    iss: sa.client_email,
+    iss:   sa.client_email,
     scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly",
-    aud: sa.token_uri || "https://oauth2.googleapis.com/token",
-    iat: now,
-    exp: now + 3600,
+    aud:   sa.token_uri || "https://oauth2.googleapis.com/token",
+    iat:   now,
+    exp:   now + 3600,
   });
-
   const sigInput = `${hdr}.${cla}`;
   const signer   = createSign("RSA-SHA256");
   signer.update(sigInput);
   const sig = signer.sign(sa.private_key, "base64")
     .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-
   const jwt = `${sigInput}.${sig}`;
 
   const tokenUrl = sa.token_uri || "https://oauth2.googleapis.com/token";
@@ -44,16 +64,35 @@ async function getToken() {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: jwt,
+      assertion:  jwt,
     }),
   });
-
   const data = await r.json();
   if (!data.access_token)
     throw new Error(data.error_description || data.error || "Failed to get service account token");
+  return { token: data.access_token, expiresIn: data.expires_in || 3600 };
+}
 
-  _cachedToken  = data.access_token;
-  _tokenExpiry  = Date.now() + (data.expires_in || 3600) * 1000;
+// ── Unified token getter (with 1-min buffer cache) ────────────────────────────
+async function getToken() {
+  if (_cachedToken && Date.now() < _tokenExpiry - 60000) return _cachedToken;
+
+  const hasOAuth2 =
+    process.env.GDRIVE_CLIENT_ID &&
+    process.env.GDRIVE_CLIENT_SECRET &&
+    process.env.GDRIVE_REFRESH_TOKEN;
+
+  const hasSA = !!process.env.GDRIVE_SERVICE_ACCOUNT;
+
+  if (!hasOAuth2 && !hasSA)
+    throw new Error("Drive not configured: set GDRIVE_REFRESH_TOKEN+GDRIVE_CLIENT_ID+GDRIVE_CLIENT_SECRET, or GDRIVE_SERVICE_ACCOUNT");
+
+  const { token, expiresIn } = hasOAuth2
+    ? ((_authMethod = "oauth2"),    await getTokenViaRefresh())
+    : ((_authMethod = "service_account"), await getTokenViaServiceAccount());
+
+  _cachedToken = token;
+  _tokenExpiry = Date.now() + expiresIn * 1000;
   return _cachedToken;
 }
 
@@ -63,40 +102,50 @@ async function readBody(req) {
   return Buffer.concat(chunks);
 }
 
+// ── Request handler ───────────────────────────────────────────────────────────
 module.exports = async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Origin",  "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-filename, x-file-mime");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-filename, x-file-mime, x-file-size, x-session-uri, x-content-range");
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
 
   const url    = new URL(req.url, "https://placeholder.invalid");
   const action = url.searchParams.get("action");
 
   try {
-    // ── ping — فحص الاتصال ──────────────────────────────────
+    // ── ping ─────────────────────────────────────────────────
     if (action === "ping") {
       await getToken();
-      res.status(200).json({ ok: true });
+      res.status(200).json({
+        ok:       true,
+        auth:     _authMethod,
+        hasFolder: !!process.env.GDRIVE_FOLDER_ID,
+      });
       return;
     }
 
-    const token = await getToken();
+    const token    = await getToken();
+    const folderId = process.env.GDRIVE_FOLDER_ID;
 
-    // ── quota ────────────────────────────────────────────────
+    // ── quota ─────────────────────────────────────────────────
     if (action === "quota") {
       const r = await fetch(
         "https://www.googleapis.com/drive/v3/about?fields=storageQuota",
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      res.status(r.status).json(await r.json());
+      const body = await r.json();
+      // Service accounts may return storageQuota with limit=0 — flag it
+      if (_authMethod === "service_account" && body.storageQuota) {
+        body._authWarning = "service_account_no_quota";
+      }
+      res.status(r.status).json(body);
       return;
     }
 
-    // ── upload ───────────────────────────────────────────────
+    // ── upload (≤ 3 MB) ───────────────────────────────────────
     if (action === "upload") {
-      const filename  = decodeURIComponent(req.headers["x-filename"] || "upload");
-      const mimetype  = req.headers["x-file-mime"] || "application/octet-stream";
-      const folderId  = process.env.GDRIVE_FOLDER_ID;
+      const filename   = decodeURIComponent(req.headers["x-filename"] || "upload");
+      const mimetype   = req.headers["x-file-mime"] || "application/octet-stream";
       const fileBuffer = await readBody(req);
 
       const metaObj = { name: filename, mimeType: mimetype };
@@ -124,16 +173,24 @@ module.exports = async (req, res) => {
           body,
         }
       );
-      res.status(r.status).json(await r.json());
+      const result = await r.json();
+      if (!r.ok) {
+        const reason = result.error?.errors?.[0]?.reason || "";
+        if (reason === "storageQuotaExceeded") {
+          result.error._quotaFix = _authMethod === "service_account"
+            ? "service_account_quota"
+            : "user_quota_full";
+        }
+      }
+      res.status(r.status).json(result);
       return;
     }
 
-    // ── resumable-init — ابدأ جلسة رفع لملفات كبيرة ─────────
+    // ── resumable-init ────────────────────────────────────────
     if (action === "resumable-init") {
       const filename = decodeURIComponent(req.headers["x-filename"] || "upload");
       const mimetype = req.headers["x-file-mime"] || "application/octet-stream";
       const fileSize = req.headers["x-file-size"] || "0";
-      const folderId = process.env.GDRIVE_FOLDER_ID;
 
       const metaObj = { name: filename, mimeType: mimetype };
       if (folderId) metaObj.parents = [folderId];
@@ -143,8 +200,8 @@ module.exports = async (req, res) => {
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
+            Authorization:           `Bearer ${token}`,
+            "Content-Type":          "application/json",
             "X-Upload-Content-Type": mimetype,
             "X-Upload-Content-Length": fileSize,
           },
@@ -154,14 +211,17 @@ module.exports = async (req, res) => {
       const sessionUri = r.headers.get("Location");
       if (!sessionUri) {
         const body = await r.json().catch(() => ({}));
-        res.status(r.status).json({ error: body.error?.message || "No session URI" });
+        const reason = body.error?.errors?.[0]?.reason || "";
+        const fix    = reason === "storageQuotaExceeded" && _authMethod === "service_account"
+          ? "service_account_quota" : null;
+        res.status(r.status).json({ error: body.error?.message || "No session URI", _quotaFix: fix });
         return;
       }
       res.status(200).json({ sessionUri });
       return;
     }
 
-    // ── resumable-chunk — أرسل جزءاً من الملف ───────────────
+    // ── resumable-chunk ───────────────────────────────────────
     if (action === "resumable-chunk") {
       const sessionUri   = req.headers["x-session-uri"];
       const contentRange = req.headers["x-content-range"];
@@ -185,18 +245,22 @@ module.exports = async (req, res) => {
         const range = r.headers.get("Range") || "";
         res.status(308).json({ range });
       } else {
-        const body = await r.json().catch(() => ({}));
+        const body   = await r.json().catch(() => ({}));
+        const reason = body.error?.errors?.[0]?.reason || "";
+        if (reason === "storageQuotaExceeded" && _authMethod === "service_account") {
+          body.error._quotaFix = "service_account_quota";
+        }
         res.status(r.status).json(body);
       }
       return;
     }
 
-    // ── delete ───────────────────────────────────────────────
+    // ── delete ────────────────────────────────────────────────
     if (action === "delete") {
       const fileId = url.searchParams.get("fileId");
       if (!fileId) { res.status(400).json({ error: "Missing fileId" }); return; }
       const r = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}`,
+        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`,
         { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }
       );
       res.status(r.status).end();
