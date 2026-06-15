@@ -13,6 +13,7 @@ import {
 
 // ========== الثوابت ==========
 const FIREBASE_URL = "https://faop-scada-default-rtdb.asia-southeast1.firebasedatabase.app";
+const FIREBASE_STORAGE_BUCKET = "faop-scada.appspot.com";
 const LOW_STOCK_THRESHOLD = 3;
 
 // ⚠️ بيانات المستخدمين — سري للاستخدام الرسمي فقط
@@ -5010,6 +5011,29 @@ const FileStorage = {
   }
 };
 
+// رفع ملف إلى Firebase Storage عبر REST API (بدون SDK)
+const uploadToFirebaseStorage = (file, path, onProgress) => new Promise((resolve, reject) => {
+  const url = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_STORAGE_BUCKET)}/o?uploadType=media&name=${encodeURIComponent(path)}`;
+  const xhr = new XMLHttpRequest();
+  xhr.upload.addEventListener("progress", e => {
+    if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+  });
+  xhr.onload = () => {
+    if (xhr.status === 200) {
+      const data = JSON.parse(xhr.responseText);
+      const token = data.downloadTokens;
+      const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_STORAGE_BUCKET)}/o/${encodeURIComponent(data.name)}?alt=media&token=${token}`;
+      resolve({ url: downloadUrl, path: data.name, size: data.size });
+    } else {
+      reject(new Error(`فشل الرفع (${xhr.status}): ${xhr.responseText}`));
+    }
+  };
+  xhr.onerror = () => reject(new Error("خطأ في الشبكة أثناء الرفع"));
+  xhr.open("POST", url);
+  xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+  xhr.send(file);
+});
+
 // ── تبويب الوثائق ──
 function DocsTab({ proj, addDoc, delDoc, emp }) {
   const [showAdd, setShowAdd] = useState(false);
@@ -5061,47 +5085,39 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
     setUploading(true); setUploadPct(0);
     try {
       if (selectedFile) {
-        if (gDrive.isReady && window.confirm("هل تريد رفع الملف إلى Google Drive؟\n(اضغط إلغاء للحفظ محلياً)")) {
-          const result = await gDrive.uploadFile(selectedFile, pct => setUploadPct(pct));
-          addDoc(proj.id, {
-            ...form, fileData: null, fileMime: fileMime || null,
-            driveFileId: result.id, driveViewLink: result.webViewLink,
-            driveDownloadLink: result.webContentLink,
-            size: form.size || (Number(result.size) / 1024).toFixed(0) + " KB",
-            storageType: "gdrive"
-          });
-          addToast("تم رفع الملف إلى Google Drive ✅", "success");
-        } else {
-          const docId = `LOCAL_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          const savedFile = await FileStorage.saveFile(proj.id, docId, selectedFile, {
-            name: form.name, type: form.type, uploadedBy: emp.name, date: form.date
-          });
-          addDoc(proj.id, {
-            ...form, fileData: savedFile.data, fileMime: fileMime || null,
-            localFileId: docId, size: form.size, storageType: "local",
-            uploadedBy: emp.name, date: form.date
-          });
-          addToast("تم حفظ الملف محلياً ✅", "success");
-          await loadLocalFiles(); await checkStorage();
-        }
+        const path = `projects/${proj.id}/${Date.now()}_${selectedFile.name}`;
+        const result = await uploadToFirebaseStorage(selectedFile, path, pct => setUploadPct(pct));
+        addDoc(proj.id, {
+          ...form, fileData: null, fileMime: fileMime || null,
+          fileUrl: result.url, firebasePath: result.path,
+          size: form.size || (Number(result.size) / 1024).toFixed(0) + " KB",
+          storageType: "firebase"
+        });
+        addToast("تم رفع الملف إلى Firebase Storage ✅", "success");
       } else {
         addDoc(proj.id, { ...form, fileData: null, storageType: "metadata" });
         addToast("تمت إضافة الوثيقة", "success");
       }
       resetForm();
     } catch (e) { addToast(`فشل الرفع: ${e.message}`, "error"); }
-    setUploading(false); setUploadPct(0);
+    finally { setUploading(false); setUploadPct(0); }
   };
 
   const doDelete = async (doc) => {
     if (!await confirm("حذف هذه الوثيقة؟", { title: "حذف الوثيقة", ok: "حذف" })) return;
     if (doc.localFileId) { await FileStorage.deleteFile(doc.localFileId); await loadLocalFiles(); await checkStorage(); }
     if (doc.driveFileId && gDrive.isReady) await gDrive.deleteFile(doc.driveFileId);
+    if (doc.firebasePath) {
+      try {
+        await fetch(`https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_STORAGE_BUCKET)}/o/${encodeURIComponent(doc.firebasePath)}`, { method: "DELETE" });
+      } catch {}
+    }
     delDoc(proj.id, doc.id);
     addToast("تم الحذف", "info");
   };
 
   const downloadFile = (doc) => {
+    if (doc.fileUrl) { window.open(doc.fileUrl, "_blank"); return; }
     if (doc.driveDownloadLink) { window.open(doc.driveDownloadLink, "_blank"); return; }
     if (doc.fileData) {
       const a = document.createElement("a");
@@ -5160,12 +5176,15 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
               <span className="font-bold">{previewDoc.name}</span>
               <button onClick={() => setPreviewDoc(null)} className="p-1 rounded-lg hover:bg-gray-100"><X size={18} /></button>
             </div>
-            {isImage(previewDoc.fileMime) && previewDoc.fileData
-              ? <img src={previewDoc.fileData} alt={previewDoc.name} className="max-w-full rounded-xl" />
-              : <div className="text-center py-8 text-secondary"><p className="text-5xl mb-3">{previewDoc.driveFileId ? "☁️" : "📄"}</p><p>{previewDoc.name}</p></div>
+            {isImage(previewDoc.fileMime) && (previewDoc.fileData || previewDoc.fileUrl)
+              ? <img src={previewDoc.fileData || previewDoc.fileUrl} alt={previewDoc.name} className="max-w-full rounded-xl" />
+              : <div className="text-center py-8 text-secondary">
+                  <p className="text-5xl mb-3">{previewDoc.storageType === "firebase" ? "🔥" : previewDoc.driveFileId ? "☁️" : "📄"}</p>
+                  <p>{previewDoc.name}</p>
+                </div>
             }
             <button onClick={() => downloadFile(previewDoc)} className="mt-3 w-full py-2 bg-blue-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-              <Download size={14} /> {previewDoc.driveFileId ? "فتح في Google Drive" : "تحميل الملف"}
+              <Download size={14} /> {previewDoc.driveFileId ? "فتح في Google Drive" : previewDoc.fileUrl ? "فتح الملف" : "تحميل الملف"}
             </button>
           </div>
         </div>
@@ -5175,8 +5194,8 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
         <h3 className="font-bold flex items-center gap-2"><FolderOpen size={16} /> وثائق المشروع ({allDocs.length})</h3>
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500 flex items-center gap-1">
-            <span className={`w-2 h-2 rounded-full ${gDrive.isReady ? "bg-emerald-500" : "bg-gray-400"}`}></span>
-            {gDrive.isReady ? "Google Drive متصل" : "التخزين المحلي"}
+            <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+            🔥 Firebase Storage
           </span>
           <button onClick={() => setShowAdd(!showAdd)} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">
             <Plus size={14} /> إضافة وثيقة / صورة
@@ -5188,10 +5207,7 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
         <div className="card rounded-2xl border border-color p-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className="font-bold text-sm">إضافة وثيقة أو صورة</h4>
-            <div className="flex gap-2">
-              {gDrive.isReady && <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">☁️ Google Drive متاح</span>}
-              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">📦 تخزين محلي (IndexedDB)</span>
-            </div>
+            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">🔥 Firebase Storage</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div><label className="block text-xs font-bold text-secondary mb-1">اسم الوثيقة</label>
@@ -5234,14 +5250,14 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {allDocs.map(d => (
           <div key={d.id} className="card rounded-xl border border-color p-3">
-            {d.fileData && isImage(d.fileMime) && (
+            {isImage(d.fileMime) && (d.fileData || d.fileUrl) && (
               <div className="mb-2 cursor-pointer" onClick={() => setPreviewDoc(d)}>
-                <img src={d.fileData} alt={d.name} className="w-full h-32 object-cover rounded-lg border border-color hover:opacity-90 transition-opacity" />
+                <img src={d.fileData || d.fileUrl} alt={d.name} className="w-full h-32 object-cover rounded-lg border border-color hover:opacity-90 transition-opacity" />
               </div>
             )}
             <div className="flex items-start gap-3">
-              <div className="text-2xl cursor-pointer" onClick={() => d.fileData && setPreviewDoc(d)}>
-                {d.fileData && isImage(d.fileMime) ? "🖼️" : d.fileData ? "📎" : (docIcons[d.type] || "📄")}
+              <div className="text-2xl cursor-pointer" onClick={() => (d.fileData || d.fileUrl) && setPreviewDoc(d)}>
+                {isImage(d.fileMime) ? "🖼️" : (d.fileData || d.fileUrl) ? "📎" : (docIcons[d.type] || "📄")}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-sm truncate">{d.name}</p>
@@ -5251,16 +5267,23 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
                   <span className="text-[10px] text-secondary">{d.uploadedBy}</span>
                   {d.storageType === "local" && <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">📁 محلي</span>}
                   {d.storageType === "gdrive" && <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full">☁️ Drive</span>}
+                  {d.storageType === "firebase" && <span className="text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">🔥 Firebase</span>}
                   <button onClick={() => downloadFile(d)} className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5">
                     <Download size={10} /> تحميل
                   </button>
-                  {d.fileData && isImage(d.fileMime) && (
+                  {isImage(d.fileMime) && (d.fileData || d.fileUrl) && (
                     <button onClick={() => setPreviewDoc(d)} className="text-[10px] text-purple-600 hover:underline">عرض</button>
                   )}
                 </div>
               </div>
               <button onClick={() => doDelete(d)} className="p-1.5 hover:bg-red-50 text-red-400 rounded-lg flex-shrink-0"><Trash2 size={14} /></button>
             </div>
+            {d.firebasePath && (
+              <div className="mt-1 pt-1 border-t border-color flex items-center gap-1">
+                <span className="text-[10px] text-orange-600 font-medium">🔥 Firebase Storage</span>
+                <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 hover:underline">فتح</a>
+              </div>
+            )}
             {d.driveFileId && (
               <div className="mt-1 pt-1 border-t border-color flex items-center gap-1">
                 <span className="text-[10px] text-emerald-600 font-medium">☁️ Google Drive</span>
