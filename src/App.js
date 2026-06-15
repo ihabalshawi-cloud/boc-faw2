@@ -629,20 +629,36 @@ const GDriveAPI = {
 
   isReady: () => !!GDriveAPI._token,
 
-  uploadFile: async (file, onProgress) => {
-    if (!GDriveAPI._token) throw new Error("غير متصل بـ Google Drive");
+  uploadFile: async (file) => {
+    if (!GDriveAPI._token) throw new Error("SESSION_EXPIRED");
     const meta = { name: file.name, mimeType: file.type || "application/octet-stream" };
     const form = new FormData();
     form.append("metadata", new Blob([JSON.stringify(meta)], { type: "application/json" }));
     form.append("file", file);
-    const res = await fetch(
-      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,size",
-      { method: "POST", headers: { Authorization: `Bearer ${GDriveAPI._token}` }, body: form }
-    );
+    let res;
+    try {
+      res = await fetch(
+        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,size",
+        { method: "POST", headers: { Authorization: `Bearer ${GDriveAPI._token}` }, body: form }
+      );
+    } catch (netErr) {
+      throw new Error("تعذّر الوصول إلى Google Drive — تحقق من الشبكة");
+    }
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      if (res.status === 401) { GDriveAPI._token = null; sessionStorage.removeItem("gdrive_token"); }
-      throw new Error(err.error?.message || `خطأ ${res.status}`);
+      const body = await res.json().catch(() => ({}));
+      const reason = body.error?.errors?.[0]?.reason || "";
+      const gMsg   = body.error?.message || "";
+      if (res.status === 401) {
+        GDriveAPI._token = null; sessionStorage.removeItem("gdrive_token");
+        throw new Error("SESSION_EXPIRED");
+      }
+      if (res.status === 403) {
+        if (reason === "storageQuotaExceeded") throw new Error("امتلأت مساحة Google Drive");
+        if (reason === "appNotInstalled" || reason === "insufficientPermissions")
+          throw new Error("الصلاحيات غير كافية — أعد الاتصال بـ Google Drive");
+        throw new Error(`رُفض الوصول (403): ${gMsg || reason}`);
+      }
+      throw new Error(gMsg || `خطأ HTTP ${res.status}`);
     }
     return await res.json();
   },
@@ -693,13 +709,16 @@ function GDriveProvider({ children }) {
     if (q) setQuota(q);
   }, []);
 
-  // استعادة الجلسة عند التحميل
+  // استعادة الجلسة عند التحميل — نُعيد التوكن مباشرةً بدون انتظار GIS
   useEffect(() => {
-    const clientId = storage.get(GDRIVE_CLIENT_ID_KEY, "");
     const token = sessionStorage.getItem("gdrive_token");
-    if (clientId && token) {
-      GDriveAPI.init(clientId).then(() => { if (GDriveAPI.isReady()) refreshQuota(); }).catch(() => {});
+    if (token) {
+      GDriveAPI._token = token;
+      refreshQuota();
     }
+    // GIS init في الخلفية (اختياري للطريقة الأولى فقط)
+    const clientId = storage.get(GDRIVE_CLIENT_ID_KEY, "");
+    if (clientId && token) GDriveAPI.init(clientId).catch(() => {});
   }, [refreshQuota]);
 
   // يُستدعى من المودال بعد نجاح OAuth callback
@@ -720,11 +739,19 @@ function GDriveProvider({ children }) {
   }, [addToast]);
 
   const uploadFile = useCallback(async (file) => {
-    if (!GDriveAPI.isReady()) throw new Error("غير متصل");
-    const result = await GDriveAPI.uploadFile(file);
-    const q = await GDriveAPI.getQuota();
-    if (q) setQuota(q);
-    return result;
+    if (!GDriveAPI.isReady()) throw new Error("انتهت جلسة Google Drive — أعد الاتصال من الإعدادات");
+    try {
+      const result = await GDriveAPI.uploadFile(file);
+      const q = await GDriveAPI.getQuota();
+      if (q) setQuota(q);
+      return result;
+    } catch (e) {
+      if (e.message === "SESSION_EXPIRED") {
+        setIsReady(false); setQuota(null);
+        throw new Error("انتهت صلاحية جلسة Google Drive — أعد الاتصال من أيقونة ☁️");
+      }
+      throw e;
+    }
   }, []);
 
   const deleteFile = useCallback(async (fileId) => {
