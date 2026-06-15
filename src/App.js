@@ -532,9 +532,7 @@ const GDriveAPI = {
   _tokenClient: null,
 
   _loadGIS: () => new Promise((resolve, reject) => {
-    // Already ready
     if (window.google?.accounts?.oauth2) { resolve(); return; }
-    // Poll for up to 10 seconds (script loaded via index.html <script async>)
     let attempts = 0;
     const poll = () => {
       if (window.google?.accounts?.oauth2) { resolve(); return; }
@@ -542,6 +540,52 @@ const GDriveAPI = {
       setTimeout(poll, 100);
     };
     poll();
+  }),
+
+  // ── OAuth بدون مكتبة GIS (fallback إذا كانت المكتبة محجوبة) ──
+  oauthPopup: (clientId) => new Promise((resolve, reject) => {
+    const redirectUri = window.location.origin + "/";
+    const state = Math.random().toString(36).slice(2, 10);
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: "token",
+      scope: GDRIVE_SCOPES,
+      state,
+      include_granted_scopes: "true",
+    });
+    const popup = window.open(
+      "https://accounts.google.com/o/oauth2/v2/auth?" + params.toString(),
+      "gdrive_oauth",
+      "width=520,height=660,menubar=no,toolbar=no,scrollbars=yes,resizable=yes"
+    );
+    if (!popup || popup.closed) { reject(new Error("popup_blocked")); return; }
+
+    const timer = setTimeout(() => {
+      clearInterval(interval);
+      try { popup.close(); } catch {}
+      reject(new Error("timeout"));
+    }, 120000);
+
+    const interval = setInterval(() => {
+      try {
+        if (popup.closed) {
+          clearInterval(interval); clearTimeout(timer);
+          reject(new Error("popup_closed_by_user")); return;
+        }
+        const href = popup.location.href;
+        if (href.startsWith(window.location.origin)) {
+          clearInterval(interval); clearTimeout(timer);
+          const hash = new URLSearchParams(popup.location.hash.replace(/^#/, ""));
+          const token = hash.get("access_token");
+          const retState = hash.get("state");
+          try { popup.close(); } catch {}
+          if (retState !== state) { reject(new Error("state_mismatch")); return; }
+          if (!token) { reject(new Error("no_access_token")); return; }
+          resolve(token);
+        }
+      } catch {} // cross-origin while on google.com — keep waiting
+    }, 400);
   }),
 
   init: async (clientId) => {
@@ -683,11 +727,14 @@ function GDriveProvider({ children }) {
 // خريطة رسائل خطأ OAuth الشائعة
 const GDRIVE_ERRORS = {
   popup_closed_by_user:  "أغلقت نافذة الإذن. حاول مجدداً.",
-  access_denied:         "رُفض الوصول — وافق على الأذونات المطلوبة.",
-  origin_mismatch:       "عنوان الموقع غير مسجّل في Google Console — أضف URL التطبيق في Authorized JavaScript origins.",
+  popup_blocked:         "المتصفح حجب النافذة المنبثقة — اسمح بها من شريط العنوان ثم أعد المحاولة.",
+  access_denied:         "رُفض الوصول — وافق على جميع الأذونات.",
+  origin_mismatch:       "عنوان الموقع غير مسجّل في Google Console.",
   invalid_client:        "Client ID غير صحيح — تحقق من النسخ.",
-  redirect_uri_mismatch: "Redirect URI غير متطابق — راجع إعدادات OAuth.",
-  idpiframe_initialization_failed: "تأكد من السماح بملفات الكوكيز من الطرف الثالث في المتصفح.",
+  redirect_uri_mismatch: "Redirect URI غير متطابق — أضف العنوان أدناه في Google Console.",
+  no_access_token:       "لم يُعاد token — تأكد من Redirect URI في Google Console.",
+  state_mismatch:        "خطأ أمني — حاول مجدداً.",
+  timeout:               "انتهت مهلة الانتظار — أغلقت النافذة؟",
 };
 
 // ── مكوّن إعدادات Google Drive ──
@@ -697,12 +744,14 @@ function GDriveSettingsModal({ onClose }) {
   const [showGuide, setShowGuide] = useState(false);
   const [gisStatus, setGisStatus] = useState("idle"); // idle | loading | ready | error
   const [oauthErr, setOauthErr] = useState("");
+  const [popupLoading, setPopupLoading] = useState(false);
   const addToast = useToast();
 
   const warnColor = quota?.pct >= GDRIVE_CRIT_PCT ? "text-red-600" : quota?.pct >= GDRIVE_WARN_PCT ? "text-amber-600" : "text-emerald-600";
   const barColor  = quota?.pct >= GDRIVE_CRIT_PCT ? "bg-red-500" : quota?.pct >= GDRIVE_WARN_PCT ? "bg-amber-500" : "bg-emerald-500";
+  const redirectUri = window.location.origin + "/";
 
-  // تحميل GIS وتهيئة token client عند فتح المودال (قبل النقر)
+  // تحميل GIS عند فتح المودال
   useEffect(() => {
     setGisStatus("loading");
     GDriveAPI._loadGIS()
@@ -710,9 +759,7 @@ function GDriveSettingsModal({ onClose }) {
         if (clientId?.trim()) {
           try {
             GDriveAPI._tokenClient = window.google.accounts.oauth2.initTokenClient({
-              client_id: clientId.trim(),
-              scope: GDRIVE_SCOPES,
-              callback: () => {},
+              client_id: clientId.trim(), scope: GDRIVE_SCOPES, callback: () => {},
             });
           } catch {}
         }
@@ -727,37 +774,46 @@ function GDriveSettingsModal({ onClose }) {
     if (gisStatus !== "ready" || !clientId?.trim()) return;
     try {
       GDriveAPI._tokenClient = window.google.accounts.oauth2.initTokenClient({
-        client_id: clientId.trim(),
-        scope: GDRIVE_SCOPES,
-        callback: () => {},
+        client_id: clientId.trim(), scope: GDRIVE_SCOPES, callback: () => {},
       });
       setOauthErr("");
     } catch {}
   }, [clientId, gisStatus]);
 
-  // ⚡ يُستدعى مباشرةً من onClick — بدون أي await قبله
-  const handleConnect = () => {
+  // ── الطريقة 1: GIS library (إذا كانت متاحة) ──
+  const handleConnectGIS = () => {
     if (!clientId?.trim()) { setOauthErr("أدخل Client ID أولاً"); return; }
-    if (gisStatus === "error") { setOauthErr("تعذّر تحميل مكتبة Google — تحقق من الاتصال بالإنترنت"); return; }
-    if (gisStatus !== "ready" || !GDriveAPI._tokenClient) { setOauthErr("المكتبة لا تزال تُحمَّل، انتظر ثانية"); return; }
+    if (!GDriveAPI._tokenClient) { setOauthErr("المكتبة لم تُحمَّل"); return; }
     setOauthErr("");
     storage.set(GDRIVE_CLIENT_ID_KEY, clientId.trim());
-    // تحديد الـ callback ثم استدعاء requestAccessToken مباشرةً (user gesture ✓)
     GDriveAPI._tokenClient.callback = (response) => {
       if (response.error) {
         const msg = GDRIVE_ERRORS[response.error] || `خطأ: ${response.error}`;
-        setOauthErr(msg);
-        addToast(msg, "error");
-        return;
+        setOauthErr(msg); addToast(msg, "error"); return;
       }
       applyToken(response.access_token);
     };
     GDriveAPI._tokenClient.requestAccessToken({ prompt: "consent" });
   };
 
+  // ── الطريقة 2: Popup مباشر بدون مكتبة (fallback) ──
+  const handleConnectPopup = async () => {
+    if (!clientId?.trim()) { setOauthErr("أدخل Client ID أولاً"); return; }
+    setOauthErr(""); setPopupLoading(true);
+    storage.set(GDRIVE_CLIENT_ID_KEY, clientId.trim());
+    try {
+      const token = await GDriveAPI.oauthPopup(clientId.trim());
+      applyToken(token);
+    } catch (e) {
+      const msg = GDRIVE_ERRORS[e.message] || `فشل: ${e.message}`;
+      setOauthErr(msg); addToast(msg, "error");
+    }
+    setPopupLoading(false);
+  };
+
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl" dir="rtl" onClick={e=>e.stopPropagation()}>
+      <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh]" dir="rtl" onClick={e=>e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
           <h3 className="font-bold text-lg flex items-center gap-2">
             <span className="text-2xl">☁️</span> إعدادات Google Drive
@@ -771,7 +827,6 @@ function GDriveSettingsModal({ onClose }) {
               <span className="text-emerald-600 text-lg">✅</span>
               <span className="font-medium text-emerald-800">متصل بـ Google Drive</span>
             </div>
-
             {quota && (
               <div className="space-y-2">
                 <div className="flex justify-between text-sm font-medium">
@@ -786,32 +841,14 @@ function GDriveSettingsModal({ onClose }) {
                   <span>الحد: {quota.limitStr}</span>
                 </div>
                 <div className="text-xs text-center text-gray-500">المتاح: <strong>{quota.freeStr}</strong></div>
-                {quota.pct >= GDRIVE_CRIT_PCT && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">
-                    ⚠️ تحذير حرج: المساحة تكاد تكتمل! احذف ملفات قديمة أو وسّع مساحتك.
-                  </div>
-                )}
-                {quota.pct >= GDRIVE_WARN_PCT && quota.pct < GDRIVE_CRIT_PCT && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
-                    📦 تحذير: اقتربت من الحد الأقصى ({quota.pct}%). يُنصح بتوسيع المساحة.
-                  </div>
-                )}
+                {quota.pct >= GDRIVE_CRIT_PCT && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">⚠️ تحذير حرج: المساحة تكاد تكتمل!</div>}
+                {quota.pct >= GDRIVE_WARN_PCT && quota.pct < GDRIVE_CRIT_PCT && <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">📦 تحذير: اقتربت من الحد ({quota.pct}%).</div>}
               </div>
             )}
-
-            <button onClick={disconnect} className="w-full py-2 border border-red-300 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 transition-colors">
-              قطع الاتصال
-            </button>
+            <button onClick={disconnect} className="w-full py-2 border border-red-300 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50">قطع الاتصال</button>
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 text-xs mb-1">
-              <span>حالة مكتبة Google:</span>
-              {gisStatus === "ready"   && <span className="text-emerald-600 font-bold">✓ جاهزة</span>}
-              {gisStatus === "loading" && <span className="text-amber-600">جارٍ التحميل...</span>}
-              {gisStatus === "error"   && <span className="text-red-600 font-bold">✗ فشل التحميل</span>}
-            </div>
-
             <div>
               <label className="block text-sm font-bold mb-1">Google OAuth2 Client ID</label>
               <input value={clientId} onChange={e=>setClientId(e.target.value)}
@@ -819,40 +856,50 @@ function GDriveSettingsModal({ onClose }) {
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono" dir="ltr"/>
             </div>
 
-            {oauthErr && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-                ❌ {oauthErr}
-              </div>
-            )}
+            {oauthErr && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">❌ {oauthErr}</div>}
 
-            <button onClick={()=>setShowGuide(!showGuide)} className="text-xs text-blue-600 hover:underline">
+            {/* زر الاتصال — طريقتان */}
+            <div className="space-y-2">
+              {gisStatus === "ready" ? (
+                <button onClick={handleConnectGIS} disabled={!clientId.trim()}
+                  className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm disabled:opacity-50 hover:bg-blue-700 flex items-center justify-center gap-2">
+                  <span>☁️</span> ربط عبر مكتبة Google (مُوصى به)
+                </button>
+              ) : (
+                <div className="p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-center text-gray-500">
+                  {gisStatus === "loading" ? "⏳ جارٍ تحميل مكتبة Google..." : "⚠️ مكتبة Google غير متاحة على هذه الشبكة"}
+                </div>
+              )}
+
+              <button onClick={handleConnectPopup} disabled={!clientId.trim() || popupLoading}
+                className="w-full py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm disabled:opacity-50 hover:bg-emerald-700 flex items-center justify-center gap-2">
+                {popupLoading ? "⏳ انتظر نافذة Google..." : <><span>🪟</span> ربط بدون مكتبة (Popup مباشر)</>}
+              </button>
+            </div>
+
+            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              ⚠️ للطريقة الثانية (Popup): يجب إضافة هذا العنوان في Google Console ←
+              Authorized redirect URIs:<br/>
+              <strong className="font-mono text-[10px] break-all">{redirectUri}</strong>
+            </p>
+
+            <button onClick={()=>setShowGuide(!showGuide)} className="text-xs text-blue-600 hover:underline w-full text-right">
               {showGuide ? "▲ إخفاء دليل الإعداد" : "▼ كيف أحصل على Client ID؟"}
             </button>
 
             {showGuide && (
-              <div className="bg-blue-50 rounded-xl p-4 text-xs space-y-1.5 border border-blue-100 text-right">
+              <div className="bg-blue-50 rounded-xl p-4 text-xs space-y-1.5 border border-blue-100">
                 <p className="font-bold text-blue-800 mb-2">خطوات إعداد Google Drive API:</p>
-                <p>1️⃣ اذهب إلى <strong>console.cloud.google.com</strong></p>
-                <p>2️⃣ أنشئ مشروعاً جديداً أو اختر موجوداً</p>
-                <p>3️⃣ فعّل <strong>Google Drive API</strong> من مكتبة APIs</p>
-                <p>4️⃣ اذهب إلى <strong>Credentials ← Create OAuth 2.0 Client ID</strong></p>
-                <p>5️⃣ النوع: <strong>Web application</strong></p>
-                <p>6️⃣ في "Authorized JavaScript origins" أضف: <strong className="font-mono">{window.location.origin}</strong></p>
-                <p>7️⃣ اذهب إلى <strong>OAuth consent screen</strong> وأضف بريدك كـ Test user</p>
+                <p>1️⃣ <strong>console.cloud.google.com</strong> ← أنشئ مشروعاً</p>
+                <p>2️⃣ فعّل <strong>Google Drive API</strong> من APIs & Services</p>
+                <p>3️⃣ <strong>Credentials ← Create OAuth 2.0 Client ID</strong></p>
+                <p>4️⃣ النوع: <strong>Web application</strong></p>
+                <p>5️⃣ Authorized JavaScript origins: <code className="bg-blue-100 px-1 break-all">{window.location.origin}</code></p>
+                <p>6️⃣ Authorized redirect URIs: <code className="bg-blue-100 px-1 break-all">{redirectUri}</code></p>
+                <p>7️⃣ OAuth consent screen ← أضف بريدك كـ <strong>Test user</strong></p>
                 <p>8️⃣ انسخ الـ <strong>Client ID</strong> وضعه أعلاه</p>
               </div>
             )}
-
-            <button
-              onClick={handleConnect}
-              disabled={gisStatus !== "ready" || !clientId.trim()}
-              className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm disabled:opacity-50 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
-              {gisStatus === "loading" ? "جارٍ تحميل مكتبة Google..." : <><span>☁️</span> ربط Google Drive</>}
-            </button>
-
-            <p className="text-[11px] text-gray-400 text-center">
-              سيظهر نافذة Google للموافقة — تأكد من السماح بالنوافذ المنبثقة للموقع
-            </p>
           </div>
         )}
       </div>
