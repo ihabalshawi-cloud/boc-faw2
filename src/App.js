@@ -613,8 +613,8 @@ const GDriveAPI = {
 
 // ── سياق Google Drive ──
 const GDriveContext = createContext({
-  isReady: false, quota: null, connecting: false,
-  connect: async () => {}, disconnect: () => {}, refreshQuota: async () => {},
+  isReady: false, quota: null,
+  applyToken: () => {}, disconnect: () => {}, refreshQuota: async () => {},
   uploadFile: async () => { throw new Error("not connected"); }, deleteFile: async () => {},
 });
 const useGDrive = () => useContext(GDriveContext);
@@ -622,7 +622,6 @@ const useGDrive = () => useContext(GDriveContext);
 function GDriveProvider({ children }) {
   const [isReady, setIsReady] = useState(() => !!sessionStorage.getItem("gdrive_token"));
   const [quota, setQuota]     = useState(null);
-  const [connecting, setConnecting] = useState(false);
   const addToast = useToast();
 
   const refreshQuota = useCallback(async () => {
@@ -639,21 +638,13 @@ function GDriveProvider({ children }) {
     }
   }, [refreshQuota]);
 
-  const connect = useCallback(async (clientId) => {
-    if (!clientId?.trim()) { addToast("أدخل Client ID أولاً", "error"); return; }
-    setConnecting(true);
-    try {
-      storage.set(GDRIVE_CLIENT_ID_KEY, clientId.trim());
-      await GDriveAPI.init(clientId.trim());
-      await GDriveAPI.authenticate(true);
-      setIsReady(true);
-      const q = await GDriveAPI.getQuota();
-      if (q) setQuota(q);
-      addToast("تم الاتصال بـ Google Drive ✅", "success");
-    } catch (e) {
-      addToast("فشل الاتصال — تحقق من Client ID وإعدادات OAuth", "error");
-    }
-    setConnecting(false);
+  // يُستدعى من المودال بعد نجاح OAuth callback
+  const applyToken = useCallback((token) => {
+    GDriveAPI._token = token;
+    sessionStorage.setItem("gdrive_token", token);
+    setIsReady(true);
+    GDriveAPI.getQuota().then(q => { if (q) setQuota(q); });
+    addToast("تم الاتصال بـ Google Drive ✅", "success");
   }, [addToast]);
 
   const disconnect = useCallback(() => {
@@ -667,7 +658,6 @@ function GDriveProvider({ children }) {
   const uploadFile = useCallback(async (file) => {
     if (!GDriveAPI.isReady()) throw new Error("غير متصل");
     const result = await GDriveAPI.uploadFile(file);
-    // تحديث الكوتا بعد كل رفع
     const q = await GDriveAPI.getQuota();
     if (q) setQuota(q);
     return result;
@@ -680,20 +670,86 @@ function GDriveProvider({ children }) {
   }, []);
 
   return (
-    <GDriveContext.Provider value={{ isReady, quota, connecting, connect, disconnect, refreshQuota, uploadFile, deleteFile }}>
+    <GDriveContext.Provider value={{ isReady, quota, applyToken, disconnect, refreshQuota, uploadFile, deleteFile }}>
       {children}
     </GDriveContext.Provider>
   );
 }
 
+// خريطة رسائل خطأ OAuth الشائعة
+const GDRIVE_ERRORS = {
+  popup_closed_by_user:  "أغلقت نافذة الإذن. حاول مجدداً.",
+  access_denied:         "رُفض الوصول — وافق على الأذونات المطلوبة.",
+  origin_mismatch:       "عنوان الموقع غير مسجّل في Google Console — أضف URL التطبيق في Authorized JavaScript origins.",
+  invalid_client:        "Client ID غير صحيح — تحقق من النسخ.",
+  redirect_uri_mismatch: "Redirect URI غير متطابق — راجع إعدادات OAuth.",
+  idpiframe_initialization_failed: "تأكد من السماح بملفات الكوكيز من الطرف الثالث في المتصفح.",
+};
+
 // ── مكوّن إعدادات Google Drive ──
 function GDriveSettingsModal({ onClose }) {
-  const { isReady, quota, connecting, connect, disconnect } = useGDrive();
+  const { isReady, quota, applyToken, disconnect } = useGDrive();
   const [clientId, setClientId] = useState(storage.get(GDRIVE_CLIENT_ID_KEY, ""));
   const [showGuide, setShowGuide] = useState(false);
+  const [gisStatus, setGisStatus] = useState("idle"); // idle | loading | ready | error
+  const [oauthErr, setOauthErr] = useState("");
+  const addToast = useToast();
 
   const warnColor = quota?.pct >= GDRIVE_CRIT_PCT ? "text-red-600" : quota?.pct >= GDRIVE_WARN_PCT ? "text-amber-600" : "text-emerald-600";
   const barColor  = quota?.pct >= GDRIVE_CRIT_PCT ? "bg-red-500" : quota?.pct >= GDRIVE_WARN_PCT ? "bg-amber-500" : "bg-emerald-500";
+
+  // تحميل GIS وتهيئة token client عند فتح المودال (قبل النقر)
+  useEffect(() => {
+    setGisStatus("loading");
+    GDriveAPI._loadGIS()
+      .then(() => {
+        if (clientId?.trim()) {
+          try {
+            GDriveAPI._tokenClient = window.google.accounts.oauth2.initTokenClient({
+              client_id: clientId.trim(),
+              scope: GDRIVE_SCOPES,
+              callback: () => {},
+            });
+          } catch {}
+        }
+        setGisStatus("ready");
+      })
+      .catch(() => setGisStatus("error"));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // إعادة تهيئة token client عند تغيير Client ID
+  useEffect(() => {
+    if (gisStatus !== "ready" || !clientId?.trim()) return;
+    try {
+      GDriveAPI._tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId.trim(),
+        scope: GDRIVE_SCOPES,
+        callback: () => {},
+      });
+      setOauthErr("");
+    } catch {}
+  }, [clientId, gisStatus]);
+
+  // ⚡ يُستدعى مباشرةً من onClick — بدون أي await قبله
+  const handleConnect = () => {
+    if (!clientId?.trim()) { setOauthErr("أدخل Client ID أولاً"); return; }
+    if (gisStatus === "error") { setOauthErr("تعذّر تحميل مكتبة Google — تحقق من الاتصال بالإنترنت"); return; }
+    if (gisStatus !== "ready" || !GDriveAPI._tokenClient) { setOauthErr("المكتبة لا تزال تُحمَّل، انتظر ثانية"); return; }
+    setOauthErr("");
+    storage.set(GDRIVE_CLIENT_ID_KEY, clientId.trim());
+    // تحديد الـ callback ثم استدعاء requestAccessToken مباشرةً (user gesture ✓)
+    GDriveAPI._tokenClient.callback = (response) => {
+      if (response.error) {
+        const msg = GDRIVE_ERRORS[response.error] || `خطأ: ${response.error}`;
+        setOauthErr(msg);
+        addToast(msg, "error");
+        return;
+      }
+      applyToken(response.access_token);
+    };
+    GDriveAPI._tokenClient.requestAccessToken({ prompt: "consent" });
+  };
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -745,12 +801,25 @@ function GDriveSettingsModal({ onClose }) {
           </div>
         ) : (
           <div className="space-y-4">
+            <div className="flex items-center gap-2 text-xs mb-1">
+              <span>حالة مكتبة Google:</span>
+              {gisStatus === "ready"   && <span className="text-emerald-600 font-bold">✓ جاهزة</span>}
+              {gisStatus === "loading" && <span className="text-amber-600">جارٍ التحميل...</span>}
+              {gisStatus === "error"   && <span className="text-red-600 font-bold">✗ فشل التحميل</span>}
+            </div>
+
             <div>
               <label className="block text-sm font-bold mb-1">Google OAuth2 Client ID</label>
               <input value={clientId} onChange={e=>setClientId(e.target.value)}
-                placeholder="xxxxxx.apps.googleusercontent.com"
+                placeholder="123456789.apps.googleusercontent.com"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono" dir="ltr"/>
             </div>
+
+            {oauthErr && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                ❌ {oauthErr}
+              </div>
+            )}
 
             <button onClick={()=>setShowGuide(!showGuide)} className="text-xs text-blue-600 hover:underline">
               {showGuide ? "▲ إخفاء دليل الإعداد" : "▼ كيف أحصل على Client ID؟"}
@@ -764,15 +833,22 @@ function GDriveSettingsModal({ onClose }) {
                 <p>3️⃣ فعّل <strong>Google Drive API</strong> من مكتبة APIs</p>
                 <p>4️⃣ اذهب إلى <strong>Credentials ← Create OAuth 2.0 Client ID</strong></p>
                 <p>5️⃣ النوع: <strong>Web application</strong></p>
-                <p>6️⃣ في "Authorized JavaScript origins" أضف عنوان التطبيق</p>
-                <p>7️⃣ انسخ الـ <strong>Client ID</strong> وضعه أعلاه</p>
+                <p>6️⃣ في "Authorized JavaScript origins" أضف: <strong className="font-mono">{window.location.origin}</strong></p>
+                <p>7️⃣ اذهب إلى <strong>OAuth consent screen</strong> وأضف بريدك كـ Test user</p>
+                <p>8️⃣ انسخ الـ <strong>Client ID</strong> وضعه أعلاه</p>
               </div>
             )}
 
-            <button onClick={()=>connect(clientId)} disabled={connecting || !clientId.trim()}
+            <button
+              onClick={handleConnect}
+              disabled={gisStatus !== "ready" || !clientId.trim()}
               className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm disabled:opacity-50 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
-              {connecting ? "جاري الاتصال..." : <><span>☁️</span> ربط Google Drive</>}
+              {gisStatus === "loading" ? "جارٍ تحميل مكتبة Google..." : <><span>☁️</span> ربط Google Drive</>}
             </button>
+
+            <p className="text-[11px] text-gray-400 text-center">
+              سيظهر نافذة Google للموافقة — تأكد من السماح بالنوافذ المنبثقة للموقع
+            </p>
           </div>
         )}
       </div>
