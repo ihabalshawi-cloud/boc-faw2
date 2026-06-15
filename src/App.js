@@ -1042,22 +1042,26 @@ function LoginScreen({ onLogin, dark }) {
     try {
 
     // ── 1. جلب بيانات الحساب ───────────────────────────────────────────────
-    // الأولوية: Firebase ← كاش localStorage ← ACCOUNTS (احتياطي)
+    console.log("[login] step1: fetch account, isConnected=", isConnected);
     let account = null;
     if (isConnected) {
       const fb = await FirebaseAPI.fetchAccount(user.trim());
+      console.log("[login] firebase account=", fb ? "found" : "null");
       if (fb) {
         account = fb;
-        storage.set(`cached_account_${fb.id}`, fb); // كاش للعمل أوف-لاين
+        storage.set(`cached_account_${fb.id}`, fb);
       }
     }
     if (!account) account = storage.get(`cached_account_${user.trim()}`)
                          || ACCOUNTS.find(a => a.jobNum === user.trim());
+    console.log("[login] step1 done, account=", account ? `id=${account.id}` : "not found");
     if (!account) { setErr("الرقم الوظيفي غير موجود"); return; }
 
     // ── 2. التحقق من كلمة المرور ───────────────────────────────────────────
+    console.log("[login] step2: password check");
     let isValid = false;
     const inputHash = await hashPassword(pass.trim());
+    console.log("[login] hashPassword done, inputHash=", inputHash ? "ok" : "null (no crypto.subtle)");
     const localPass = passStore.get(`pass_${account.id}`);
     const defaultPass = (ACCOUNTS.find(a => a.jobNum === user.trim()) || {}).password || "";
 
@@ -1119,16 +1123,21 @@ function LoginScreen({ onLogin, dark }) {
       if (isValid && inputHash) passStore.set(`pass_${account.id}`, inputHash);
     }
 
+    console.log("[login] step3: isValid=", isValid);
     if (isValid) {
+      console.log("[login] step3a: success path");
       clearLockData(user.trim());
       sessionStorage.setItem("boc_session", JSON.stringify({ acctId: account.id, expiry: Date.now() + 8 * 3600000 }));
       const defaultPasswords = ["1001","1002","1003","1004","1005","1006","1007","1008","1009","1010","1011","2001","2002","2003","2004","2005","2006","2007","2008","2009","2010","2011","2012","2013","2014","2015","2016","2017","2018","3001","3002","3003","3004"];
       if (defaultPasswords.includes(pass.trim()) && !localPass) sessionStorage.setItem("force_password_change", "true");
+      console.log("[login] step3b: calling recordLoginAttempt");
       // Check if account is disabled
       const empSt = getEmpStatus(account.id);
       if (!empSt.active) { setErr("هذا الحساب معطّل. تواصل مع المشرف."); recordLoginAttempt(account, "failed", "account_disabled"); return; }
       recordLoginAttempt(account, "success");
+      console.log("[login] step3c: calling onLogin");
       onLogin(account);
+      console.log("[login] step3d: onLogin done");
     } else {
       const locked = recordFail(user.trim());
       const secs = lockSecsRemaining(user.trim());
@@ -1144,7 +1153,7 @@ function LoginScreen({ onLogin, dark }) {
 
     } catch (e) {
       console.error("login error:", e);
-      setErr("حدث خطأ غير متوقع — حاول مجدداً");
+      setErr(`خطأ: ${e?.message || String(e)}`);
     } finally {
       setLoading(false);
     }
