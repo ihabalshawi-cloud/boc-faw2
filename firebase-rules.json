@@ -1,35 +1,35 @@
 {
   "rules": {
-    ".read": false,
-    ".write": false,
+    ".read": "false",
+    ".write": "false",
     "accounts": {
-      ".read": false,
-      ".write": false,
+      ".read": "false",
+      ".write": "false",
       "$jobNum": {
-        ".read": true,
-        ".write": false
+        ".read": "true",
+        ".write": "false"
       }
     },
     "init_hashes": {
-      ".read": false,
-      ".write": false,
+      ".read": "false",
+      ".write": "false",
       "$jobNum": {
-        ".read": true,
-        ".write": false
+        ".read": "true",
+        ".write": "false"
       }
     },
     "passwords": {
-      ".read": false,
-      ".write": false,
+      ".read": "false",
+      ".write": "false",
       "$id": {
-        ".read": true,
-        ".write": true,
+        ".read": "true",
+        ".write": "true",
         ".validate": "newData.isString() && newData.val().length == 64"
       }
     },
     "chat": {
-      ".read": true,
-      ".write": true,
+      ".read": "true",
+      ".write": "true",
       "$messageId": {
         ".validate": "newData.hasChildren(['text', 'sender', 'senderId', 'timestamp']) && newData.child('text').isString() && newData.child('text').val().length >= 1 && newData.child('text').val().length <= 1000 && newData.child('sender').isString() && newData.child('senderId').isNumber() && newData.child('timestamp').isNumber()"
       }
