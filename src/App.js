@@ -525,6 +525,7 @@ const FirebaseAPI = {
 const GDRIVE_CLIENT_ID_KEY = "gdrive_client_id";
 const GDRIVE_SCOPES = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly";
 const GDRIVE_WARN_PCT  = 80; // تحذير عند 80%
+const GDRIVE_PROXY = "/api/drive-proxy"; // Vercel serverless proxy (bypasses corporate network block)
 const GDRIVE_CRIT_PCT  = 95; // تنبيه حرج عند 95%
 
 const GDriveAPI = {
@@ -631,23 +632,25 @@ const GDriveAPI = {
 
   uploadFile: async (file) => {
     if (!GDriveAPI._token) throw new Error("SESSION_EXPIRED");
-    const meta = { name: file.name, mimeType: file.type || "application/octet-stream" };
-    const form = new FormData();
-    form.append("metadata", new Blob([JSON.stringify(meta)], { type: "application/json" }));
-    form.append("file", file);
     let res;
     try {
-      res = await fetch(
-        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,size",
-        { method: "POST", headers: { Authorization: `Bearer ${GDriveAPI._token}` }, body: form }
-      );
+      res = await fetch(`${GDRIVE_PROXY}?action=upload`, {
+        method: "POST",
+        headers: {
+          "x-gdrive-token": GDriveAPI._token,
+          "x-filename": encodeURIComponent(file.name),
+          "x-file-mime": file.type || "application/octet-stream",
+          "Content-Type": file.type || "application/octet-stream",
+        },
+        body: file,
+      });
     } catch (netErr) {
-      throw new Error("تعذّر الوصول إلى Google Drive — تحقق من الشبكة");
+      throw new Error("تعذّر الوصول إلى خادم الرفع");
     }
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       const reason = body.error?.errors?.[0]?.reason || "";
-      const gMsg   = body.error?.message || "";
+      const gMsg   = body.error?.message || body.error || "";
       if (res.status === 401) {
         GDriveAPI._token = null; sessionStorage.removeItem("gdrive_token");
         throw new Error("SESSION_EXPIRED");
@@ -658,7 +661,7 @@ const GDriveAPI = {
           throw new Error("الصلاحيات غير كافية — أعد الاتصال بـ Google Drive");
         throw new Error(`رُفض الوصول (403): ${gMsg || reason}`);
       }
-      throw new Error(gMsg || `خطأ HTTP ${res.status}`);
+      throw new Error(String(gMsg) || `خطأ HTTP ${res.status}`);
     }
     return await res.json();
   },
@@ -666,10 +669,9 @@ const GDriveAPI = {
   getQuota: async () => {
     if (!GDriveAPI._token) return null;
     try {
-      const res = await fetch(
-        "https://www.googleapis.com/drive/v3/about?fields=storageQuota",
-        { headers: { Authorization: `Bearer ${GDriveAPI._token}` } }
-      );
+      const res = await fetch(`${GDRIVE_PROXY}?action=quota`, {
+        headers: { "x-gdrive-token": GDriveAPI._token },
+      });
       if (!res.ok) return null;
       const { storageQuota } = await res.json();
       const limit = Number(storageQuota.limit || 0);
@@ -683,9 +685,9 @@ const GDriveAPI = {
   deleteFile: async (fileId) => {
     if (!GDriveAPI._token || !fileId) return;
     try {
-      await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+      await fetch(`${GDRIVE_PROXY}?action=delete&fileId=${encodeURIComponent(fileId)}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${GDriveAPI._token}` }
+        headers: { "x-gdrive-token": GDriveAPI._token },
       });
     } catch {}
   },
