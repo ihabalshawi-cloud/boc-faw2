@@ -6138,8 +6138,8 @@ function TimeSheetPage({ emp }) {
             <Download size={14}/> Excel
           </button>
           <button onClick={exportExcelFormatted}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-emerald-700 text-white hover:bg-emerald-800">
-            <Download size={14}/> Excel رسمي
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-indigo-700 text-white hover:bg-indigo-800">
+            <FileCheck size={14}/> Excel رسمي
           </button>
           <button onClick={exportPDF}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700">
