@@ -5772,6 +5772,205 @@ function TimeSheetPage({ emp }) {
     addToast("تم تصدير الملف بتنسيق Excel", "success");
   };
 
+  const exportExcelFormatted = () => {
+    const emps = data[activeTab] || [];
+    const monthLabel = MONTHS_AR_TS[tsMonth];
+    const yearNum = tsYear;
+    const daysInMonthEx = new Date(tsYear, tsMonth + 1, 0).getDate();
+    const daysEx = Array.from({ length: daysInMonthEx }, (_, i) => i + 1);
+
+    const getShiftForDayExport = (year, month, day) => {
+      const anchor = new Date(2026, 5, 14);
+      const current = new Date(year, month, day);
+      const diff = Math.floor((current - anchor) / (1000 * 60 * 60 * 24));
+      return ['أ', 'ب', 'ج', 'د'][((diff % 4) + 4) % 4];
+    };
+
+    const getDayName = (day) => {
+      const dow = new Date(tsYear, tsMonth, day).getDay();
+      return ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'][dow];
+    };
+
+    const isWeekend = (day) => {
+      const dow = new Date(tsYear, tsMonth, day).getDay();
+      return dow === 5 || dow === 6;
+    };
+
+    let employeeRows = '';
+    emps.forEach((e, idx) => {
+      const stats = calcTsStats(e);
+      const bgColor = idx % 2 === 0 ? '#ffffff' : '#f9fafb';
+
+      employeeRows += `
+        <tr style="background:${bgColor};">
+          <td rowspan="2" style="border:1px solid #000;text-align:center;vertical-align:middle;font-size:10px;">${e.id}</td>
+          <td rowspan="2" style="border:1px solid #000;text-align:right;vertical-align:middle;font-size:11px;font-weight:bold;">${e.name} ${e.movement ? `(${e.movement})` : ''}</td>
+          <td rowspan="2" style="border:1px solid #000;text-align:center;vertical-align:middle;font-size:9px;">${e.movement || ''}</td>
+          <td style="border:1px solid #000;text-align:center;font-weight:bold;background:#dbeafe;">أ</td>
+      `;
+      daysEx.forEach(day => {
+        const code = e.days[String(day)] || '';
+        const isWe = isWeekend(day);
+        const weBg = isWe && !code ? 'background:#fff7ed;' : '';
+        const codeColor = TS_CODES_ALL[code]?.color || '';
+        const colorStyle = codeColor ? `background:${codeColor.split(' ')[0]};` : '';
+        employeeRows += `<td style="border:1px solid #000;text-align:center;font-size:11px;font-weight:bold;${colorStyle}${weBg}">${code}</td>`;
+      });
+      employeeRows += `
+          <td rowspan="2" style="border:1px solid #000;text-align:center;font-weight:bold;color:#1d4ed8;">${stats.totalHours || ''}</td>
+          <td rowspan="2" style="border:1px solid #000;text-align:center;color:#15803d;">${stats.leaveDays || ''}</td>
+          <td rowspan="2" style="border:1px solid #000;text-align:center;color:#dc2626;">${stats.absenceDays || ''}</td>
+          <td rowspan="2" style="border:1px solid #000;text-align:center;color:#6b7280;">${stats.restDays || ''}</td>
+          <td rowspan="2" style="border:1px solid #000;text-align:right;font-size:9px;color:#6b7280;">${e.notes || ''}</td>
+        </tr>
+      `;
+      employeeRows += `<tr style="background:${bgColor};">
+          <td style="border:1px solid #000;text-align:center;font-weight:bold;background:#f3e8ff;">ق</td>
+      `;
+      daysEx.forEach(day => {
+        const hours = e.hours[String(day)];
+        const isWe = isWeekend(day);
+        const weBg = hours == null && isWe ? 'background:#fff7ed;' : '';
+        const hoursStyle = hours != null ? 'background:#f5f3ff;color:#7c3aed;font-weight:bold;' : '';
+        employeeRows += `<td style="border:1px solid #000;text-align:center;font-size:11px;${hoursStyle}${weBg}">${hours != null ? hours : ''}</td>`;
+      });
+      employeeRows += `</tr>`;
+    });
+
+    let dayHeaders = '';
+    daysEx.forEach(day => {
+      const dow = getDayName(day);
+      const shift = getShiftForDayExport(tsYear, tsMonth, day);
+      const isWe = isWeekend(day);
+      const weBg = isWe ? 'background:#fff7ed;' : 'background:#eff6ff;';
+      dayHeaders += `
+        <th style="border:1px solid #000;text-align:center;font-size:8px;min-width:28px;${weBg}">
+          <div style="font-weight:bold;font-size:10px;">${day}</div>
+          <div style="font-size:7px;">${dow}</div>
+          <div style="font-size:7px;font-weight:bold;color:${SHIFT_TEXT_COLORS[shift] || '#374151'};">${shift}</div>
+        </th>
+      `;
+    });
+
+    const symbolsTable = `
+      <table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:8px;direction:rtl;">
+        <tr><td colspan="4" style="border:1px solid #000;padding:3px;background:#f0f0f0;font-weight:bold;">دليل الرموز</td></tr>
+        <tr>
+          <td style="border:1px solid #000;padding:3px;"><strong>Z:</strong> مواظبة ولا تحتوي على متغيرات</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>5:</strong> أيام الحشد الشعبي</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>E:</strong> إصابة عمل صادرة من لجنة طبية</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>B:</strong> أيام بقسم آخر</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #000;padding:3px;"><strong>F:</strong> مواظبة تحتوي على متغيرات إجازة غياب أو ساعات</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>W:</strong> الوفاة</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>K:</strong> إجازة أمومة بأمر إداري</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>M:</strong> إجازة أمومة</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #000;padding:3px;"><strong>4:</strong> العالقين في المناطق الساخنة</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>A:</strong> إعالة (إجازة) لذوي الاحتياجات الخاصة</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>D:</strong> أيام العدة</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>H:</strong> إجازة بدون راتب خارج العراق</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #000;padding:3px;"><strong>8:</strong> مصاحبة زوجية</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>Y:</strong> عطلة رسمية</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>X:</strong> غياب</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>7:</strong> إجازة اعتيادية خارج العراق براتب تام</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #000;padding:3px;"><strong>U:</strong> تفرغ</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>Q:</strong> خارج الخدمة (أيام قبل المباشرة في الشركة)</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>P:</strong> إيفاد شامل كافة أنواع الإيفادات خارج العراق</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>O:</strong> المقيم الصباحي</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #000;padding:3px;"><strong>2:</strong> مناوبة ثنائية</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>3:</strong> مناوبة ثلاثية</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>N:</strong> استراحة مناوبة</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>V:</strong> استراحة مقيم</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #000;padding:3px;"><strong>L:</strong> إجازة اعتيادية</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>S:</strong> إجازة مرضية</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>R:</strong> استراحة</td>
+          <td style="border:1px solid #000;padding:3px;"><strong>J:</strong> مجاز دراسياً</td>
+        </tr>
+      </table>
+    `;
+
+    const fullHtml = `<!DOCTYPE html>
+    <html lang="ar" dir="rtl">
+    <head>
+      <meta charset="UTF-8">
+      <title>استمارة تفاصيل الدوام - ${monthLabel} ${yearNum}</title>
+      <style>
+        @page { size: A3 landscape; margin: 8mm; }
+        body { font-family: 'Arial', sans-serif; direction: rtl; margin: 0; padding: 0; }
+        .header { text-align: center; border: 2px solid #1d3557; padding: 6px; border-radius: 4px; margin-bottom: 10px; }
+        .header .company { font-size: 12px; font-weight: bold; }
+        .header .dept { font-size: 11px; }
+        .header .title { font-size: 14px; font-weight: bold; margin: 4px 0; }
+        .header .sub { font-size: 11px; }
+        .notice { background: #fef9c3; padding: 4px; font-size: 9px; text-align: center; margin: 6px 0; border: 1px solid #fde047; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #000; padding: 2px 1px; vertical-align: middle; }
+        th { background: #dbeafe; font-size: 9px; }
+        .signatures { display: flex; justify-content: space-between; margin-top: 20px; font-size: 10px; text-align: center; }
+        .sign-item { width: 30%; border-top: 1px solid #000; padding-top: 5px; margin-top: 30px; }
+        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div class="company">الجمهورية العراقية — وزارة النفط</div>
+        <div class="company">شركة نفط البصرة (شركة عامة)</div>
+        <div class="dept">شعبة مستودع الفاو — قسم السيطرة والنظم</div>
+        <div class="title">استمارة تفاصيل الدوام لشهر ${monthLabel} ${yearNum}</div>
+        <div class="sub">الموقع: الفاو</div>
+      </div>
+      <div class="notice">ملاحظة: يرجى الانتباه إلى رموز المواظبة والتقيد بها وتثبيت مجموع الساعات للمشمولين بها</div>
+      <table>
+        <thead>
+          <tr>
+            <th rowspan="2" style="width:60px;">الرقم الوظيفي</th>
+            <th rowspan="2" style="width:160px;">اسم الموظف</th>
+            <th rowspan="2" style="width:40px;">الحركة</th>
+            <th rowspan="2" style="width:25px;">نوع</th>
+            ${dayHeaders}
+            <th rowspan="2" style="width:55px;">مجموع الساعات</th>
+            <th rowspan="2" style="width:40px;">إجازة</th>
+            <th rowspan="2" style="width:40px;">غياب</th>
+            <th rowspan="2" style="width:40px;">عطل</th>
+            <th rowspan="2" style="width:80px;">ملاحظات</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${employeeRows}
+        </tbody>
+      </table>
+      ${symbolsTable}
+      <div class="signatures">
+        <div class="sign-item">مدير القسم<br>التوقيع: _________________<br>التاريخ: _____ / _____ / _____</div>
+        <div class="sign-item">مسؤول الشعبة<br>التوقيع: _________________<br>التاريخ: _____ / _____ / _____</div>
+        <div class="sign-item">مسؤول ضبط الوقت<br>التوقيع: _________________<br>التاريخ: _____ / _____ / _____</div>
+      </div>
+    </body>
+    </html>`;
+
+    const blob = new Blob(["﻿" + fullHtml], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `تايم_شيت_${TAB_INFO[activeTab].label}_${yearNum}_${String(tsMonth + 1).padStart(2, "0")}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    addToast("تم تصدير الملف بنجاح بالتنسيق الرسمي ✅", "success");
+  };
+
   const exportPDF = () => {
     const html = buildHTMLTable(activeTab);
     const printHTML = html.replace("<body>", `<body><style>@page{size:A3 landscape;margin:10mm;} @media print{body{zoom:0.7;}}</style>`);
@@ -5937,6 +6136,10 @@ function TimeSheetPage({ emp }) {
           <button onClick={exportExcel}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-green-600 text-white hover:bg-green-700">
             <Download size={14}/> Excel
+          </button>
+          <button onClick={exportExcelFormatted}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-emerald-700 text-white hover:bg-emerald-800">
+            <Download size={14}/> Excel رسمي
           </button>
           <button onClick={exportPDF}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700">
