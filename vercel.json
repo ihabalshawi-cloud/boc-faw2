@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
@@ -39,7 +40,8 @@
   ],
   "build": {
     "env": {
-      "CI": "false"
+      "CI": "false",
+      "DISABLE_ESLINT_PLUGIN": "true"
     }
   }
 }
