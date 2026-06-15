@@ -128,6 +128,69 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // ── resumable-init — ابدأ جلسة رفع لملفات كبيرة ─────────
+    if (action === "resumable-init") {
+      const filename = decodeURIComponent(req.headers["x-filename"] || "upload");
+      const mimetype = req.headers["x-file-mime"] || "application/octet-stream";
+      const fileSize = req.headers["x-file-size"] || "0";
+      const folderId = process.env.GDRIVE_FOLDER_ID;
+
+      const metaObj = { name: filename, mimeType: mimetype };
+      if (folderId) metaObj.parents = [folderId];
+
+      const r = await fetch(
+        "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,webViewLink,webContentLink,size",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            "X-Upload-Content-Type": mimetype,
+            "X-Upload-Content-Length": fileSize,
+          },
+          body: JSON.stringify(metaObj),
+        }
+      );
+      const sessionUri = r.headers.get("Location");
+      if (!sessionUri) {
+        const body = await r.json().catch(() => ({}));
+        res.status(r.status).json({ error: body.error?.message || "No session URI" });
+        return;
+      }
+      res.status(200).json({ sessionUri });
+      return;
+    }
+
+    // ── resumable-chunk — أرسل جزءاً من الملف ───────────────
+    if (action === "resumable-chunk") {
+      const sessionUri   = req.headers["x-session-uri"];
+      const contentRange = req.headers["x-content-range"];
+      const mimetype     = req.headers["content-type"] || "application/octet-stream";
+      if (!sessionUri) { res.status(400).json({ error: "Missing x-session-uri" }); return; }
+
+      const chunkBuffer = await readBody(req);
+      const r = await fetch(sessionUri, {
+        method: "PUT",
+        headers: {
+          "Content-Length": String(chunkBuffer.length),
+          "Content-Range":  contentRange,
+          "Content-Type":   mimetype,
+        },
+        body: chunkBuffer,
+      });
+
+      if (r.status === 200 || r.status === 201) {
+        res.status(r.status).json(await r.json());
+      } else if (r.status === 308) {
+        const range = r.headers.get("Range") || "";
+        res.status(308).json({ range });
+      } else {
+        const body = await r.json().catch(() => ({}));
+        res.status(r.status).json(body);
+      }
+      return;
+    }
+
     // ── delete ───────────────────────────────────────────────
     if (action === "delete") {
       const fileId = url.searchParams.get("fileId");

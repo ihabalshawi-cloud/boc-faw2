@@ -536,30 +536,90 @@ const GDriveAPI = {
     } catch { return false; }
   },
 
-  uploadFile: async (file) => {
-    let res;
+  uploadFile: async (file, onProgress) => {
+    const CHUNK = 2 * 1024 * 1024; // 2MB per chunk (within Vercel 4.5MB limit)
+    const mime  = file.type || "application/octet-stream";
+
+    // ── ملفات صغيرة (≤ 3MB): رفع مباشر ──────────────────────
+    if (file.size <= 3 * 1024 * 1024) {
+      let res;
+      try {
+        res = await fetch(`${GDRIVE_PROXY}?action=upload`, {
+          method: "POST",
+          headers: {
+            "x-filename": encodeURIComponent(file.name),
+            "x-file-mime": mime,
+            "Content-Type": mime,
+          },
+          body: file,
+        });
+      } catch { throw new Error("تعذّر الوصول إلى خادم الرفع"); }
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        const r = b.error?.errors?.[0]?.reason || "";
+        const m = b.error?.message || b.error || "";
+        if (r === "storageQuotaExceeded") throw new Error("امتلأت مساحة Google Drive");
+        throw new Error(String(m) || `خطأ HTTP ${res.status}`);
+      }
+      onProgress?.(100);
+      return await res.json();
+    }
+
+    // ── ملفات كبيرة: Resumable Upload بأجزاء 2MB ────────────
+    // 1. ابدأ جلسة رفع
+    let initRes;
     try {
-      res = await fetch(`${GDRIVE_PROXY}?action=upload`, {
+      initRes = await fetch(`${GDRIVE_PROXY}?action=resumable-init`, {
         method: "POST",
         headers: {
-          "x-filename": encodeURIComponent(file.name),
-          "x-file-mime": file.type || "application/octet-stream",
-          "Content-Type": file.type || "application/octet-stream",
+          "x-filename":  encodeURIComponent(file.name),
+          "x-file-mime": mime,
+          "x-file-size": String(file.size),
         },
-        body: file,
       });
-    } catch {
-      throw new Error("تعذّر الوصول إلى خادم الرفع");
+    } catch { throw new Error("تعذّر الوصول إلى خادم الرفع"); }
+    if (!initRes.ok) {
+      const b = await initRes.json().catch(() => ({}));
+      throw new Error(b.error || `فشل بدء الجلسة: HTTP ${initRes.status}`);
     }
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      const reason = body.error?.errors?.[0]?.reason || "";
-      const gMsg   = body.error?.message || body.error || "";
-      if (res.status === 403 && reason === "storageQuotaExceeded")
-        throw new Error("امتلأت مساحة Google Drive");
-      throw new Error(String(gMsg) || `خطأ HTTP ${res.status}`);
+    const { sessionUri } = await initRes.json();
+
+    // 2. أرسل الأجزاء
+    let offset = 0;
+    while (offset < file.size) {
+      const end   = Math.min(offset + CHUNK, file.size);
+      const chunk = file.slice(offset, end);
+
+      let chunkRes;
+      try {
+        chunkRes = await fetch(`${GDRIVE_PROXY}?action=resumable-chunk`, {
+          method: "POST",
+          headers: {
+            "x-session-uri":   sessionUri,
+            "x-content-range": `bytes ${offset}-${end - 1}/${file.size}`,
+            "Content-Type":    mime,
+          },
+          body: chunk,
+        });
+      } catch { throw new Error("انقطع الاتصال أثناء الرفع — حاول مجدداً"); }
+
+      if (chunkRes.status === 200 || chunkRes.status === 201) {
+        onProgress?.(100);
+        return await chunkRes.json();
+      }
+      if (chunkRes.status === 308) {
+        // Drive أكّد الجزء — تابع
+        const range = chunkRes.headers.get("Range");
+        offset = range ? parseInt(range.split("-")[1], 10) + 1 : end;
+        onProgress?.(Math.round((offset / file.size) * 100));
+      } else {
+        const b = await chunkRes.json().catch(() => ({}));
+        const r = b.error?.errors?.[0]?.reason || "";
+        if (r === "storageQuotaExceeded") throw new Error("امتلأت مساحة Google Drive");
+        throw new Error(b.error?.message || `خطأ في الجزء ${chunkRes.status}`);
+      }
     }
-    return await res.json();
+    throw new Error("انتهى الرفع بدون إجابة نهائية");
   },
 
   getQuota: async () => {
@@ -610,8 +670,8 @@ function GDriveProvider({ children }) {
     });
   }, [refreshQuota]);
 
-  const uploadFile = useCallback(async (file) => {
-    const result = await GDriveAPI.uploadFile(file);
+  const uploadFile = useCallback(async (file, onProgress) => {
+    const result = await GDriveAPI.uploadFile(file, onProgress);
     GDriveAPI.getQuota().then(q => { if (q) setQuota(q); });
     return result;
   }, []);
@@ -4809,6 +4869,7 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
   const [fileMime, setFileMime] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadPct, setUploadPct] = useState(0);
   const [previewDoc, setPreviewDoc] = useState(null);
   const fileRef = useRef(null);
   const addToast = useToast();
@@ -4838,11 +4899,10 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
 
   const submit = async () => {
     if (!form.name.trim()) return;
-    setUploading(true);
+    setUploading(true); setUploadPct(0);
     try {
       if (selectedFile && gDrive.isReady) {
-        // رفع إلى Google Drive
-        const result = await gDrive.uploadFile(selectedFile);
+        const result = await gDrive.uploadFile(selectedFile, pct => setUploadPct(pct));
         addDoc(proj.id, {
           ...form,
           fileData: null, fileMime: fileMime || null,
@@ -4860,7 +4920,7 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
     } catch (e) {
       addToast(`فشل الرفع: ${e.message}`, "error");
     }
-    setUploading(false);
+    setUploading(false); setUploadPct(0);
   };
 
   const doDelete = async (d) => {
@@ -4959,8 +5019,13 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
           </div>
           <div className="flex gap-2 justify-end mt-3 pt-3 border-t border-color">
             <button onClick={resetForm} className="px-4 py-2 rounded-xl btn-secondary text-sm">إلغاء</button>
-            <button onClick={submit} disabled={uploading} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm disabled:opacity-60">
-              {uploading ? <><span className="animate-spin">⏳</span> جارٍ الرفع...</> : <><Save size={14}/> إضافة</>}
+            <button onClick={submit} disabled={uploading} className="relative overflow-hidden flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm disabled:opacity-60 min-w-[100px]">
+              {uploading && uploadPct > 0 && (
+                <span className="absolute inset-0 bg-blue-400/50 transition-all" style={{width:`${uploadPct}%`}}/>
+              )}
+              <span className="relative">
+                {uploading ? <><span className="animate-spin">⏳</span> {uploadPct > 0 ? `${uploadPct}%` : "جارٍ الرفع..."}</> : <><Save size={14}/> إضافة</>}
+              </span>
             </button>
           </div>
         </div>
