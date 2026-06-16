@@ -620,6 +620,24 @@ const FirebaseAPI = {
     } catch { return null; }
   },
 
+  // ── سجل تسجيل الدخول — مركزي عبر Firebase ليظهر لكل المشرفين من أي جهاز ولا يُفقد بعد التحديث ──
+  saveLoginHistory: async (histArr) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/login_history.json`, {
+        method: "PUT", body: JSON.stringify(histArr), headers: {"Content-Type":"application/json"}
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadLoginHistory: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/login_history.json`);
+      if (!res.ok) return null;
+      const d = await res.json();
+      return Array.isArray(d) && d.length > 0 ? d : null;
+    } catch { return null; }
+  },
+
   // ── الدردشة ───────────────────────────────────────────────────────────────
   sendMessage: async (msg) => {
     try { await fetch(`${FIREBASE_URL}/chat.json`, { method: "POST", body: JSON.stringify(msg) }); return true; } catch { return false; }
@@ -822,6 +840,30 @@ function GDriveProvider({ children }) {
     </GDriveContext.Provider>
   );
 }
+
+// ── نسخ احتياطي تلقائي يومي لكامل بيانات التطبيق (الموظفين، المخزن، الأثاث، المعدات، المشاريع، التايم شيت، سجل الدخول) إلى Google Drive ──
+// لا يوجد خادم خلفي للجدولة، فيتم التحقق عند فتح أي مشرف للتطبيق: إذا لم تُؤخذ نسخة اليوم بعد، تُؤخذ فوراً وتُرفع مرة واحدة فقط في اليوم.
+const DRIVE_BACKUP_DATE_KEY = "last_drive_backup_date";
+const runAutoDriveBackup = async (gDrive) => {
+  const today = new Date().toISOString().split("T")[0];
+  if (storage.get(DRIVE_BACKUP_DATE_KEY, null) === today) return;
+  try {
+    const [employees, inventory, furniture, equipment, projects, timesheet, loginHistory] = await Promise.all([
+      FirebaseAPI.loadEmployeesList(),
+      FirebaseAPI.loadInventory(),
+      FirebaseAPI.loadFurniture(),
+      FirebaseAPI.loadEquipmentList(),
+      FirebaseAPI.loadProjects(),
+      FirebaseAPI.loadTimesheet(),
+      FirebaseAPI.loadLoginHistory(),
+    ]);
+    const backup = { backupDate: new Date().toISOString(), employees, inventory, furniture, equipment, projects, timesheet, loginHistory };
+    const json = JSON.stringify(backup, null, 2);
+    const file = new File([json], `boc_backup_${today}.json`, { type: "application/json" });
+    await gDrive.uploadFile(file);
+    storage.set(DRIVE_BACKUP_DATE_KEY, today);
+  } catch { /* ستتم إعادة المحاولة عند فتح التطبيق التالي */ }
+};
 
 // ── مكوّن إعدادات Google Drive ──
 function GDriveSettingsModal({ onClose }) {
@@ -1074,6 +1116,7 @@ function recordLoginAttempt(account, status, failReason = null) {
   hist.unshift(rec);
   if (hist.length > 500) hist.length = 500;
   storage.set("login_history", hist);
+  FirebaseAPI.saveLoginHistory(hist);
   if (status === "success" && sessionId) {
     try { sessionStorage.setItem("boc_session_id", sessionId); } catch {}
     const sessionsRaw = storage.get("active_sessions", []);
@@ -1095,6 +1138,7 @@ function recordLogoutFn(userId) {
     hist[i].logoutTime = new Date().toISOString();
     hist[i].sessionDuration = Math.floor((Date.now() - new Date(hist[i].loginTime).getTime()) / 1000);
     storage.set("login_history", hist);
+    FirebaseAPI.saveLoginHistory(hist);
   }
   const sessionsRaw = storage.get("active_sessions", []);
   const sessions = Array.isArray(sessionsRaw) ? sessionsRaw : [];
@@ -3326,10 +3370,17 @@ function AdminDashboard({ emp, employees, setEmployees }) {
   const [histPage, setHistPage] = useState(1);
   const HIST_PER_PAGE = 20;
 
-  // Live data refresh every 30s
+  // Live data refresh every 30s + مزامنة سجل الدخول من Firebase ليظهر لكل المشرفين من أي جهاز
   const [tick, setTick] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setTick(n => n+1), 30000);
+    const syncLoginHistory = () => {
+      FirebaseAPI.loadLoginHistory().then(list => {
+        if (list) storage.set("login_history", list);
+        setTick(n => n+1);
+      });
+    };
+    syncLoginHistory();
+    const t = setInterval(syncLoginHistory, 30000);
     return () => clearInterval(t);
   }, []);
 
@@ -3369,6 +3420,7 @@ function AdminDashboard({ emp, employees, setEmployees }) {
   const clearHistory = async () => {
     if (!await confirm("هل تريد مسح سجل الدخول بالكامل؟")) return;
     storage.set("login_history", []);
+    FirebaseAPI.saveLoginHistory([]);
     setTick(n=>n+1);
     addToast("تم مسح سجل الدخول","success");
   };
@@ -6708,6 +6760,11 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
 
   const [showDriveSettings, setShowDriveSettings] = useState(false);
   const gDrive = useGDrive();
+
+  // نسخ احتياطي تلقائي يومي لكامل بيانات التطبيق إلى Google Drive (مرة واحدة في اليوم عند فتح المشرف للتطبيق)
+  useEffect(() => {
+    if (isAdmin && gDrive.isReady) runAutoDriveBackup(gDrive);
+  }, [isAdmin, gDrive.isReady]);
 
   return (
     <div className="min-h-screen bg-main" dir="rtl">
