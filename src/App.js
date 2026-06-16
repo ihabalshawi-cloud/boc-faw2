@@ -584,6 +584,24 @@ const FirebaseAPI = {
     } catch { return null; }
   },
 
+  // ── المشاريع — تُحفظ في قاعدة البيانات لتبقى ثابتة بعد التحديث ──
+  saveProjects: async (projectsArr) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/pm_projects.json`, {
+        method: "PUT", body: JSON.stringify(projectsArr), headers: {"Content-Type":"application/json"}
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadProjects: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/pm_projects.json`);
+      if (!res.ok) return null;
+      const d = await res.json();
+      return Array.isArray(d) && d.length > 0 ? d : null;
+    } catch { return null; }
+  },
+
   // ── الدردشة ───────────────────────────────────────────────────────────────
   sendMessage: async (msg) => {
     try { await fetch(`${FIREBASE_URL}/chat.json`, { method: "POST", body: JSON.stringify(msg) }); return true; } catch { return false; }
@@ -4561,7 +4579,21 @@ function ProjectManagementPage({ emp }) {
   const addToast = useToast();
   const confirm = useConfirm();
 
-  const saveAll = (updated) => { setProjects(updated); storage.set("pm_projects", updated); };
+  // أي تعديل على المشاريع يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
+  const saveAll = (updated) => {
+    setProjects(updated);
+    storage.set("pm_projects", updated);
+    FirebaseAPI.saveProjects(updated);
+  };
+  useEffect(() => {
+    FirebaseAPI.loadProjects().then(list => {
+      if (list) {
+        setProjects(list);
+        storage.set("pm_projects", list);
+        setSelId(prev => list.some(p => p.id === prev) ? prev : (list[0]?.id || null));
+      }
+    });
+  }, []);
 
   const proj = projects.find(p => p.id === selId);
 
