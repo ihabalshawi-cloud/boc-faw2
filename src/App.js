@@ -5221,6 +5221,28 @@ const uploadToFirebaseStorage = (file, path, onProgress) => new Promise((resolve
   xhr.send(file);
 });
 
+// حد افتراضي لخطة Firebase المجانية (Spark) — 5GB تخزين. عدّله إذا كانت الخطة Blaze (غير محدود عملياً).
+const FIREBASE_STORAGE_LIMIT_BYTES = 5 * 1024 * 1024 * 1024;
+const fmtStorageSize = (b) => b >= 1e9 ? (b/1e9).toFixed(2)+" GB" : b >= 1e6 ? (b/1e6).toFixed(1)+" MB" : b >= 1e3 ? (b/1e3).toFixed(0)+" KB" : b+" B";
+
+// يحسب الاستخدام الفعلي لمخزن Firebase Storage عبر سرد كل الملفات وجمع أحجامها (REST بدون حاجة لصلاحيات إدارية)
+const getFirebaseStorageUsage = async () => {
+  try {
+    let usage = 0, pageToken;
+    do {
+      const url = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_STORAGE_BUCKET)}/o?maxResults=1000${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ""}`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const data = await res.json();
+      (data.items || []).forEach(it => { usage += Number(it.size || 0); });
+      pageToken = data.nextPageToken;
+    } while (pageToken);
+    const limit = FIREBASE_STORAGE_LIMIT_BYTES;
+    const pct = Math.round((usage / limit) * 100);
+    return { usage, limit, pct, usageStr: fmtStorageSize(usage), limitStr: fmtStorageSize(limit), freeStr: fmtStorageSize(Math.max(limit - usage, 0)) };
+  } catch { return null; }
+};
+
 // ── تبويب الوثائق ──
 function DocsTab({ proj, addDoc, delDoc, emp }) {
   const [showAdd, setShowAdd] = useState(false);
@@ -5233,12 +5255,14 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
   const [previewDoc, setPreviewDoc] = useState(null);
   const [localFiles, setLocalFiles] = useState([]);
   const [storageUsage, setStorageUsage] = useState(null);
+  const [fbUsage, setFbUsage] = useState(null);
   const fileRef = useRef(null);
   const addToast = useToast();
   const confirm = useConfirm();
   const gDrive = useGDrive();
 
   useEffect(() => { loadLocalFiles(); checkStorage(); }, [proj.id]);
+  useEffect(() => { getFirebaseStorageUsage().then(setFbUsage); }, []);
 
   const loadLocalFiles = async () => {
     try { const files = await FileStorage.getProjectFiles(proj.id); setLocalFiles(files); }
@@ -5267,20 +5291,52 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
     if (fileRef.current) fileRef.current.value = "";
   };
 
+  const uploadViaFirebase = async () => {
+    const path = `projects/${proj.id}/${Date.now()}_${selectedFile.name}`;
+    const result = await uploadToFirebaseStorage(selectedFile, path, pct => setUploadPct(pct));
+    addDoc(proj.id, {
+      ...form, fileData: null, fileMime: fileMime || null,
+      fileUrl: result.url, firebasePath: result.path,
+      size: form.size || (Number(result.size) / 1024).toFixed(0) + " KB",
+      storageType: "firebase"
+    });
+    addToast("تم رفع الملف إلى Firebase Storage ✅", "success");
+    getFirebaseStorageUsage().then(setFbUsage);
+  };
+
+  const uploadViaDrive = async () => {
+    const result = await gDrive.uploadFile(selectedFile, pct => setUploadPct(pct));
+    addDoc(proj.id, {
+      ...form, fileData: null, fileMime: fileMime || null,
+      driveFileId: result.id, driveViewLink: result.webViewLink, driveDownloadLink: result.webContentLink,
+      size: form.size || (Number(result.size) / 1024).toFixed(0) + " KB",
+      storageType: "google_drive"
+    });
+    addToast("تم رفع الملف إلى Google Drive ✅", "success");
+  };
+
   const submit = async () => {
     if (!form.name.trim()) { addToast("يرجى إدخال اسم الوثيقة", "warning"); return; }
     setUploading(true); setUploadPct(0);
     try {
       if (selectedFile) {
-        const path = `projects/${proj.id}/${Date.now()}_${selectedFile.name}`;
-        const result = await uploadToFirebaseStorage(selectedFile, path, pct => setUploadPct(pct));
-        addDoc(proj.id, {
-          ...form, fileData: null, fileMime: fileMime || null,
-          fileUrl: result.url, firebasePath: result.path,
-          size: form.size || (Number(result.size) / 1024).toFixed(0) + " KB",
-          storageType: "firebase"
-        });
-        addToast("تم رفع الملف إلى Firebase Storage ✅", "success");
+        // احتياطي تلقائي: إذا اقترب Firebase من الامتلاء وكان Google Drive متاحاً، يُستخدم Drive مباشرة
+        const nearFull = fbUsage && fbUsage.pct >= GDRIVE_WARN_PCT;
+        if (nearFull && gDrive.isReady) {
+          addToast(`⚠️ مساحة Firebase اقتربت من الامتلاء (${fbUsage.pct}%) — يتم الرفع إلى Google Drive`, "warning");
+          await uploadViaDrive();
+        } else {
+          try {
+            await uploadViaFirebase();
+          } catch (fbErr) {
+            if (gDrive.isReady) {
+              addToast("تعذّر الرفع إلى Firebase، تتم المحاولة عبر Google Drive كاحتياطي...", "warning");
+              await uploadViaDrive();
+            } else {
+              throw fbErr;
+            }
+          }
+        }
       } else {
         addDoc(proj.id, { ...form, fileData: null, storageType: "metadata" });
         addToast("تمت إضافة الوثيقة", "success");
@@ -5353,6 +5409,19 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
             </div>
           </div>
           <span className={storageUsage.percent > 80 ? "text-red-600 font-bold" : "text-gray-600"}>{storageUsage.percent}% مستخدم</span>
+        </div>
+      )}
+
+      {fbUsage && fbUsage.pct >= GDRIVE_WARN_PCT && (
+        <div className={`rounded-xl p-3 flex items-center justify-between text-xs border ${fbUsage.pct >= GDRIVE_CRIT_PCT ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200"}`}>
+          <div className="flex items-center gap-2">
+            <span>🔥</span>
+            <span className="font-medium">Firebase Storage:</span>
+            <span>{fbUsage.usageStr} / {fbUsage.limitStr}</span>
+          </div>
+          <span className={fbUsage.pct >= GDRIVE_CRIT_PCT ? "text-red-600 font-bold" : "text-amber-600 font-medium"}>
+            {fbUsage.pct}% — {gDrive.isReady ? "الرفع التالي سيتم عبر Google Drive احتياطياً" : "متاح: " + fbUsage.freeStr}
+          </span>
         </div>
       )}
 
