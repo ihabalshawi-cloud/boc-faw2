@@ -638,6 +638,24 @@ const FirebaseAPI = {
     } catch { return null; }
   },
 
+  // ── طلبات الإجازة — مركزية عبر Firebase ليراها المشرف ويراها الموظف من أي جهاز ولا تُفقد بعد التحديث ──
+  saveRequests: async (reqArr) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/all_requests.json`, {
+        method: "PUT", body: JSON.stringify(reqArr), headers: {"Content-Type":"application/json"}
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadRequests: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/all_requests.json`);
+      if (!res.ok) return null;
+      const d = await res.json();
+      return Array.isArray(d) && d.length > 0 ? d : null;
+    } catch { return null; }
+  },
+
   // ── الدردشة ───────────────────────────────────────────────────────────────
   sendMessage: async (msg) => {
     try { await fetch(`${FIREBASE_URL}/chat.json`, { method: "POST", body: JSON.stringify(msg) }); return true; } catch { return false; }
@@ -841,14 +859,14 @@ function GDriveProvider({ children }) {
   );
 }
 
-// ── نسخ احتياطي تلقائي يومي لكامل بيانات التطبيق (الموظفين، المخزن، الأثاث، المعدات، المشاريع، التايم شيت، سجل الدخول) إلى Google Drive ──
+// ── نسخ احتياطي تلقائي يومي لكامل بيانات التطبيق (الموظفين، المخزن، الأثاث، المعدات، المشاريع، التايم شيت، سجل الدخول، طلبات الإجازة) إلى Google Drive ──
 // لا يوجد خادم خلفي للجدولة، فيتم التحقق عند فتح أي مشرف للتطبيق: إذا لم تُؤخذ نسخة اليوم بعد، تُؤخذ فوراً وتُرفع مرة واحدة فقط في اليوم.
 const DRIVE_BACKUP_DATE_KEY = "last_drive_backup_date";
 const runAutoDriveBackup = async (gDrive) => {
   const today = new Date().toISOString().split("T")[0];
   if (storage.get(DRIVE_BACKUP_DATE_KEY, null) === today) return;
   try {
-    const [employees, inventory, furniture, equipment, projects, timesheet, loginHistory] = await Promise.all([
+    const [employees, inventory, furniture, equipment, projects, timesheet, loginHistory, requests] = await Promise.all([
       FirebaseAPI.loadEmployeesList(),
       FirebaseAPI.loadInventory(),
       FirebaseAPI.loadFurniture(),
@@ -856,8 +874,9 @@ const runAutoDriveBackup = async (gDrive) => {
       FirebaseAPI.loadProjects(),
       FirebaseAPI.loadTimesheet(),
       FirebaseAPI.loadLoginHistory(),
+      FirebaseAPI.loadRequests(),
     ]);
-    const backup = { backupDate: new Date().toISOString(), employees, inventory, furniture, equipment, projects, timesheet, loginHistory };
+    const backup = { backupDate: new Date().toISOString(), employees, inventory, furniture, equipment, projects, timesheet, loginHistory, requests };
     const json = JSON.stringify(backup, null, 2);
     const file = new File([json], `boc_backup_${today}.json`, { type: "application/json" });
     await gDrive.uploadFile(file);
@@ -1411,6 +1430,17 @@ function RequestsPage({ emp }) {
   const showToast = useToast();
   const confirm = useConfirm();
   useEffect(() => { const t = setTimeout(() => setPageLoading(false), 250); return () => clearTimeout(t); }, []);
+  // مزامنة طلبات الموظف من Firebase عند فتح الصفحة لتظهر القرارات (موافقة/رفض) من أي جهاز
+  useEffect(() => {
+    FirebaseAPI.loadRequests().then(list => {
+      if (list) {
+        storage.set("all_requests", list);
+        const mine = list.filter(r => r.empId === emp.id);
+        setRequests(mine);
+        storage.set(`requests_${emp.id}`, mine);
+      }
+    });
+  }, [emp.id]);
 
   const handleSubmit = () => {
     if (!formData.purpose.trim()) { setErrors({purpose:"الغرض مطلوب"}); return; }
@@ -1420,8 +1450,12 @@ function RequestsPage({ emp }) {
     if (days > maxDays) { setErrors({days:`الحد الأقصى ${maxDays} يوم`}); return; }
     const newReq = { id:Date.now(), ...formData, days, status:"بانتظار المراجعة", submittedAt:new Date().toISOString(), empId:emp.id, empName:emp.name };
     const allReqs = storage.get("all_requests", []);
-    storage.set("all_requests", [newReq, ...allReqs]);
-    setRequests([newReq, ...requests]);
+    const updatedAll = [newReq, ...allReqs];
+    storage.set("all_requests", updatedAll);
+    FirebaseAPI.saveRequests(updatedAll);
+    const mine = [newReq, ...requests];
+    setRequests(mine);
+    storage.set(`requests_${emp.id}`, mine);
     setShowForm(false);
     setFormData({ type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" });
     setErrors({});
@@ -1436,6 +1470,9 @@ function RequestsPage({ emp }) {
       const updated = requests.filter(r => r.id !== id);
       setRequests(updated);
       storage.set(`requests_${emp.id}`, updated);
+      const allReqs = storage.get("all_requests", []).filter(r => r.id !== id);
+      storage.set("all_requests", allReqs);
+      FirebaseAPI.saveRequests(allReqs);
       showToast("تم حذف الطلب", "success");
     }
   };
@@ -1476,10 +1513,21 @@ function ApprovalsPage({ emp }) {
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
 
+  // مزامنة الطلبات من Firebase عند فتح صفحة الموافقات لتظهر طلبات أُرسلت من أي جهاز
+  useEffect(() => {
+    FirebaseAPI.loadRequests().then(list => {
+      if (list) {
+        storage.set("all_requests", list);
+        setRequests(list.filter(r => r.status === "بانتظار المراجعة"));
+      }
+    });
+  }, []);
+
   const updateStatus = (id, status) => {
     const allRequests = storage.get("all_requests", []);
     const updated = allRequests.map(r => r.id === id ? { ...r, status, decidedAt: new Date().toISOString(), decidedBy: emp.name } : r);
     storage.set("all_requests", updated);
+    FirebaseAPI.saveRequests(updated);
     const req = allRequests.find(r => r.id === id);
     if(req) {
       const empReqs = storage.get(`requests_${req.empId}`, []);
@@ -6729,6 +6777,12 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
 
   // تحديث allRequests عند تغيير الـ view
   useEffect(() => { setAllRequests(storage.get("all_requests", [])); }, [view]);
+  // مزامنة طلبات الإجازة من Firebase عند فتح التطبيق ليظهر العدد المعلق الصحيح من أي جهاز
+  useEffect(() => {
+    FirebaseAPI.loadRequests().then(list => {
+      if (list) { setAllRequests(list); storage.set("all_requests", list); }
+    });
+  }, []);
 
   const menuItems = [
     { id:"home", label:"الرئيسية", icon:<Home size={17}/> },
