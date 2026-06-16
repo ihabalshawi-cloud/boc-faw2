@@ -515,7 +515,7 @@ const FirebaseAPI = {
   // ── قائمة الموظفين الكاملة (تُحفظ مركزياً ليراها المشرف من أي جهاز ولا تختفي بعد التحديث) ──
   saveEmployeesList: async (employeesArr) => {
     try {
-      const res = await fetch(`${FIREBASE_URL}/employees_list.json`, {
+      const res = await fetch(`${FIREBASE_URL}/employees.json`, {
         method: "PUT", body: JSON.stringify(employeesArr), headers: {"Content-Type":"application/json"}
       });
       return res.ok;
@@ -523,7 +523,7 @@ const FirebaseAPI = {
   },
   loadEmployeesList: async () => {
     try {
-      const res = await fetch(`${FIREBASE_URL}/employees_list.json`);
+      const res = await fetch(`${FIREBASE_URL}/employees.json`);
       if (!res.ok) return null;
       const d = await res.json();
       return Array.isArray(d) && d.length > 0 ? d : null;
@@ -641,7 +641,7 @@ const FirebaseAPI = {
   // ── طلبات الإجازة — مركزية عبر Firebase ليراها المشرف ويراها الموظف من أي جهاز ولا تُفقد بعد التحديث ──
   saveRequests: async (reqArr) => {
     try {
-      const res = await fetch(`${FIREBASE_URL}/all_requests.json`, {
+      const res = await fetch(`${FIREBASE_URL}/requests.json`, {
         method: "PUT", body: JSON.stringify(reqArr), headers: {"Content-Type":"application/json"}
       });
       return res.ok;
@@ -649,7 +649,7 @@ const FirebaseAPI = {
   },
   loadRequests: async () => {
     try {
-      const res = await fetch(`${FIREBASE_URL}/all_requests.json`);
+      const res = await fetch(`${FIREBASE_URL}/requests.json`);
       if (!res.ok) return null;
       const d = await res.json();
       return Array.isArray(d) && d.length > 0 ? d : null;
