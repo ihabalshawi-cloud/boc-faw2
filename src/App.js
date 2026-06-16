@@ -13,7 +13,7 @@ import {
 
 // ========== الثوابت ==========
 const FIREBASE_URL = "https://faop-scada-default-rtdb.asia-southeast1.firebasedatabase.app";
-const FIREBASE_STORAGE_BUCKET = "faop-scada.appspot.com";
+const FIREBASE_STORAGE_BUCKET = "faop-scada.firebasestorage.app";
 const EMPLOYEES_STORAGE_KEY = "employees_list_v1";
 const LOW_STOCK_THRESHOLD = 3;
 
@@ -599,6 +599,24 @@ const FirebaseAPI = {
       if (!res.ok) return null;
       const d = await res.json();
       return Array.isArray(d) && d.length > 0 ? d : null;
+    } catch { return null; }
+  },
+
+  // ── التايم شيت — تُحفظ في قاعدة البيانات لتبقى ثابتة بعد التحديث ──
+  saveTimesheet: async (tsData) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/timesheet_data.json`, {
+        method: "PUT", body: JSON.stringify(tsData), headers: {"Content-Type":"application/json"}
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadTimesheet: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/timesheet_data.json`);
+      if (!res.ok) return null;
+      const d = await res.json();
+      return d && typeof d === "object" && Object.keys(d).length > 0 ? d : null;
     } catch { return null; }
   },
 
@@ -5714,6 +5732,17 @@ function TimeSheetPage({ emp }) {
   const [showLegend, setShowLegend] = useState(false);
   const [searchEmp, setSearchEmp] = useState("");
 
+  // أي تعديل على التايم شيت يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
+  const persistTs = (updated) => {
+    storage.set(STORAGE_KEY, updated);
+    FirebaseAPI.saveTimesheet(updated);
+  };
+  useEffect(() => {
+    FirebaseAPI.loadTimesheet().then(d => {
+      if (d) { setData(d); storage.set(STORAGE_KEY, d); }
+    });
+  }, []);
+
   const TAB_INFO = {
     malak:     { label:"الملاك",     title:"استمارة ضبط وقت العمال المؤقتين (بعقد)", codes:TS_CODES_GENERAL },
     contracts: { label:"العقود",    title:"استمارة تفاصيل الدوام",                   codes:TS_CODES_GENERAL },
@@ -5756,7 +5785,7 @@ function TimeSheetPage({ emp }) {
           }
         })
       };
-      storage.set(STORAGE_KEY, updated);
+      persistTs(updated);
       return updated;
     });
   };
@@ -5764,7 +5793,7 @@ function TimeSheetPage({ emp }) {
   const updateNotes = (tabKey, empId, notes) => {
     setData(prev => {
       const updated = {...prev, [tabKey]: prev[tabKey].map(e => e.id===empId ? {...e, notes} : e)};
-      storage.set(STORAGE_KEY, updated);
+      persistTs(updated);
       return updated;
     });
   };
@@ -5777,7 +5806,7 @@ function TimeSheetPage({ emp }) {
     const newEmp = {id:id.trim(), name:name.trim(), movement:"", days:{}, hours:{}, notes:""};
     setData(prev => {
       const updated = {...prev, [tabKey]: [...prev[tabKey], newEmp]};
-      storage.set(STORAGE_KEY, updated);
+      persistTs(updated);
       return updated;
     });
     addToast("تمت إضافة الموظف", "success");
@@ -5788,7 +5817,7 @@ function TimeSheetPage({ emp }) {
     if (!ok) return;
     setData(prev => {
       const updated = {...prev, [tabKey]: prev[tabKey].filter(e => e.id !== empId)};
-      storage.set(STORAGE_KEY, updated);
+      persistTs(updated);
       return updated;
     });
     addToast("تم حذف الموظف", "success");
@@ -5802,7 +5831,7 @@ function TimeSheetPage({ emp }) {
         ...prev,
         [tabKey]: prev[tabKey].map(e => e.id === empId ? {...e, name:newName.trim(), id:newName.trim()} : e)
       };
-      storage.set(STORAGE_KEY, updated);
+      persistTs(updated);
       return updated;
     });
     addToast("تم تعديل اسم السائق", "success");
@@ -5811,7 +5840,7 @@ function TimeSheetPage({ emp }) {
   const resetData = async () => {
     const ok = await confirm("هل تريد إعادة تعيين جميع البيانات للبيانات الأصلية؟");
     if (!ok) return;
-    storage.set(STORAGE_KEY, INITIAL_TS);
+    persistTs(INITIAL_TS);
     setData(INITIAL_TS);
     addToast("تمت إعادة التعيين للبيانات الأصلية", "success");
   };
@@ -5824,7 +5853,7 @@ function TimeSheetPage({ emp }) {
         ...prev,
         [activeTab]: prev[activeTab].map(e => ({...e, days:{}, hours:{}}))
       };
-      storage.set(STORAGE_KEY, updated);
+      persistTs(updated);
       return updated;
     });
     addToast(`تم تصفير بيانات ${TAB_INFO[activeTab].label}`, "success");
@@ -5849,7 +5878,7 @@ function TimeSheetPage({ emp }) {
           return {...e, days: newDays};
         })
       };
-      storage.set(STORAGE_KEY, updated);
+      persistTs(updated);
       return updated;
     });
     addToast("تم ملء رموز عطلة نهاية الأسبوع للكادر الصباحي", "success");
