@@ -14,6 +14,7 @@ import {
 // ========== الثوابت ==========
 const FIREBASE_URL = "https://faop-scada-default-rtdb.asia-southeast1.firebasedatabase.app";
 const FIREBASE_STORAGE_BUCKET = "faop-scada.appspot.com";
+const EMPLOYEES_STORAGE_KEY = "employees_list_v1";
 const LOW_STOCK_THRESHOLD = 3;
 
 // ⚠️ بيانات المستخدمين — سري للاستخدام الرسمي فقط
@@ -509,6 +510,24 @@ const FirebaseAPI = {
     } catch(e) {
       return { ok: false, status: 0, reason: "network_error", body: e.message };
     }
+  },
+
+  // ── قائمة الموظفين الكاملة (تُحفظ مركزياً ليراها المشرف من أي جهاز ولا تختفي بعد التحديث) ──
+  saveEmployeesList: async (employeesArr) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/employees_list.json`, {
+        method: "PUT", body: JSON.stringify(employeesArr), headers: {"Content-Type":"application/json"}
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadEmployeesList: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/employees_list.json`);
+      if (!res.ok) return null;
+      const d = await res.json();
+      return Array.isArray(d) && d.length > 0 ? d : null;
+    } catch { return null; }
   },
 
   // ── الدردشة ───────────────────────────────────────────────────────────────
@@ -1871,10 +1890,18 @@ function EmployeeManager({ employees, setEmployees }) {
     addToast(adding?"تمت إضافة الموظف":"تم تحديث البيانات","success");
   };
 
+  // مزامنة فورية لخريطة الأدوار/الحالات إلى Firebase حتى لا تختفي بعد التحديث
+  const autoSyncRoles = () => {
+    const rolesMap = {};
+    employees.forEach(emp => { rolesMap[emp.id] = getEmpStatus(emp.id); });
+    FirebaseAPI.saveRoles(rolesMap);
+  };
+
   const toggleStatus = (e) => {
     const st = getStatus(e);
     setEmpStatus(e.id, {...st, active:!st.active});
     forceUpdate(n=>n+1);
+    autoSyncRoles();
     addToast(st.active?"تم تعطيل الحساب":"تم تفعيل الحساب", st.active?"warning":"success");
   };
 
@@ -1882,6 +1909,7 @@ function EmployeeManager({ employees, setEmployees }) {
     const st = getStatus(e);
     setEmpStatus(e.id, {...st, role});
     forceUpdate(n=>n+1);
+    autoSyncRoles();
     addToast("تم تغيير الدور","success");
   };
 
@@ -1889,6 +1917,7 @@ function EmployeeManager({ employees, setEmployees }) {
     const ok = await confirm(`إعادة تعيين كلمة مرور ${e.name} إلى "1000"؟`);
     if (!ok) return;
     passStore.set(`pass_${e.id}`, null);
+    if (isConnected) await FirebaseAPI.deletePassword(e.id);
     addToast("تم إعادة تعيين كلمة المرور إلى 1000","success");
   };
 
@@ -6372,7 +6401,21 @@ function TimeSheetPage({ emp }) {
 function Dashboard({ emp, onLogout, dark, setDark }) {
   const [view, setView] = useState("home");
   const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []));
-  const [employees, setEmployees] = useState(ACCOUNTS);
+  const [employees, setEmployeesState] = useState(() => storage.get(EMPLOYEES_STORAGE_KEY, ACCOUNTS));
+  // أي تعديل (إضافة/تحرير موظف) يُحفظ فوراً محلياً + يُرفع إلى Firebase ليبقى دائماً ولا يختفي بعد التحديث
+  const setEmployees = useCallback((updater) => {
+    setEmployeesState(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      storage.set(EMPLOYEES_STORAGE_KEY, next);
+      FirebaseAPI.saveEmployeesList(next);
+      return next;
+    });
+  }, []);
+  useEffect(() => {
+    FirebaseAPI.loadEmployeesList().then(list => {
+      if (list) { setEmployeesState(list); storage.set(EMPLOYEES_STORAGE_KEY, list); }
+    });
+  }, []);
   const { isConnected } = useConnectionStatus();
   const smartAlerts = useSmartAlerts(employees);
   const confirm = useConfirm();
