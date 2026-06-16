@@ -530,6 +530,60 @@ const FirebaseAPI = {
     } catch { return null; }
   },
 
+  // ── المخزن (جرد الآلات الدقيقة) — تُحفظ في قاعدة البيانات لتبقى ثابتة بعد التحديث ──
+  saveInventory: async (itemsArr) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/inventory_items.json`, {
+        method: "PUT", body: JSON.stringify(itemsArr), headers: {"Content-Type":"application/json"}
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadInventory: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/inventory_items.json`);
+      if (!res.ok) return null;
+      const d = await res.json();
+      return Array.isArray(d) && d.length > 0 ? d : null;
+    } catch { return null; }
+  },
+
+  // ── الأثاث — تُحفظ في قاعدة البيانات لتبقى ثابتة بعد التحديث ──
+  saveFurniture: async (itemsArr) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/furniture_items.json`, {
+        method: "PUT", body: JSON.stringify(itemsArr), headers: {"Content-Type":"application/json"}
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadFurniture: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/furniture_items.json`);
+      if (!res.ok) return null;
+      const d = await res.json();
+      return Array.isArray(d) && d.length > 0 ? d : null;
+    } catch { return null; }
+  },
+
+  // ── المعدات — تُحفظ في قاعدة البيانات لتبقى ثابتة بعد التحديث ──
+  saveEquipmentList: async (eqArr) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/equipment_list.json`, {
+        method: "PUT", body: JSON.stringify(eqArr), headers: {"Content-Type":"application/json"}
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadEquipmentList: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/equipment_list.json`);
+      if (!res.ok) return null;
+      const d = await res.json();
+      return Array.isArray(d) && d.length > 0 ? d : null;
+    } catch { return null; }
+  },
+
   // ── الدردشة ───────────────────────────────────────────────────────────────
   sendMessage: async (msg) => {
     try { await fetch(`${FIREBASE_URL}/chat.json`, { method: "POST", body: JSON.stringify(msg) }); return true; } catch { return false; }
@@ -941,15 +995,17 @@ const PERMISSIONS_DEF = {
   MANAGE_ROLES:      { label:"إدارة الصلاحيات",     icon:"🔑" },
   MANAGE_EQUIPMENT:  { label:"إدارة المعدات",        icon:"⚙" },
   MANAGE_SPAREPARTS: { label:"إدارة قطع الغيار",    icon:"🔧" },
+  MANAGE_INVENTORY:  { label:"إدارة المخزن والأثاث", icon:"📦" },
   APPROVE_REQUESTS:  { label:"الموافقة على الطلبات",icon:"✅" },
   SYSTEM_SETTINGS:   { label:"إعدادات النظام",       icon:"🔩" },
   VIEW_AUDIT:        { label:"سجل التعديلات",        icon:"📊" },
 };
 const BUILT_IN_ROLES = {
-  SUPER_ADMIN: { label:"مشرف عام",    color:"bg-red-100 text-red-800",      permissions:["FULL_ACCESS"] },
-  ADMIN:       { label:"مدير إداري",  color:"bg-blue-100 text-blue-800",    permissions:["MANAGE_USERS","VIEW_LOGIN_HIST","APPROVE_REQUESTS","VIEW_AUDIT","KILL_SESSIONS"] },
-  MAINTENANCE: { label:"مدير صيانة", color:"bg-orange-100 text-orange-800", permissions:["MANAGE_EQUIPMENT","MANAGE_SPAREPARTS"] },
-  EMPLOYEE:    { label:"موظف",        color:"bg-gray-100 text-gray-700",    permissions:[] },
+  SUPER_ADMIN:       { label:"مشرف عام",      color:"bg-red-100 text-red-800",      permissions:["FULL_ACCESS"] },
+  ADMIN:             { label:"مدير إداري",    color:"bg-blue-100 text-blue-800",    permissions:["MANAGE_USERS","VIEW_LOGIN_HIST","APPROVE_REQUESTS","VIEW_AUDIT","KILL_SESSIONS"] },
+  MAINTENANCE:       { label:"مدير صيانة",   color:"bg-orange-100 text-orange-800", permissions:["MANAGE_EQUIPMENT","MANAGE_SPAREPARTS"] },
+  WAREHOUSE_MANAGER: { label:"مسؤول المخزن", color:"bg-teal-100 text-teal-800",     permissions:["MANAGE_INVENTORY"] },
+  EMPLOYEE:          { label:"موظف",          color:"bg-gray-100 text-gray-700",    permissions:[] },
 };
 function getEmpStatus(empId) { return storage.get(`emp_status_${empId}`, { active:true, role:"EMPLOYEE" }); }
 function setEmpStatus(empId, val) { storage.set(`emp_status_${empId}`, val); }
@@ -1504,8 +1560,9 @@ function TrainingSystem({ emp, isAdmin }) {
 }
 
 // ========== جرد المخزن ==========
-function InventorySystem() {
-  const [items, setItems] = useState(() => storage.get("inventory_items", [
+function InventorySystem({ emp, isAdmin }) {
+  const canEdit = isAdmin || hasPermission(emp, "MANAGE_INVENTORY");
+  const [items, setItemsState] = useState(() => storage.get("inventory_items", [
     // ═══ أجهزة القياس والمعايرة ═══
     {id:1,   code:"2301280010", name:"مقاومة متغيرة",                       category:"أجهزة قياس",      qty:1,  condition:"جيد",         location:"شعبة الآلات الدقيقة", serialNo:"2489"},
     {id:2,   code:"2301243008", name:"مولد ذبذبات",                          category:"أجهزة قياس",      qty:1,  condition:"جيد",         location:"شعبة الآلات الدقيقة", serialNo:"JB21280"},
@@ -1658,21 +1715,36 @@ function InventorySystem() {
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
   const confirm = useConfirm();
-  useEffect(() => { storage.set("inventory_items", items); }, [items]);
+  // أي تعديل يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
+  const setItems = useCallback((updater) => {
+    setItemsState(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      storage.set("inventory_items", next);
+      FirebaseAPI.saveInventory(next);
+      return next;
+    });
+  }, []);
+  useEffect(() => {
+    FirebaseAPI.loadInventory().then(list => {
+      if (list) { setItemsState(list); storage.set("inventory_items", list); }
+    });
+  }, []);
 
   const categories = ["الكل", ...INVENTORY_CATS];
   const filtered = items.filter(i => (i.name.includes(search)||i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
   const lowStock = items.filter(i => i.qty <= (i.minQty || LOW_STOCK_THRESHOLD));
 
   const deleteItem = async (id) => {
+    if (!canEdit) return;
     if (await confirm("هل تريد حذف هذا الصنف؟", { danger: true, ok: "حذف", title: "حذف الصنف" }))
-      setItems(items.filter(i => i.id !== id));
+      setItems(prev => prev.filter(i => i.id !== id));
   };
 
   const saveItem = () => {
+    if (!canEdit) return;
     if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
-    if (adding) setItems([...items, { ...form, id: Date.now() }]);
-    else setItems(items.map(i => i.id===editId ? form : i));
+    if (adding) setItems(prev => [...prev, { ...form, id: Date.now() }]);
+    else setItems(prev => prev.map(i => i.id===editId ? form : i));
     setEditId(null); setAdding(false); showToast("✅ تم الحفظ");
   };
 
@@ -1684,10 +1756,10 @@ function InventorySystem() {
           <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select></div>
         <div className="flex gap-2">
           <button onClick={()=>exportCSV(items.map(i=>({الرمز:i.code,الاسم:i.name,رقم_الصنع:i.serialNo||"",الفئة:i.category,الكمية:i.qty,الحالة:i.condition,الموقع:i.location})),"المخزون_شعبة_الآلات_الدقيقة")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/> تصدير</button>
-          <button onClick={()=>{setAdding(true);setForm({code:"",name:"",category:"أجهزة قياس",qty:1,condition:"جيد",location:"شعبة الآلات الدقيقة",minQty:3,serialNo:""});}} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button>
+          {canEdit && <button onClick={()=>{setAdding(true);setForm({code:"",name:"",category:"أجهزة قياس",qty:1,condition:"جيد",location:"شعبة الآلات الدقيقة",minQty:3,serialNo:""});}} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button>}
           <PrintButton targetId="print-inventory" label="طباعة"/></div>
       </div>
-      {(adding||editId) && (<div className="card rounded-2xl border-2 border-blue-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة صنف":"تعديل صنف"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
+      {canEdit && (adding||editId) && (<div className="card rounded-2xl border-2 border-blue-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة صنف":"تعديل صنف"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[["الرمز الرمزي","code"],["الاسم *","name"],["رقم الصنع","serialNo"],["الكمية","qty"],["الحد الأدنى","minQty"],["الموقع","location"]].map(([l,k])=>(<div key={k}><label className="block text-[10px] font-bold text-secondary mb-1">{l}</label><input value={form[k]||""} onChange={e=>setForm({...form,[k]:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>))}
           <div><label className="block text-[10px] font-bold text-secondary mb-1">الفئة</label><select value={form.category} onChange={e=>setForm({...form,category:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm">{INVENTORY_CATS.map(c=><option key={c}>{c}</option>)}</select></div>
@@ -1700,15 +1772,16 @@ function InventorySystem() {
           <td className="px-3 py-2 font-bold">{it.qty} {it.qty<=(it.minQty||3)&&<span className="text-amber-500">⚠️</span>}</td>
           <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":it.condition==="تالف"||it.condition==="تم الشطب"?"bg-red-100 text-red-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td>
           <td className="px-3 py-2 text-[10px]">{it.location}</td>
-          <td className="px-3 py-2 no-print"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
+          <td className="px-3 py-2 no-print">{canEdit && <div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div>}</td></tr>))}</tbody></table></div></div>
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
 }
 
 // ========== جرد الأثاث ==========
-function FurnitureInventory() {
-  const [items, setItems] = useState(() => storage.get("furniture_items", [
+function FurnitureInventory({ emp, isAdmin }) {
+  const canEdit = isAdmin || hasPermission(emp, "MANAGE_INVENTORY");
+  const [items, setItemsState] = useState(() => storage.get("furniture_items", [
     // ═══ أجهزة تكييف وتبريد ═══
     {id:1,  code:"لا يوجد",      name:"سبلت 2 طن LG",                 category:"أجهزة تكييف",    qty:1, condition:"تم الشطب",    location:"السيطرة والنظم شعبة الفاو"},
     {id:2,  code:"لا يوجد",      name:"سبلت 2 طن LG",                 category:"أجهزة تكييف",    qty:1, condition:"تم الشطب",    location:"السيطرة والنظم شعبة الفاو"},
@@ -1788,20 +1861,35 @@ function FurnitureInventory() {
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
   const confirm = useConfirm();
-  useEffect(() => { storage.set("furniture_items", items); }, [items]);
+  // أي تعديل يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
+  const setItems = useCallback((updater) => {
+    setItemsState(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      storage.set("furniture_items", next);
+      FirebaseAPI.saveFurniture(next);
+      return next;
+    });
+  }, []);
+  useEffect(() => {
+    FirebaseAPI.loadFurniture().then(list => {
+      if (list) { setItemsState(list); storage.set("furniture_items", list); }
+    });
+  }, []);
 
   const deleteItem = async (id) => {
+    if (!canEdit) return;
     if (await confirm("هل تريد حذف هذا الصنف؟", { danger: true, ok: "حذف", title: "حذف الصنف" }))
-      setItems(items.filter(i => i.id !== id));
+      setItems(prev => prev.filter(i => i.id !== id));
   };
 
   const categories = ["الكل", ...FURNITURE_CATS];
   const filtered = items.filter(i => (i.name.includes(search)||i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
 
   const saveItem = () => {
+    if (!canEdit) return;
     if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
-    if (adding) setItems([...items, { ...form, id: Date.now() }]);
-    else setItems(items.map(i => i.id===editId ? form : i));
+    if (adding) setItems(prev => [...prev, { ...form, id: Date.now() }]);
+    else setItems(prev => prev.map(i => i.id===editId ? form : i));
     setEditId(null); setAdding(false); showToast("✅ تم الحفظ");
   };
 
@@ -1812,17 +1900,17 @@ function FurnitureInventory() {
           <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select></div>
         <div className="flex gap-2">
           <button onClick={()=>exportCSV(items.map(i=>({الرمز:i.code,الاسم:i.name,الفئة:i.category,الكمية:i.qty,الحالة:i.condition,الموقع:i.location})),"الأثاث")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/> تصدير</button>
-          <button onClick={()=>{setAdding(true);setForm({code:"",name:"",category:"أثاث مكتبي",qty:1,condition:"جيد",location:""});}} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button>
+          {canEdit && <button onClick={()=>{setAdding(true);setForm({code:"",name:"",category:"أثاث مكتبي",qty:1,condition:"جيد",location:""});}} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button>}
           <PrintButton targetId="print-furniture" label="طباعة"/></div>
       </div>
-      {(adding||editId) && (<div className="card rounded-2xl border-2 border-violet-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة قطعة":"تعديل قطعة"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
+      {canEdit && (adding||editId) && (<div className="card rounded-2xl border-2 border-violet-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة قطعة":"تعديل قطعة"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[["الرمز *","code"],["الاسم *","name"],["الكمية","qty"],["الموقع","location"]].map(([l,k])=>(<div key={k}><label className="block text-[10px] font-bold text-secondary mb-1">{l}</label><input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>))}
           <div><label className="block text-[10px] font-bold text-secondary mb-1">الحالة</label><select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm">{ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}</select></div></div>
         <div className="flex gap-2 justify-end mt-4"><button onClick={()=>{setEditId(null);setAdding(false);}} className="px-4 py-2 text-sm btn-secondary rounded-xl border">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> حفظ</button></div></div>)}
       <div id="print-furniture" className="card rounded-2xl border-color border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="border-b border-color"><th className="px-3 py-2">الرمز</th><th className="px-3 py-2">الاسم</th><th className="px-3 py-2">الفئة</th><th className="px-3 py-2">الكمية</th><th className="px-3 py-2">الحالة</th><th className="px-3 py-2">الموقع</th><th className="px-3 py-2 no-print">إجراءات</th></tr></thead>
         <tbody>{filtered.map(it=>(<tr key={it.id} className="border-b border-color"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2">{it.name}</td><td className="px-3 py-2">{it.category}</td><td className="px-3 py-2 font-bold">{it.qty}</td>
           <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td>
-          <td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 no-print"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
+          <td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 no-print">{canEdit && <div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div>}</td></tr>))}</tbody></table></div></div>
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
@@ -2474,8 +2562,10 @@ function EvaluationSystem({ emp, isAdmin, allEmployees }) {
 }
 
 // ========== المعدات والصيانة ==========
-function EquipmentMaintenance() {
-  const [equipment, setEquipment] = useState(() => storage.get("equipment", INITIAL_EQUIPMENT));
+function EquipmentMaintenance({ emp, isAdmin }) {
+  // إضافة/حذف/تعديل مواصفات المعدات من قبل المشرف العام فقط
+  const canManage = isAdmin;
+  const [equipment, setEquipmentState] = useState(() => storage.get("equipment", INITIAL_EQUIPMENT));
   const [records,   setRecords]   = useState(() => storage.get("maintenance_records", []));
   const [tab,       setTab]       = useState("dashboard");
   const [selId,     setSelId]     = useState(null);
@@ -2488,8 +2578,18 @@ function EquipmentMaintenance() {
   const addToast = useToast();
   const confirm  = useConfirm();
 
-  const saveEq  = (updated) => { setEquipment(updated); storage.set("equipment", updated); };
+  // أي تعديل يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
+  const saveEq = (updated) => {
+    setEquipmentState(updated);
+    storage.set("equipment", updated);
+    FirebaseAPI.saveEquipmentList(updated);
+  };
   const saveRec = (updated) => { setRecords(updated);   storage.set("maintenance_records", updated); };
+  useEffect(() => {
+    FirebaseAPI.loadEquipmentList().then(list => {
+      if (list) { setEquipmentState(list); storage.set("equipment", list); }
+    });
+  }, []);
 
   const sel = equipment.find(e => e.id === selId);
 
@@ -2512,17 +2612,20 @@ function EquipmentMaintenance() {
     (stFilter   === "الكل" || e.status === stFilter)
   );
 
-  // ── CRUD equipment ──
+  // ── CRUD equipment (المشرف العام فقط) ──
   const addEquipment = (form) => {
+    if (!canManage) return;
     const newId = form.id || `EQ-${Date.now()}`;
     saveEq([...equipment, { ...form, id:newId, totalFailures:0 }]);
     setShowAdd(false); addToast("تم إضافة المعدة", "success");
   };
   const updateEquipment = (id, changes) => {
+    if (!canManage) return;
     saveEq(equipment.map(e => e.id === id ? { ...e, ...changes } : e));
     setEditEq(null); addToast("تم حفظ التعديل", "success");
   };
   const deleteEquipment = async (id) => {
+    if (!canManage) return;
     if (await confirm("هل تريد حذف هذه المعدة نهائياً؟", { title:"حذف المعدة", ok:"حذف", danger:true })) {
       saveEq(equipment.filter(e => e.id !== id));
       if (selId === id) setSelId(null);
@@ -2677,9 +2780,11 @@ function EquipmentMaintenance() {
               <option value="الكل">كل الحالات</option>
               {["جيد","تحتاج صيانة","تحت صيانة","معطل"].map(s=><option key={s}>{s}</option>)}
             </select>
-            <button onClick={()=>setShowAdd(true)} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700">
-              <Plus size={14}/> إضافة معدة
-            </button>
+            {canManage && (
+              <button onClick={()=>setShowAdd(true)} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700">
+                <Plus size={14}/> إضافة معدة
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -2708,6 +2813,7 @@ function EquipmentMaintenance() {
             <div>
               {sel ? (
                 <EqDetailPanel eq={sel} records={records.filter(r=>r.equipmentId===sel.id)}
+                  canManage={canManage}
                   onEdit={()=>setEditEq({...sel})} onDelete={()=>deleteEquipment(sel.id)}
                   onRequestMaint={()=>setShowReqForm(true)} onChangeStatus={changeStatus}
                   onComplete={completeMaintenance}/>
@@ -2728,8 +2834,8 @@ function EquipmentMaintenance() {
       )}
 
       {/* modals */}
-      {showAdd  && <EqFormModal onClose={()=>setShowAdd(false)}  onSave={addEquipment}   existingIds={equipment.map(e=>e.id)}/>}
-      {editEq   && <EqFormModal onClose={()=>setEditEq(null)}   onSave={d=>updateEquipment(d.id,d)} initial={editEq} isEdit/>}
+      {canManage && showAdd && <EqFormModal onClose={()=>setShowAdd(false)}  onSave={addEquipment}   existingIds={equipment.map(e=>e.id)}/>}
+      {canManage && editEq  && <EqFormModal onClose={()=>setEditEq(null)}   onSave={d=>updateEquipment(d.id,d)} initial={editEq} isEdit/>}
       {showReqForm && sel && (
         <EqRequestModal eq={sel} onClose={()=>setShowReqForm(false)}
           onSubmit={(desc,type)=>requestMaintenance(sel.id,desc,type)}/>
@@ -2739,7 +2845,7 @@ function EquipmentMaintenance() {
 }
 
 // ── لوحة تفاصيل المعدة ──
-function EqDetailPanel({ eq, records, onEdit, onDelete, onRequestMaint, onChangeStatus, onComplete }) {
+function EqDetailPanel({ eq, records, canManage, onEdit, onDelete, onRequestMaint, onChangeStatus, onComplete }) {
   const [histTab, setHistTab] = useState("info");
   const openRecs = records.filter(r=>r.status!=="مكتملة");
   const doneRecs = records.filter(r=>r.status==="مكتملة");
@@ -2749,10 +2855,12 @@ function EqDetailPanel({ eq, records, onEdit, onDelete, onRequestMaint, onChange
       <div className={`p-4 ${eq.status==="جيد"?"bg-emerald-50":eq.status==="معطل"?"bg-red-50":eq.status==="تحت صيانة"?"bg-sky-50":"bg-amber-50"}`}>
         <div className="flex justify-between items-start gap-2 mb-2">
           <h3 className="font-bold text-sm leading-snug">{eq.name}</h3>
-          <div className="flex gap-1">
-            <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-white/60 text-blue-600"><Edit3 size={13}/></button>
-            <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-white/60 text-red-500"><Trash2 size={13}/></button>
-          </div>
+          {canManage && (
+            <div className="flex gap-1">
+              <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-white/60 text-blue-600"><Edit3 size={13}/></button>
+              <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-white/60 text-red-500"><Trash2 size={13}/></button>
+            </div>
+          )}
         </div>
         <div className="flex gap-1.5 flex-wrap">
           <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${EQ_STATUS_COLORS[eq.status]}`}>{eq.status}</span>
@@ -6650,9 +6758,9 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           {view==="attendance" && <AttendanceSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>}
           {view==="training" && <TrainingSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>}
           {view==="tasks" && <TasksSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>}
-          {view==="inventory" && <InventorySystem/>}
-          {view==="furniture" && <FurnitureInventory/>}
-          {view==="maint_equipment" && <EquipmentMaintenance/>}
+          {view==="inventory" && <InventorySystem emp={emp} isAdmin={isAdmin}/>}
+          {view==="furniture" && <FurnitureInventory emp={emp} isAdmin={isAdmin}/>}
+          {view==="maint_equipment" && <EquipmentMaintenance emp={emp} isAdmin={isAdmin}/>}
           {view==="maint_parts" && <MaintenanceParts/>}
           {view==="maint_reports" && <MaintenanceAnalytics/>}
           {view==="chat" && <InternalChat emp={emp} isConnected={isConnected}/>}
