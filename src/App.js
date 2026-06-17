@@ -5919,7 +5919,7 @@ function TimeSheetPage({ emp, isAdmin }) {
 
   const TAB_INFO = {
     malak:     { label:"الملاك",     title:"استمارة ضبط وقت العمال المؤقتين (بعقد)", codes:TS_CODES_GENERAL },
-    contracts: { label:"العقود",    title:"استمارة تفاصيل الدوام",                   codes:TS_CODES_GENERAL },
+    contracts: { label:"العقود",    title:"استمارة تفاصيل الدوام للملاك الدائم",       codes:TS_CODES_GENERAL },
     drivers:   { label:"السواقين",  title:"استمارة ضبط الوقت للسيارات المؤجرة",       codes:TS_CODES_DRIVER  },
   };
 
@@ -6132,20 +6132,22 @@ function TimeSheetPage({ emp, isAdmin }) {
         const newDays = {}, newHours = {};
         for (const [ci, dn] of Object.entries(dayColMap)) {
           const codeA = String(rowA[+ci] ?? "").trim();
-          const codeB = isTypeQ(typeB) && rowB ? String(rowB[+ci] ?? "").trim() : "";
 
-          // Prefer Q-row code if it exists (location codes for drivers);
-          // fall back to A-row code; both must be valid TS codes
-          const winner = (codeB && TS_CODES_ALL[codeB]) ? codeB
+          // Keep raw Q-row value to preserve its JS type (number vs string)
+          const rawB     = isTypeQ(typeB) && rowB ? rowB[+ci] : undefined;
+          // Q-row code: only if raw value is a NON-NUMERIC string (e.g. "ف","غ","R","Y")
+          // Numeric values like 3/2 are hours, NOT TS codes (even though "3" happens to be a code)
+          const codeB_str = (typeof rawB === "string") ? rawB.trim() : "";
+          const qIsCode   = codeB_str && TS_CODES_ALL[codeB_str];
+
+          // Day code: prefer Q-row string code (driver locations), else A-row code
+          const winner = qIsCode ? codeB_str
                        : (codeA && TS_CODES_ALL[codeA]) ? codeA
                        : "";
           if (winner) newDays[String(dn)] = winner;
 
-          // Q-row numeric value → hours
-          if (isTypeQ(typeB) && rowB) {
-            const h = parseInt(String(rowB[+ci] ?? ""), 10);
-            if (!isNaN(h) && h > 0) newHours[String(dn)] = h;
-          }
+          // Hours: only from numeric Q-row cells (malak/contracts extra hours column)
+          if (typeof rawB === "number" && rawB > 0) newHours[String(dn)] = rawB;
         }
         tabData[empIdx] = { ...tabData[empIdx], days: newDays, hours: newHours };
       }
