@@ -6704,15 +6704,15 @@ function TimeSheetPage({ emp, isAdmin }) {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm btn-secondary">
             <AlertTriangle size={14}/> دليل الرموز
           </button>
-          <button onClick={exportExcelFormatted}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-indigo-700 text-white hover:bg-indigo-800">
-            <FileCheck size={14}/> Excel رسمي
-          </button>
-          <button onClick={exportOfficialForm}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-indigo-700 text-white hover:bg-indigo-800">
-            <FileCheck size={14}/> فورمة رسمية
-          </button>
-          {isAdmin && (<>
+          {canEdit && (<>
+            <button onClick={exportExcelFormatted}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-indigo-700 text-white hover:bg-indigo-800">
+              <FileCheck size={14}/> Excel رسمي
+            </button>
+            <button onClick={exportOfficialForm}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-indigo-700 text-white hover:bg-indigo-800">
+              <FileCheck size={14}/> فورمة رسمية
+            </button>
             <button onClick={exportXLSX}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-emerald-700 text-white hover:bg-emerald-800">
               <Download size={14}/> xlsx
