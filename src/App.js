@@ -5893,6 +5893,8 @@ function TimeSheetPage({ emp, isAdmin }) {
   const confirm  = useConfirm();
   const gDrive   = useGDrive();
   const STORAGE_KEY = "boc_timesheet_v5";
+  const empRole  = getEmpStatus(emp?.id)?.role;
+  const canEdit  = isAdmin || empRole === "ADMIN" || empRole === "SUPER_ADMIN";
 
   const [tsMonth, setTsMonth] = useState(4);
   const [tsYear,  setTsYear]  = useState(2026);
@@ -6681,14 +6683,23 @@ function TimeSheetPage({ emp, isAdmin }) {
             className="text-sm border border-color rounded-lg px-2 py-1.5 bg-surface text-primary">
             {[2024,2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}
           </select>
-          <button onClick={fillWeekend}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-orange-500 text-white hover:bg-orange-600">
-            <Calendar size={14}/> ج/س صباحي
-          </button>
-          <button onClick={resetTab}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-amber-500 text-white hover:bg-amber-600">
-            <X size={14}/> تصفير
-          </button>
+          {!canEdit && (
+            <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-gray-100 text-gray-500 border border-gray-200">
+              <Eye size={12}/> عرض فقط
+            </span>
+          )}
+          {canEdit && (
+            <button onClick={fillWeekend}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-orange-500 text-white hover:bg-orange-600">
+              <Calendar size={14}/> ج/س صباحي
+            </button>
+          )}
+          {canEdit && (
+            <button onClick={resetTab}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-amber-500 text-white hover:bg-amber-600">
+              <X size={14}/> تصفير
+            </button>
+          )}
           <button onClick={()=>setShowLegend(v=>!v)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm btn-secondary">
             <AlertTriangle size={14}/> دليل الرموز
@@ -6772,14 +6783,18 @@ function TimeSheetPage({ emp, isAdmin }) {
             <input value={searchEmp} onChange={e=>setSearchEmp(e.target.value)} placeholder="بحث عن موظف..."
               className="text-sm border border-color rounded-lg pr-8 pl-3 py-1.5 bg-surface text-primary w-48"/>
           </div>
-          <button onClick={()=>addEmployee(activeTab)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700">
-            <Plus size={14}/> إضافة
-          </button>
-          <button onClick={resetData} title="إعادة تعيين للبيانات الأصلية"
-            className="p-1.5 rounded-lg text-sm btn-secondary text-red-500 hover:text-red-700">
-            <Trash2 size={14}/>
-          </button>
+          {canEdit && (
+            <button onClick={()=>addEmployee(activeTab)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700">
+              <Plus size={14}/> إضافة
+            </button>
+          )}
+          {canEdit && (
+            <button onClick={resetData} title="إعادة تعيين للبيانات الأصلية"
+              className="p-1.5 rounded-lg text-sm btn-secondary text-red-500 hover:text-red-700">
+              <Trash2 size={14}/>
+            </button>
+          )}
         </div>
       </div>
 
@@ -6838,11 +6853,11 @@ function TimeSheetPage({ emp, isAdmin }) {
                         const isEd = editCell?.empId===e.id && editCell?.day===d && editCell?.type==="code";
                         const cellBg = code ? "" : isWe ? "#fff7ed" : bgBase;
                         return (
-                          <td key={d} className={`border border-gray-300 text-center cursor-pointer relative select-none ${code?getCellColor(code):""}`}
+                          <td key={d} className={`border border-gray-300 text-center relative select-none ${code?getCellColor(code):""} ${canEdit?"cursor-pointer":""}`}
                             style={{height:"22px",minWidth:"30px",backgroundColor:cellBg}}
-                            onClick={()=>setEditCell({empId:e.id,day:d,type:"code",tabKey:activeTab})}>
+                            onClick={canEdit ? ()=>setEditCell({empId:e.id,day:d,type:"code",tabKey:activeTab}) : undefined}>
                             <span className="font-bold" style={{fontSize:"11px"}}>{code}</span>
-                            {isEd && <TsCodePicker codesArr={codes} current={code} onSelect={v=>{updateCell(activeTab,e.id,d,"code",v);setEditCell(null);}} onClose={()=>setEditCell(null)}/>}
+                            {canEdit && isEd && <TsCodePicker codesArr={codes} current={code} onSelect={v=>{updateCell(activeTab,e.id,d,"code",v);setEditCell(null);}} onClose={()=>setEditCell(null)}/>}
                           </td>
                         );
                       })}
@@ -6851,15 +6866,18 @@ function TimeSheetPage({ emp, isAdmin }) {
                       <td rowSpan={2} className="border border-gray-300 text-center text-red-700 font-medium align-middle" style={{backgroundColor:bgBase}}>{stats.absenceDays||""}</td>
                       <td rowSpan={2} className="border border-gray-300 text-center text-gray-500 font-medium align-middle" style={{backgroundColor:bgBase}}>{stats.restDays||""}</td>
                       <td rowSpan={2} className="border border-gray-300 px-1 align-middle" style={{backgroundColor:bgBase}}>
-                        <input value={e.notes||""} onChange={ev=>updateNotes(activeTab,e.id,ev.target.value)}
-                          className="w-full text-xs bg-transparent outline-none text-gray-500"
-                          placeholder="ملاحظة..." style={{minWidth:"90px"}}/>
+                        <input value={e.notes||""} onChange={canEdit ? ev=>updateNotes(activeTab,e.id,ev.target.value) : undefined}
+                          readOnly={!canEdit}
+                          className={`w-full text-xs bg-transparent outline-none text-gray-500 ${!canEdit?"cursor-default":""}`}
+                          placeholder={canEdit?"ملاحظة...":""} style={{minWidth:"90px"}}/>
                       </td>
                       <td rowSpan={2} className="border border-gray-300 text-center align-middle" style={{backgroundColor:bgBase}}>
-                        {activeTab==="drivers" && (
+                        {canEdit && activeTab==="drivers" && (
                           <button onClick={()=>editDriverName(activeTab,e.id,e.name)} className="text-blue-400 hover:text-blue-600 p-0.5 block mx-auto mb-0.5" title="تعديل الاسم"><Edit3 size={12}/></button>
                         )}
-                        <button onClick={()=>deleteEmployee(activeTab,e.id,e.name)} className="text-red-400 hover:text-red-600 p-0.5 block mx-auto" title="حذف"><Trash2 size={12}/></button>
+                        {canEdit && (
+                          <button onClick={()=>deleteEmployee(activeTab,e.id,e.name)} className="text-red-400 hover:text-red-600 p-0.5 block mx-auto" title="حذف"><Trash2 size={12}/></button>
+                        )}
                       </td>
                     </tr>
                     {/* Q row - hours */}
@@ -6871,10 +6889,10 @@ function TimeSheetPage({ emp, isAdmin }) {
                         const isEd = editCell?.empId===e.id && editCell?.day===d && editCell?.type==="hours";
                         const cellBg = h!=null ? "#f5f3ff" : isWe ? "#fff7ed" : bgBase;
                         return (
-                          <td key={d} className={`border border-gray-300 text-center cursor-pointer relative ${h!=null?"text-purple-700":""}`}
+                          <td key={d} className={`border border-gray-300 text-center relative ${h!=null?"text-purple-700":""} ${canEdit?"cursor-pointer":""}`}
                             style={{height:"20px",minWidth:"30px",backgroundColor:cellBg}}
-                            onClick={()=>setEditCell({empId:e.id,day:d,type:"hours",tabKey:activeTab})}>
-                            {isEd ? (
+                            onClick={canEdit ? ()=>setEditCell({empId:e.id,day:d,type:"hours",tabKey:activeTab}) : undefined}>
+                            {canEdit && isEd ? (
                               <input type="number" min="0" max="24" defaultValue={h??""} autoFocus
                                 className="w-full h-full text-center bg-yellow-100 border-0 outline-none text-purple-700 font-bold"
                                 style={{fontSize:"11px",width:"30px"}}
