@@ -515,7 +515,7 @@ const FirebaseAPI = {
   // ── قائمة الموظفين الكاملة (تُحفظ مركزياً ليراها المشرف من أي جهاز ولا تختفي بعد التحديث) ──
   saveEmployeesList: async (employeesArr) => {
     try {
-      const res = await fetch(`${FIREBASE_URL}/employees.json`, {
+      const res = await fetch(`${FIREBASE_URL}/employees_list.json`, {
         method: "PUT", body: JSON.stringify(employeesArr), headers: {"Content-Type":"application/json"}
       });
       return res.ok;
@@ -523,7 +523,7 @@ const FirebaseAPI = {
   },
   loadEmployeesList: async () => {
     try {
-      const res = await fetch(`${FIREBASE_URL}/employees.json`);
+      const res = await fetch(`${FIREBASE_URL}/employees_list.json`);
       if (!res.ok) return null;
       const d = await res.json();
       return Array.isArray(d) && d.length > 0 ? d : null;
