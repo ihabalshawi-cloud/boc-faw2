@@ -6086,8 +6086,10 @@ function TimeSheetPage({ emp, isAdmin }) {
       const row = rows2d[r];
       const dmap = {};
       for (let c = 0; c < row.length; c++) {
-        const n = parseInt(String(row[c] ?? ""), 10);
-        if (!isNaN(n) && n >= 1 && n <= 31) dmap[c] = n;
+        // Accept numeric cells or string "1".."31"
+        const v = row[c];
+        const n = typeof v === "number" ? v : parseInt(String(v ?? ""), 10);
+        if (Number.isInteger(n) && n >= 1 && n <= 31) dmap[c] = n;
       }
       if (Object.keys(dmap).length >= 10) {
         headerRowIdx = r;
@@ -6097,31 +6099,59 @@ function TimeSheetPage({ emp, isAdmin }) {
     }
     if (headerRowIdx < 0) return false;
 
+    // Type column = the column immediately before the first day column
+    const firstDayCol = Math.min(...Object.keys(dayColMap).map(Number));
+    const typeColIdx  = firstDayCol - 1;
+
+    const isTypeA = (v) => v === "أ" || v === "A";
+    const isTypeQ = (v) => v === "ق" || v === "Q";
+
     const tabData = [...(data[activeTab] || [])];
+    let matched = 0;
     let r = headerRowIdx + 1;
     while (r < rows2d.length) {
       const rowA = rows2d[r];
       if (!rowA || rowA.every(v => !String(v ?? "").trim())) { r++; continue; }
-      const empId = String(rowA[0] ?? "").trim();
-      const typeA = String(rowA[3] ?? "").trim();
-      if (!empId || typeA !== "أ") { r++; continue; }
+      const typeA = String(rowA[typeColIdx] ?? "").trim();
+      if (!isTypeA(typeA)) { r++; continue; }
+
+      // Match employee: try col 0 as ID then as name (covers both our format and external)
+      const identifier = String(rowA[0] ?? "").trim();
+      let empIdx = tabData.findIndex(e => e.id === identifier);
+      if (empIdx < 0) empIdx = tabData.findIndex(e => e.name === identifier);
+      if (empIdx < 0 && identifier)
+        empIdx = tabData.findIndex(e =>
+          identifier.includes(e.name) || e.name.includes(identifier)
+        );
+
       const rowB  = rows2d[r + 1];
-      const typeB = rowB ? String(rowB[3] ?? "").trim() : "";
-      const empIdx = tabData.findIndex(e => e.id === empId);
+      const typeB = rowB ? String(rowB[typeColIdx] ?? "").trim() : "";
+
       if (empIdx >= 0) {
+        matched++;
         const newDays = {}, newHours = {};
         for (const [ci, dn] of Object.entries(dayColMap)) {
-          const code = String(rowA[+ci] ?? "").trim();
-          if (code && TS_CODES_ALL[code]) newDays[String(dn)] = code;
-          if (typeB === "ق" && rowB) {
+          const codeA = String(rowA[+ci] ?? "").trim();
+          const codeB = isTypeQ(typeB) && rowB ? String(rowB[+ci] ?? "").trim() : "";
+
+          // Prefer Q-row code if it exists (location codes for drivers);
+          // fall back to A-row code; both must be valid TS codes
+          const winner = (codeB && TS_CODES_ALL[codeB]) ? codeB
+                       : (codeA && TS_CODES_ALL[codeA]) ? codeA
+                       : "";
+          if (winner) newDays[String(dn)] = winner;
+
+          // Q-row numeric value → hours
+          if (isTypeQ(typeB) && rowB) {
             const h = parseInt(String(rowB[+ci] ?? ""), 10);
             if (!isNaN(h) && h > 0) newHours[String(dn)] = h;
           }
         }
         tabData[empIdx] = { ...tabData[empIdx], days: newDays, hours: newHours };
       }
-      r += (typeB === "ق" ? 2 : 1);
+      r += (isTypeQ(typeB) ? 2 : 1);
     }
+    if (matched === 0) return false;   // header found but no employee matched
     const updated = { ...data, [activeTab]: tabData };
     persistTs(updated);
     setData(updated);
@@ -6159,7 +6189,7 @@ function TimeSheetPage({ emp, isAdmin }) {
       if (applySheetRows(rows)) {
         addToast("تم استيراد البيانات من xlsx", "success");
       } else {
-        addToast("تعذّر قراءة الملف — تأكد أنه صادر من التطبيق", "error");
+        addToast("لم يُعثر على موظفين مطابقين — تأكد أن أسماء الموظفين موجودة في التبويب الحالي", "error");
       }
     } catch (err) {
       addToast("فشل استيراد xlsx: " + err.message, "error");
@@ -6218,7 +6248,7 @@ function TimeSheetPage({ emp, isAdmin }) {
       if (applySheetRows(rows)) {
         addToast("تم استيراد البيانات من Google Sheets", "success");
       } else {
-        addToast("تعذّر قراءة هيكل Sheets — تأكد من الملف الصحيح", "error");
+        addToast("لم يُعثر على موظفين مطابقين في التبويب الحالي", "error");
       }
     } catch (err) {
       addToast("فشل تحميل Sheets: " + err.message, "error");
