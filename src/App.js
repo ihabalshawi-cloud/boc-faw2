@@ -5839,35 +5839,10 @@ const INITIAL_TS = {
     {id:"724939",name:"حيدر عبد الحسن خضير",movement:"",isMorning:true,days:{"1":"N","2":"N","3":"N","4":"3","5":"N","6":"N","7":"N","8":"3","9":"N","10":"N","11":"N","12":"3","13":"N","14":"N","15":"N","16":"3","17":"N","18":"N","19":"N","20":"3","21":"N","22":"N","23":"N","24":"3","25":"N","26":"N","27":"N","28":"3","29":"N","30":"N","31":"N"},hours:{},notes:""},
   ],
   contracts:[
-    {id:"728004", name:"ايهاب عبد اللطيف عودة",              movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"727466", name:"عدي فيصل عبد الهادي عبد السيد",       movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"737283", name:"عمر طاهر خزعل",                       movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"756571", name:"ليث شاكر حمود",                       movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"813877", name:"محمد اسماعيل احمد",                   movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"790885", name:"محمد عبدالكاظم جاسم محمد التميمي",    movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"719242", name:"احمد محمود عبد القادر",               movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"758795", name:"صباح عبد الامام يوسف",                movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"790850", name:"اسعد عبد الامام يوسف",                movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"790869", name:"محمود كاظم هاشم محمد المنصوري",       movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"439193", name:"علي طاهر خزعل",                       movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"701130", name:"عبدالله علي ازباري يسر عبادة",        movement:"أ", isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"719277", name:"باسم هاشم جاسم",                      movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"719269", name:"حسين علي احمد",                       movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"719498", name:"جاسم مزعل حاتم ديوان",                movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"751480", name:"امين حميد فاضل حسين",                 movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"719293", name:"هاشم جابرجعفر",                       movement:"ب", isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"736732", name:"احسان عبد الصمد داود",                movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"719048", name:"علاء محسن عذبي جعفر",                 movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"719463", name:"عبد الحميد سامي موسى",                movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"732249", name:"علي باقر حنتوش",                      movement:"ج", isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"726508", name:"يوسف عباس ياسين",                     movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"735922", name:"علي طارق ياسين",                      movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"719129", name:"ضياء بدر حمادي اسماعيل",              movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"719099", name:"عدنان جواد كاظم",                     movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"732834", name:"احسان جواد كاظم حسين",                movement:"د", isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"718939", name:"واثق حسين عبد الشيخ حسن",             movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"719005", name:"صدام عبد الواحد سلمان عيسى",          movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
-    {id:"724939", name:"حيدر عبد الحسن خضير",                 movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"690414",name:"عبد الله عيسى موسى موني الربيعي",movement:"",isMorning:true,days:{},hours:{},notes:""},
+    {id:"689766",name:"اباذر صالح عبد الحسين عيسى",movement:"",isMorning:true,days:{},hours:{},notes:""},
+    {id:"690174",name:"حسن عادل عمران",movement:"",isMorning:true,days:{},hours:{},notes:""},
+    {id:"689331",name:"سجاد علي راضي علي",movement:"",isMorning:true,days:{},hours:{},notes:""},
   ],
   drivers:[
     {id:"محمد نعيم فاضل",name:"محمد نعيم فاضل",movement:"",days:{},hours:{},notes:""},
@@ -5943,9 +5918,9 @@ function TimeSheetPage({ emp, isAdmin }) {
   }, []);
 
   const TAB_INFO = {
-    malak:     { label:"الملاك",     title:"استمارة ضبط وقت العمال المؤقتين (بعقد)", codes:TS_CODES_GENERAL },
-    contracts: { label:"العقود",    title:"استمارة تفاصيل الدوام للملاك الدائم",       codes:TS_CODES_GENERAL },
-    drivers:   { label:"السواقين",  title:"استمارة ضبط الوقت للسيارات المؤجرة",       codes:TS_CODES_DRIVER  },
+    malak:     { label:"الملاك",     title:"استمارة تفاصيل الدوام للملاك الدائم",       codes:TS_CODES_GENERAL },
+    contracts: { label:"العقود",    title:"استمارة تفاصيل الدوام",                       codes:TS_CODES_GENERAL },
+    drivers:   { label:"السواقين",  title:"استمارة ضبط الوقت للسيارات المؤجرة",         codes:TS_CODES_DRIVER  },
   };
 
   useEffect(() => {
