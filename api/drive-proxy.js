@@ -267,6 +267,60 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // ── upload-sheet (CSV → Google Sheets auto-convert) ───────
+    if (action === "upload-sheet") {
+      const filename   = decodeURIComponent(req.headers["x-filename"] || "sheet.csv");
+      const fileBuffer = await readBody(req);
+
+      const metaObj = { name: filename, mimeType: "application/vnd.google-apps.spreadsheet" };
+      if (folderId) metaObj.parents = [folderId];
+
+      const meta     = JSON.stringify(metaObj);
+      const boundary = "gdrive_bnd_" + Math.random().toString(36).slice(2, 14);
+      const body     = Buffer.concat([
+        Buffer.from(
+          `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n` +
+          `--${boundary}\r\nContent-Type: text/csv\r\n\r\n`
+        ),
+        fileBuffer,
+        Buffer.from(`\r\n--${boundary}--`),
+      ]);
+
+      const r = await fetch(
+        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": `multipart/related; boundary=${boundary}`,
+          },
+          body,
+        }
+      );
+      const result = await r.json();
+      res.status(r.status).json(result);
+      return;
+    }
+
+    // ── export-csv (download Google Sheet as CSV) ─────────────
+    if (action === "export-csv") {
+      const fileId = url.searchParams.get("fileId");
+      if (!fileId) { res.status(400).json({ error: "Missing fileId" }); return; }
+      const r = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=text%2Fcsv`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!r.ok) {
+        const errBody = await r.json().catch(() => ({}));
+        res.status(r.status).json(errBody);
+        return;
+      }
+      const csv = await r.text();
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.status(200).send(csv);
+      return;
+    }
+
     res.status(400).json({ error: "Unknown action" });
   } catch (err) {
     res.status(500).json({ error: err.message });

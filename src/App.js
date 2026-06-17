@@ -7,7 +7,7 @@ import {
   Printer, Download, Search, Moon, Sun, MessageSquare,
   CheckSquare, AlertTriangle, ChevronLeft,
   Send, Wrench, Box, TrendingUp, TrendingDown, Heart, UserPlus,
-  Briefcase, Layers, Activity, Flag, FolderOpen, FileCheck, DollarSign, Target
+  Briefcase, Layers, Activity, Flag, FolderOpen, FileCheck, DollarSign, Target, Upload
 } from "lucide-react";
 // No external chart library — pure SVG charts below
 
@@ -5888,9 +5888,10 @@ function TsCodePicker({ codesArr, current, onSelect, onClose }) {
   );
 }
 
-function TimeSheetPage({ emp }) {
+function TimeSheetPage({ emp, isAdmin }) {
   const addToast = useToast();
   const confirm  = useConfirm();
+  const gDrive   = useGDrive();
   const STORAGE_KEY = "boc_timesheet_v5";
 
   const [tsMonth, setTsMonth] = useState(4);
@@ -5900,6 +5901,8 @@ function TimeSheetPage({ emp }) {
   const [editCell, setEditCell] = useState(null);
   const [showLegend, setShowLegend] = useState(false);
   const [searchEmp, setSearchEmp] = useState("");
+  const [sheetIds, setSheetIds] = useState(() => storage.get("ts_sheet_ids", {}));
+  const xlsxImportRef = useRef(null);
 
   // أي تعديل على التايم شيت يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
   const persistTs = (updated) => {
@@ -6051,6 +6054,173 @@ function TimeSheetPage({ emp }) {
       return updated;
     });
     addToast("تم ملء رموز عطلة نهاية الأسبوع للكادر الصباحي", "success");
+  };
+
+  // ── حفظ معرّف ملف Sheets ─────────────────────────────────────
+  const saveSheetId = (tab, id) => {
+    const updated = { ...sheetIds, [tab]: id };
+    setSheetIds(updated);
+    storage.set("ts_sheet_ids", updated);
+  };
+
+  // ── بناء صفوف الجدول (صفّان لكل موظف: أ للرموز، ق للساعات) ──
+  const buildSheetRows = () => {
+    const emps = data[activeTab] || [];
+    const header = ["رقم", "الاسم", "الحركة", "النوع", ...days, "الساعات", "ملاحظات"];
+    const rows = [header];
+    emps.forEach(e => {
+      const stats = calcTsStats(e);
+      rows.push([e.id, e.name, e.movement || "", "أ", ...days.map(d => e.days[String(d)] || ""), stats.totalHours, e.notes || ""]);
+      rows.push([e.id, e.name, e.movement || "", "ق", ...days.map(d => e.hours[String(d)] || ""), "", ""]);
+    });
+    return rows;
+  };
+
+  // ── تطبيق صفوف مستوردة على التبويب الحالي ────────────────────
+  const applySheetRows = (rows2d) => {
+    let headerRowIdx = -1;
+    const dayColMap = {};
+    for (let r = 0; r < rows2d.length; r++) {
+      const row = rows2d[r];
+      const dmap = {};
+      for (let c = 0; c < row.length; c++) {
+        const n = parseInt(String(row[c] ?? ""), 10);
+        if (!isNaN(n) && n >= 1 && n <= 31) dmap[c] = n;
+      }
+      if (Object.keys(dmap).length >= 10) {
+        headerRowIdx = r;
+        Object.assign(dayColMap, dmap);
+        break;
+      }
+    }
+    if (headerRowIdx < 0) return false;
+
+    const tabData = [...(data[activeTab] || [])];
+    let r = headerRowIdx + 1;
+    while (r < rows2d.length) {
+      const rowA = rows2d[r];
+      if (!rowA || rowA.every(v => !String(v ?? "").trim())) { r++; continue; }
+      const empId = String(rowA[0] ?? "").trim();
+      const typeA = String(rowA[3] ?? "").trim();
+      if (!empId || typeA !== "أ") { r++; continue; }
+      const rowB  = rows2d[r + 1];
+      const typeB = rowB ? String(rowB[3] ?? "").trim() : "";
+      const empIdx = tabData.findIndex(e => e.id === empId);
+      if (empIdx >= 0) {
+        const newDays = {}, newHours = {};
+        for (const [ci, dn] of Object.entries(dayColMap)) {
+          const code = String(rowA[+ci] ?? "").trim();
+          if (code && TS_CODES_ALL[code]) newDays[String(dn)] = code;
+          if (typeB === "ق" && rowB) {
+            const h = parseInt(String(rowB[+ci] ?? ""), 10);
+            if (!isNaN(h) && h > 0) newHours[String(dn)] = h;
+          }
+        }
+        tabData[empIdx] = { ...tabData[empIdx], days: newDays, hours: newHours };
+      }
+      r += (typeB === "ق" ? 2 : 1);
+    }
+    const updated = { ...data, [activeTab]: tabData };
+    persistTs(updated);
+    setData(updated);
+    return true;
+  };
+
+  // ── تصدير xlsx حقيقي عبر SheetJS ────────────────────────────
+  const exportXLSX = async () => {
+    try {
+      const XLSX = await import("xlsx");
+      const rows = buildSheetRows();
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws["!cols"] = [
+        { wch: 8 }, { wch: 25 }, { wch: 10 }, { wch: 5 },
+        ...days.map(() => ({ wch: 4 })),
+        { wch: 8 }, { wch: 20 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, TAB_INFO[activeTab].label);
+      XLSX.writeFile(wb, `تايم_شيت_${TAB_INFO[activeTab].label}_${tsYear}_${String(tsMonth + 1).padStart(2, "0")}.xlsx`);
+      addToast("تم تصدير ملف xlsx", "success");
+    } catch (err) {
+      addToast("فشل تصدير xlsx: " + err.message, "error");
+    }
+  };
+
+  // ── استيراد xlsx عبر SheetJS ──────────────────────────────────
+  const importXLSX = async (file) => {
+    try {
+      const XLSX = await import("xlsx");
+      const buf  = await file.arrayBuffer();
+      const wb   = XLSX.read(buf, { type: "array" });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      if (applySheetRows(rows)) {
+        addToast("تم استيراد البيانات من xlsx", "success");
+      } else {
+        addToast("تعذّر قراءة الملف — تأكد أنه صادر من التطبيق", "error");
+      }
+    } catch (err) {
+      addToast("فشل استيراد xlsx: " + err.message, "error");
+    }
+  };
+
+  // ── رفع التبويب كـ Google Sheet ────────────────────────────────
+  const exportToSheets = async () => {
+    if (!gDrive.isReady) { addToast("Google Drive غير متصل", "error"); return; }
+    try {
+      addToast("جارٍ الرفع إلى Google Sheets...", "info");
+      const rows = buildSheetRows();
+      const csv  = rows.map(row =>
+        row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")
+      ).join("\n");
+      const sheetName = `تايم_شيت_${TAB_INFO[activeTab].label}_${tsYear}_${String(tsMonth + 1).padStart(2, "0")}`;
+      const blob = new Blob(["﻿" + csv], { type: "text/csv" });
+      const res  = await fetch(`/api/drive-proxy?action=upload-sheet`, {
+        method: "POST",
+        headers: {
+          "x-filename":   encodeURIComponent(sheetName + ".csv"),
+          "Content-Type": "text/csv",
+        },
+        body: blob,
+      });
+      const result = await res.json();
+      if (!res.ok) { addToast("فشل الرفع: " + (result.error?.message || ""), "error"); return; }
+      saveSheetId(activeTab, result.id);
+      addToast("تم رفع الملف إلى Google Sheets بنجاح", "success");
+      if (result.webViewLink) window.open(result.webViewLink, "_blank");
+    } catch (err) {
+      addToast("فشل رفع Sheets: " + err.message, "error");
+    }
+  };
+
+  // ── تحميل من Google Sheet موجود ────────────────────────────────
+  const importFromSheets = async () => {
+    const fileId = sheetIds[activeTab];
+    if (!fileId) { addToast("لم يُرفع ملف Sheets لهذا التبويب بعد", "warning"); return; }
+    try {
+      addToast("جارٍ التحميل من Google Sheets...", "info");
+      const res = await fetch(`/api/drive-proxy?action=export-csv&fileId=${encodeURIComponent(fileId)}`);
+      if (!res.ok) { addToast("فشل تحميل Sheets", "error"); return; }
+      const csvText = await res.text();
+      const rows = csvText.split("\n").map(line => {
+        const cells = [];
+        let inQ = false, cell = "";
+        for (const ch of line) {
+          if (ch === '"') { inQ = !inQ; continue; }
+          if (ch === "," && !inQ) { cells.push(cell); cell = ""; continue; }
+          cell += ch;
+        }
+        cells.push(cell);
+        return cells;
+      });
+      if (applySheetRows(rows)) {
+        addToast("تم استيراد البيانات من Google Sheets", "success");
+      } else {
+        addToast("تعذّر قراءة هيكل Sheets — تأكد من الملف الصحيح", "error");
+      }
+    } catch (err) {
+      addToast("فشل تحميل Sheets: " + err.message, "error");
+    }
   };
 
   const buildHTMLTable = (tab) => {
@@ -6539,6 +6709,28 @@ function TimeSheetPage({ emp }) {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-indigo-700 text-white hover:bg-indigo-800">
             <FileCheck size={14}/> فورمة رسمية
           </button>
+          {isAdmin && (<>
+            <button onClick={exportXLSX}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-emerald-700 text-white hover:bg-emerald-800">
+              <Download size={14}/> xlsx
+            </button>
+            <button onClick={()=>xlsxImportRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-teal-600 text-white hover:bg-teal-700">
+              <Upload size={14}/> استيراد xlsx
+            </button>
+            <button onClick={exportToSheets}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-blue-700 text-white hover:bg-blue-800">
+              <FileText size={14}/> رفع Sheets
+            </button>
+            {sheetIds[activeTab] && (
+              <button onClick={importFromSheets}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-cyan-600 text-white hover:bg-cyan-700">
+                <Download size={14}/> تحميل Sheets
+              </button>
+            )}
+            <input ref={xlsxImportRef} type="file" accept=".xlsx,.xls" className="hidden"
+              onChange={e=>{ const f=e.target.files?.[0]; if(f) importXLSX(f); e.target.value=""; }}/>
+          </>)}
         </div>
       </div>
 
@@ -7014,7 +7206,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           {view==="health_insurance" && <HealthInsuranceForm emp={emp}/>}
           {view==="leave_forms" && <LeaveFormsPrintPage emp={emp}/>}
           {view==="projects" && <ProjectManagementPage emp={emp}/>}
-          {view==="timesheet" && <TimeSheetPage emp={emp}/>}
+          {view==="timesheet" && <TimeSheetPage emp={emp} isAdmin={isAdmin}/>}
           {view==="admin_dashboard" && isAdmin && <AdminDashboard emp={emp} employees={employees} setEmployees={setEmployees}/>}
         </main>
       </div>
