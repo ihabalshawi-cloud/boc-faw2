@@ -5919,7 +5919,7 @@ function TimeSheetPage({ emp, isAdmin }) {
 
   const TAB_INFO = {
     malak:     { label:"الملاك الدائم", title:"استمارة تفاصيل الدوام للملاك الدائم",   codes:TS_CODES_GENERAL },
-    contracts: { label:"العقود",       title:"استمارة تفاصيل الدوام للعقود",             codes:TS_CODES_GENERAL },
+    contracts: { label:"العقود",       title:"استمارة ضبط الوقت للعمال المؤقتين (بعقد)", codes:TS_CODES_GENERAL },
     drivers:   { label:"السواقين",  title:"استمارة ضبط الوقت للسيارات المؤجرة",         codes:TS_CODES_DRIVER  },
   };
 
