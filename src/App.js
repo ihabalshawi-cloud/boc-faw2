@@ -13,6 +13,25 @@ import {
 
 // ========== الثوابت ==========
 const FIREBASE_URL = "https://faop-scada-default-rtdb.asia-southeast1.firebasedatabase.app";
+
+// تشخيص: تسجيل أخطاء الكتابة في Firebase (يظهر في Developer Console المتصفح)
+async function fbPut(path, data) {
+  try {
+    const res = await fetch(`${FIREBASE_URL}/${path}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      console.warn(`[Firebase] فشل الكتابة إلى /${path} — HTTP ${res.status}`, body?.error || "");
+    }
+    return res.ok;
+  } catch (err) {
+    console.warn(`[Firebase] خطأ في الاتصال بـ /${path}:`, err.message);
+    return false;
+  }
+}
 const FIREBASE_STORAGE_BUCKET = "faop-scada.firebasestorage.app";
 const EMPLOYEES_STORAGE_KEY = "employees_list_v1";
 const LOW_STOCK_THRESHOLD = 3;
@@ -513,14 +532,7 @@ const FirebaseAPI = {
   },
 
   // ── قائمة الموظفين الكاملة (تُحفظ مركزياً ليراها المشرف من أي جهاز ولا تختفي بعد التحديث) ──
-  saveEmployeesList: async (employeesArr) => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/employees_list.json`, {
-        method: "PUT", body: JSON.stringify(employeesArr), headers: {"Content-Type":"application/json"}
-      });
-      return res.ok;
-    } catch { return false; }
-  },
+  saveEmployeesList: async (employeesArr) => fbPut("employees_list.json", employeesArr),
   loadEmployeesList: async () => {
     try {
       const res = await fetch(`${FIREBASE_URL}/employees_list.json`);
@@ -531,14 +543,7 @@ const FirebaseAPI = {
   },
 
   // ── المخزن (جرد الآلات الدقيقة) — تُحفظ في قاعدة البيانات لتبقى ثابتة بعد التحديث ──
-  saveInventory: async (itemsArr) => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/inventory_items.json`, {
-        method: "PUT", body: JSON.stringify(itemsArr), headers: {"Content-Type":"application/json"}
-      });
-      return res.ok;
-    } catch { return false; }
-  },
+  saveInventory: async (itemsArr) => fbPut("inventory_items.json", itemsArr),
   loadInventory: async () => {
     try {
       const res = await fetch(`${FIREBASE_URL}/inventory_items.json`);
@@ -549,14 +554,7 @@ const FirebaseAPI = {
   },
 
   // ── الأثاث — تُحفظ في قاعدة البيانات لتبقى ثابتة بعد التحديث ──
-  saveFurniture: async (itemsArr) => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/furniture_items.json`, {
-        method: "PUT", body: JSON.stringify(itemsArr), headers: {"Content-Type":"application/json"}
-      });
-      return res.ok;
-    } catch { return false; }
-  },
+  saveFurniture: async (itemsArr) => fbPut("furniture_items.json", itemsArr),
   loadFurniture: async () => {
     try {
       const res = await fetch(`${FIREBASE_URL}/furniture_items.json`);
@@ -567,14 +565,7 @@ const FirebaseAPI = {
   },
 
   // ── المعدات — تُحفظ في قاعدة البيانات لتبقى ثابتة بعد التحديث ──
-  saveEquipmentList: async (eqArr) => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/equipment_list.json`, {
-        method: "PUT", body: JSON.stringify(eqArr), headers: {"Content-Type":"application/json"}
-      });
-      return res.ok;
-    } catch { return false; }
-  },
+  saveEquipmentList: async (eqArr) => fbPut("equipment_list.json", eqArr),
   loadEquipmentList: async () => {
     try {
       const res = await fetch(`${FIREBASE_URL}/equipment_list.json`);
@@ -585,14 +576,7 @@ const FirebaseAPI = {
   },
 
   // ── المشاريع — تُحفظ في قاعدة البيانات لتبقى ثابتة بعد التحديث ──
-  saveProjects: async (projectsArr) => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/pm_projects.json`, {
-        method: "PUT", body: JSON.stringify(projectsArr), headers: {"Content-Type":"application/json"}
-      });
-      return res.ok;
-    } catch { return false; }
-  },
+  saveProjects: async (projectsArr) => fbPut("pm_projects.json", projectsArr),
   loadProjects: async () => {
     try {
       const res = await fetch(`${FIREBASE_URL}/pm_projects.json`);
@@ -603,14 +587,7 @@ const FirebaseAPI = {
   },
 
   // ── التايم شيت — تُحفظ في قاعدة البيانات لتبقى ثابتة بعد التحديث ──
-  saveTimesheet: async (tsData) => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/timesheet_data.json`, {
-        method: "PUT", body: JSON.stringify(tsData), headers: {"Content-Type":"application/json"}
-      });
-      return res.ok;
-    } catch { return false; }
-  },
+  saveTimesheet: async (tsData) => fbPut("timesheet_data.json", tsData),
   loadTimesheet: async () => {
     try {
       const res = await fetch(`${FIREBASE_URL}/timesheet_data.json`);
@@ -621,14 +598,7 @@ const FirebaseAPI = {
   },
 
   // ── سجل تسجيل الدخول — مركزي عبر Firebase ليظهر لكل المشرفين من أي جهاز ولا يُفقد بعد التحديث ──
-  saveLoginHistory: async (histArr) => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/login_history.json`, {
-        method: "PUT", body: JSON.stringify(histArr), headers: {"Content-Type":"application/json"}
-      });
-      return res.ok;
-    } catch { return false; }
-  },
+  saveLoginHistory: async (histArr) => fbPut("login_history.json", histArr),
   loadLoginHistory: async () => {
     try {
       const res = await fetch(`${FIREBASE_URL}/login_history.json`);
@@ -639,14 +609,7 @@ const FirebaseAPI = {
   },
 
   // ── طلبات الإجازة — مركزية عبر Firebase ليراها المشرف ويراها الموظف من أي جهاز ولا تُفقد بعد التحديث ──
-  saveRequests: async (reqArr) => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/requests.json`, {
-        method: "PUT", body: JSON.stringify(reqArr), headers: {"Content-Type":"application/json"}
-      });
-      return res.ok;
-    } catch { return false; }
-  },
+  saveRequests: async (reqArr) => fbPut("requests.json", reqArr),
   loadRequests: async () => {
     try {
       const res = await fetch(`${FIREBASE_URL}/requests.json`);
