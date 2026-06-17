@@ -5839,10 +5839,35 @@ const INITIAL_TS = {
     {id:"724939",name:"حيدر عبد الحسن خضير",movement:"",isMorning:true,days:{"1":"N","2":"N","3":"N","4":"3","5":"N","6":"N","7":"N","8":"3","9":"N","10":"N","11":"N","12":"3","13":"N","14":"N","15":"N","16":"3","17":"N","18":"N","19":"N","20":"3","21":"N","22":"N","23":"N","24":"3","25":"N","26":"N","27":"N","28":"3","29":"N","30":"N","31":"N"},hours:{},notes:""},
   ],
   contracts:[
-    {id:"690414",name:"عبد الله عيسى موسى موني الربيعي",movement:"",isMorning:true,days:{"1":"R","2":"Y","7":"L","8":"R","9":"Y","10":"L","12":"L","15":"R","16":"Y","19":"L","21":"L","22":"R","23":"Y","25":"L","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
-    {id:"689766",name:"اباذر صالح عبد الحسين عيسى",movement:"",isMorning:true,days:{"1":"R","2":"Y","8":"R","9":"Y","15":"R","16":"Y","22":"R","23":"Y","26":"Y","27":"Y","28":"Y","29":"R","30":"Y"},hours:{},notes:""},
-    {id:"690174",name:"حسن عادل عمران",movement:"",isMorning:true,days:{"1":"R","8":"R","15":"R","22":"R","29":"R"},hours:{"2":3,"3":2,"4":2,"5":2,"6":2,"7":2,"9":3,"10":2,"11":2,"12":2,"13":2,"14":2,"16":3,"17":2,"18":2,"19":2,"20":2,"21":2,"23":3,"24":1,"25":1,"26":3,"27":3,"28":3,"30":3,"31":1},notes:""},
-    {id:"689331",name:"سجاد علي راضي علي",movement:"",isMorning:true,days:{"1":"R","8":"R","15":"R","22":"R","29":"R"},hours:{"2":3,"3":2,"4":2,"5":2,"6":2,"7":2,"9":3,"10":2,"11":2,"12":2,"13":2,"14":2,"16":3,"17":2,"18":2,"19":2,"20":2,"21":2,"23":3,"24":1,"25":1,"26":3,"27":3,"28":3,"30":3,"31":1},notes:""},
+    {id:"728004", name:"ايهاب عبد اللطيف عودة",              movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"727466", name:"عدي فيصل عبد الهادي عبد السيد",       movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"737283", name:"عمر طاهر خزعل",                       movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"756571", name:"ليث شاكر حمود",                       movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"813877", name:"محمد اسماعيل احمد",                   movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"790885", name:"محمد عبدالكاظم جاسم محمد التميمي",    movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"719242", name:"احمد محمود عبد القادر",               movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"758795", name:"صباح عبد الامام يوسف",                movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"790850", name:"اسعد عبد الامام يوسف",                movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"790869", name:"محمود كاظم هاشم محمد المنصوري",       movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"439193", name:"علي طاهر خزعل",                       movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"701130", name:"عبدالله علي ازباري يسر عبادة",        movement:"أ", isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"719277", name:"باسم هاشم جاسم",                      movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"719269", name:"حسين علي احمد",                       movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"719498", name:"جاسم مزعل حاتم ديوان",                movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"751480", name:"امين حميد فاضل حسين",                 movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"719293", name:"هاشم جابرجعفر",                       movement:"ب", isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"736732", name:"احسان عبد الصمد داود",                movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"719048", name:"علاء محسن عذبي جعفر",                 movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"719463", name:"عبد الحميد سامي موسى",                movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"732249", name:"علي باقر حنتوش",                      movement:"ج", isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"726508", name:"يوسف عباس ياسين",                     movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"735922", name:"علي طارق ياسين",                      movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"719129", name:"ضياء بدر حمادي اسماعيل",              movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"719099", name:"عدنان جواد كاظم",                     movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"732834", name:"احسان جواد كاظم حسين",                movement:"د", isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"718939", name:"واثق حسين عبد الشيخ حسن",             movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"719005", name:"صدام عبد الواحد سلمان عيسى",          movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
+    {id:"724939", name:"حيدر عبد الحسن خضير",                 movement:"",  isMorning:true, days:{}, hours:{}, notes:""},
   ],
   drivers:[
     {id:"محمد نعيم فاضل",name:"محمد نعيم فاضل",movement:"",days:{},hours:{},notes:""},
@@ -6012,11 +6037,12 @@ function TimeSheetPage({ emp, isAdmin }) {
   };
 
   const resetData = async () => {
-    const ok = await confirm("هل تريد إعادة تعيين جميع البيانات للبيانات الأصلية؟");
+    const ok = await confirm(`هل تريد إعادة تعيين تبويب "${TAB_INFO[activeTab].label}" للبيانات الأصلية؟ (لن يُمسّ باقي التبويبات)`);
     if (!ok) return;
-    persistTs(INITIAL_TS);
-    setData(INITIAL_TS);
-    addToast("تمت إعادة التعيين للبيانات الأصلية", "success");
+    const updated = { ...data, [activeTab]: INITIAL_TS[activeTab] };
+    persistTs(updated);
+    setData(updated);
+    addToast(`تمت إعادة تعيين تبويب ${TAB_INFO[activeTab].label} للبيانات الأصلية`, "success");
   };
 
   const resetTab = async () => {
