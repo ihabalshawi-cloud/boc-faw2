@@ -267,6 +267,25 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // ── download ──────────────────────────────────────────────
+    if (action === "download") {
+      const fileId = url.searchParams.get("fileId");
+      if (!fileId) { res.status(400).json({ error: "Missing fileId" }); return; }
+      const r = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        res.status(r.status).json({ error: err.error?.message || `HTTP ${r.status}` });
+        return;
+      }
+      const buf = await r.arrayBuffer();
+      res.setHeader("Content-Type", r.headers.get("content-type") || "application/octet-stream");
+      res.status(200).send(Buffer.from(buf));
+      return;
+    }
+
     res.status(400).json({ error: "Unknown action" });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -671,6 +671,15 @@ const GDriveAPI = {
       });
     } catch {}
   },
+
+  downloadFile: async (fileId) => {
+    const res = await fetch(`${GDRIVE_PROXY}?action=download&fileId=${encodeURIComponent(fileId)}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `فشل تنزيل الملف: HTTP ${res.status}`);
+    }
+    return await res.arrayBuffer();
+  },
 };
 
 // ── سياق Google Drive ──
@@ -679,6 +688,7 @@ const GDriveContext = createContext({
   refreshQuota: async () => {},
   uploadFile: async () => { throw new Error("not connected"); },
   deleteFile: async () => {},
+  downloadFile: async () => { throw new Error("not connected"); },
 });
 const useGDrive = () => useContext(GDriveContext);
 
@@ -709,8 +719,12 @@ function GDriveProvider({ children }) {
     GDriveAPI.getQuota().then(q => { if (q) setQuota(q); });
   }, []);
 
+  const downloadFile = useCallback(async (fileId) => {
+    return await GDriveAPI.downloadFile(fileId);
+  }, []);
+
   return (
-    <GDriveContext.Provider value={{ isReady, quota, refreshQuota, uploadFile, deleteFile }}>
+    <GDriveContext.Provider value={{ isReady, quota, refreshQuota, uploadFile, deleteFile, downloadFile }}>
       {children}
     </GDriveContext.Provider>
   );
@@ -4442,6 +4456,7 @@ function OutOfCountryLeaveForm({ emp }) {
   const [sigDataUrl, setSigDataUrl] = useState(null);
   const [uploadPct, setUploadPct] = useState(-1);
   const [driveLink, setDriveLink] = useState(null);
+  const [templateId, setTemplateId] = useState(() => storage.get("template_id_ooc", ""));
 
   useEffect(() => {
     const saved = storage.get(STORAGE_KEY, null);
@@ -4824,6 +4839,61 @@ function OutOfCountryLeaveForm({ emp }) {
     }
   };
 
+  const fillFromTemplate = async () => {
+    if (!gDrive.isReady) { toast.warning("يرجى ربط Google Drive أولاً"); return; }
+    if (!templateId.trim()) { toast.warning("يرجى إدخال معرف ملف القالب"); return; }
+    setUploadPct(0); setDriveLink(null);
+    try {
+      const { default: JSZip } = await import("jszip");
+      const arrayBuffer = await gDrive.downloadFile(templateId.trim());
+      const zip = await JSZip.loadAsync(arrayBuffer);
+
+      const esc = (s) => String(s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+      const replacements = {
+        "{{الاسم}}":           esc(name),
+        "{{الرقم_الوظيفي}}":  esc(jobNum),
+        "{{العنوان_الوظيفي}}": esc(jobTitle),
+        "{{القسم}}":           esc(dept),
+        "{{البلد}}":           esc(country),
+        "{{الأيام}}":          esc(days),
+        "{{الراتب}}":          esc(salaryType),
+        "{{الغرض}}":           esc(purpose),
+        "{{التاريخ}}":         esc(fmtDate(reqDate)),
+        "{{العدد}}":           esc(refNum),
+      };
+
+      for (const path of Object.keys(zip.files).filter(f => f.startsWith("word/") && f.endsWith(".xml"))) {
+        let content = await zip.file(path).async("string");
+        for (const [ph, val] of Object.entries(replacements)) {
+          content = content.split(ph).join(val);
+        }
+        zip.file(path, content);
+      }
+
+      const blob = await zip.generateAsync({
+        type: "blob",
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      const safeName = (name || "موظف").replace(/\s+/g, "-");
+      const file = new File(
+        [blob],
+        `اجازة-خارج-العراق-${safeName}-${reqDate || "بدون-تاريخ"}.docx`,
+        { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }
+      );
+      const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
+      setDriveLink(result.webViewLink);
+      toast.success("تم تعبئة القالب ورفع النسخة المعبأة إلى Drive");
+    } catch (e) {
+      toast.error("فشل تعبئة القالب: " + e.message);
+    } finally {
+      setUploadPct(-1);
+    }
+  };
+
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-5" dir="rtl">
       <div className="flex items-center gap-3 pb-3 border-b border-color">
@@ -4865,6 +4935,32 @@ function OutOfCountryLeaveForm({ emp }) {
       <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-800 leading-relaxed">
         <strong>ملاحظة:</strong> يرسل الطلب الى الهيئة الادارية في حال طلب الاجازة (براتب تام) لأكثر من 3 اشهر ولغاية 4 اشهر وفي حال طلب الاجازة (بدون راتب)
       </div>
+
+      {gDrive.isReady && (
+        <div className="p-4 rounded-xl border border-violet-200 bg-violet-50 space-y-3">
+          <p className="text-xs font-bold text-violet-800">تعبئة قالب Word موجود في Drive</p>
+          <div className="flex gap-2">
+            <input
+              value={templateId}
+              onChange={e => { setTemplateId(e.target.value); storage.set("template_id_ooc", e.target.value); }}
+              placeholder="معرّف ملف القالب في Drive (File ID)"
+              className="input flex-1 rounded-lg px-3 py-2 text-sm font-mono"
+              dir="ltr"
+            />
+            <button
+              onClick={fillFromTemplate}
+              disabled={uploadPct >= 0 || !templateId.trim()}
+              className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-xl font-bold text-sm disabled:opacity-50 whitespace-nowrap"
+            >
+              <FileText size={14}/> {uploadPct >= 0 ? `${uploadPct}%` : "تعبئة القالب"}
+            </button>
+          </div>
+          <p className="text-[11px] text-violet-600">
+            ستجد معرّف الملف في رابط Drive: .../file/d/<strong>FILE_ID</strong>/view
+            — ضع في القالب العناصر النصية: {"{{الاسم}}"} {"{{البلد}}"} {"{{الأيام}}"} {"{{الراتب}}"} {"{{الغرض}}"} {"{{التاريخ}}"} {"{{العدد}}"} إلخ.
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-3 justify-end pt-2 border-t border-color">
         {driveLink && (
