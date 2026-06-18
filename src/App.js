@@ -4291,81 +4291,107 @@ function SickLeaveForm({ emp }) {
   const [uploadPct, setUploadPct] = useState(-1);
   const [driveLink, setDriveLink] = useState(null);
 
-  const [name, setName] = useState(emp.name);
-  const [jobNum, setJobNum] = useState(emp.jobNum || "");
-  const [jobTitle, setJobTitle] = useState(emp.title || "");
-  const [leaveDateTime, setLeaveDateTime] = useState("");
-  const [clinicDateTime, setClinicDateTime] = useState("");
-  const [returnDateTime, setReturnDateTime] = useState("");
-  const [doctorNotes, setDoctorNotes] = useState("");
-  const [sigDataUrl, setSigDataUrl] = useState(null);
+  const [name,        setName]        = useState(emp.name);
+  const [jobNum,      setJobNum]      = useState(emp.jobNum || "");
+  const [jobTitle,    setJobTitle]    = useState(emp.title || "");
+  const [leaveDate,   setLeaveDate]   = useState("");
+  const [leaveTime,   setLeaveTime]   = useState("");
+  const [clinicDT,    setClinicDT]    = useState("");
+  const [notes,       setNotes]       = useState("");
+  const [returnDate,  setReturnDate]  = useState("");
+  const [returnTime,  setReturnTime]  = useState("");
+  const [sigDataUrl,  setSigDataUrl]  = useState(null);
 
   useEffect(() => {
-    const saved = storage.get(STORAGE_KEY, null);
-    if (saved) {
-      setName(saved.name || emp.name);
-      setJobNum(saved.jobNum || emp.jobNum || "");
-      setJobTitle(saved.jobTitle || emp.title || "");
-      setLeaveDateTime(saved.leaveDateTime || "");
-      setClinicDateTime(saved.clinicDateTime || "");
-      setReturnDateTime(saved.returnDateTime || "");
-      setDoctorNotes(saved.doctorNotes || "");
-      setSigDataUrl(saved.sigDataUrl || null);
+    const s = storage.get(STORAGE_KEY, null);
+    if (s) {
+      setName(s.name || emp.name);
+      setJobNum(s.jobNum || emp.jobNum || "");
+      setJobTitle(s.jobTitle || emp.title || "");
+      setLeaveDate(s.leaveDate || "");
+      setLeaveTime(s.leaveTime || "");
+      setClinicDT(s.clinicDT || "");
+      setNotes(s.notes || "");
+      setReturnDate(s.returnDate || "");
+      setReturnTime(s.returnTime || "");
+      setSigDataUrl(s.sigDataUrl || null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const save = () => {
-    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, leaveDateTime, clinicDateTime, returnDateTime, doctorNotes, sigDataUrl });
-    toast.success("✅ تم حفظ بيانات الإجازة المرضية");
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, leaveDate, leaveTime, clinicDT, notes, returnDate, returnTime, sigDataUrl });
+    toast.success("تم حفظ بيانات الإجازة المرضية");
   };
 
-  const fmtDT = (v) => {
-    if (!v) return "___________";
+  const fmtDate = (d) => {
+    if (!d) return "_______________";
+    const dt = new Date(d + "T00:00:00");
+    return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`;
+  };
+  const fmtTime = (t) => t || "____ : ____";
+  const fmtDT   = (v) => {
+    if (!v) return "_______________";
     const dt = new Date(v);
     return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}  ${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
   };
 
   const buildSickHtml = () => {
-    const sigHtml = sigDataUrl ? `<img src="${sigDataUrl}" style="max-width:120px;max-height:50px;display:block;margin:auto;"/>` : `<div style="min-height:38px"></div>`;
-    return `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>إجازة مرضية</title>
+    const sigHtml = sigDataUrl
+      ? `<img src="${sigDataUrl}" style="max-width:130px;max-height:45px;display:block;"/>`
+      : "";
+    return `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/>
+<title>نموذج إجازة مرضية</title>
 <style>
-  @page{size:A5 portrait;margin:8mm}
+  @page{size:A4 portrait;margin:12mm}
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Times New Roman',Arial,sans-serif;font-size:9pt;direction:rtl}
-  .header{display:flex;border:1.5px solid #333;margin-bottom:5px}
-  .h-logo{width:42px;border-left:1px solid #333;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:10.5pt}
-  .h-mid{flex:1;text-align:center;padding:4px 6px}
-  .h-ref{width:85px;border-right:1px solid #333;padding:3px 5px;font-size:7.5pt;text-align:center;line-height:1.6}
-  .company{font-size:10.5pt;font-weight:bold}
-  .csub{font-size:8pt}
-  .form-title{font-size:11pt;font-weight:bold;text-align:center;margin-bottom:5px;border:1.5px solid #333;padding:3px}
-  .fr{display:flex;align-items:baseline;gap:6px;margin-bottom:5px;border-bottom:1px dotted #bbb;padding-bottom:3px}
-  .lbl{font-weight:bold;font-size:8.5pt;min-width:70px;white-space:nowrap}
-  .val{flex:1;font-size:9pt}
-  .sig-box{border:1.5px solid #333;text-align:center;padding:4px;min-height:58px;margin:5px 0}
-  .stitle{font-weight:bold;font-size:8.5pt;margin-bottom:3px}
-  .divider{border-top:1.5px solid #333;margin:6px 0}
-  .fn{font-size:7pt;margin-top:6px;text-align:center;border-top:1px dotted #aaa;padding-top:3px;color:#555}
+  body{font-family:'Arial',sans-serif;font-size:12pt;direction:rtl;color:#111}
+  table{border-collapse:collapse;width:100%}
+  .hdr td{border:1px solid #000;padding:5px 8px;vertical-align:middle;text-align:center}
+  .lbl-cell{background:#D0D0D0;font-weight:bold;font-size:10pt;width:90px}
+  .main-cell{font-weight:bold;font-size:12pt}
+  .co-cell{background:#A0A0A0;font-weight:bold;font-size:11pt;width:120px}
+  .logo-cell{font-weight:bold;font-size:22pt;width:110px}
+  .phone{font-weight:bold;font-size:11pt;direction:ltr;text-align:left;margin:10px 0 2px}
+  .co-name{text-align:center;font-weight:bold;font-size:13pt;margin:4px 0 2px}
+  .form-title{text-align:center;font-weight:bold;font-size:13pt;margin:2px 0 12px;border-bottom:1.5px dotted #999;padding-bottom:6px}
+  .field{font-weight:bold;font-size:12pt;padding:8px 0 3px;border-bottom:1.5px dotted #999;margin-bottom:4px}
+  .field span{font-weight:normal;margin-right:6px}
+  .sec-label{font-weight:bold;font-size:12pt;margin-top:20px;margin-bottom:3px}
+  .sig-space{border-bottom:2px solid #000;min-height:48px;margin-bottom:14px;padding:4px 0}
+  .footer{text-align:center;font-size:9pt;font-style:italic;border-top:1px solid #000;border-bottom:1px solid #000;padding:5px;margin-top:24px}
 </style></head>
 <body>
-<div class="header">
-  <div class="h-logo">BOC</div>
-  <div class="h-mid"><div class="company">شركة نفط البصرة (شركة عامة)</div><div class="csub">استمارة ترك العمل للعلاج الطبي</div></div>
-  <div class="h-ref"><div>BOC-P-13//F02</div><div>2019/9/7</div><div>372-3000-400</div></div>
-</div>
-<div class="form-title">نموذج إجازة مرضية</div>
-<div class="fr"><span class="lbl">الاسم:</span><span class="val">${name}</span></div>
-<div class="fr"><span class="lbl">الرقم الوظيفي:</span><span class="val">${jobNum}</span></div>
-<div class="fr"><span class="lbl">المهنة:</span><span class="val">${jobTitle}</span></div>
-<div class="fr"><span class="lbl">تاريخ/وقت ترك العمل:</span><span class="val">${fmtDT(leaveDateTime)}</span></div>
-<div class="sig-box"><div class="stitle">توقيع المسؤول</div>${sigHtml}</div>
-<div class="divider"></div>
-<div class="fr"><span class="lbl">تاريخ/وقت مراجعة المستوصف:</span><span class="val">${fmtDT(clinicDateTime)}</span></div>
-<div class="fr"><span class="lbl">ملاحظات الطبيب:</span><span class="val">${doctorNotes}</span></div>
-<div class="sig-box"><div class="stitle">توقيع الطبيب</div></div>
-<div class="fr"><span class="lbl">تاريخ/وقت العودة للعمل:</span><span class="val">${fmtDT(returnDateTime)}</span></div>
-<div class="fn">تحتفظ الجهة بنسخة وتسلم نسخة للموظف</div>
+<table class="hdr">
+  <tr>
+    <td class="logo-cell" rowspan="2">☯</td>
+    <td class="lbl-cell">عنوان النموذج</td>
+    <td class="main-cell">نـمـوذج اجـازة مرضيـة</td>
+    <td class="co-cell">شركة نفط البصرة</td>
+  </tr>
+  <tr>
+    <td class="lbl-cell">رمز النموذج</td>
+    <td style="text-align:center;font-size:10pt">BOC-P-13//F02 &nbsp;&nbsp;&nbsp; رقم الإصدار: 1 &nbsp;&nbsp;&nbsp; تاريخ الإصدار: 2019/1/7</td>
+    <td></td>
+  </tr>
+</table>
+<div class="phone">372-3000-400</div>
+<div class="co-name">شركة نفط البصرة (شركة عامة )</div>
+<div class="form-title">إستمارة ترك العمل للعلاج الطبي</div>
+<div class="field">الاسم : <span>${name}</span></div>
+<div class="field">الرقم : <span>${jobNum}</span></div>
+<div class="field">المهنة : <span>${jobTitle}</span></div>
+<div class="field">تاريخ ترك العمل : <span>${fmtDate(leaveDate)}</span></div>
+<div class="field">وقت ترك العمل : <span>${fmtTime(leaveTime)}</span></div>
+<div class="sec-label">المسؤول</div>
+<div class="sig-space">${sigHtml}</div>
+<div class="field">تاريخ وقت مراجعة المستوصف : <span>${fmtDT(clinicDT)}</span></div>
+<div class="field" style="min-height:28px">الملاحظات : <span>${notes}</span></div>
+<div class="sec-label">الطبيب</div>
+<div class="sig-space"></div>
+<div class="field">تاريخ عودته الى العمل : <span>${fmtDate(returnDate)}</span></div>
+<div class="field">وقت عودته الى العمل : <span>${fmtTime(returnTime)}</span></div>
+<div class="footer">* يعتبر هذا النموذج ملك لشركة نفط البصرة . لا يجوزظ نسخه او الكشف عن محتواه بدون موافقة خطية مسبقة من قبل شركة نفط البصرة</div>
 </body></html>`;
   };
 
@@ -4386,8 +4412,12 @@ function SickLeaveForm({ emp }) {
     try {
       const html = buildSickHtml();
       const safeName = (name || "موظف").replace(/\s+/g, "-");
-      const dateStr = leaveDateTime ? leaveDateTime.split("T")[0] : new Date().toISOString().split("T")[0];
-      const file = new File([new Blob([html], { type: "text/html" })], `اجازة-مرضية-${safeName}-${dateStr}.html`, { type: "text/html" });
+      const dateStr = leaveDate || new Date().toISOString().split("T")[0];
+      const file = new File(
+        [new Blob([html], { type: "text/html" })],
+        `اجازة-مرضية-${safeName}-${dateStr}.html`,
+        { type: "text/html" }
+      );
       const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
       setDriveLink(result.webViewLink);
       toast.success("تم رفع نموذج الإجازة المرضية إلى Drive");
@@ -4402,22 +4432,48 @@ function SickLeaveForm({ emp }) {
     <div className="p-6 max-w-xl mx-auto space-y-5" dir="rtl">
       <div className="flex items-center gap-3 pb-3 border-b border-color">
         <div className="w-10 h-10 bg-rose-500 rounded-xl flex items-center justify-center"><FileText size={20} className="text-white"/></div>
-        <div><h2 className="text-xl font-bold text-primary">إجازة مرضية</h2><p className="text-xs text-secondary">BOC-P-13//F02 — طباعة A5 portrait</p></div>
+        <div><h2 className="text-xl font-bold text-primary">إجازة مرضية — إستمارة ترك العمل للعلاج الطبي</h2><p className="text-xs text-secondary">BOC-P-13//F02 — طباعة A4 portrait</p></div>
       </div>
+
+      {/* بيانات الموظف */}
       <div className="grid grid-cols-2 gap-3">
         <div><label className="block text-xs font-bold text-secondary mb-1">الاسم</label><input value={name} onChange={e=>setName(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
         <div><label className="block text-xs font-bold text-secondary mb-1">الرقم الوظيفي</label><input value={jobNum} onChange={e=>setJobNum(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
       </div>
       <div><label className="block text-xs font-bold text-secondary mb-1">المهنة</label><input value={jobTitle} onChange={e=>setJobTitle(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-      <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ/وقت ترك العمل</label><input type="datetime-local" value={leaveDateTime} onChange={e=>setLeaveDateTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+
+      {/* ترك العمل */}
+      <div className="p-3 rounded-xl border border-rose-200 bg-rose-50 space-y-3">
+        <p className="text-xs font-bold text-rose-700">بيانات ترك العمل</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ ترك العمل</label><input type="date" value={leaveDate} onChange={e=>setLeaveDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+          <div><label className="block text-xs font-bold text-secondary mb-1">وقت ترك العمل</label><input type="time" value={leaveTime} onChange={e=>setLeaveTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        </div>
+      </div>
+
+      {/* توقيع المسؤول */}
       <div>
         <label className="block text-xs font-bold text-secondary mb-2">توقيع المسؤول (إلكتروني)</label>
         <SignaturePad onSave={setSigDataUrl} label="ارسم التوقيع ثم اضغط حفظ التوقيع"/>
         {sigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={sigDataUrl} alt="توقيع" className="max-h-14"/></div>}
       </div>
-      <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ/وقت مراجعة المستوصف</label><input type="datetime-local" value={clinicDateTime} onChange={e=>setClinicDateTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-      <div><label className="block text-xs font-bold text-secondary mb-1">ملاحظات الطبيب</label><textarea value={doctorNotes} onChange={e=>setDoctorNotes(e.target.value)} rows={2} className="input w-full rounded-lg px-3 py-2 text-sm resize-none"/></div>
-      <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ/وقت العودة للعمل</label><input type="datetime-local" value={returnDateTime} onChange={e=>setReturnDateTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+
+      {/* مراجعة المستوصف */}
+      <div className="p-3 rounded-xl border border-blue-200 bg-blue-50 space-y-3">
+        <p className="text-xs font-bold text-blue-700">بيانات المستوصف</p>
+        <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ/وقت مراجعة المستوصف</label><input type="datetime-local" value={clinicDT} onChange={e=>setClinicDT(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">الملاحظات</label><textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={2} className="input w-full rounded-lg px-3 py-2 text-sm resize-none"/></div>
+      </div>
+
+      {/* العودة للعمل */}
+      <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50 space-y-3">
+        <p className="text-xs font-bold text-emerald-700">بيانات العودة للعمل</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ العودة للعمل</label><input type="date" value={returnDate} onChange={e=>setReturnDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+          <div><label className="block text-xs font-bold text-secondary mb-1">وقت العودة للعمل</label><input type="time" value={returnTime} onChange={e=>setReturnTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        </div>
+      </div>
+
       <div className="flex flex-wrap gap-3 justify-end pt-2 border-t border-color">
         {driveLink && (
           <a href={driveLink} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline self-center">
