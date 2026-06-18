@@ -1154,50 +1154,94 @@ function LoginScreen({ onLogin, dark }) {
     }
   };
 
+  const resetPass = async () => {
+    const acc = ACCOUNTS.find(a => a.jobNum === user.trim());
+    if (!user.trim()) { setErr("أدخل الرقم الوظيفي أولاً"); return; }
+    if (!acc) { setErr("الرقم الوظيفي غير موجود"); return; }
+    sessionStorage.removeItem(`pass_${acc.id}`);
+    localStorage.removeItem(`pass_${acc.id}`);
+    localStorage.removeItem(`login_lock_${acc.jobNum}`);
+    if (isConnected) await FirebaseAPI.deletePassword(acc.id);
+    setErr(""); setPass("");
+    alert(`تمت إعادة ضبط كلمة مرور ${acc.name}\nالرقم الوظيفي: ${acc.jobNum}\nكلمة المرور الافتراضية: ${acc.password}`);
+  };
+
   return (
-    <div className={`min-h-screen bg-gradient-to-br ${dark ? "from-gray-900 to-gray-800" : "from-slate-900 to-slate-800"} flex items-center justify-center p-4`} dir="rtl">
-      <div className="w-full max-w-md bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-white/20">
-        <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg mb-4"><LogIn size={32} className="text-white"/></div>
-          <h2 className="text-2xl font-bold text-white">شركة نفط البصرة</h2>
-          <p className="text-sm text-slate-300 mt-2">شعبة مستودع الفاو</p>
-          <div className="flex items-center justify-center gap-2 mt-2">
-            {isConnected ? <><Wifi size={12} className="text-emerald-400"/><span className="text-xs text-emerald-400">متصل</span></> : <><WifiOff size={12} className="text-amber-400"/><span className="text-xs text-amber-400">غير متصل</span></>}
+    <div className="min-h-screen flex flex-col md:flex-row" dir="rtl">
+      {/* Panel Right — Branding (dark industrial) */}
+      <div className="md:w-5/12 bg-[#0D1117] flex flex-col justify-between p-10 min-h-[200px] md:min-h-screen relative overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.035]" style={{backgroundImage:"linear-gradient(to right,#C87A2E 1px,transparent 1px),linear-gradient(to bottom,#C87A2E 1px,transparent 1px)",backgroundSize:"48px 48px"}}/>
+        <div className="relative z-10">
+          <div className="w-14 h-14 border-2 border-[#C87A2E] flex items-center justify-center mb-10">
+            <span className="text-[#C87A2E] font-bold tracking-widest text-sm" style={{fontFamily:"'JetBrains Mono',monospace"}}>BOC</span>
+          </div>
+          <h1 className="text-3xl md:text-4xl font-bold text-white leading-tight tracking-tight">شركة نفط<br/>البصرة</h1>
+          <p className="text-[#C87A2E] text-xs tracking-[0.25em] uppercase mt-3" style={{fontFamily:"'JetBrains Mono',monospace"}}>FAW WAREHOUSE DIVISION</p>
+          <div className="mt-8 space-y-1">
+            <p className="text-[#4B5563] text-[11px]" style={{fontFamily:"'JetBrains Mono',monospace"}}>SYS.REF: FAW-CTRL-001</p>
+            <p className="text-[#4B5563] text-[11px]" style={{fontFamily:"'JetBrains Mono',monospace"}}>DEPT: Control & Systems</p>
           </div>
         </div>
-        <div className="space-y-4">
-          <div><label className="block text-sm font-bold text-slate-200 mb-2">الرقم الوظيفي</label>
-            <input type="text" value={user} onChange={e=>setUser(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center text-lg" placeholder="728004" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/></div>
-          <div><label className="block text-sm font-bold text-slate-200 mb-2">كلمة المرور</label>
-            <div className="relative"><input type={showP?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center text-lg" placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
-              <button onClick={()=>setShowP(!showP)} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">{showP?<EyeOff size={18}/>:<Eye size={18}/>}</button></div></div>
-          {lockSecs > 0 && (
-            <div className="bg-red-700/30 border border-red-500/50 text-red-200 text-sm p-3 rounded-xl flex items-center gap-2">
-              <AlertCircle size={16}/>
-              <span>الحساب مقفل — يُفتح بعد <strong className="font-mono">{fmtTime(lockSecs)}</strong></span>
-            </div>
-          )}
-          {err && <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-xl flex items-center gap-2"><AlertCircle size={16}/> {err}</div>}
-          <button onClick={handleLogin} disabled={loading || lockSecs > 0} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all text-lg">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
-          <button onClick={async () => {
-            const acc = ACCOUNTS.find(a => a.jobNum === user.trim());
-            if (!user.trim()) { setErr("أدخل الرقم الوظيفي أولاً"); return; }
-            if (!acc) { setErr("الرقم الوظيفي غير موجود"); return; }
-            // Clear local storage
-            sessionStorage.removeItem(`pass_${acc.id}`);
-            localStorage.removeItem(`pass_${acc.id}`);
-            // Clear login lock
-            localStorage.removeItem(`login_lock_${acc.jobNum}`);
-            // Clear Firebase password so default password works again
-            if (isConnected) await FirebaseAPI.deletePassword(acc.id);
-            setErr("");
-            setPass("");
-            alert(`تمت إعادة ضبط كلمة مرور ${acc.name}\nالرقم الوظيفي: ${acc.jobNum}\nكلمة المرور الافتراضية: ${acc.password}`);
-          }} className="w-full text-slate-400 hover:text-slate-200 text-xs py-1 underline text-center transition-colors">
-            نسيت كلمة المرور؟ (إعادة الضبط للافتراضية)
-          </button>
+        <div className="relative z-10 flex items-center gap-2">
+          <div className={`w-1.5 h-1.5 rounded-full ${isConnected?"bg-emerald-400":"bg-amber-400"}`} style={isConnected?{animation:"pulse 2s infinite"}:{}}/>
+          <span className={`text-[11px] ${isConnected?"text-emerald-400":"text-amber-400"}`} style={{fontFamily:"'JetBrains Mono',monospace"}}>
+            {isConnected?"NETWORK: ONLINE":"NETWORK: OFFLINE"}
+          </span>
         </div>
-        <div className="mt-6 text-center text-sm text-slate-400"><p>🔑 <strong className="text-blue-300">728004</strong> | كلمة المرور: <strong className="text-blue-300">1001</strong></p></div>
+      </div>
+
+      {/* Panel Left — Login form */}
+      <div className={`md:w-7/12 flex items-center justify-center p-8 md:p-16 ${dark?"bg-[#161B22]":"bg-[#F4F4F0]"} min-h-screen`}>
+        <div className="w-full max-w-sm">
+          <h2 className={`text-2xl font-bold ${dark?"text-white":"text-[#1C1C1C]"} mb-1 tracking-tight`}>تسجيل الدخول</h2>
+          <p className="text-sm text-[#787774] mb-8">أدخل بيانات الدخول للمتابعة</p>
+
+          <div className="space-y-5">
+            <div>
+              <label className="text-[11px] font-semibold tracking-widest uppercase text-[#787774] block mb-2" style={{fontFamily:"'JetBrains Mono',monospace"}}>الرقم الوظيفي</label>
+              <input type="text" value={user} onChange={e=>setUser(e.target.value)}
+                className={`w-full border rounded-md px-4 py-3 text-sm transition-colors outline-none ${dark?"bg-[#0D1117] border-[#30363D] text-white focus:border-[#C87A2E]":"bg-white border-[#E4E2DC] text-[#1C1C1C] focus:border-[#C87A2E]"}`}
+                placeholder="728004" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold tracking-widest uppercase text-[#787774] block mb-2" style={{fontFamily:"'JetBrains Mono',monospace"}}>كلمة المرور</label>
+              <div className="relative">
+                <input type={showP?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)}
+                  className={`w-full border rounded-md px-4 py-3 pl-10 text-sm transition-colors outline-none ${dark?"bg-[#0D1117] border-[#30363D] text-white focus:border-[#C87A2E]":"bg-white border-[#E4E2DC] text-[#1C1C1C] focus:border-[#C87A2E]"}`}
+                  placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
+                <button onClick={()=>setShowP(!showP)} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#787774] hover:text-[#C87A2E] transition-colors">{showP?<EyeOff size={16}/>:<Eye size={16}/>}</button>
+              </div>
+            </div>
+
+            {lockSecs > 0 && (
+              <div className={`border text-sm p-3 rounded-md flex items-center gap-2 ${dark?"bg-red-900/20 border-red-800 text-red-300":"bg-red-50 border-red-200 text-red-700"}`}>
+                <AlertCircle size={15}/>
+                <span>مقفل — يُفتح بعد <strong style={{fontFamily:"'JetBrains Mono',monospace"}}>{fmtTime(lockSecs)}</strong></span>
+              </div>
+            )}
+            {err && (
+              <div className={`border text-sm p-3 rounded-md flex items-center gap-2 ${dark?"bg-red-900/20 border-red-800 text-red-300":"bg-red-50 border-red-200 text-red-700"}`}>
+                <AlertCircle size={15}/> {err}
+              </div>
+            )}
+
+            <button onClick={handleLogin} disabled={loading || lockSecs > 0}
+              className="w-full bg-[#C87A2E] hover:bg-[#B06D27] disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-md text-sm tracking-wide transition-all active:scale-[0.99]">
+              {loading?"جاري التحقق...":"دخول"}
+            </button>
+
+            <button onClick={resetPass}
+              className="w-full text-[#787774] hover:text-[#C87A2E] text-xs py-1 transition-colors text-center">
+              نسيت كلمة المرور؟ — إعادة الضبط للافتراضية
+            </button>
+          </div>
+
+          <div className={`mt-10 pt-4 border-t ${dark?"border-[#30363D]":"border-[#E4E2DC]"}`}>
+            <p className="text-[10px] text-[#787774]" style={{fontFamily:"'JetBrains Mono',monospace"}}>
+              REF: <span className="text-[#C87A2E]">728004</span> &nbsp;/&nbsp; DEFAULT: <span className="text-[#C87A2E]">1001</span>
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -5838,9 +5882,9 @@ function TimeSheetPage({ emp }) {
       <div className="flex items-center gap-1 border-b border-color pb-0">
         {Object.entries(TAB_INFO).map(([key,info])=>(
           <button key={key} onClick={()=>{setActiveTab(key);setSearchEmp("");setEditCell(null);}}
-            className={`px-5 py-2.5 text-sm font-semibold rounded-t-xl transition-colors border-b-2 ${activeTab===key?"border-blue-500 text-blue-600 bg-blue-50":"border-transparent text-secondary hover:text-primary"}`}>
+            className={`px-5 py-2.5 text-sm font-semibold rounded-t-md transition-colors border-b-2 ${activeTab===key?"border-[#C87A2E] text-[#C87A2E] bg-[#FDF3E7]":"border-transparent text-secondary hover:text-primary"}`}>
             {info.label}
-            <span className="mr-1.5 text-xs text-gray-400">({data[key]?.length||0})</span>
+            <span className="mr-1.5 text-xs text-gray-400 ts-mono">({data[key]?.length||0})</span>
           </button>
         ))}
       </div>
@@ -5858,7 +5902,7 @@ function TimeSheetPage({ emp }) {
               className="text-sm border border-color rounded-lg pr-8 pl-3 py-1.5 bg-surface text-primary w-48"/>
           </div>
           <button onClick={()=>addEmployee(activeTab)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700">
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm bg-[#C87A2E] text-white hover:bg-[#B06D27] transition-colors">
             <Plus size={14}/> إضافة
           </button>
           <button onClick={resetData} title="إعادة تعيين للبيانات الأصلية"
@@ -5874,56 +5918,54 @@ function TimeSheetPage({ emp }) {
           <table className="text-xs border-collapse" style={{minWidth:`${200+daysInMonth*30+240}px`}} dir="rtl">
             <thead>
               <tr>
-                <th className="border border-gray-300 px-2 py-2 text-center bg-blue-50" style={{position:"sticky",right:0,zIndex:10,minWidth:"70px",backgroundColor:"#eff6ff"}}>الرقم</th>
-                <th className="border border-gray-300 px-2 py-2 text-right bg-blue-50" style={{position:"sticky",right:"70px",zIndex:10,minWidth:"150px",backgroundColor:"#eff6ff"}}>الاسم</th>
-                <th className="border border-gray-300 px-1 py-2 text-center bg-blue-50" style={{minWidth:"34px"}}>ح/ق</th>
+                <th className="border border-gray-200 px-2 py-2 text-center ts-header" style={{position:"sticky",right:0,zIndex:10,minWidth:"70px",fontSize:"11px"}}>الرقم</th>
+                <th className="border border-gray-200 px-2 py-2 text-right ts-header" style={{position:"sticky",right:"70px",zIndex:10,minWidth:"150px"}}>الاسم</th>
+                <th className="border border-gray-200 px-1 py-2 text-center ts-header ts-mono" style={{minWidth:"34px",fontSize:"10px"}}>ح/ق</th>
                 {days.map(d=>{
                   const dow = new Date(tsYear, tsMonth, d).getDay();
                   const isWe = dow===5||dow===6;
                   const shift = getShiftForDay(tsYear, tsMonth, d);
                   const todayFlag = dayIsToday(d);
-                  const bgColor = todayFlag?"#bfdbfe":isWe?"#fff7ed":"#eff6ff";
-                  const numColor = todayFlag?"#1d4ed8":isWe?"#ea580c":undefined;
                   return (
-                    <th key={d} className="border border-gray-300 py-1 text-center" style={{minWidth:"30px",backgroundColor:bgColor}}>
-                      <div style={{fontSize:"11px",fontWeight:"bold",color:numColor}}>{d}</div>
-                      <div style={{fontSize:"8px",color:isWe?"#ea580c":"#9ca3af",lineHeight:"1"}}>{DAY_NAMES_AR[dow]}</div>
+                    <th key={d} className={`border border-gray-200 py-1 text-center ts-mono ${todayFlag?"ts-today":isWe?"ts-we":"ts-header"}`} style={{minWidth:"30px"}}>
+                      <div style={{fontSize:"11px",fontWeight:"700",color:todayFlag?"#166534":isWe?"#C87A2E":undefined}}>{d}</div>
+                      <div style={{fontSize:"8px",color:isWe?"#C87A2E":"#9ca3af",lineHeight:"1"}}>{DAY_NAMES_AR[dow]}</div>
                       <div style={{fontSize:"8px",fontWeight:"bold",color:SHIFT_TEXT_COLORS[shift]||"#374151",lineHeight:"1.2"}}>{shift}</div>
                     </th>
                   );
                 })}
-                <th className="border border-gray-300 px-1 py-2 text-center bg-blue-50 text-blue-700" style={{minWidth:"52px"}}>ساعات</th>
-                <th className="border border-gray-300 px-1 py-2 text-center bg-green-50 text-green-700" style={{minWidth:"40px"}}>إجازة</th>
-                <th className="border border-gray-300 px-1 py-2 text-center bg-red-50 text-red-700" style={{minWidth:"40px"}}>غياب</th>
-                <th className="border border-gray-300 px-1 py-2 text-center bg-gray-50 text-gray-600" style={{minWidth:"40px"}}>عطل</th>
-                <th className="border border-gray-300 px-2 py-2 text-right bg-gray-50" style={{minWidth:"100px"}}>ملاحظات</th>
-                <th className="border border-gray-300 px-1 py-2 text-center bg-gray-50" style={{minWidth:"32px"}}></th>
+                <th className="border border-gray-200 px-1 py-2 text-center ts-header ts-mono" style={{minWidth:"52px",color:"#C87A2E"}}>ساعات</th>
+                <th className="border border-gray-200 px-1 py-2 text-center ts-header" style={{minWidth:"40px",color:"#15803d"}}>إجازة</th>
+                <th className="border border-gray-200 px-1 py-2 text-center ts-header" style={{minWidth:"40px",color:"#dc2626"}}>غياب</th>
+                <th className="border border-gray-200 px-1 py-2 text-center ts-header" style={{minWidth:"40px",color:"#6b7280"}}>عطل</th>
+                <th className="border border-gray-200 px-2 py-2 text-right ts-header" style={{minWidth:"100px"}}>ملاحظات</th>
+                <th className="border border-gray-200 px-1 py-2 text-center ts-header" style={{minWidth:"32px"}}></th>
               </tr>
             </thead>
             <tbody>
               {employees.map((e, idx) => {
                 const stats = calcTsStats(e);
-                const bgBase = idx%2===0 ? "#ffffff" : "#f9fafb";
+                const bgBase = idx%2===0 ? "#ffffff" : "#FAFAF8";
                 const codes = TAB_INFO[activeTab].codes;
                 return (
                   <React.Fragment key={e.id}>
                     {/* A row - attendance codes */}
                     <tr>
-                      <td rowSpan={2} className="border border-gray-300 text-center text-gray-500 align-middle" style={{position:"sticky",right:0,zIndex:5,backgroundColor:bgBase,fontSize:"10px"}}>
+                      <td rowSpan={2} className="border border-gray-200 text-center text-gray-500 align-middle ts-mono" style={{position:"sticky",right:0,zIndex:5,backgroundColor:bgBase,fontSize:"10px"}}>
                         {e.id}
                       </td>
-                      <td rowSpan={2} className="border border-gray-300 px-1 text-right font-semibold align-middle" style={{position:"sticky",right:"70px",zIndex:5,backgroundColor:bgBase,maxWidth:"150px",fontSize:"11px"}}>
+                      <td rowSpan={2} className="border border-gray-200 px-1 text-right font-semibold align-middle" style={{position:"sticky",right:"70px",zIndex:5,backgroundColor:bgBase,maxWidth:"150px",fontSize:"11px"}}>
                         {e.name}
                         {e.movement && <span className="mr-1 text-[10px] text-blue-500 font-normal">({e.movement})</span>}
                       </td>
-                      <td className="border border-gray-300 text-center font-black text-blue-600" style={{backgroundColor:bgBase,fontSize:"10px"}}>أ</td>
+                      <td className="border border-gray-200 text-center font-black ts-mono" style={{backgroundColor:bgBase,fontSize:"10px",color:"#C87A2E"}}>أ</td>
                       {days.map(d=>{
                         const isWe = isWeekendDay(d);
                         const code = e.days[String(d)] || "";
                         const isEd = editCell?.empId===e.id && editCell?.day===d && editCell?.type==="code";
                         const cellBg = code ? "" : isWe ? "#fff7ed" : bgBase;
                         return (
-                          <td key={d} className={`border border-gray-300 text-center cursor-pointer relative select-none ${code?getCellColor(code):""}`}
+                          <td key={d} className={`border border-gray-200 text-center cursor-pointer relative select-none ts-mono ${code?getCellColor(code):""}`}
                             style={{height:"22px",minWidth:"30px",backgroundColor:cellBg}}
                             onClick={()=>setEditCell({empId:e.id,day:d,type:"code",tabKey:activeTab})}>
                             <span className="font-bold" style={{fontSize:"11px"}}>{code}</span>
@@ -5931,16 +5973,16 @@ function TimeSheetPage({ emp }) {
                           </td>
                         );
                       })}
-                      <td rowSpan={2} className="border border-gray-300 text-center font-bold text-blue-700 align-middle" style={{backgroundColor:bgBase}}>{stats.totalHours||""}</td>
-                      <td rowSpan={2} className="border border-gray-300 text-center text-green-700 font-medium align-middle" style={{backgroundColor:bgBase}}>{stats.leaveDays||""}</td>
-                      <td rowSpan={2} className="border border-gray-300 text-center text-red-700 font-medium align-middle" style={{backgroundColor:bgBase}}>{stats.absenceDays||""}</td>
-                      <td rowSpan={2} className="border border-gray-300 text-center text-gray-500 font-medium align-middle" style={{backgroundColor:bgBase}}>{stats.restDays||""}</td>
-                      <td rowSpan={2} className="border border-gray-300 px-1 align-middle" style={{backgroundColor:bgBase}}>
+                      <td rowSpan={2} className="border border-gray-200 text-center font-bold ts-mono align-middle" style={{backgroundColor:bgBase,color:"#C87A2E"}}>{stats.totalHours||""}</td>
+                      <td rowSpan={2} className="border border-gray-200 text-center ts-mono font-medium align-middle" style={{backgroundColor:bgBase,color:"#15803d"}}>{stats.leaveDays||""}</td>
+                      <td rowSpan={2} className="border border-gray-200 text-center ts-mono font-medium align-middle" style={{backgroundColor:bgBase,color:"#dc2626"}}>{stats.absenceDays||""}</td>
+                      <td rowSpan={2} className="border border-gray-200 text-center ts-mono font-medium align-middle" style={{backgroundColor:bgBase,color:"#6b7280"}}>{stats.restDays||""}</td>
+                      <td rowSpan={2} className="border border-gray-200 px-1 align-middle" style={{backgroundColor:bgBase}}>
                         <input value={e.notes||""} onChange={ev=>updateNotes(activeTab,e.id,ev.target.value)}
                           className="w-full text-xs bg-transparent outline-none text-gray-500"
                           placeholder="ملاحظة..." style={{minWidth:"90px"}}/>
                       </td>
-                      <td rowSpan={2} className="border border-gray-300 text-center align-middle" style={{backgroundColor:bgBase}}>
+                      <td rowSpan={2} className="border border-gray-200 text-center align-middle" style={{backgroundColor:bgBase}}>
                         {activeTab==="drivers" && (
                           <button onClick={()=>editDriverName(activeTab,e.id,e.name)} className="text-blue-400 hover:text-blue-600 p-0.5 block mx-auto mb-0.5" title="تعديل الاسم"><Edit3 size={12}/></button>
                         )}
@@ -5949,14 +5991,14 @@ function TimeSheetPage({ emp }) {
                     </tr>
                     {/* Q row - hours */}
                     <tr>
-                      <td className="border border-gray-300 text-center font-black text-purple-600" style={{backgroundColor:bgBase,fontSize:"10px"}}>ق</td>
+                      <td className="border border-gray-200 text-center font-black ts-mono" style={{backgroundColor:bgBase,fontSize:"10px",color:"#7c3aed"}}>ق</td>
                       {days.map(d=>{
                         const isWe = isWeekendDay(d);
                         const h = e.hours[String(d)];
                         const isEd = editCell?.empId===e.id && editCell?.day===d && editCell?.type==="hours";
-                        const cellBg = h!=null ? "#f5f3ff" : isWe ? "#fff7ed" : bgBase;
+                        const cellBg = h!=null ? "#f5f3ff" : isWe ? "#FFF3E6" : bgBase;
                         return (
-                          <td key={d} className={`border border-gray-300 text-center cursor-pointer relative ${h!=null?"text-purple-700":""}`}
+                          <td key={d} className={`border border-gray-200 text-center cursor-pointer relative ts-mono ${h!=null?"text-purple-700":""}`}
                             style={{height:"20px",minWidth:"30px",backgroundColor:cellBg}}
                             onClick={()=>setEditCell({empId:e.id,day:d,type:"hours",tabKey:activeTab})}>
                             {isEd ? (
@@ -5986,8 +6028,8 @@ function TimeSheetPage({ emp }) {
       {/* Summary stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
-          {label:"إجمالي الموظفين", val:data[activeTab]?.length||0, color:"text-blue-600"},
-          {label:"إجمالي ساعات العمل", val:(data[activeTab]||[]).reduce((s,e)=>s+calcTsStats(e).totalHours,0), color:"text-indigo-600"},
+          {label:"إجمالي الموظفين", val:data[activeTab]?.length||0, color:"text-[#C87A2E]"},
+          {label:"إجمالي ساعات العمل", val:(data[activeTab]||[]).reduce((s,e)=>s+calcTsStats(e).totalHours,0), color:"text-[#C87A2E]"},
           {label:"إجمالي أيام الإجازة", val:(data[activeTab]||[]).reduce((s,e)=>s+calcTsStats(e).leaveDays,0), color:"text-green-600"},
           {label:"إجمالي أيام الغياب", val:(data[activeTab]||[]).reduce((s,e)=>s+calcTsStats(e).absenceDays,0), color:"text-red-600"},
           {label:"إجمالي أيام العطل", val:(data[activeTab]||[]).reduce((s,e)=>s+calcTsStats(e).restDays,0), color:"text-gray-600"},
@@ -6072,7 +6114,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
       {/* Header */}
       <div className="header-bar px-6 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center"><span className="text-white font-bold text-sm">BOC</span></div>
+          <div className="w-10 h-10 bg-[#C87A2E] flex items-center justify-center" style={{clipPath:"none"}}><span className="text-white font-bold text-xs tracking-widest" style={{fontFamily:"'JetBrains Mono',monospace"}}>BOC</span></div>
           <div><h1 className="font-bold">شركة نفط البصرة</h1><p className="text-xs text-secondary">شعبة مستودع الفاو</p></div>
         </div>
         <div className="flex items-center gap-3">
@@ -6104,7 +6146,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
         <aside className="md:w-60 sidebar border-l min-h-screen p-3">
           <nav className="space-y-0.5">
             {menuItems.map(item => (
-              <button key={item.id} onClick={()=>setView(item.id)} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${view===item.id?"bg-blue-600 text-white":"text-secondary hover:bg-hover"}`}>
+              <button key={item.id} onClick={()=>setView(item.id)} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-md text-sm font-medium transition-all ${view===item.id?"bg-[#C87A2E] text-white":"text-secondary hover:bg-hover"}`}>
                 <span className="flex items-center gap-2.5">{item.icon}{item.label}</span>
                 {item.badge>0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{item.badge}</span>}
               </button>
@@ -6276,22 +6318,35 @@ export default function App() {
   const style = `
     :root { color-scheme: light; }
     .dark { color-scheme: dark; }
-    .bg-main { background: ${dark?"#0f172a":"#f8fafc"}; }
-    .card { background: ${dark?"#1e293b":"#ffffff"}; color: ${dark?"#e2e8f0":"#1e293b"}; }
-    .header-bar { background: ${dark?"#1e293b":"#ffffff"}; border-bottom: 1px solid ${dark?"#334155":"#e2e8f0"}; }
-    .sidebar { background: ${dark?"#1e293b":"#ffffff"}; }
-    .input { background: ${dark?"#0f172a":"#ffffff"}; border: 1px solid ${dark?"#334155":"#e2e8f0"}; color: ${dark?"#e2e8f0":"#1e293b"}; }
-    .input::placeholder { color: ${dark?"#64748b":"#94a3b8"}; }
-    .btn-secondary { background: ${dark?"#1e293b":"#ffffff"}; color: ${dark?"#94a3b8":"#475569"}; }
-    .bg-hover { background: ${dark?"#0f172a":"#f1f5f9"}; }
-    .text-secondary { color: ${dark?"#64748b":"#64748b"}; }
-    .border-color { border-color: ${dark?"#334155":"#e2e8f0"} !important; }
-    select option { background: ${dark?"#1e293b":"#ffffff"}; color: ${dark?"#e2e8f0":"#1e293b"}; }
-    * { transition: background-color 0.2s, border-color 0.2s, color 0.1s; }
-    @keyframes toastIn { from { opacity:0; transform:translateX(30px); } to { opacity:1; transform:translateX(0); } }
-    .toast-item { animation: toastIn 0.25s ease-out; }
+    .bg-main { background: ${dark?"#0D1117":"#F4F4F0"}; }
+    .card {
+      background: ${dark?"#161B22":"#ffffff"};
+      color: ${dark?"#e2e8f0":"#1C1C1C"};
+      box-shadow: ${dark?
+        "0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 0 rgba(255,255,255,0.03)":
+        "0 0 0 1px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.9)"};
+    }
+    .header-bar { background: ${dark?"#0D1117":"#ffffff"}; border-bottom: 1px solid ${dark?"#30363D":"#E4E2DC"}; }
+    .sidebar { background: ${dark?"#0D1117":"#F4F4F0"}; }
+    .input { background: ${dark?"#0D1117":"#ffffff"}; border: 1px solid ${dark?"#30363D":"#E4E2DC"}; color: ${dark?"#e2e8f0":"#1C1C1C"}; border-radius:6px; }
+    .input:focus { border-color:#C87A2E; outline:none; }
+    .input::placeholder { color: ${dark?"#6b7280":"#a8a29e"}; }
+    .btn-secondary { background: ${dark?"#161B22":"#ffffff"}; color: ${dark?"#9ca3af":"#575553"}; }
+    .bg-hover { background: ${dark?"#1a222e":"#EDEDE9"}; }
+    .text-secondary { color: ${dark?"#6b7280":"#787774"}; }
+    .text-primary { color: ${dark?"#e2e8f0":"#1C1C1C"}; }
+    .border-color { border-color: ${dark?"#30363D":"#E4E2DC"} !important; }
+    .bg-surface { background: ${dark?"#0D1117":"#ffffff"}; }
+    select option { background: ${dark?"#161B22":"#ffffff"}; color: ${dark?"#e2e8f0":"#1C1C1C"}; }
+    * { transition: background-color 0.15s, border-color 0.15s, color 0.1s; }
+    @keyframes toastIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+    .toast-item { animation: toastIn 0.2s cubic-bezier(0.32,0.72,0,1); }
     @keyframes shimmer { from { background-position:-200% 0; } to { background-position:200% 0; } }
-    .skeleton { background: linear-gradient(90deg,${dark?"#334155 25%,#475569 50%,#334155 75%":"#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%"}); background-size:200% 100%; animation:shimmer 1.5s infinite; }
+    .skeleton { background: linear-gradient(90deg,${dark?"#1e2a38 25%,#273444 50%,#1e2a38 75%":"#EDEDE9 25%,#F4F4F0 50%,#EDEDE9 75%"}); background-size:200% 100%; animation:shimmer 1.5s infinite; }
+    .ts-mono { font-family:'JetBrains Mono','IBM Plex Mono',monospace; }
+    .ts-header { background:${dark?"#1a2232":"#F0EDE6"} !important; }
+    .ts-we { background:${dark?"#2a1f0a":"#FFF3E6"} !important; }
+    .ts-today { background:${dark?"#1a2d1a":"#E6F5E6"} !important; }
   `;
 
   return (
