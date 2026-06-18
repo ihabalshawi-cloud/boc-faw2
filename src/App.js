@@ -513,6 +513,34 @@ const FirebaseAPI = {
     }
   },
 
+  // ── حسابات الموظفين (مزامنة) ─────────────────────────────────────────────
+  loadAccounts: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/accounts.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+      return Object.values(data).filter(Boolean);
+    } catch { return null; }
+  },
+
+  saveAccounts: async (list) => {
+    if (!Array.isArray(list) || list.length === 0) return false;
+    try {
+      const data = {};
+      for (const emp of list) {
+        const { password, ...rest } = emp;
+        data[emp.jobNum] = rest;
+      }
+      const res = await fetch(`${FIREBASE_URL}/accounts.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+
   // ── الدردشة ───────────────────────────────────────────────────────────────
   sendMessage: async (msg) => {
     try { await fetch(`${FIREBASE_URL}/chat.json`, { method: "POST", body: JSON.stringify(msg) }); return true; } catch { return false; }
@@ -1961,7 +1989,7 @@ function EmployeeManager({ employees, setEmployees }) {
   const handleMigrate = async () => {
     if (!await confirm("سيتم رفع بيانات جميع الموظفين (بدون كلمات المرور) + هاشات المرور الافتراضية إلى Firebase. المتابعة؟", {title:"ترحيل البيانات",ok:"ترحيل"})) return;
     setMigrating(true);
-    const result = await FirebaseAPI.initializeAccounts(ACCOUNTS);
+    const result = await FirebaseAPI.initializeAccounts(employees);
     setMigrating(false);
 
     if (result.ok) {
@@ -6967,7 +6995,21 @@ function TimeSheetPage({ emp }) {
 function Dashboard({ emp, onLogout, dark, setDark }) {
   const [view, setView] = useState("home");
   const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []));
-  const [employees, setEmployees] = useState(ACCOUNTS);
+  const [employees, setEmployeesRaw] = useState(ACCOUNTS);
+
+  // حمّل قائمة الموظفين من Firebase عند البداية (ACCOUNTS كاحتياطي)
+  useEffect(() => {
+    FirebaseAPI.loadAccounts().then(list => {
+      if (list && list.length > 0) setEmployeesRaw(list);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // كل تغيير على employees يُحفظ تلقائياً في Firebase/accounts
+  const setEmployees = useCallback((newList) => {
+    setEmployeesRaw(newList);
+    FirebaseAPI.saveAccounts(newList);
+  }, []);
   const { isConnected } = useConnectionStatus();
   const smartAlerts = useSmartAlerts(employees);
   const confirm = useConfirm();
