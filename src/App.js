@@ -964,6 +964,12 @@ function recordLoginAttempt(account, status, failReason = null) {
   hist.unshift(rec);
   if (hist.length > 500) hist.length = 500;
   storage.set("login_history", hist);
+  // إرسال السجل إلى Firebase لتجميع سجلات جميع الأجهزة مركزياً
+  fetch(`${FIREBASE_URL}/login_history.json`, {
+    method: "POST",
+    body: JSON.stringify(rec),
+    headers: { "Content-Type": "application/json" },
+  }).catch(() => {});
   if (status === "success" && sessionId) {
     try { sessionStorage.setItem("boc_session_id", sessionId); } catch {}
     const sessionsRaw = storage.get("active_sessions", []);
@@ -3205,8 +3211,29 @@ function AdminDashboard({ emp, employees, setEmployees }) {
     return () => clearInterval(t);
   }, []);
 
-  const loginHistoryRaw = storage.get("login_history", []);
-  const loginHistory = Array.isArray(loginHistoryRaw) ? loginHistoryRaw : [];
+  // جلب سجل الدخول من Firebase (يجمع سجلات جميع الأجهزة)
+  const [fbHistory, setFbHistory] = useState(null); // null = جاري التحميل
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${FIREBASE_URL}/login_history.json`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled || !data || typeof data !== "object") return;
+        const records = Object.values(data)
+          .filter(r => r && r.loginTime)
+          .sort((a, b) => (b.loginTime > a.loginTime ? 1 : -1));
+        if (!cancelled) setFbHistory(records);
+      })
+      .catch(() => { if (!cancelled) setFbHistory([]); });
+    return () => { cancelled = true; };
+  }, [tick]);
+
+  const localHistoryRaw = storage.get("login_history", []);
+  const localHistory = Array.isArray(localHistoryRaw) ? localHistoryRaw : [];
+  // استخدام Firebase إذا متاح، localStorage كاحتياطي
+  const loginHistory = fbHistory !== null ? fbHistory : localHistory;
+  const historySource = fbHistory !== null ? "firebase" : "local";
+
   const activeSessionsRaw = storage.get("active_sessions", []);
   const activeSessions = Array.isArray(activeSessionsRaw) ? activeSessionsRaw : [];
   const today = new Date().toDateString();
@@ -3380,7 +3407,15 @@ function AdminDashboard({ emp, employees, setEmployees }) {
             <input type="date" value={histDate} onChange={e=>{setHistDate(e.target.value);setHistPage(1);}} className="input rounded-xl px-3 py-2 text-sm"/>
             <button onClick={clearHistory} className="flex items-center gap-1 px-3 py-2 text-sm text-red-600 border border-red-200 rounded-xl hover:bg-red-50"><Trash2 size={13}/> مسح الكل</button>
           </div>
-          <p className="text-xs text-secondary">{filteredHist.length} سجل — إجمالي اليوم: {todaySuccess} نجاح + {todayFailed} فشل</p>
+          <p className="text-xs text-secondary flex items-center gap-2">
+            <span>{filteredHist.length} سجل — إجمالي اليوم: {todaySuccess} نجاح + {todayFailed} فشل</span>
+            {fbHistory === null
+              ? <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] ts-mono">جاري التحميل من Firebase...</span>
+              : historySource === "firebase"
+                ? <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] ts-mono">Firebase — جميع الأجهزة</span>
+                : <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded text-[10px] ts-mono">وضع محلي — هذا الجهاز فقط</span>
+            }
+          </p>
           <div className="card rounded-xl border border-color overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
