@@ -152,10 +152,10 @@ const ToastContext = createContext(null);
 const useToast = () => useContext(ToastContext);
 
 const TOAST_CFG = {
-  success: { bg: "bg-emerald-500", icon: "✅" },
-  error:   { bg: "bg-red-500",     icon: "❌" },
-  warning: { bg: "bg-amber-500",   icon: "⚠️" },
-  info:    { bg: "bg-blue-500",    icon: "ℹ️" },
+  success: { border: "border-r-[3px] border-emerald-500", icon: <CheckCircle size={15} className="text-emerald-500 shrink-0"/> },
+  error:   { border: "border-r-[3px] border-red-500",     icon: <AlertCircle  size={15} className="text-red-500 shrink-0"/> },
+  warning: { border: "border-r-[3px] border-[#C87A2E]",   icon: <AlertTriangle size={15} className="text-[#C87A2E] shrink-0"/> },
+  info:    { border: "border-r-[3px] border-blue-500",    icon: <AlertCircle  size={15} className="text-blue-400 shrink-0"/> },
 };
 
 function ToastProvider({ children }) {
@@ -168,12 +168,12 @@ function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={add}>
       {children}
-      <div className="fixed bottom-6 right-6 z-[200] flex flex-col-reverse gap-2 pointer-events-none" dir="rtl">
+      <div className="fixed bottom-5 right-5 z-[200] flex flex-col-reverse gap-2 pointer-events-none" dir="rtl">
         {toasts.map(t => (
-          <div key={t.id} className={`toast-item flex items-center gap-3 px-4 py-3 rounded-xl text-white shadow-2xl pointer-events-auto min-w-[240px] max-w-xs ${TOAST_CFG[t.type].bg}`}>
-            <span>{TOAST_CFG[t.type].icon}</span>
-            <span className="text-sm font-medium flex-1">{t.msg}</span>
-            <button onClick={() => setToasts(p => p.filter(x => x.id !== t.id))} className="opacity-70 hover:opacity-100 shrink-0"><X size={14}/></button>
+          <div key={t.id} className={`toast-item flex items-center gap-3 px-4 py-3 rounded-md pointer-events-auto min-w-[260px] max-w-xs border border-[#E4E2DC] bg-white shadow-[0_4px_24px_rgba(0,0,0,0.10)] ${TOAST_CFG[t.type].border}`}>
+            {TOAST_CFG[t.type].icon}
+            <span className="text-sm font-medium flex-1 text-[#1C1C1C]">{t.msg}</span>
+            <button onClick={() => setToasts(p => p.filter(x => x.id !== t.id))} className="text-[#787774] hover:text-[#1C1C1C] shrink-0 transition-colors"><X size={13}/></button>
           </div>
         ))}
       </div>
@@ -195,18 +195,20 @@ function ConfirmProvider({ children }) {
     <ConfirmContext.Provider value={confirm}>
       {children}
       {dlg && (
-        <div className="fixed inset-0 bg-black/60 z-[300] flex items-center justify-center p-4" dir="rtl">
-          <div className="card rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-color">
-            <div className="flex items-center gap-3 mb-4">
-              <div className={`p-2.5 rounded-xl ${dlg.opts.danger ? "bg-red-100" : "bg-blue-100"}`}>
-                <AlertTriangle size={20} className={dlg.opts.danger ? "text-red-600" : "text-blue-600"}/>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-[300] flex items-center justify-center p-4" dir="rtl">
+          <div className="card rounded-xl p-6 max-w-sm w-full border border-color shadow-[0_8px_40px_rgba(0,0,0,0.18)]">
+            <div className="flex items-start gap-3 mb-4">
+              <div className={`p-2 rounded-md mt-0.5 shrink-0 ${dlg.opts.danger ? "bg-red-50" : "bg-[#FDF3E7]"}`}>
+                <AlertTriangle size={18} className={dlg.opts.danger ? "text-red-600" : "text-[#C87A2E]"}/>
               </div>
-              <h3 className="font-bold text-base">{dlg.opts.title || "تأكيد الإجراء"}</h3>
+              <div>
+                <h3 className="font-bold text-sm text-primary">{dlg.opts.title || "تأكيد الإجراء"}</h3>
+                <p className="text-sm text-secondary mt-1.5 leading-relaxed">{dlg.msg}</p>
+              </div>
             </div>
-            <p className="text-sm text-secondary mb-6 leading-relaxed">{dlg.msg}</p>
-            <div className="flex gap-3">
-              <button onClick={() => close(false)} className="flex-1 py-2.5 border border-color rounded-xl text-sm font-medium hover:bg-hover transition-colors">إلغاء</button>
-              <button onClick={() => close(true)} className={`flex-1 py-2.5 rounded-xl text-white text-sm font-bold transition-colors ${dlg.opts.danger ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"}`}>
+            <div className="flex gap-2.5 mt-5">
+              <button onClick={() => close(false)} className="flex-1 py-2.5 border border-color rounded-md text-sm font-medium hover:bg-hover transition-colors text-secondary">إلغاء</button>
+              <button onClick={() => close(true)} className={`flex-1 py-2.5 rounded-md text-white text-sm font-semibold transition-colors ${dlg.opts.danger ? "bg-red-600 hover:bg-red-700" : "bg-[#C87A2E] hover:bg-[#B06D27]"}`}>
                 {dlg.opts.ok || "تأكيد"}
               </button>
             </div>
@@ -6142,22 +6144,30 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
       </div>
 
       <div className="flex flex-col md:flex-row">
-        {/* Sidebar */}
-        <aside className="md:w-60 sidebar border-l min-h-screen p-3">
+        {/* Sidebar — rail محكم يتمدد عند hover */}
+        <aside className="group/sb md:w-14 md:hover:w-60 sidebar border-l border-color min-h-screen py-3 px-1.5 md:overflow-hidden transition-[width] duration-200 ease-out">
           <nav className="space-y-0.5">
             {menuItems.map(item => (
-              <button key={item.id} onClick={()=>setView(item.id)} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-md text-sm font-medium transition-all ${view===item.id?"bg-[#C87A2E] text-white":"text-secondary hover:bg-hover"}`}>
-                <span className="flex items-center gap-2.5">{item.icon}{item.label}</span>
-                {item.badge>0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{item.badge}</span>}
-              </button>
+              <div key={item.id} className="relative">
+                <button onClick={()=>setView(item.id)} title={item.label}
+                  className={`w-full flex items-center py-2.5 rounded-md text-sm font-medium transition-all ${view===item.id?"bg-[#C87A2E] text-white":"text-secondary hover:bg-hover"}`}>
+                  <span className="shrink-0 w-11 flex items-center justify-center">{item.icon}</span>
+                  <span className="whitespace-nowrap overflow-hidden max-w-full md:max-w-0 md:group-hover/sb:max-w-[180px] transition-[max-width] duration-150 pr-1">{item.label}</span>
+                  {item.badge>0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full mr-auto ml-1.5 shrink-0 whitespace-nowrap overflow-hidden max-w-full md:max-w-0 md:group-hover/sb:max-w-[40px] transition-[max-width] duration-150">{item.badge}</span>}
+                </button>
+                {item.badge>0 && <span className="hidden md:block md:group-hover/sb:hidden absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full pointer-events-none"/>}
+              </div>
             ))}
           </nav>
-          {/* Smart Alerts */}
-          {smartAlerts.length > 0 && <div className="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-200">
-            <p className="text-[10px] font-bold text-amber-800 mb-1">⚠️ تنبيهات ذكية</p>
-            {smartAlerts.slice(0,3).map(a=><p key={a.id} className="text-[10px] text-amber-700 mt-1">{a.msg}</p>)}
-          </div>}
-          <div className="mt-3 p-3 bg-hover rounded-xl text-[10px]"><p className="font-bold mb-1">ℹ️ النظام</p><p>✓ يعمل بكفاءة</p><p>✓ البيانات محفوظة</p><p>✓ {isConnected?"متصل بالخادم":"وضع محلي"}</p></div>
+          {smartAlerts.length > 0 && (
+            <div className="mt-4 mx-0.5 p-3 bg-amber-50 rounded-md border border-amber-200 overflow-hidden max-h-[120px] md:max-h-0 md:group-hover/sb:max-h-[120px] transition-[max-height] duration-200">
+              <p className="text-[10px] font-bold text-amber-800 mb-1 whitespace-nowrap">تنبيهات ذكية</p>
+              {smartAlerts.slice(0,3).map(a=><p key={a.id} className="text-[10px] text-amber-700 mt-1 truncate">{a.msg}</p>)}
+            </div>
+          )}
+          <div className="mt-3 mx-0.5 p-3 bg-hover rounded-md text-[10px] overflow-hidden max-h-16 md:max-h-0 md:group-hover/sb:max-h-16 transition-[max-height] duration-200">
+            <p className="font-bold whitespace-nowrap">{isConnected?"متصل بالخادم":"وضع محلي"}</p>
+          </div>
         </aside>
 
         {/* Main */}
@@ -6347,6 +6357,17 @@ export default function App() {
     .ts-header { background:${dark?"#1a2232":"#F0EDE6"} !important; }
     .ts-we { background:${dark?"#2a1f0a":"#FFF3E6"} !important; }
     .ts-today { background:${dark?"#1a2d1a":"#E6F5E6"} !important; }
+    /* ── الأزرار — تحويل الأزرق إلى عنبري عالمياً ── */
+    button[class*="bg-blue-600"] { background-color: #C87A2E !important; }
+    button[class*="bg-blue-700"] { background-color: #B06D27 !important; }
+    button[class*="bg-indigo-600"] { background-color: #C87A2E !important; }
+    button[class*="bg-indigo-700"] { background-color: #9A5F1F !important; }
+    button[class*="hover:bg-blue-700"]:hover { background-color: #B06D27 !important; }
+    button[class*="hover:bg-blue-600"]:hover { background-color: #C87A2E !important; }
+    button[class*="hover:bg-indigo-800"]:hover { background-color: #875419 !important; }
+    button[class*="rounded-xl"] { border-radius: 6px !important; }
+    button[class*="rounded-2xl"] { border-radius: 8px !important; }
+    button:active:not(:disabled) { transform: scale(0.98); transition: transform 0.1s; }
   `;
 
   return (
