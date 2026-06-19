@@ -3439,22 +3439,6 @@ function HealthInsuranceForm({ emp }) {
     addToast("تم تصدير الاستمارة كملف Word","success");
   };
 
-  // ── تصدير إلى قالب إكسل (يحافظ على تنسيق الملف الأصلي) ──
-  const PROC_COL_MAP = {
-    "الامراض المستعصية":                              "A",
-    "العمليات الصغرى":                               "B",
-    "العمليات الوسطى":                               "D",
-    "العمليات الكبرى":                               "G",
-    "العمليات فوق الكبرى":                           "J",
-    "معالجة اسنان":                                  "M",
-    "اشعة وسونار":                                   "N",
-    "نظارات طبية":                                   "P",
-    "تحاليل مختبرية":                                "R",
-    "الرنين والمفراس/الايكو/تخطيط القلب":            "T",
-    "العلاجات (الادوية)":                            "W",
-    "اجور الطبيب":                                   "Y",
-  };
-
   const exportToInsuranceTemplate = async (buffer) => {
     try {
       const mod = await import("exceljs");
@@ -3466,34 +3450,48 @@ function HealthInsuranceForm({ emp }) {
       // ExcelJS: cell.value = x يغير القيمة فقط دون المساس بالتنسيق
       const set = (ref, v) => { ws.getCell(ref).value = v ?? null; };
 
-      // حقول الهيدر
-      set("I2",  "لجنة الضمان الصحي المركزية");
-      set("AH2", emp.name);
-      set("I4",  phone);
-      set("AH4", String(emp.jobNum || ""));
-      set("E5",  beneficiaries.length);
-      set("E6",  new Date().toLocaleDateString("ar-IQ"));
-      set("T6",  MONTHS_IRAQI[month] + " " + year);
-      set("AH6", marital);
-      set("E7",  String(formSequence));
-      set("Q7",  filledRows.length);
-      set("U7",  formEnvelope);
+      // ── الهيدر — خرائط الخلايا مبنية على الملف الفعلي ──
+      set("AB2", emp.name);
+      set("J4",  phone);
+      set("AB4", String(emp.jobNum || ""));
+      set("J5",  filledRows.length);
+      set("J6",  new Date().toLocaleDateString("ar-IQ"));
+      set("Y6",  MONTHS_IRAQI[month] + " " + year);
+      set("AB6", marital);
+      set("J7",  rows.reduce((s, r) => s + (Number(r.amount) || 0), 0));
+      set("M7",  String(formSequence));
+      set("Y7",  formEnvelope);
 
-      // مسح الصفوف 13-22 (null يحافظ على التنسيق ويمسح القيمة فقط)
-      const TABLE_COLS = ["A","B","D","G","J","M","N","P","R","T","W","Y","AB","AC","AH"];
-      for (let r = 13; r <= 22; r++) {
-        for (const col of TABLE_COLS) ws.getCell(col + r).value = null;
+      // ── خرائط أعمدة أنواع الإجراءات (Master cell لكل دمج) ──
+      const PROC_COL = {
+        "الامراض المستعصية":                              "B",
+        "العمليات الصغرى":                               "C",
+        "العمليات الوسطى":                               "E",
+        "العمليات الكبرى":                               "H",
+        "العمليات فوق الكبرى":                           "K",
+        "معالجة اسنان":                                  "N",
+        "اشعة وسونار":                                   "O",
+        "نظارات طبية":                                   "Q",
+        "تحاليل مختبرية":                                "S",
+        "الرنين والمفراس/الايكو/تخطيط القلب":            "U",
+        "العلاجات (الادوية)":                            "Y",
+        "اجور الطبيب":                                   "Z",
+      };
+
+      // مسح بيانات الجدول (صفوف 14-23) مع الحفاظ على التنسيق
+      const CLEAR_COLS = ["B","C","E","H","K","N","O","Q","S","U","Y","Z","AC","AD"];
+      for (let r = 14; r <= 23; r++) {
+        for (const col of CLEAR_COLS) ws.getCell(col + r).value = null;
       }
 
       // تعبئة صفوف المراجعات
       const dataRows = rows.filter(r => r.beneficiary && r.procedure);
       dataRows.forEach((row, idx) => {
-        const r = 13 + idx;
-        if (r > 22) return;
-        ws.getCell("AH" + r).value = idx + 1;
-        ws.getCell("AC" + r).value = row.beneficiary;
-        if (row.date) ws.getCell("AB" + r).value = row.date;
-        const col = PROC_COL_MAP[row.procedure];
+        const r = 14 + idx;
+        if (r > 23) return;
+        set("AD" + r, row.beneficiary);
+        if (row.date) set("AC" + r, row.date);
+        const col = PROC_COL[row.procedure];
         if (col) ws.getCell(col + r).value = row.amount ? Number(row.amount) : "✓";
       });
 
