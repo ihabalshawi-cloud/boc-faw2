@@ -27,3 +27,10 @@ firebase.json
 .firebase/ 
 firebase.json 
 .firebaserc 
+
+# Ruflo runtime (logs, sessions, data)
+.claude-flow/logs/
+.claude-flow/sessions/
+.claude-flow/data/
+.claude-flow/metrics/
+.claude-flow/learning/
