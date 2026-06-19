@@ -7,32 +7,155 @@ import {
   Printer, Download, Search, Moon, Sun, MessageSquare,
   CheckSquare, AlertTriangle, ChevronLeft,
   Send, Wrench, Box, TrendingUp, TrendingDown, Heart, UserPlus,
-  Briefcase, Layers, Activity, Flag, FolderOpen, FileCheck, DollarSign, Target,
-  Upload, Globe
+  Briefcase, Layers, Activity, Flag, FolderOpen, FileCheck, DollarSign, Target
 } from "lucide-react";
-import {
-  FIREBASE_URL, ACCOUNTS, DEFAULT_PASSWORD, LOW_STOCK_THRESHOLD,
-  LEAVE_TYPES, TRAINING_TYPES, ITEM_CONDITIONS, FURNITURE_CATS, INVENTORY_CATS,
-  TASK_PRIORITIES, TASK_STATUSES, EVAL_CRITERIA, MARITAL_STATUS_LIST, PROCEDURE_TYPES,
-  EQ_TYPES, EQ_STATUS_COLORS, INITIAL_EQUIPMENT, INITIAL_MAINT_SPARE_PARTS,
-  PIE_COLORS, MONTHS_AR, MONTHS_IRAQI, VIEW_LABELS,
-  GDRIVE_WARN_PCT, GDRIVE_CRIT_PCT,
-} from "./constants";
-import { storage, passStore, hashPassword, isHash, printElement, exportCSV } from "./utils";
-import { FirebaseAPI } from "./firebase";
-import { GDriveAPI, GDriveContext, GDriveProvider, useGDrive } from "./gdrive";
+// No external chart library — pure SVG charts below
 
+// ========== الثوابت ==========
+const FIREBASE_URL = "https://faop-scada-default-rtdb.asia-southeast1.firebasedatabase.app";
+const LOW_STOCK_THRESHOLD = 3;
 
+// ⚠️ بيانات المستخدمين — سري للاستخدام الرسمي فقط
+// المشرف والمخول الوحيد: ايهاب الشاوي (i.shawi)
+const ACCOUNTS = [
+  // ══ موظفو الدوام الصباحي ══
+  {id:1,  username:"i.shawi",    jobNum:"728004", password:"1001", name:"ايهاب عبد اللطيف عودة سلمان الشاوي",        title:"ر. مهندسين",    dept:"قسم السيطرة والنظم",  shift:"صباحي", role:"admin"},
+  {id:2,  username:"o.rubaie",   jobNum:"727466", password:"1002", name:"عدي فيصل عبد الهادي عبد السيد الربيعه",     title:"ر. مهندسين",    dept:"قسم السيطرة والنظم",  shift:"صباحي"},
+  {id:3,  username:"om.miyahi",  jobNum:"737283", password:"1003", name:"عمر طاهر خزعل سبهان المياحي",               title:"م.ر. مهندسين",  dept:"قسم السيطرة والنظم",  shift:"صباحي"},
+  {id:4,  username:"l.rubaie",   jobNum:"756571", password:"1004", name:"ليث شاكر حمود زعيتر الربيعه",               title:"معاون مهندس",   dept:"قسم السيطرة والنظم",  shift:"صباحي"},
+  {id:5,  username:"as.nassari", jobNum:"790850", password:"1005", name:"اسعد عبد الامام يوسف حميد النصاري",         title:"م.مدير فني",    dept:"شعبة مستودع الفاو",   shift:"صباحي"},
+  {id:6,  username:"sb.nassari", jobNum:"758795", password:"1006", name:"صباح عبد الامام يوسف حميد النصاري",         title:"م.مدير فني",    dept:"شعبة مستودع الفاو",   shift:"صباحي"},
+  {id:7,  username:"a.amir",     jobNum:"719242", password:"1007", name:"احمد محمود عبد القادر عبد الكريم الامير",   title:"مدير فني",      dept:"قسم السيطرة والنظم",  shift:"صباحي"},
+  {id:8,  username:"m.mansouri", jobNum:"790869", password:"1008", name:"محمود كاظم هاشم محمد المنصوري",             title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"صباحي"},
+  {id:9,  username:"m.tamimi",   jobNum:"790885", password:"1009", name:"محمد عبد الكاظم جاسم محمد التميمي",         title:"محاسب اقدم",    dept:"قسم السيطرة والنظم",  shift:"صباحي", role:"inventory_manager"},
+  {id:10, username:"m.ali",      jobNum:"813877", password:"1010", name:"محمد اسماعيل احمد رمضان العلي",             title:"مهندس",         dept:"قسم السيطرة والنظم",  shift:"صباحي"},
+  {id:11, username:"al.miyahi",  jobNum:"439193", password:"1011", name:"علي طاهر خزعل سبهان المياحي",               title:"حرفي اقدم",     dept:"شعبة المرافئ",         shift:"صباحي"},
+  // ══ موظفو المناوبة — المجموعة A ══
+  {id:12, username:"ab.abbada",  jobNum:"701130", password:"2001", name:"عبدالله علي زباري",                         title:"م.مدير فني",    dept:"شعبة مستودع الفاو",   shift:"مناوبة", group:"A"},
+  {id:13, username:"am.ali",     jobNum:"751480", password:"2002", name:"امين حميد فاضل حسين العلي",                 title:"م.مدير فني",    dept:"شعبة مستودع الفاو",   shift:"مناوبة", group:"A"},
+  {id:14, username:"h.abadi",    jobNum:"719269", password:"2003", name:"حسين علي احمد قاسم عبادي",                  title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"A"},
+  {id:15, username:"j.hussain",  jobNum:"719498", password:"2004", name:"جاسم مزعل حاتم ديوان الحسين",               title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"A"},
+  {id:16, username:"b.faris",    jobNum:"719277", password:"2005", name:"باسم هاشم جاسم هاشم الفارس",                title:"م.مدير فني",    dept:"شعبة المرافئ",         shift:"مناوبة", group:"A"},
+  // ══ موظفو المناوبة — المجموعة B ══
+  {id:17, username:"h.shnawa",   jobNum:"719293", password:"2006", name:"هاشم جابر جعفر شناوة عباس",                 title:"م.مدير فني",    dept:"شعبة المرافئ",         shift:"مناوبة", group:"B"},
+  {id:18, username:"ab.eissa",   jobNum:"719463", password:"2007", name:"عبد الحميد سامي موسى بدر العيسى",           title:"مدير فني",      dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"B"},
+  {id:19, username:"ih.dawod",   jobNum:"736732", password:"2008", name:"احسان عبد الصمد داود",                      title:"مدير فني",      dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"B"},
+  {id:20, username:"al.jafar",   jobNum:"719048", password:"2009", name:"علاء محسن عذبي جعفر الجعفر",                title:"مدير فني",      dept:"شعبة مستودع الفاو",   shift:"مناوبة", group:"B"},
+  // ══ موظفو المناوبة — المجموعة C ══
+  {id:21, username:"al.aidani",  jobNum:"735922", password:"2010", name:"علي طارق ياسين مهودر العيداني",             title:"م.ر. مهندسين",  dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"C"},
+  {id:22, username:"al.ali",     jobNum:"732249", password:"2011", name:"علي باقر حنتوش مليس العلي",                 title:"م.ر. مبرمجين",  dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"C"},
+  {id:23, username:"y.yaseen",   jobNum:"726508", password:"2012", name:"يوسف عباس ياسين احمد ياسين",                title:"مدير فني",      dept:"شعبة مستودع الفاو",   shift:"مناوبة", group:"C"},
+  {id:24, username:"dh.ghanim",  jobNum:"719129", password:"2013", name:"ضياء بدر حمادي اسماعيل الغانم",             title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"C"},
+  {id:25, username:"ad.atiya",   jobNum:"719099", password:"2014", name:"عدنان جواد كاظم جعفر العطية",               title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"C"},
+  // ══ موظفو المناوبة — المجموعة D ══
+  {id:26, username:"ih.saleem",  jobNum:"732834", password:"2015", name:"احسان جواد كاظم حسين السليم",               title:"مهندس",         dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"D"},
+  {id:27, username:"h.jasim",    jobNum:"724939", password:"2016", name:"حيدر عبد الحسن خضير جاسم",                  title:"مدير فني",      dept:"شعبة المرافئ",         shift:"مناوبة", group:"D"},
+  {id:28, username:"w.mahsen",   jobNum:"718939", password:"2017", name:"واثق حسين عبد الشيخ حسن المحسن",            title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"D"},
+  {id:29, username:"sd.eissa",   jobNum:"719005", password:"2018", name:"صدام عبد الواحد سلمان عيسى العيسى",         title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"D"},
+  // ══ موظفو العقد ══
+  {id:30, username:"ab.mouni",   jobNum:"690414", password:"3001", name:"عبد الله عيسى موسى موني",                   title:"عقد",           dept:"قسم السيطرة والنظم",  shift:"صباحي"},
+  {id:31, username:"ab.eissa2",  jobNum:"689766", password:"3002", name:"اباذر صالح عبد الحسين عيسى",               title:"عقد",           dept:"قسم السيطرة والنظم",  shift:"صباحي", role:"attendance_admin"},
+  {id:32, username:"h.omran",    jobNum:"690174", password:"3003", name:"حسن عادل عمران يوسف",                       title:"عقد",           dept:"قسم السيطرة والنظم",  shift:"صباحي", role:"attendance_admin"},
+  {id:33, username:"sj.ali",     jobNum:"689331", password:"3004", name:"سجاد علي راضي علي",                         title:"عقد",           dept:"قسم السيطرة والنظم",  shift:"صباحي", role:"attendance_admin"},
+];
+
+const LEAVE_TYPES = {
+  اعتيادية: { label: "إجازة اعتيادية", max: 30, color: "bg-blue-100 text-blue-700" },
+  مرضية: { label: "إجازة مرضية", max: 15, color: "bg-rose-100 text-rose-700" },
+  زمنية: { label: "إجازة زمنية", max: 7, color: "bg-amber-100 text-amber-700" },
+};
+
+const TRAINING_TYPES = ["تدريب ذاتي", "دورة تدريبية", "ورشة عمل", "تدريب إلكتروني"];
+const ITEM_CONDITIONS = ["جيد", "مستعمل", "يحتاج صيانة", "تالف", "تم الشطب"];
+const FURNITURE_CATS = ["أثاث مكتبي", "أجهزة تكييف", "أجهزة حاسوب", "معدات مكتبية", "أجهزة منزلية"];
+const INVENTORY_CATS = ["أجهزة قياس", "أجهزة معايرة", "عدد يدوية", "عدد كهربائية", "معدات ميكانيكية", "معدات كهربائية", "صمامات", "توصيلات", "مقاييس ضغط", "قطع غيار", "قطع إلكترونية", "مواد استهلاكية"];
+const TASK_PRIORITIES = ["عالية", "متوسطة", "منخفضة"];
+const TASK_STATUSES = ["معلقة", "قيد التنفيذ", "مكتملة"];
+const EVAL_CRITERIA = ["الانضباط والالتزام", "جودة العمل", "التعاون والعمل الجماعي", "المبادرة والإبداع", "الالتزام بالمواعيد"];
+
+const PIE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+const MONTHS_AR = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+const MONTHS_IRAQI = ["كانون الثاني","شباط","آذار","نيسان","أيار","حزيران","تموز","آب","أيلول","تشرين الأول","تشرين الثاني","كانون الأول"];
+const PROCEDURE_TYPES = ["الامراض المستعصية","العمليات الصغرى","العمليات الوسطى","العمليات الكبرى","العمليات فوق الكبرى","معالجة اسنان","اشعة وسونار","نظارات طبية","تحاليل مختبرية","الرنين والمفراس/الايكو/تخطيط القلب","العلاجات (الادوية)","اجور الطبيب"];
+const MARITAL_STATUS_LIST = ["متزوج","أعزب","مطلق","أرمل"];
+
+const EQ_TYPES = {
+  "OIL_TANK":        { label:"خزان نفط",           badge:"bg-amber-100 text-amber-800",   dot:"bg-amber-500" },
+  "WATER_TANK":      { label:"خزان ماء",            badge:"bg-sky-100 text-sky-800",       dot:"bg-sky-500" },
+  "ELEC_OIL_PUMP":   { label:"مضخة كهربائية نفط",  badge:"bg-orange-100 text-orange-800", dot:"bg-orange-500" },
+  "ELEC_WATER_PUMP": { label:"مضخة كهربائية ماء",  badge:"bg-cyan-100 text-cyan-800",     dot:"bg-cyan-500" },
+  "FIRE_PUMP":       { label:"مضخة إطفاء",          badge:"bg-red-100 text-red-800",       dot:"bg-red-500" },
+  "TURB_OIL_PUMP":   { label:"مضخة توربينية نفط",  badge:"bg-violet-100 text-violet-800", dot:"bg-violet-500" },
+};
+
+const INITIAL_EQUIPMENT = [
+  // ══ خزانات النفط ══
+  { id:"T-OIL-001", name:"خزان نفط خام 1",              type:"OIL_TANK",        capacity:"50,000 برميل",   location:"منطقة الخزانات — الحظيرة الشمالية", status:"جيد",         lastMaintenance:"2025-01-20", nextMaintenance:"2025-07-20", critical:true,  totalFailures:0, manufacturer:"كبلر الألمانية",    model:"API 650",     yearInstalled:2018, notes:"خزان ثابت سقف عائم" },
+  { id:"T-OIL-002", name:"خزان نفط خام 2",              type:"OIL_TANK",        capacity:"50,000 برميل",   location:"منطقة الخزانات — الحظيرة الشمالية", status:"جيد",         lastMaintenance:"2025-01-20", nextMaintenance:"2025-07-20", critical:true,  totalFailures:1, manufacturer:"كبلر الألمانية",    model:"API 650",     yearInstalled:2018, notes:"" },
+  { id:"T-OIL-003", name:"خزان نفط خام 3",              type:"OIL_TANK",        capacity:"50,000 برميل",   location:"منطقة الخزانات — الحظيرة الجنوبية", status:"تحتاج صيانة", lastMaintenance:"2024-08-15", nextMaintenance:"2025-02-15", critical:true,  totalFailures:2, manufacturer:"كبلر الألمانية",    model:"API 650",     yearInstalled:2019, notes:"يحتاج فحص الطلاء الداخلي" },
+  { id:"T-OIL-004", name:"خزان نفط خام 4 (احتياطي)",   type:"OIL_TANK",        capacity:"100,000 برميل",  location:"منطقة الخزانات — الحظيرة الجنوبية", status:"جيد",         lastMaintenance:"2025-02-10", nextMaintenance:"2025-08-10", critical:true,  totalFailures:0, manufacturer:"CB&I الأمريكية",   model:"API 650 LT",  yearInstalled:2020, notes:"الخزان الاحتياطي الرئيسي" },
+  // ══ خزانات الماء ══
+  { id:"T-WAT-001", name:"خزان ماء الحريق الرئيسي",     type:"WATER_TANK",      capacity:"5,000 م³",       location:"محطة الإطفاء المركزية",             status:"جيد",         lastMaintenance:"2025-03-01", nextMaintenance:"2025-09-01", critical:true,  totalFailures:0, manufacturer:"محلي",              model:"خرساني مسلح", yearInstalled:2015, notes:"يُملأ تلقائياً من خط المياه" },
+  { id:"T-WAT-002", name:"خزان مياه العمليات",           type:"WATER_TANK",      capacity:"2,000 م³",       location:"منطقة العمليات الغربية",            status:"جيد",         lastMaintenance:"2025-01-15", nextMaintenance:"2025-07-15", critical:false, totalFailures:1, manufacturer:"محلي",              model:"فولاذي",      yearInstalled:2017, notes:"" },
+  // ══ مضخات كهربائية للنفط ══
+  { id:"PEO-001",   name:"مضخة خام كهربائية 1",          type:"ELEC_OIL_PUMP",   capacity:"500 م³/ساعة",    location:"محطة الضخ الرئيسية",                status:"جيد",         lastMaintenance:"2025-02-01", nextMaintenance:"2025-05-01", critical:true,  totalFailures:2, manufacturer:"سولفلو إيطالية",   model:"SF-500E",     yearInstalled:2019, notes:"مضخة طرد مركزي 500 كيلوواط" },
+  { id:"PEO-002",   name:"مضخة خام كهربائية 2",          type:"ELEC_OIL_PUMP",   capacity:"500 م³/ساعة",    location:"محطة الضخ الرئيسية",                status:"جيد",         lastMaintenance:"2025-02-01", nextMaintenance:"2025-05-01", critical:true,  totalFailures:1, manufacturer:"سولفلو إيطالية",   model:"SF-500E",     yearInstalled:2019, notes:"" },
+  { id:"PEO-003",   name:"مضخة خام كهربائية 3",          type:"ELEC_OIL_PUMP",   capacity:"300 م³/ساعة",    location:"محطة النقل الفرعية",                status:"تحت صيانة",  lastMaintenance:"2025-04-10", nextMaintenance:"2025-06-10", critical:false, totalFailures:4, manufacturer:"إيتون الأمريكية",  model:"ET-300",      yearInstalled:2017, notes:"قيد الصيانة الدورية" },
+  { id:"PEO-004",   name:"مضخة خام احتياطية",            type:"ELEC_OIL_PUMP",   capacity:"500 م³/ساعة",    location:"محطة الضخ الرئيسية",                status:"جيد",         lastMaintenance:"2025-01-15", nextMaintenance:"2025-07-15", critical:true,  totalFailures:0, manufacturer:"سولفلو إيطالية",   model:"SF-500E",     yearInstalled:2021, notes:"تعمل عند توقف إحدى المضختين" },
+  // ══ مضخات كهربائية للماء ══
+  { id:"PEW-001",   name:"مضخة ماء كهربائية 1",          type:"ELEC_WATER_PUMP", capacity:"200 م³/ساعة",    location:"محطة المياه",                       status:"جيد",         lastMaintenance:"2025-03-01", nextMaintenance:"2025-09-01", critical:false, totalFailures:1, manufacturer:"غرونفوس الدنماركية", model:"NK-200",    yearInstalled:2018, notes:"" },
+  { id:"PEW-002",   name:"مضخة ماء كهربائية 2",          type:"ELEC_WATER_PUMP", capacity:"200 م³/ساعة",    location:"محطة المياه",                       status:"معطل",        lastMaintenance:"2025-01-10", nextMaintenance:"2025-02-10", critical:false, totalFailures:3, manufacturer:"غرونفوس الدنماركية", model:"NK-200",    yearInstalled:2018, notes:"تلف في المحرك — قيد الإصلاح" },
+  // ══ مضخات الإطفاء ══
+  { id:"PFF-001",   name:"مضخة إطفاء رئيسية",            type:"FIRE_PUMP",       capacity:"600 م³/ساعة",    location:"محطة الإطفاء المركزية",             status:"جيد",         lastMaintenance:"2025-04-01", nextMaintenance:"2025-07-01", critical:true,  totalFailures:0, manufacturer:"داركو الأمريكية",  model:"DK-600FP",   yearInstalled:2016, notes:"اختبار أسبوعي وفق NFPA20" },
+  { id:"PFF-002",   name:"مضخة إطفاء احتياطية (ديزل)",   type:"FIRE_PUMP",       capacity:"600 م³/ساعة",    location:"محطة الإطفاء المركزية",             status:"جيد",         lastMaintenance:"2025-04-01", nextMaintenance:"2025-07-01", critical:true,  totalFailures:0, manufacturer:"كلارك الأمريكية",  model:"CL-DX600",   yearInstalled:2016, notes:"تعمل بمحرك ديزل عند انقطاع الكهرباء" },
+  { id:"PFF-003",   name:"مضخة جوكي الضغط",              type:"FIRE_PUMP",       capacity:"20 م³/ساعة",     location:"محطة الإطفاء المركزية",             status:"جيد",         lastMaintenance:"2025-03-15", nextMaintenance:"2025-06-15", critical:false, totalFailures:1, manufacturer:"غرونفوس",          model:"NK-20J",     yearInstalled:2016, notes:"للحفاظ على ضغط خط الإطفاء" },
+  // ══ مضخات توربينية للنفط ══
+  { id:"PTO-001",   name:"مضخة توربينية نفط 1",          type:"TURB_OIL_PUMP",   capacity:"1,000 م³/ساعة", location:"محطة التوربينات الرئيسية",           status:"جيد",         lastMaintenance:"2025-02-20", nextMaintenance:"2025-08-20", critical:true,  totalFailures:1, manufacturer:"سولزر السويسرية",  model:"BB2-1000T",  yearInstalled:2018, notes:"توربين بخاري عالي الضغط" },
+  { id:"PTO-002",   name:"مضخة توربينية نفط 2",          type:"TURB_OIL_PUMP",   capacity:"1,000 م³/ساعة", location:"محطة التوربينات الرئيسية",           status:"تحتاج صيانة", lastMaintenance:"2024-10-05", nextMaintenance:"2025-04-05", critical:true,  totalFailures:3, manufacturer:"سولزر السويسرية",  model:"BB2-1000T",  yearInstalled:2018, notes:"مستحقة الصيانة الدورية — نصف سنوية" },
+  { id:"PTO-003",   name:"مضخة توربينية احتياطية",        type:"TURB_OIL_PUMP",   capacity:"800 م³/ساعة",   location:"محطة التوربينات الرئيسية",           status:"جيد",         lastMaintenance:"2025-01-30", nextMaintenance:"2025-07-30", critical:true,  totalFailures:0, manufacturer:"فلور الأمريكية",   model:"FLW-800T",   yearInstalled:2021, notes:"" },
+];
+
+const INITIAL_MAINT_SPARE_PARTS = [
+  { id:"SP-001", code:"BRG-001", name:"رولمان بلي 6204",      category:"ميكانيكية",       qty:8,  minAlert:2, unit:"قطعة", price:25, location:"الرف A1"      },
+  { id:"SP-002", code:"OIL-001", name:"زيت تشحيم (20 لتر)",   category:"مواد استهلاكية", qty:12, minAlert:3, unit:"لتر",  price:15, location:"المستودع B2"  },
+  { id:"SP-003", code:"FLT-001", name:"فلتر زيت",              category:"فلتر",            qty:5,  minAlert:2, unit:"قطعة", price:12, location:"الرف C3"      },
+];
+
+const EQ_STATUS_COLORS = { "جيد":"bg-emerald-100 text-emerald-700", "تحتاج صيانة":"bg-amber-100 text-amber-700", "تحت صيانة":"bg-blue-100 text-blue-700", "معطل":"bg-red-100 text-red-700" };
+
+// ========== الأدوات المشتركة ==========
+const storage = {
+  get: (key, def = null) => { try { const i = localStorage.getItem(key); return i ? JSON.parse(i) : def; } catch { return def; } },
+  set: (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch { return false; } }
+};
+// كلمات المرور: sessionStorage للجلسة الحالية + localStorage للاستمرارية
+const passStore = {
+  get: (key) => {
+    try {
+      const s = sessionStorage.getItem(key);
+      if (s) return JSON.parse(s);
+    } catch {}
+    try {
+      const l = localStorage.getItem(key);
+      return l ? JSON.parse(l) : null;
+    } catch { return null; }
+  },
+  set: (key, val) => {
+    // استدعاء كل منهما بشكل مستقل — sessionStorage قد يُعطي خطأً في بيئات الشركات
+    try { sessionStorage.setItem(key, JSON.stringify(val)); } catch {}
+    try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch { return false; }
+  }
+};
 
 // ========== نظام الإشعارات الفورية ==========
 const ToastContext = createContext(null);
 const useToast = () => useContext(ToastContext);
 
 const TOAST_CFG = {
-  success: { border: "border-r-[3px] border-emerald-500", icon: <CheckCircle size={15} className="text-emerald-500 shrink-0"/> },
-  error:   { border: "border-r-[3px] border-red-500",     icon: <AlertCircle  size={15} className="text-red-500 shrink-0"/> },
-  warning: { border: "border-r-[3px] border-[#C87A2E]",   icon: <AlertTriangle size={15} className="text-[#C87A2E] shrink-0"/> },
-  info:    { border: "border-r-[3px] border-blue-500",    icon: <AlertCircle  size={15} className="text-blue-400 shrink-0"/> },
+  success: { bg: "bg-emerald-500", icon: "✅" },
+  error:   { bg: "bg-red-500",     icon: "❌" },
+  warning: { bg: "bg-amber-500",   icon: "⚠️" },
+  info:    { bg: "bg-blue-500",    icon: "ℹ️" },
 };
 
 function ToastProvider({ children }) {
@@ -45,12 +168,12 @@ function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={add}>
       {children}
-      <div className="fixed bottom-5 right-5 z-[200] flex flex-col-reverse gap-2 pointer-events-none" dir="rtl">
+      <div className="fixed bottom-6 right-6 z-[200] flex flex-col-reverse gap-2 pointer-events-none" dir="rtl">
         {toasts.map(t => (
-          <div key={t.id} className={`toast-item flex items-center gap-3 px-4 py-3 rounded-md pointer-events-auto min-w-[260px] max-w-xs border border-[#E4E2DC] bg-white shadow-[0_4px_24px_rgba(0,0,0,0.10)] ${TOAST_CFG[t.type].border}`}>
-            {TOAST_CFG[t.type].icon}
-            <span className="text-sm font-medium flex-1 text-[#1C1C1C]">{t.msg}</span>
-            <button onClick={() => setToasts(p => p.filter(x => x.id !== t.id))} className="text-[#787774] hover:text-[#1C1C1C] shrink-0 transition-colors"><X size={13}/></button>
+          <div key={t.id} className={`toast-item flex items-center gap-3 px-4 py-3 rounded-xl text-white shadow-2xl pointer-events-auto min-w-[240px] max-w-xs ${TOAST_CFG[t.type].bg}`}>
+            <span>{TOAST_CFG[t.type].icon}</span>
+            <span className="text-sm font-medium flex-1">{t.msg}</span>
+            <button onClick={() => setToasts(p => p.filter(x => x.id !== t.id))} className="opacity-70 hover:opacity-100 shrink-0"><X size={14}/></button>
           </div>
         ))}
       </div>
@@ -72,20 +195,18 @@ function ConfirmProvider({ children }) {
     <ConfirmContext.Provider value={confirm}>
       {children}
       {dlg && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-[300] flex items-center justify-center p-4" dir="rtl">
-          <div className="card rounded-xl p-6 max-w-sm w-full border border-color shadow-[0_8px_40px_rgba(0,0,0,0.18)]">
-            <div className="flex items-start gap-3 mb-4">
-              <div className={`p-2 rounded-md mt-0.5 shrink-0 ${dlg.opts.danger ? "bg-red-50" : "bg-[#FDF3E7]"}`}>
-                <AlertTriangle size={18} className={dlg.opts.danger ? "text-red-600" : "text-[#C87A2E]"}/>
+        <div className="fixed inset-0 bg-black/60 z-[300] flex items-center justify-center p-4" dir="rtl">
+          <div className="card rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-color">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`p-2.5 rounded-xl ${dlg.opts.danger ? "bg-red-100" : "bg-blue-100"}`}>
+                <AlertTriangle size={20} className={dlg.opts.danger ? "text-red-600" : "text-blue-600"}/>
               </div>
-              <div>
-                <h3 className="font-bold text-sm text-primary">{dlg.opts.title || "تأكيد الإجراء"}</h3>
-                <p className="text-sm text-secondary mt-1.5 leading-relaxed">{dlg.msg}</p>
-              </div>
+              <h3 className="font-bold text-base">{dlg.opts.title || "تأكيد الإجراء"}</h3>
             </div>
-            <div className="flex gap-2.5 mt-5">
-              <button onClick={() => close(false)} className="flex-1 py-2.5 border border-color rounded-md text-sm font-medium hover:bg-hover transition-colors text-secondary">إلغاء</button>
-              <button onClick={() => close(true)} className={`flex-1 py-2.5 rounded-md text-white text-sm font-semibold transition-colors ${dlg.opts.danger ? "bg-red-600 hover:bg-red-700" : "bg-[#C87A2E] hover:bg-[#B06D27]"}`}>
+            <p className="text-sm text-secondary mb-6 leading-relaxed">{dlg.msg}</p>
+            <div className="flex gap-3">
+              <button onClick={() => close(false)} className="flex-1 py-2.5 border border-color rounded-xl text-sm font-medium hover:bg-hover transition-colors">إلغاء</button>
+              <button onClick={() => close(true)} className={`flex-1 py-2.5 rounded-xl text-white text-sm font-bold transition-colors ${dlg.opts.danger ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"}`}>
                 {dlg.opts.ok || "تأكيد"}
               </button>
             </div>
@@ -156,6 +277,21 @@ function EmpPopover({ emp, children }) {
   );
 }
 
+// ========== البحث العالمي ==========
+const VIEW_LABELS = {
+  home:"الرئيسية", analytics:"التحليلات", requests:"طلبات الإجازة",
+  attendance:"الحضور والانصراف", training:"التدريب", tasks:"المهام",
+  inventory:"المخزون", furniture:"الأثاث", maint_equipment:"صيانة المعدات",
+  maint_parts:"قطع الغيار", maint_reports:"تقارير الصيانة",
+  chat:"الدردشة الداخلية", evaluation:"التقييم", notifications:"الإشعارات",
+  audit:"سجل التعديلات", changepass:"تغيير كلمة المرور",
+  employees:"إدارة الموظفين", approvals:"الموافقات",
+  health_insurance:"الضمان الصحي",
+  leave_forms:"نماذج الإجازات",
+  projects:"إدارة المشاريع",
+  timesheet:"التايم شيت",
+  admin_dashboard:"لوحة الإدارة",
+};
 
 function GlobalSearch({ setView, onClose }) {
   const [q, setQ] = useState("");
@@ -221,6 +357,19 @@ function GlobalSearch({ setView, onClose }) {
   );
 }
 
+// SHA-256 عبر Web Crypto API (مدمج في المتصفح — لا مكتبات خارجية)
+const PASS_SALT = "BOC_FAW_SCADA_2025#";
+async function hashPassword(plain) {
+  try {
+    const data = new TextEncoder().encode(PASS_SALT + plain);
+    const buf  = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
+  } catch {
+    return null; // crypto.subtle غير متاح (متصفح قديم أو سياق غير آمن)
+  }
+}
+// هل النص هو hash SHA-256 مخزّن مسبقاً؟ (64 حرف hex)
+const isHash = s => typeof s === "string" && /^[a-f0-9]{64}$/.test(s);
 
 // تشغيل صوت تنبيه
 function playAlert(type = "notification") {
@@ -249,12 +398,320 @@ function sendDesktopNotification(title, body) {
   }
 }
 
+function printElement(elementId, title = "تقرير") {
+  const el = document.getElementById(elementId);
+  if (!el) { window.print(); return; }
+  const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>${title}</title>
+  <style>*{font-family:Arial,sans-serif;} body{padding:20mm;} table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:8px;text-align:right} .no-print{display:none}</style></head>
+  <body>${el.innerHTML}</body></html>`;
+  const iframe = document.createElement("iframe");
+  iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0";
+  document.body.appendChild(iframe);
+  iframe.contentDocument.write(html);
+  iframe.contentDocument.close();
+  iframe.contentWindow.focus();
+  setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 2000); }, 500);
+}
 
 function PrintButton({ targetId, label = "طباعة" }) {
   return (<button onClick={() => targetId ? printElement(targetId) : window.print()} className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl shadow-sm border btn-secondary"><Printer size={13}/> {label}</button>);
 }
 
+// تصدير CSV
+function exportCSV(data, filename) {
+  if (!data.length) return;
+  const headers = Object.keys(data[0]);
+  const rows = [headers.join(","), ...data.map(r => headers.map(h => `"${(r[h]||"").toString().replace(/"/g,'""')}"`).join(","))];
+  const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename + ".csv"; a.click();
+}
 
+// ========== Firebase API ==========
+const FirebaseAPI = {
+  checkConnection: async () => {
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 5000);
+      // أي رد من الخادم (حتى 403) يعني الاتصال موجود — فقط الخطأ الشبكي يعني انقطاع
+      const res = await fetch(`${FIREBASE_URL}/chat.json?limitToLast=1`, { signal: ctrl.signal });
+      clearTimeout(tid);
+      return res.status < 500;
+    } catch { return false; }
+  },
+
+  // ── كلمات المرور ──────────────────────────────────────────────────────────
+  savePassword: async (empId, hash) => {
+    try { await fetch(`${FIREBASE_URL}/passwords/${empId}.json`, { method: "PUT", body: JSON.stringify(hash) }); return true; } catch { return false; }
+  },
+  getPassword: async (empId) => {
+    try { const res = await fetch(`${FIREBASE_URL}/passwords/${empId}.json`); if (!res.ok) return null; const d = await res.json(); return typeof d === "string" ? d : null; } catch { return null; }
+  },
+  deletePassword: async (empId) => {
+    try { await fetch(`${FIREBASE_URL}/passwords/${empId}.json`, { method: "DELETE" }); return true; } catch { return false; }
+  },
+
+  // ── بيانات الحسابات (مخفية في Firebase) ────────────────────────────────
+  // قراءة حساب واحد بالرقم الوظيفي (مسموح بالقراءة لمن يعرف الرقم)
+  fetchAccount: async (jobNum) => {
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 4000);
+      const res = await fetch(`${FIREBASE_URL}/accounts/${jobNum}.json`, { signal: ctrl.signal });
+      clearTimeout(tid);
+      if (!res.ok) return null;
+      const d = await res.json();
+      return d && d.id ? d : null;
+    } catch { return null; }
+  },
+  // قراءة الـ hash الافتراضي لأول تسجيل دخول (قبل تغيير كلمة المرور)
+  fetchInitHash: async (jobNum) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/init_hashes/${jobNum}.json`);
+      if (!res.ok) return null;
+      const d = await res.json();
+      return typeof d === "string" ? d : null;
+    } catch { return null; }
+  },
+  // حفظ وتحميل صلاحيات الموظفين
+  saveRoles: async (rolesMap) => {
+    try { await fetch(`${FIREBASE_URL}/emp_statuses.json`, { method:"PUT", body:JSON.stringify(rolesMap) }); return true; } catch { return false; }
+  },
+  loadRoles: async () => {
+    try { const res = await fetch(`${FIREBASE_URL}/emp_statuses.json`); if (!res.ok) return null; const d = await res.json(); return d && typeof d === "object" ? d : null; } catch { return null; }
+  },
+  // ترحيل مرة واحدة: رفع جميع الحسابات + هاشات البداية إلى Firebase
+  initializeAccounts: async (accounts) => {
+    try {
+      // اختبار الاتصال أولاً
+      const testRes = await fetch(`${FIREBASE_URL}/accounts.json`, { method: "GET" });
+      if (testRes.status === 401 || testRes.status === 403) {
+        const body = await testRes.text().catch(()=>"");
+        return { ok: false, status: testRes.status, reason: "permission_denied", body };
+      }
+
+      const accountsData = {};
+      const hashesData   = {};
+      for (const acc of accounts) {
+        const { password, ...rest } = acc;
+        accountsData[acc.jobNum] = rest;
+        hashesData[acc.jobNum]   = await hashPassword(password);
+      }
+      const [r1, r2] = await Promise.all([
+        fetch(`${FIREBASE_URL}/accounts.json`,    { method: "PUT", body: JSON.stringify(accountsData),    headers: {"Content-Type":"application/json"} }),
+        fetch(`${FIREBASE_URL}/init_hashes.json`, { method: "PUT", body: JSON.stringify(hashesData),      headers: {"Content-Type":"application/json"} }),
+      ]);
+      if (!r1.ok || !r2.ok) {
+        const b = await (r1.ok ? r2 : r1).text().catch(()=>"");
+        return { ok: false, status: r1.ok ? r2.status : r1.status, reason: "write_failed", body: b };
+      }
+      return { ok: true };
+    } catch(e) {
+      return { ok: false, status: 0, reason: "network_error", body: e.message };
+    }
+  },
+
+  // ── الدردشة ───────────────────────────────────────────────────────────────
+  sendMessage: async (msg) => {
+    try { await fetch(`${FIREBASE_URL}/chat.json`, { method: "POST", body: JSON.stringify(msg) }); return true; } catch { return false; }
+  },
+  getMessages: async (limit = 50) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/chat.json?orderBy="timestamp"&limitToLast=${limit}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (!data) return [];
+      return Object.entries(data).map(([k,v]) => ({ ...v, _key: k })).sort((a,b) => a.timestamp - b.timestamp);
+    } catch { return []; }
+  },
+};
+
+// ========== Google Drive API ==========
+const GDRIVE_WARN_PCT = 80;
+const GDRIVE_CRIT_PCT = 95;
+const GDRIVE_PROXY    = "/api/drive-proxy";
+
+const GDriveAPI = {
+  checkConnection: async () => {
+    try {
+      const ctrl = new AbortController();
+      const tid  = setTimeout(() => ctrl.abort(), 5000);
+      const res  = await fetch(`${GDRIVE_PROXY}?action=ping`, { signal: ctrl.signal });
+      clearTimeout(tid);
+      if (!res.ok) return false;
+      const data = await res.json();
+      return data.ok === true;
+    } catch { return false; }
+  },
+
+  uploadFile: async (file, onProgress) => {
+    const CHUNK = 2 * 1024 * 1024; // 2MB per chunk (within Vercel 4.5MB limit)
+    const mime  = file.type || "application/octet-stream";
+
+    // ── ملفات صغيرة (≤ 3MB): رفع مباشر ──────────────────────
+    if (file.size <= 3 * 1024 * 1024) {
+      let res;
+      try {
+        res = await fetch(`${GDRIVE_PROXY}?action=upload`, {
+          method: "POST",
+          headers: {
+            "x-filename": encodeURIComponent(file.name),
+            "x-file-mime": mime,
+            "Content-Type": mime,
+          },
+          body: file,
+        });
+      } catch { throw new Error("تعذّر الوصول إلى خادم الرفع"); }
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        const r = b.error?.errors?.[0]?.reason || "";
+        const m = b.error?.message || b.error || "";
+        if (r === "storageQuotaExceeded") {
+          if (b.error?._quotaFix === "service_account_quota")
+            throw new Error("خطأ في إعداد Drive: Service Account لا يملك مساحة تخزين — أضف GDRIVE_REFRESH_TOKEN في إعدادات Vercel");
+          throw new Error("امتلأت مساحة Google Drive — احذف ملفات قديمة أو رفّع الحصة");
+        }
+        throw new Error(String(m) || `خطأ HTTP ${res.status}`);
+      }
+      onProgress?.(100);
+      return await res.json();
+    }
+
+    // ── ملفات كبيرة: Resumable Upload بأجزاء 2MB ────────────
+    // 1. ابدأ جلسة رفع
+    let initRes;
+    try {
+      initRes = await fetch(`${GDRIVE_PROXY}?action=resumable-init`, {
+        method: "POST",
+        headers: {
+          "x-filename":  encodeURIComponent(file.name),
+          "x-file-mime": mime,
+          "x-file-size": String(file.size),
+        },
+      });
+    } catch { throw new Error("تعذّر الوصول إلى خادم الرفع"); }
+    if (!initRes.ok) {
+      const b = await initRes.json().catch(() => ({}));
+      if (b._quotaFix === "service_account_quota")
+        throw new Error("خطأ في إعداد Drive: Service Account لا يملك مساحة تخزين — أضف GDRIVE_REFRESH_TOKEN في إعدادات Vercel");
+      throw new Error(b.error || `فشل بدء الجلسة: HTTP ${initRes.status}`);
+    }
+    const { sessionUri } = await initRes.json();
+
+    // 2. أرسل الأجزاء
+    let offset = 0;
+    while (offset < file.size) {
+      const end   = Math.min(offset + CHUNK, file.size);
+      const chunk = file.slice(offset, end);
+
+      let chunkRes;
+      try {
+        chunkRes = await fetch(`${GDRIVE_PROXY}?action=resumable-chunk`, {
+          method: "POST",
+          headers: {
+            "x-session-uri":   sessionUri,
+            "x-content-range": `bytes ${offset}-${end - 1}/${file.size}`,
+            "Content-Type":    mime,
+          },
+          body: chunk,
+        });
+      } catch { throw new Error("انقطع الاتصال أثناء الرفع — حاول مجدداً"); }
+
+      if (chunkRes.status === 200 || chunkRes.status === 201) {
+        onProgress?.(100);
+        return await chunkRes.json();
+      }
+      if (chunkRes.status === 308) {
+        // Drive أكّد الجزء — تابع
+        const range = chunkRes.headers.get("Range");
+        offset = range ? parseInt(range.split("-")[1], 10) + 1 : end;
+        onProgress?.(Math.round((offset / file.size) * 100));
+      } else {
+        const b = await chunkRes.json().catch(() => ({}));
+        const r = b.error?.errors?.[0]?.reason || "";
+        if (r === "storageQuotaExceeded") {
+          if (b.error?._quotaFix === "service_account_quota")
+            throw new Error("خطأ في إعداد Drive: Service Account لا يملك مساحة تخزين — أضف GDRIVE_REFRESH_TOKEN في إعدادات Vercel");
+          throw new Error("امتلأت مساحة Google Drive — احذف ملفات قديمة أو رفّع الحصة");
+        }
+        throw new Error(b.error?.message || `خطأ في الجزء ${chunkRes.status}`);
+      }
+    }
+    throw new Error("انتهى الرفع بدون إجابة نهائية");
+  },
+
+  getQuota: async () => {
+    try {
+      const res = await fetch(`${GDRIVE_PROXY}?action=quota`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      const { storageQuota, _authWarning } = data;
+      if (!storageQuota) return null;
+      const limit = Number(storageQuota.limit || 0);
+      const usage = Number(storageQuota.usage || 0);
+      const pct   = limit > 0 ? Math.round((usage / limit) * 100) : 0;
+      const fmtGB = (b) => b >= 1e9 ? (b/1e9).toFixed(2)+" GB" : b >= 1e6 ? (b/1e6).toFixed(1)+" MB" : b >= 1e3 ? (b/1e3).toFixed(0)+" KB" : b+" B";
+      return {
+        limit, usage, pct,
+        limitStr: limit > 0 ? fmtGB(limit) : "—",
+        usageStr: fmtGB(usage),
+        freeStr:  limit > 0 ? fmtGB(limit - usage) : "غير محدود",
+        serviceAccountWarning: _authWarning === "service_account_no_quota",
+      };
+    } catch { return null; }
+  },
+
+  deleteFile: async (fileId) => {
+    if (!fileId) return;
+    try {
+      await fetch(`${GDRIVE_PROXY}?action=delete&fileId=${encodeURIComponent(fileId)}`, {
+        method: "DELETE",
+      });
+    } catch {}
+  },
+};
+
+// ── سياق Google Drive ──
+const GDriveContext = createContext({
+  isReady: false, quota: null,
+  refreshQuota: async () => {},
+  uploadFile: async () => { throw new Error("not connected"); },
+  deleteFile: async () => {},
+});
+const useGDrive = () => useContext(GDriveContext);
+
+function GDriveProvider({ children }) {
+  const [isReady, setIsReady] = useState(false);
+  const [quota, setQuota]     = useState(null);
+
+  const refreshQuota = useCallback(async () => {
+    const q = await GDriveAPI.getQuota();
+    if (q) setQuota(q);
+  }, []);
+
+  useEffect(() => {
+    GDriveAPI.checkConnection().then(ok => {
+      setIsReady(ok);
+      if (ok) refreshQuota();
+    });
+  }, [refreshQuota]);
+
+  const uploadFile = useCallback(async (file, onProgress) => {
+    const result = await GDriveAPI.uploadFile(file, onProgress);
+    GDriveAPI.getQuota().then(q => { if (q) setQuota(q); });
+    return result;
+  }, []);
+
+  const deleteFile = useCallback(async (fileId) => {
+    await GDriveAPI.deleteFile(fileId);
+    GDriveAPI.getQuota().then(q => { if (q) setQuota(q); });
+  }, []);
+
+  return (
+    <GDriveContext.Provider value={{ isReady, quota, refreshQuota, uploadFile, deleteFile }}>
+      {children}
+    </GDriveContext.Provider>
+  );
+}
 
 // ── مكوّن إعدادات Google Drive ──
 function GDriveSettingsModal({ onClose }) {
@@ -464,17 +921,15 @@ const PERMISSIONS_DEF = {
   MANAGE_ROLES:      { label:"إدارة الصلاحيات",     icon:"🔑" },
   MANAGE_EQUIPMENT:  { label:"إدارة المعدات",        icon:"⚙" },
   MANAGE_SPAREPARTS: { label:"إدارة قطع الغيار",    icon:"🔧" },
-  MANAGE_INVENTORY:  { label:"إدارة المخزن والأثاث", icon:"📦" },
   APPROVE_REQUESTS:  { label:"الموافقة على الطلبات",icon:"✅" },
   SYSTEM_SETTINGS:   { label:"إعدادات النظام",       icon:"🔩" },
   VIEW_AUDIT:        { label:"سجل التعديلات",        icon:"📊" },
 };
 const BUILT_IN_ROLES = {
-  SUPER_ADMIN:       { label:"مشرف عام",      color:"bg-red-100 text-red-800",      permissions:["FULL_ACCESS"] },
-  ADMIN:             { label:"مدير إداري",    color:"bg-blue-100 text-blue-800",    permissions:["MANAGE_USERS","VIEW_LOGIN_HIST","APPROVE_REQUESTS","VIEW_AUDIT","KILL_SESSIONS"] },
-  MAINTENANCE:       { label:"مدير صيانة",   color:"bg-orange-100 text-orange-800", permissions:["MANAGE_EQUIPMENT","MANAGE_SPAREPARTS"] },
-  WAREHOUSE_MANAGER: { label:"مسؤول المخزن", color:"bg-teal-100 text-teal-800",     permissions:["MANAGE_INVENTORY"] },
-  EMPLOYEE:          { label:"موظف",          color:"bg-gray-100 text-gray-700",    permissions:[] },
+  SUPER_ADMIN: { label:"مشرف عام",    color:"bg-red-100 text-red-800",      permissions:["FULL_ACCESS"] },
+  ADMIN:       { label:"مدير إداري",  color:"bg-blue-100 text-blue-800",    permissions:["MANAGE_USERS","VIEW_LOGIN_HIST","APPROVE_REQUESTS","VIEW_AUDIT","KILL_SESSIONS"] },
+  MAINTENANCE: { label:"مدير صيانة", color:"bg-orange-100 text-orange-800", permissions:["MANAGE_EQUIPMENT","MANAGE_SPAREPARTS"] },
+  EMPLOYEE:    { label:"موظف",        color:"bg-gray-100 text-gray-700",    permissions:[] },
 };
 function getEmpStatus(empId) { return storage.get(`emp_status_${empId}`, { active:true, role:"EMPLOYEE" }); }
 function setEmpStatus(empId, val) { storage.set(`emp_status_${empId}`, val); }
@@ -507,12 +962,6 @@ function recordLoginAttempt(account, status, failReason = null) {
   hist.unshift(rec);
   if (hist.length > 500) hist.length = 500;
   storage.set("login_history", hist);
-  // إرسال السجل إلى Firebase لتجميع سجلات جميع الأجهزة مركزياً
-  fetch(`${FIREBASE_URL}/login_history.json`, {
-    method: "POST",
-    body: JSON.stringify(rec),
-    headers: { "Content-Type": "application/json" },
-  }).catch(() => {});
   if (status === "success" && sessionId) {
     try { sessionStorage.setItem("boc_session_id", sessionId); } catch {}
     const sessionsRaw = storage.get("active_sessions", []);
@@ -614,7 +1063,7 @@ function LoginScreen({ onLogin, dark }) {
     let isValid = false;
     const inputHash = await hashPassword(pass.trim());
     const localPass = passStore.get(`pass_${account.id}`);
-    const defaultPass = DEFAULT_PASSWORD;
+    const defaultPass = (ACCOUNTS.find(a => a.jobNum === user.trim()) || {}).password || "";
 
     if (localPass) {
       if (isHash(localPass)) {
@@ -660,16 +1109,16 @@ function LoginScreen({ onLogin, dark }) {
           isValid = inputHash !== null && inputHash === initH;
           if (isValid) passStore.set(`pass_${account.id}`, initH); // احفظ للجلسات القادمة
         }
-        // احتياطي نهائي: كلمة المرور الافتراضية الموحّدة
+        // احتياطي نهائي: ابحث في ACCOUNTS (الحساب من Firebase لا يحتوي password)
         if (!isValid) {
-          const def = DEFAULT_PASSWORD;
+          const def = (ACCOUNTS.find(a => a.jobNum === user.trim()) || account).password || "";
           isValid = pass.trim() === def;
           if (isValid && inputHash) passStore.set(`pass_${account.id}`, inputHash);
         }
       }
     } else {
       // غير متصل — الاحتياطي المحلي
-      const def = DEFAULT_PASSWORD;
+      const def = (ACCOUNTS.find(a => a.jobNum === user.trim()) || account).password || "";
       isValid = pass.trim() === def;
       if (isValid && inputHash) passStore.set(`pass_${account.id}`, inputHash);
     }
@@ -677,7 +1126,8 @@ function LoginScreen({ onLogin, dark }) {
     if (isValid) {
       clearLockData(user.trim());
       try { sessionStorage.setItem("boc_session", JSON.stringify({ acctId: account.id, expiry: Date.now() + 8 * 3600000 })); } catch {}
-      if (pass.trim() === DEFAULT_PASSWORD && !localPass) { try { sessionStorage.setItem("force_password_change", "true"); } catch {} }
+      const defaultPasswords = ["1001","1002","1003","1004","1005","1006","1007","1008","1009","1010","1011","2001","2002","2003","2004","2005","2006","2007","2008","2009","2010","2011","2012","2013","2014","2015","2016","2017","2018","3001","3002","3003","3004"];
+      if (defaultPasswords.includes(pass.trim()) && !localPass) { try { sessionStorage.setItem("force_password_change", "true"); } catch {} }
       // Check if account is disabled
       const empSt = getEmpStatus(account.id);
       if (!empSt.active) { setErr("هذا الحساب معطّل. تواصل مع المشرف."); recordLoginAttempt(account, "failed", "account_disabled"); return; }
@@ -704,94 +1154,50 @@ function LoginScreen({ onLogin, dark }) {
     }
   };
 
-  const resetPass = async () => {
-    const acc = ACCOUNTS.find(a => a.jobNum === user.trim());
-    if (!user.trim()) { setErr("أدخل الرقم الوظيفي أولاً"); return; }
-    if (!acc) { setErr("الرقم الوظيفي غير موجود"); return; }
-    sessionStorage.removeItem(`pass_${acc.id}`);
-    localStorage.removeItem(`pass_${acc.id}`);
-    localStorage.removeItem(`login_lock_${acc.jobNum}`);
-    if (isConnected) await FirebaseAPI.deletePassword(acc.id);
-    setErr(""); setPass("");
-    alert(`تمت إعادة ضبط كلمة مرور ${acc.name}\nالرقم الوظيفي: ${acc.jobNum}\nكلمة المرور الافتراضية: ${acc.password}`);
-  };
-
   return (
-    <div className="min-h-screen flex flex-col md:flex-row" dir="rtl">
-      {/* Panel Right — Branding (dark industrial) */}
-      <div className="md:w-5/12 bg-[#0D1117] flex flex-col justify-between p-10 min-h-[200px] md:min-h-screen relative overflow-hidden">
-        <div className="absolute inset-0 opacity-[0.035]" style={{backgroundImage:"linear-gradient(to right,#C87A2E 1px,transparent 1px),linear-gradient(to bottom,#C87A2E 1px,transparent 1px)",backgroundSize:"48px 48px"}}/>
-        <div className="relative z-10">
-          <div className="w-14 h-14 border-2 border-[#C87A2E] flex items-center justify-center mb-10">
-            <span className="text-[#C87A2E] font-bold tracking-widest text-sm" style={{fontFamily:"'JetBrains Mono',monospace"}}>BOC</span>
-          </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-white leading-tight tracking-tight">شركة نفط<br/>البصرة</h1>
-          <p className="text-[#C87A2E] text-xs tracking-[0.25em] uppercase mt-3" style={{fontFamily:"'JetBrains Mono',monospace"}}>FAW WAREHOUSE DIVISION</p>
-          <div className="mt-8 space-y-1">
-            <p className="text-[#4B5563] text-[11px]" style={{fontFamily:"'JetBrains Mono',monospace"}}>SYS.REF: FAW-CTRL-001</p>
-            <p className="text-[#4B5563] text-[11px]" style={{fontFamily:"'JetBrains Mono',monospace"}}>DEPT: Control & Systems</p>
+    <div className={`min-h-screen bg-gradient-to-br ${dark ? "from-gray-900 to-gray-800" : "from-slate-900 to-slate-800"} flex items-center justify-center p-4`} dir="rtl">
+      <div className="w-full max-w-md bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-white/20">
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg mb-4"><LogIn size={32} className="text-white"/></div>
+          <h2 className="text-2xl font-bold text-white">شركة نفط البصرة</h2>
+          <p className="text-sm text-slate-300 mt-2">شعبة مستودع الفاو</p>
+          <div className="flex items-center justify-center gap-2 mt-2">
+            {isConnected ? <><Wifi size={12} className="text-emerald-400"/><span className="text-xs text-emerald-400">متصل</span></> : <><WifiOff size={12} className="text-amber-400"/><span className="text-xs text-amber-400">غير متصل</span></>}
           </div>
         </div>
-        <div className="relative z-10 flex items-center gap-2">
-          <div className={`w-1.5 h-1.5 rounded-full ${isConnected?"bg-emerald-400":"bg-amber-400"}`} style={isConnected?{animation:"pulse 2s infinite"}:{}}/>
-          <span className={`text-[11px] ${isConnected?"text-emerald-400":"text-amber-400"}`} style={{fontFamily:"'JetBrains Mono',monospace"}}>
-            {isConnected?"NETWORK: ONLINE":"NETWORK: OFFLINE"}
-          </span>
-        </div>
-      </div>
-
-      {/* Panel Left — Login form */}
-      <div className={`md:w-7/12 flex items-center justify-center p-8 md:p-16 ${dark?"bg-[#161B22]":"bg-[#F4F4F0]"} min-h-screen`}>
-        <div className="w-full max-w-sm">
-          <h2 className={`text-2xl font-bold ${dark?"text-white":"text-[#1C1C1C]"} mb-1 tracking-tight`}>تسجيل الدخول</h2>
-          <p className="text-sm text-[#787774] mb-8">أدخل بيانات الدخول للمتابعة</p>
-
-          <div className="space-y-5">
-            <div>
-              <label className="text-[11px] font-semibold tracking-widest uppercase text-[#787774] block mb-2" style={{fontFamily:"'JetBrains Mono',monospace"}}>الرقم الوظيفي</label>
-              <input type="text" value={user} onChange={e=>setUser(e.target.value)}
-                className={`w-full border rounded-md px-4 py-3 text-sm transition-colors outline-none ${dark?"bg-[#0D1117] border-[#30363D] text-white focus:border-[#C87A2E]":"bg-white border-[#E4E2DC] text-[#1C1C1C] focus:border-[#C87A2E]"}`}
-                placeholder="728004" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
+        <div className="space-y-4">
+          <div><label className="block text-sm font-bold text-slate-200 mb-2">الرقم الوظيفي</label>
+            <input type="text" value={user} onChange={e=>setUser(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center text-lg" placeholder="728004" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/></div>
+          <div><label className="block text-sm font-bold text-slate-200 mb-2">كلمة المرور</label>
+            <div className="relative"><input type={showP?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-center text-lg" placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
+              <button onClick={()=>setShowP(!showP)} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">{showP?<EyeOff size={18}/>:<Eye size={18}/>}</button></div></div>
+          {lockSecs > 0 && (
+            <div className="bg-red-700/30 border border-red-500/50 text-red-200 text-sm p-3 rounded-xl flex items-center gap-2">
+              <AlertCircle size={16}/>
+              <span>الحساب مقفل — يُفتح بعد <strong className="font-mono">{fmtTime(lockSecs)}</strong></span>
             </div>
-            <div>
-              <label className="text-[11px] font-semibold tracking-widest uppercase text-[#787774] block mb-2" style={{fontFamily:"'JetBrains Mono',monospace"}}>كلمة المرور</label>
-              <div className="relative">
-                <input type={showP?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)}
-                  className={`w-full border rounded-md px-4 py-3 pl-10 text-sm transition-colors outline-none ${dark?"bg-[#0D1117] border-[#30363D] text-white focus:border-[#C87A2E]":"bg-white border-[#E4E2DC] text-[#1C1C1C] focus:border-[#C87A2E]"}`}
-                  placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
-                <button onClick={()=>setShowP(!showP)} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#787774] hover:text-[#C87A2E] transition-colors">{showP?<EyeOff size={16}/>:<Eye size={16}/>}</button>
-              </div>
-            </div>
-
-            {lockSecs > 0 && (
-              <div className={`border text-sm p-3 rounded-md flex items-center gap-2 ${dark?"bg-red-900/20 border-red-800 text-red-300":"bg-red-50 border-red-200 text-red-700"}`}>
-                <AlertCircle size={15}/>
-                <span>مقفل — يُفتح بعد <strong style={{fontFamily:"'JetBrains Mono',monospace"}}>{fmtTime(lockSecs)}</strong></span>
-              </div>
-            )}
-            {err && (
-              <div className={`border text-sm p-3 rounded-md flex items-center gap-2 ${dark?"bg-red-900/20 border-red-800 text-red-300":"bg-red-50 border-red-200 text-red-700"}`}>
-                <AlertCircle size={15}/> {err}
-              </div>
-            )}
-
-            <button onClick={handleLogin} disabled={loading || lockSecs > 0}
-              className="w-full bg-[#C87A2E] hover:bg-[#B06D27] disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-md text-sm tracking-wide transition-all active:scale-[0.99]">
-              {loading?"جاري التحقق...":"دخول"}
-            </button>
-
-            <button onClick={resetPass}
-              className="w-full text-[#787774] hover:text-[#C87A2E] text-xs py-1 transition-colors text-center">
-              نسيت كلمة المرور؟ — إعادة الضبط للافتراضية
-            </button>
-          </div>
-
-          <div className={`mt-10 pt-4 border-t ${dark?"border-[#30363D]":"border-[#E4E2DC]"}`}>
-            <p className="text-[10px] text-[#787774]" style={{fontFamily:"'JetBrains Mono',monospace"}}>
-              REF: <span className="text-[#C87A2E]">728004</span> &nbsp;/&nbsp; DEFAULT: <span className="text-[#C87A2E]">1001</span>
-            </p>
-          </div>
+          )}
+          {err && <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-xl flex items-center gap-2"><AlertCircle size={16}/> {err}</div>}
+          <button onClick={handleLogin} disabled={loading || lockSecs > 0} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all text-lg">{loading?"جاري التحقق...":"تسجيل الدخول"}</button>
+          <button onClick={async () => {
+            const acc = ACCOUNTS.find(a => a.jobNum === user.trim());
+            if (!user.trim()) { setErr("أدخل الرقم الوظيفي أولاً"); return; }
+            if (!acc) { setErr("الرقم الوظيفي غير موجود"); return; }
+            // Clear local storage
+            sessionStorage.removeItem(`pass_${acc.id}`);
+            localStorage.removeItem(`pass_${acc.id}`);
+            // Clear login lock
+            localStorage.removeItem(`login_lock_${acc.jobNum}`);
+            // Clear Firebase password so default password works again
+            if (isConnected) await FirebaseAPI.deletePassword(acc.id);
+            setErr("");
+            setPass("");
+            alert(`تمت إعادة ضبط كلمة مرور ${acc.name}\nالرقم الوظيفي: ${acc.jobNum}\nكلمة المرور الافتراضية: ${acc.password}`);
+          }} className="w-full text-slate-400 hover:text-slate-200 text-xs py-1 underline text-center transition-colors">
+            نسيت كلمة المرور؟ (إعادة الضبط للافتراضية)
+          </button>
         </div>
+        <div className="mt-6 text-center text-sm text-slate-400"><p>🔑 <strong className="text-blue-300">728004</strong> | كلمة المرور: <strong className="text-blue-300">1001</strong></p></div>
       </div>
     </div>
   );
@@ -1078,9 +1484,8 @@ function TrainingSystem({ emp, isAdmin }) {
 }
 
 // ========== جرد المخزن ==========
-function InventorySystem({ emp, isAdmin }) {
-  const canEdit = isAdmin || hasPermission(emp, "MANAGE_INVENTORY");
-  const [items, setItemsState] = useState(() => storage.get("inventory_items", [
+function InventorySystem() {
+  const [items, setItems] = useState(() => storage.get("inventory_items", [
     // ═══ أجهزة القياس والمعايرة ═══
     {id:1,   code:"2301280010", name:"مقاومة متغيرة",                       category:"أجهزة قياس",      qty:1,  condition:"جيد",         location:"شعبة الآلات الدقيقة", serialNo:"2489"},
     {id:2,   code:"2301243008", name:"مولد ذبذبات",                          category:"أجهزة قياس",      qty:1,  condition:"جيد",         location:"شعبة الآلات الدقيقة", serialNo:"JB21280"},
@@ -1233,36 +1638,21 @@ function InventorySystem({ emp, isAdmin }) {
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
   const confirm = useConfirm();
-  // أي تعديل يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
-  const setItems = useCallback((updater) => {
-    setItemsState(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      storage.set("inventory_items", next);
-      FirebaseAPI.saveInventory(next);
-      return next;
-    });
-  }, []);
-  useEffect(() => {
-    FirebaseAPI.loadInventory().then(list => {
-      if (list) { setItemsState(list); storage.set("inventory_items", list); }
-    });
-  }, []);
+  useEffect(() => { storage.set("inventory_items", items); }, [items]);
 
   const categories = ["الكل", ...INVENTORY_CATS];
   const filtered = items.filter(i => (i.name.includes(search)||i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
   const lowStock = items.filter(i => i.qty <= (i.minQty || LOW_STOCK_THRESHOLD));
 
   const deleteItem = async (id) => {
-    if (!canEdit) return;
     if (await confirm("هل تريد حذف هذا الصنف؟", { danger: true, ok: "حذف", title: "حذف الصنف" }))
-      setItems(prev => prev.filter(i => i.id !== id));
+      setItems(items.filter(i => i.id !== id));
   };
 
   const saveItem = () => {
-    if (!canEdit) return;
     if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
-    if (adding) setItems(prev => [...prev, { ...form, id: Date.now() }]);
-    else setItems(prev => prev.map(i => i.id===editId ? form : i));
+    if (adding) setItems([...items, { ...form, id: Date.now() }]);
+    else setItems(items.map(i => i.id===editId ? form : i));
     setEditId(null); setAdding(false); showToast("✅ تم الحفظ");
   };
 
@@ -1274,10 +1664,10 @@ function InventorySystem({ emp, isAdmin }) {
           <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select></div>
         <div className="flex gap-2">
           <button onClick={()=>exportCSV(items.map(i=>({الرمز:i.code,الاسم:i.name,رقم_الصنع:i.serialNo||"",الفئة:i.category,الكمية:i.qty,الحالة:i.condition,الموقع:i.location})),"المخزون_شعبة_الآلات_الدقيقة")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/> تصدير</button>
-          {canEdit && <button onClick={()=>{setAdding(true);setForm({code:"",name:"",category:"أجهزة قياس",qty:1,condition:"جيد",location:"شعبة الآلات الدقيقة",minQty:3,serialNo:""});}} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button>}
+          <button onClick={()=>{setAdding(true);setForm({code:"",name:"",category:"أجهزة قياس",qty:1,condition:"جيد",location:"شعبة الآلات الدقيقة",minQty:3,serialNo:""});}} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button>
           <PrintButton targetId="print-inventory" label="طباعة"/></div>
       </div>
-      {canEdit && (adding||editId) && (<div className="card rounded-2xl border-2 border-blue-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة صنف":"تعديل صنف"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
+      {(adding||editId) && (<div className="card rounded-2xl border-2 border-blue-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة صنف":"تعديل صنف"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[["الرمز الرمزي","code"],["الاسم *","name"],["رقم الصنع","serialNo"],["الكمية","qty"],["الحد الأدنى","minQty"],["الموقع","location"]].map(([l,k])=>(<div key={k}><label className="block text-[10px] font-bold text-secondary mb-1">{l}</label><input value={form[k]||""} onChange={e=>setForm({...form,[k]:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>))}
           <div><label className="block text-[10px] font-bold text-secondary mb-1">الفئة</label><select value={form.category} onChange={e=>setForm({...form,category:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm">{INVENTORY_CATS.map(c=><option key={c}>{c}</option>)}</select></div>
@@ -1290,16 +1680,15 @@ function InventorySystem({ emp, isAdmin }) {
           <td className="px-3 py-2 font-bold">{it.qty} {it.qty<=(it.minQty||3)&&<span className="text-amber-500">⚠️</span>}</td>
           <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":it.condition==="تالف"||it.condition==="تم الشطب"?"bg-red-100 text-red-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td>
           <td className="px-3 py-2 text-[10px]">{it.location}</td>
-          <td className="px-3 py-2 no-print">{canEdit && <div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div>}</td></tr>))}</tbody></table></div></div>
+          <td className="px-3 py-2 no-print"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
 }
 
 // ========== جرد الأثاث ==========
-function FurnitureInventory({ emp, isAdmin }) {
-  const canEdit = isAdmin || hasPermission(emp, "MANAGE_INVENTORY");
-  const [items, setItemsState] = useState(() => storage.get("furniture_items", [
+function FurnitureInventory() {
+  const [items, setItems] = useState(() => storage.get("furniture_items", [
     // ═══ أجهزة تكييف وتبريد ═══
     {id:1,  code:"لا يوجد",      name:"سبلت 2 طن LG",                 category:"أجهزة تكييف",    qty:1, condition:"تم الشطب",    location:"السيطرة والنظم شعبة الفاو"},
     {id:2,  code:"لا يوجد",      name:"سبلت 2 طن LG",                 category:"أجهزة تكييف",    qty:1, condition:"تم الشطب",    location:"السيطرة والنظم شعبة الفاو"},
@@ -1379,35 +1768,20 @@ function FurnitureInventory({ emp, isAdmin }) {
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
   const confirm = useConfirm();
-  // أي تعديل يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
-  const setItems = useCallback((updater) => {
-    setItemsState(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      storage.set("furniture_items", next);
-      FirebaseAPI.saveFurniture(next);
-      return next;
-    });
-  }, []);
-  useEffect(() => {
-    FirebaseAPI.loadFurniture().then(list => {
-      if (list) { setItemsState(list); storage.set("furniture_items", list); }
-    });
-  }, []);
+  useEffect(() => { storage.set("furniture_items", items); }, [items]);
 
   const deleteItem = async (id) => {
-    if (!canEdit) return;
     if (await confirm("هل تريد حذف هذا الصنف؟", { danger: true, ok: "حذف", title: "حذف الصنف" }))
-      setItems(prev => prev.filter(i => i.id !== id));
+      setItems(items.filter(i => i.id !== id));
   };
 
   const categories = ["الكل", ...FURNITURE_CATS];
   const filtered = items.filter(i => (i.name.includes(search)||i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
 
   const saveItem = () => {
-    if (!canEdit) return;
     if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
-    if (adding) setItems(prev => [...prev, { ...form, id: Date.now() }]);
-    else setItems(prev => prev.map(i => i.id===editId ? form : i));
+    if (adding) setItems([...items, { ...form, id: Date.now() }]);
+    else setItems(items.map(i => i.id===editId ? form : i));
     setEditId(null); setAdding(false); showToast("✅ تم الحفظ");
   };
 
@@ -1418,17 +1792,17 @@ function FurnitureInventory({ emp, isAdmin }) {
           <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select></div>
         <div className="flex gap-2">
           <button onClick={()=>exportCSV(items.map(i=>({الرمز:i.code,الاسم:i.name,الفئة:i.category,الكمية:i.qty,الحالة:i.condition,الموقع:i.location})),"الأثاث")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/> تصدير</button>
-          {canEdit && <button onClick={()=>{setAdding(true);setForm({code:"",name:"",category:"أثاث مكتبي",qty:1,condition:"جيد",location:""});}} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button>}
+          <button onClick={()=>{setAdding(true);setForm({code:"",name:"",category:"أثاث مكتبي",qty:1,condition:"جيد",location:""});}} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button>
           <PrintButton targetId="print-furniture" label="طباعة"/></div>
       </div>
-      {canEdit && (adding||editId) && (<div className="card rounded-2xl border-2 border-violet-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة قطعة":"تعديل قطعة"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
+      {(adding||editId) && (<div className="card rounded-2xl border-2 border-violet-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة قطعة":"تعديل قطعة"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[["الرمز *","code"],["الاسم *","name"],["الكمية","qty"],["الموقع","location"]].map(([l,k])=>(<div key={k}><label className="block text-[10px] font-bold text-secondary mb-1">{l}</label><input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>))}
           <div><label className="block text-[10px] font-bold text-secondary mb-1">الحالة</label><select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm">{ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}</select></div></div>
         <div className="flex gap-2 justify-end mt-4"><button onClick={()=>{setEditId(null);setAdding(false);}} className="px-4 py-2 text-sm btn-secondary rounded-xl border">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> حفظ</button></div></div>)}
       <div id="print-furniture" className="card rounded-2xl border-color border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="border-b border-color"><th className="px-3 py-2">الرمز</th><th className="px-3 py-2">الاسم</th><th className="px-3 py-2">الفئة</th><th className="px-3 py-2">الكمية</th><th className="px-3 py-2">الحالة</th><th className="px-3 py-2">الموقع</th><th className="px-3 py-2 no-print">إجراءات</th></tr></thead>
         <tbody>{filtered.map(it=>(<tr key={it.id} className="border-b border-color"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2">{it.name}</td><td className="px-3 py-2">{it.category}</td><td className="px-3 py-2 font-bold">{it.qty}</td>
           <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td>
-          <td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 no-print">{canEdit && <div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div>}</td></tr>))}</tbody></table></div></div>
+          <td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 no-print"><div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div></td></tr>))}</tbody></table></div></div>
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
@@ -1488,42 +1862,18 @@ function EmployeeManager({ employees, setEmployees }) {
   const totalPages = Math.ceil(filtered.length / perPage);
   const paged = filtered.slice((page-1)*perPage, page*perPage);
 
-  const saveEmp = async () => {
+  const saveEmp = () => {
     if (!form.name || !form.jobNum) return;
-    const existing = employees.find(e => e.id === editId);
-    const empToSave = adding
-      ? { ...form, id: Date.now() }
-      : { ...existing, ...form };
-
-    if (adding) setEmployees(prev => [...prev, empToSave]);
-    else setEmployees(prev => prev.map(e => e.id === editId ? empToSave : e));
+    if (adding) setEmployees([...employees, {...form, id:Date.now(), password:"1000"}]);
+    else setEmployees(employees.map(e => e.id===editId ? {...e,...form} : e));
     setAdding(false); setEditId(null);
-
-    if (isConnected) {
-      const ok = await FirebaseAPI.saveEmployee(empToSave);
-      addToast(
-        adding
-          ? (ok ? "تمت إضافة الموظف وحُفظ في Firebase ✅" : "تمت الإضافة محلياً — فشل Firebase ⚠️")
-          : (ok ? "تم تحديث البيانات في Firebase ✅"       : "تم التحديث محلياً — فشل Firebase ⚠️"),
-        ok ? "success" : "warning"
-      );
-    } else {
-      addToast(adding ? "تمت إضافة الموظف (غير متصل)" : "تم تحديث البيانات (غير متصل)", "success");
-    }
-  };
-
-  // مزامنة فورية لخريطة الأدوار/الحالات إلى Firebase حتى لا تختفي بعد التحديث
-  const autoSyncRoles = () => {
-    const rolesMap = {};
-    employees.forEach(emp => { rolesMap[emp.id] = getEmpStatus(emp.id); });
-    FirebaseAPI.saveRoles(rolesMap);
+    addToast(adding?"تمت إضافة الموظف":"تم تحديث البيانات","success");
   };
 
   const toggleStatus = (e) => {
     const st = getStatus(e);
     setEmpStatus(e.id, {...st, active:!st.active});
     forceUpdate(n=>n+1);
-    autoSyncRoles();
     addToast(st.active?"تم تعطيل الحساب":"تم تفعيل الحساب", st.active?"warning":"success");
   };
 
@@ -1531,7 +1881,6 @@ function EmployeeManager({ employees, setEmployees }) {
     const st = getStatus(e);
     setEmpStatus(e.id, {...st, role});
     forceUpdate(n=>n+1);
-    autoSyncRoles();
     addToast("تم تغيير الدور","success");
   };
 
@@ -1539,14 +1888,13 @@ function EmployeeManager({ employees, setEmployees }) {
     const ok = await confirm(`إعادة تعيين كلمة مرور ${e.name} إلى "1000"؟`);
     if (!ok) return;
     passStore.set(`pass_${e.id}`, null);
-    if (isConnected) await FirebaseAPI.deletePassword(e.id);
     addToast("تم إعادة تعيين كلمة المرور إلى 1000","success");
   };
 
   const handleMigrate = async () => {
     if (!await confirm("سيتم رفع بيانات جميع الموظفين (بدون كلمات المرور) + هاشات المرور الافتراضية إلى Firebase. المتابعة؟", {title:"ترحيل البيانات",ok:"ترحيل"})) return;
     setMigrating(true);
-    const result = await FirebaseAPI.initializeAccounts(employees);
+    const result = await FirebaseAPI.initializeAccounts(ACCOUNTS);
     setMigrating(false);
 
     if (result.ok) {
@@ -2096,10 +2444,8 @@ function EvaluationSystem({ emp, isAdmin, allEmployees }) {
 }
 
 // ========== المعدات والصيانة ==========
-function EquipmentMaintenance({ emp, isAdmin }) {
-  // إضافة/حذف/تعديل مواصفات المعدات من قبل المشرف العام فقط
-  const canManage = isAdmin;
-  const [equipment, setEquipmentState] = useState(() => storage.get("equipment", INITIAL_EQUIPMENT));
+function EquipmentMaintenance() {
+  const [equipment, setEquipment] = useState(() => storage.get("equipment", INITIAL_EQUIPMENT));
   const [records,   setRecords]   = useState(() => storage.get("maintenance_records", []));
   const [tab,       setTab]       = useState("dashboard");
   const [selId,     setSelId]     = useState(null);
@@ -2112,18 +2458,8 @@ function EquipmentMaintenance({ emp, isAdmin }) {
   const addToast = useToast();
   const confirm  = useConfirm();
 
-  // أي تعديل يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
-  const saveEq = (updated) => {
-    setEquipmentState(updated);
-    storage.set("equipment", updated);
-    FirebaseAPI.saveEquipmentList(updated);
-  };
+  const saveEq  = (updated) => { setEquipment(updated); storage.set("equipment", updated); };
   const saveRec = (updated) => { setRecords(updated);   storage.set("maintenance_records", updated); };
-  useEffect(() => {
-    FirebaseAPI.loadEquipmentList().then(list => {
-      if (list) { setEquipmentState(list); storage.set("equipment", list); }
-    });
-  }, []);
 
   const sel = equipment.find(e => e.id === selId);
 
@@ -2146,20 +2482,17 @@ function EquipmentMaintenance({ emp, isAdmin }) {
     (stFilter   === "الكل" || e.status === stFilter)
   );
 
-  // ── CRUD equipment (المشرف العام فقط) ──
+  // ── CRUD equipment ──
   const addEquipment = (form) => {
-    if (!canManage) return;
     const newId = form.id || `EQ-${Date.now()}`;
     saveEq([...equipment, { ...form, id:newId, totalFailures:0 }]);
     setShowAdd(false); addToast("تم إضافة المعدة", "success");
   };
   const updateEquipment = (id, changes) => {
-    if (!canManage) return;
     saveEq(equipment.map(e => e.id === id ? { ...e, ...changes } : e));
     setEditEq(null); addToast("تم حفظ التعديل", "success");
   };
   const deleteEquipment = async (id) => {
-    if (!canManage) return;
     if (await confirm("هل تريد حذف هذه المعدة نهائياً؟", { title:"حذف المعدة", ok:"حذف", danger:true })) {
       saveEq(equipment.filter(e => e.id !== id));
       if (selId === id) setSelId(null);
@@ -2314,11 +2647,9 @@ function EquipmentMaintenance({ emp, isAdmin }) {
               <option value="الكل">كل الحالات</option>
               {["جيد","تحتاج صيانة","تحت صيانة","معطل"].map(s=><option key={s}>{s}</option>)}
             </select>
-            {canManage && (
-              <button onClick={()=>setShowAdd(true)} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700">
-                <Plus size={14}/> إضافة معدة
-              </button>
-            )}
+            <button onClick={()=>setShowAdd(true)} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700">
+              <Plus size={14}/> إضافة معدة
+            </button>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -2347,7 +2678,6 @@ function EquipmentMaintenance({ emp, isAdmin }) {
             <div>
               {sel ? (
                 <EqDetailPanel eq={sel} records={records.filter(r=>r.equipmentId===sel.id)}
-                  canManage={canManage}
                   onEdit={()=>setEditEq({...sel})} onDelete={()=>deleteEquipment(sel.id)}
                   onRequestMaint={()=>setShowReqForm(true)} onChangeStatus={changeStatus}
                   onComplete={completeMaintenance}/>
@@ -2368,8 +2698,8 @@ function EquipmentMaintenance({ emp, isAdmin }) {
       )}
 
       {/* modals */}
-      {canManage && showAdd && <EqFormModal onClose={()=>setShowAdd(false)}  onSave={addEquipment}   existingIds={equipment.map(e=>e.id)}/>}
-      {canManage && editEq  && <EqFormModal onClose={()=>setEditEq(null)}   onSave={d=>updateEquipment(d.id,d)} initial={editEq} isEdit/>}
+      {showAdd  && <EqFormModal onClose={()=>setShowAdd(false)}  onSave={addEquipment}   existingIds={equipment.map(e=>e.id)}/>}
+      {editEq   && <EqFormModal onClose={()=>setEditEq(null)}   onSave={d=>updateEquipment(d.id,d)} initial={editEq} isEdit/>}
       {showReqForm && sel && (
         <EqRequestModal eq={sel} onClose={()=>setShowReqForm(false)}
           onSubmit={(desc,type)=>requestMaintenance(sel.id,desc,type)}/>
@@ -2379,7 +2709,7 @@ function EquipmentMaintenance({ emp, isAdmin }) {
 }
 
 // ── لوحة تفاصيل المعدة ──
-function EqDetailPanel({ eq, records, canManage, onEdit, onDelete, onRequestMaint, onChangeStatus, onComplete }) {
+function EqDetailPanel({ eq, records, onEdit, onDelete, onRequestMaint, onChangeStatus, onComplete }) {
   const [histTab, setHistTab] = useState("info");
   const openRecs = records.filter(r=>r.status!=="مكتملة");
   const doneRecs = records.filter(r=>r.status==="مكتملة");
@@ -2389,12 +2719,10 @@ function EqDetailPanel({ eq, records, canManage, onEdit, onDelete, onRequestMain
       <div className={`p-4 ${eq.status==="جيد"?"bg-emerald-50":eq.status==="معطل"?"bg-red-50":eq.status==="تحت صيانة"?"bg-sky-50":"bg-amber-50"}`}>
         <div className="flex justify-between items-start gap-2 mb-2">
           <h3 className="font-bold text-sm leading-snug">{eq.name}</h3>
-          {canManage && (
-            <div className="flex gap-1">
-              <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-white/60 text-blue-600"><Edit3 size={13}/></button>
-              <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-white/60 text-red-500"><Trash2 size={13}/></button>
-            </div>
-          )}
+          <div className="flex gap-1">
+            <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-white/60 text-blue-600"><Edit3 size={13}/></button>
+            <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-white/60 text-red-500"><Trash2 size={13}/></button>
+          </div>
         </div>
         <div className="flex gap-1.5 flex-wrap">
           <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${EQ_STATUS_COLORS[eq.status]}`}>{eq.status}</span>
@@ -2831,29 +3159,8 @@ function AdminDashboard({ emp, employees, setEmployees }) {
     return () => clearInterval(t);
   }, []);
 
-  // جلب سجل الدخول من Firebase (يجمع سجلات جميع الأجهزة)
-  const [fbHistory, setFbHistory] = useState(null); // null = جاري التحميل
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`${FIREBASE_URL}/login_history.json`)
-      .then(r => r.json())
-      .then(data => {
-        if (cancelled || !data || typeof data !== "object") return;
-        const records = Object.values(data)
-          .filter(r => r && r.loginTime)
-          .sort((a, b) => (b.loginTime > a.loginTime ? 1 : -1));
-        if (!cancelled) setFbHistory(records);
-      })
-      .catch(() => { if (!cancelled) setFbHistory([]); });
-    return () => { cancelled = true; };
-  }, [tick]);
-
-  const localHistoryRaw = storage.get("login_history", []);
-  const localHistory = Array.isArray(localHistoryRaw) ? localHistoryRaw : [];
-  // استخدام Firebase إذا متاح، localStorage كاحتياطي
-  const loginHistory = fbHistory !== null ? fbHistory : localHistory;
-  const historySource = fbHistory !== null ? "firebase" : "local";
-
+  const loginHistoryRaw = storage.get("login_history", []);
+  const loginHistory = Array.isArray(loginHistoryRaw) ? loginHistoryRaw : [];
   const activeSessionsRaw = storage.get("active_sessions", []);
   const activeSessions = Array.isArray(activeSessionsRaw) ? activeSessionsRaw : [];
   const today = new Date().toDateString();
@@ -3027,15 +3334,7 @@ function AdminDashboard({ emp, employees, setEmployees }) {
             <input type="date" value={histDate} onChange={e=>{setHistDate(e.target.value);setHistPage(1);}} className="input rounded-xl px-3 py-2 text-sm"/>
             <button onClick={clearHistory} className="flex items-center gap-1 px-3 py-2 text-sm text-red-600 border border-red-200 rounded-xl hover:bg-red-50"><Trash2 size={13}/> مسح الكل</button>
           </div>
-          <p className="text-xs text-secondary flex items-center gap-2">
-            <span>{filteredHist.length} سجل — إجمالي اليوم: {todaySuccess} نجاح + {todayFailed} فشل</span>
-            {fbHistory === null
-              ? <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] ts-mono">جاري التحميل من Firebase...</span>
-              : historySource === "firebase"
-                ? <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] ts-mono">Firebase — جميع الأجهزة</span>
-                : <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded text-[10px] ts-mono">وضع محلي — هذا الجهاز فقط</span>
-            }
-          </p>
+          <p className="text-xs text-secondary">{filteredHist.length} سجل — إجمالي اليوم: {todaySuccess} نجاح + {todayFailed} فشل</p>
           <div className="card rounded-xl border border-color overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -3684,10 +3983,7 @@ function SignaturePad({ onSave, label = "التوقيع" }) {
 function AnnualLeaveForm({ emp }) {
   const now = new Date();
   const toast = useToast();
-  const gDrive = useGDrive();
   const STORAGE_KEY = `annual_leave_${emp.id}`;
-  const [uploadPct, setUploadPct] = useState(-1);
-  const [driveLink, setDriveLink] = useState(null);
 
   const [name, setName] = useState(emp.name);
   const [jobNum, setJobNum] = useState(emp.jobNum || "");
@@ -3735,7 +4031,7 @@ function AnnualLeaveForm({ emp }) {
     return { y: dt.getFullYear(), m: String(dt.getMonth()+1).padStart(2,"0"), day: String(dt.getDate()).padStart(2,"0") };
   };
 
-  const buildAnnualHtml = () => {
+  const printForm = () => {
     const sigHtml = sigDataUrl
       ? `<img src="${sigDataUrl}" style="max-width:130px;max-height:55px;display:block;margin:auto;"/>`
       : `<div style="min-height:44px"></div>`;
@@ -3743,11 +4039,13 @@ function AnnualLeaveForm({ emp }) {
     const fp = fmtDateParts(fromDate);
     const sentenceDays = days || "______";
     const sentencePurpose = purpose || "_________________________________";
-    return `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>إجازة اعتيادية</title>
+
+    const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>إجازة اعتيادية</title>
 <style>
   @page{size:A5 landscape;margin:7mm}
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Times New Roman',Arial,sans-serif;font-size:9pt;direction:rtl}
+  /* ===== ترويسة الوثيقة ===== */
   .doc-header{width:100%;border-collapse:collapse;font-size:8pt}
   .doc-header td{border:1px solid #555;padding:3px 6px;text-align:center;vertical-align:middle}
   .dh-company{font-size:9.5pt;font-weight:bold;background:#f0f0f0;width:16%}
@@ -3757,6 +4055,7 @@ function AnnualLeaveForm({ emp }) {
   .dh-info-cell{width:11%}
   .dh-logo{width:10%;padding:2px}
   .ref-num{text-align:left;direction:ltr;font-size:7.5pt;margin:1px 0 5px;padding-left:4px}
+  /* ===== صندوق الاستمارة ===== */
   .main-box{border:2px solid #222;padding:7px 10px}
   .top-date{font-size:8.5pt;text-align:left;direction:ltr;margin-bottom:4px}
   .top-title{font-size:11pt;font-weight:bold;text-align:center;border-bottom:1px solid #ccc;padding-bottom:4px;margin-bottom:6px}
@@ -3772,6 +4071,7 @@ function AnnualLeaveForm({ emp }) {
   .disclaimer{font-size:6.5pt;text-align:center;margin-top:5px;color:#555;border-top:1px dotted #aaa;padding-top:3px}
 </style></head>
 <body>
+<!-- ترويسة الوثيقة -->
 <table class="doc-header">
   <tr>
     <td rowspan="2" class="dh-company">شركة نفط البصرة<br/>(شركة عامة)</td>
@@ -3780,13 +4080,21 @@ function AnnualLeaveForm({ emp }) {
     <td rowspan="2" class="dh-logo">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="52" height="52">
         <rect width="120" height="120" fill="white"/>
+        <!-- Red upper C section: 210°→355° outer arc, then 355°→210° inner arc -->
         <path d="M 17.8,31.3 A 54,54 0 0,1 113.8,55.3 L 93.9,57 A 34,34 0 0,0 32.2,40.5 Z" fill="#cc1122" transform="translate(6,6)"/>
+        <!-- White stripe: 355°→5° -->
         <path d="M 113.8,55.3 A 54,54 0 0,1 113.8,64.7 L 93.9,63 A 34,34 0 0,0 93.9,57 Z" fill="white" transform="translate(6,6)"/>
+        <!-- Black lower C section: 5°→150° -->
         <path d="M 113.8,64.7 A 54,54 0 0,1 17.8,88.7 L 32.2,79.5 A 34,34 0 0,0 93.9,63 Z" fill="#111111" transform="translate(6,6)"/>
+        <!-- White inner circle -->
         <circle cx="60" cy="60" r="30" fill="white"/>
+        <!-- Green oil drop (teardrop, point up) -->
         <path d="M60,37 C72,51 80,63 80,71 Q80,90 60,90 Q40,90 40,71 C40,63 48,51 60,37Z" fill="#1e8b3a"/>
+        <!-- Drop highlight -->
         <ellipse cx="53" cy="52" rx="4" ry="7" fill="rgba(255,255,255,0.55)" transform="rotate(-25,53,52)"/>
+        <!-- Arabic text on red arc -->
         <text x="60" y="22" text-anchor="middle" fill="white" font-family="Arial,sans-serif" font-size="8.5" font-weight="bold">شركة نفط البصرة</text>
+        <!-- B.O.C text on black arc -->
         <text x="60" y="106" text-anchor="middle" fill="white" font-family="Arial,sans-serif" font-size="9.5" font-weight="bold" letter-spacing="1">B.O.C</text>
       </svg>
     </td>
@@ -3799,12 +4107,19 @@ function AnnualLeaveForm({ emp }) {
   </tr>
 </table>
 <div class="ref-num">372.3000.450</div>
+<!-- صندوق الاستمارة -->
 <div class="main-box">
   <div class="top-date">التاريخ: &nbsp;${rp.day}&nbsp; / &nbsp;${rp.m}&nbsp; / &nbsp;${rp.y}</div>
   <div class="top-title">م/ إجازة اعتيادية</div>
-  <div class="field-row"><span class="lbl">الاسم الثلاثي:</span><span class="val">${name}</span></div>
-  <div class="field-row"><span class="lbl">الرقم الوظيفي:</span><span class="val">${jobNum}</span></div>
-  <div class="field-row"><span class="lbl">العنوان الوظيفي:</span><span class="val">${jobTitle}</span></div>
+  <div class="field-row">
+    <span class="lbl">الاسم الثلاثي:</span><span class="val">${name}</span>
+  </div>
+  <div class="field-row">
+    <span class="lbl">الرقم الوظيفي:</span><span class="val">${jobNum}</span>
+  </div>
+  <div class="field-row">
+    <span class="lbl">العنوان الوظيفي:</span><span class="val">${jobTitle}</span>
+  </div>
   <div class="sentence">
     يرجى منحي إجازة اعتيادية لمدة
     (<span class="blank">&nbsp;${sentenceDays}&nbsp;</span>)
@@ -3819,10 +4134,6 @@ function AnnualLeaveForm({ emp }) {
 </div>
 <div class="disclaimer">يعتبر هذا النموذج ملك لشركة نفط البصرة فقط، لايجوز نسخه او الكشف عن محتواه بدون موافقة خطية مسبقة من قبل شركة نفط البصرة.</div>
 </body></html>`;
-  };
-
-  const printForm = () => {
-    const html = buildAnnualHtml();
     const iframe = document.createElement("iframe");
     iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0";
     document.body.appendChild(iframe);
@@ -3830,23 +4141,6 @@ function AnnualLeaveForm({ emp }) {
     iframe.contentDocument.close();
     iframe.contentWindow.focus();
     setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 2000); }, 400);
-  };
-
-  const uploadToDrive = async () => {
-    if (!gDrive.isReady) { toast.warning("يرجى ربط Google Drive أولاً"); return; }
-    setUploadPct(0); setDriveLink(null);
-    try {
-      const html = buildAnnualHtml();
-      const safeName = (name || "موظف").replace(/\s+/g, "-");
-      const file = new File([new Blob([html], { type: "text/html" })], `اجازة-اعتيادية-${safeName}-${reqDate || "بدون-تاريخ"}.html`, { type: "text/html" });
-      const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
-      setDriveLink(result.webViewLink);
-      toast.success("تم رفع نموذج الإجازة الاعتيادية إلى Drive");
-    } catch (e) {
-      toast.error("فشل رفع الملف: " + e.message);
-    } finally {
-      setUploadPct(-1);
-    }
   };
 
   return (
@@ -3871,17 +4165,7 @@ function AnnualLeaveForm({ emp }) {
         {sigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={sigDataUrl} alt="توقيع" className="max-h-14"/></div>}
       </div>
       <div className="flex flex-wrap gap-3 justify-end pt-2 border-t border-color">
-        {driveLink && (
-          <a href={driveLink} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline self-center">
-            <CheckCircle size={14}/> عرض في Drive
-          </a>
-        )}
         <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ</button>
-        {gDrive.isReady && (
-          <button onClick={uploadToDrive} disabled={uploadPct >= 0} className="flex items-center gap-2 px-4 py-2.5 bg-[#C87A2E] text-white rounded-xl font-bold text-sm disabled:opacity-60">
-            <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "رفع إلى Drive"}
-          </button>
-        )}
         <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
       </div>
     </div>
@@ -3891,850 +4175,46 @@ function AnnualLeaveForm({ emp }) {
 // ========== نموذج الإجازة المرضية ==========
 function SickLeaveForm({ emp }) {
   const toast = useToast();
-  const gDrive = useGDrive();
   const STORAGE_KEY = `sick_leave_${emp.id}`;
-  const [uploadPct, setUploadPct] = useState(-1);
-  const [driveLink, setDriveLink] = useState(null);
 
-  const [name,        setName]        = useState(emp.name);
-  const [jobNum,      setJobNum]      = useState(emp.jobNum || "");
-  const [jobTitle,    setJobTitle]    = useState(emp.title || "");
-  const [leaveDate,   setLeaveDate]   = useState("");
-  const [leaveTime,   setLeaveTime]   = useState("");
-  const [clinicDT,    setClinicDT]    = useState("");
-  const [notes,       setNotes]       = useState("");
-  const [returnDate,  setReturnDate]  = useState("");
-  const [returnTime,  setReturnTime]  = useState("");
-  const [sigDataUrl,  setSigDataUrl]  = useState(null);
+  const [name, setName] = useState(emp.name);
+  const [jobNum, setJobNum] = useState(emp.jobNum || "");
+  const [jobTitle, setJobTitle] = useState(emp.title || "");
+  const [leaveDateTime, setLeaveDateTime] = useState("");
+  const [clinicDateTime, setClinicDateTime] = useState("");
+  const [returnDateTime, setReturnDateTime] = useState("");
+  const [doctorNotes, setDoctorNotes] = useState("");
+  const [sigDataUrl, setSigDataUrl] = useState(null);
 
   useEffect(() => {
-    const s = storage.get(STORAGE_KEY, null);
-    if (s) {
-      setName(s.name || emp.name);
-      setJobNum(s.jobNum || emp.jobNum || "");
-      setJobTitle(s.jobTitle || emp.title || "");
-      setLeaveDate(s.leaveDate || "");
-      setLeaveTime(s.leaveTime || "");
-      setClinicDT(s.clinicDT || "");
-      setNotes(s.notes || "");
-      setReturnDate(s.returnDate || "");
-      setReturnTime(s.returnTime || "");
-      setSigDataUrl(s.sigDataUrl || null);
+    const saved = storage.get(STORAGE_KEY, null);
+    if (saved) {
+      setName(saved.name || emp.name);
+      setJobNum(saved.jobNum || emp.jobNum || "");
+      setJobTitle(saved.jobTitle || emp.title || "");
+      setLeaveDateTime(saved.leaveDateTime || "");
+      setClinicDateTime(saved.clinicDateTime || "");
+      setReturnDateTime(saved.returnDateTime || "");
+      setDoctorNotes(saved.doctorNotes || "");
+      setSigDataUrl(saved.sigDataUrl || null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const save = () => {
-    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, leaveDate, leaveTime, clinicDT, notes, returnDate, returnTime, sigDataUrl });
-    toast.success("تم حفظ بيانات الإجازة المرضية");
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, leaveDateTime, clinicDateTime, returnDateTime, doctorNotes, sigDataUrl });
+    toast.success("✅ تم حفظ بيانات الإجازة المرضية");
   };
 
-  const fmtDate = (d) => {
-    if (!d) return "_______________";
-    const dt = new Date(d + "T00:00:00");
-    return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`;
-  };
-  const fmtTime = (t) => t || "____ : ____";
-  const fmtDT   = (v) => {
-    if (!v) return "_______________";
+  const fmtDT = (v) => {
+    if (!v) return "___________";
     const dt = new Date(v);
     return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}  ${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
   };
 
-  const buildSickHtml = () => {
-    const sigHtml = sigDataUrl
-      ? `<img src="${sigDataUrl}" style="max-width:130px;max-height:45px;display:block;"/>`
-      : "";
-    return `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/>
-<title>نموذج إجازة مرضية</title>
-<style>
-  @page{size:A4 portrait;margin:12mm}
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Arial',sans-serif;font-size:12pt;direction:rtl;color:#111}
-  table{border-collapse:collapse;width:100%}
-  .hdr td{border:1px solid #000;padding:5px 8px;vertical-align:middle;text-align:center}
-  .lbl-cell{background:#D0D0D0;font-weight:bold;font-size:10pt;width:90px}
-  .main-cell{font-weight:bold;font-size:12pt}
-  .co-cell{background:#A0A0A0;font-weight:bold;font-size:11pt;width:120px}
-  .logo-cell{font-weight:bold;font-size:22pt;width:110px}
-  .phone{font-weight:bold;font-size:11pt;direction:ltr;text-align:left;margin:10px 0 2px}
-  .co-name{text-align:center;font-weight:bold;font-size:13pt;margin:4px 0 2px}
-  .form-title{text-align:center;font-weight:bold;font-size:13pt;margin:2px 0 12px;border-bottom:1.5px dotted #999;padding-bottom:6px}
-  .field{font-weight:bold;font-size:12pt;padding:8px 0 3px;border-bottom:1.5px dotted #999;margin-bottom:4px}
-  .field span{font-weight:normal;margin-right:6px}
-  .sec-label{font-weight:bold;font-size:12pt;margin-top:20px;margin-bottom:3px}
-  .sig-space{border-bottom:2px solid #000;min-height:48px;margin-bottom:14px;padding:4px 0}
-  .footer{text-align:center;font-size:9pt;font-style:italic;border-top:1px solid #000;border-bottom:1px solid #000;padding:5px;margin-top:24px}
-</style></head>
-<body>
-<table class="hdr">
-  <tr>
-    <td class="logo-cell" rowspan="2">☯</td>
-    <td class="lbl-cell">عنوان النموذج</td>
-    <td class="main-cell">نـمـوذج اجـازة مرضيـة</td>
-    <td class="co-cell">شركة نفط البصرة</td>
-  </tr>
-  <tr>
-    <td class="lbl-cell">رمز النموذج</td>
-    <td style="text-align:center;font-size:10pt">BOC-P-13//F02 &nbsp;&nbsp;&nbsp; رقم الإصدار: 1 &nbsp;&nbsp;&nbsp; تاريخ الإصدار: 2019/1/7</td>
-    <td></td>
-  </tr>
-</table>
-<div class="phone">372-3000-400</div>
-<div class="co-name">شركة نفط البصرة (شركة عامة )</div>
-<div class="form-title">إستمارة ترك العمل للعلاج الطبي</div>
-<div class="field">الاسم : <span>${name}</span></div>
-<div class="field">الرقم : <span>${jobNum}</span></div>
-<div class="field">المهنة : <span>${jobTitle}</span></div>
-<div class="field">تاريخ ترك العمل : <span>${fmtDate(leaveDate)}</span></div>
-<div class="field">وقت ترك العمل : <span>${fmtTime(leaveTime)}</span></div>
-<div class="sec-label">المسؤول</div>
-<div class="sig-space">${sigHtml}</div>
-<div class="field">تاريخ وقت مراجعة المستوصف : <span>${fmtDT(clinicDT)}</span></div>
-<div class="field" style="min-height:28px">الملاحظات : <span>${notes}</span></div>
-<div class="sec-label">الطبيب</div>
-<div class="sig-space"></div>
-<div class="field">تاريخ عودته الى العمل : <span>${fmtDate(returnDate)}</span></div>
-<div class="field">وقت عودته الى العمل : <span>${fmtTime(returnTime)}</span></div>
-<div class="footer">* يعتبر هذا النموذج ملك لشركة نفط البصرة . لا يجوزظ نسخه او الكشف عن محتواه بدون موافقة خطية مسبقة من قبل شركة نفط البصرة</div>
-</body></html>`;
-  };
-
   const printForm = () => {
-    const html = buildSickHtml();
-    const iframe = document.createElement("iframe");
-    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0";
-    document.body.appendChild(iframe);
-    iframe.contentDocument.write(html);
-    iframe.contentDocument.close();
-    iframe.contentWindow.focus();
-    setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 2000); }, 400);
-  };
-
-  const uploadToDrive = async () => {
-    if (!gDrive.isReady) { toast.warning("يرجى ربط Google Drive أولاً"); return; }
-    setUploadPct(0); setDriveLink(null);
-    try {
-      const html = buildSickHtml();
-      const safeName = (name || "موظف").replace(/\s+/g, "-");
-      const dateStr = leaveDate || new Date().toISOString().split("T")[0];
-      const file = new File(
-        [new Blob([html], { type: "text/html" })],
-        `اجازة-مرضية-${safeName}-${dateStr}.html`,
-        { type: "text/html" }
-      );
-      const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
-      setDriveLink(result.webViewLink);
-      toast.success("تم رفع نموذج الإجازة المرضية إلى Drive");
-    } catch (e) {
-      toast.error("فشل رفع الملف: " + e.message);
-    } finally {
-      setUploadPct(-1);
-    }
-  };
-
-  return (
-    <div className="p-6 max-w-xl mx-auto space-y-5" dir="rtl">
-      <div className="flex items-center gap-3 pb-3 border-b border-color">
-        <div className="w-10 h-10 bg-rose-500 rounded-xl flex items-center justify-center"><FileText size={20} className="text-white"/></div>
-        <div><h2 className="text-xl font-bold text-primary">إجازة مرضية — إستمارة ترك العمل للعلاج الطبي</h2><p className="text-xs text-secondary">BOC-P-13//F02 — طباعة A4 portrait</p></div>
-      </div>
-
-      {/* بيانات الموظف */}
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="block text-xs font-bold text-secondary mb-1">الاسم</label><input value={name} onChange={e=>setName(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">الرقم الوظيفي</label><input value={jobNum} onChange={e=>setJobNum(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
-      </div>
-      <div><label className="block text-xs font-bold text-secondary mb-1">المهنة</label><input value={jobTitle} onChange={e=>setJobTitle(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-
-      {/* ترك العمل */}
-      <div className="p-3 rounded-xl border border-rose-200 bg-rose-50 space-y-3">
-        <p className="text-xs font-bold text-rose-700">بيانات ترك العمل</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ ترك العمل</label><input type="date" value={leaveDate} onChange={e=>setLeaveDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-          <div><label className="block text-xs font-bold text-secondary mb-1">وقت ترك العمل</label><input type="time" value={leaveTime} onChange={e=>setLeaveTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-        </div>
-      </div>
-
-      {/* توقيع المسؤول */}
-      <div>
-        <label className="block text-xs font-bold text-secondary mb-2">توقيع المسؤول (إلكتروني)</label>
-        <SignaturePad onSave={setSigDataUrl} label="ارسم التوقيع ثم اضغط حفظ التوقيع"/>
-        {sigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={sigDataUrl} alt="توقيع" className="max-h-14"/></div>}
-      </div>
-
-      {/* مراجعة المستوصف */}
-      <div className="p-3 rounded-xl border border-blue-200 bg-blue-50 space-y-3">
-        <p className="text-xs font-bold text-blue-700">بيانات المستوصف</p>
-        <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ/وقت مراجعة المستوصف</label><input type="datetime-local" value={clinicDT} onChange={e=>setClinicDT(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">الملاحظات</label><textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={2} className="input w-full rounded-lg px-3 py-2 text-sm resize-none"/></div>
-      </div>
-
-      {/* العودة للعمل */}
-      <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50 space-y-3">
-        <p className="text-xs font-bold text-emerald-700">بيانات العودة للعمل</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ العودة للعمل</label><input type="date" value={returnDate} onChange={e=>setReturnDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-          <div><label className="block text-xs font-bold text-secondary mb-1">وقت العودة للعمل</label><input type="time" value={returnTime} onChange={e=>setReturnTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-3 justify-end pt-2 border-t border-color">
-        {driveLink && (
-          <a href={driveLink} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline self-center">
-            <CheckCircle size={14}/> عرض في Drive
-          </a>
-        )}
-        <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ</button>
-        {gDrive.isReady && (
-          <button onClick={uploadToDrive} disabled={uploadPct >= 0} className="flex items-center gap-2 px-4 py-2.5 bg-[#C87A2E] text-white rounded-xl font-bold text-sm disabled:opacity-60">
-            <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "رفع إلى Drive"}
-          </button>
-        )}
-        <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-rose-500 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
-      </div>
-    </div>
-  );
-}
-
-// ========== نموذج إجازة خارج القطر ==========
-function OutOfCountryLeaveForm({ emp }) {
-  const now = new Date();
-  const toast = useToast();
-  const gDrive = useGDrive();
-  const STORAGE_KEY = `ooc_leave_${emp.id}`;
-
-  const [name, setName] = useState(emp.name);
-  const [jobNum, setJobNum] = useState(emp.jobNum || "");
-  const [jobTitle, setJobTitle] = useState(emp.title || "");
-  const [dept, setDept] = useState(emp.dept || "");
-  const [country, setCountry] = useState("");
-  const [days, setDays] = useState("");
-  const [salaryType, setSalaryType] = useState("براتب");
-  const [purpose, setPurpose] = useState("");
-  const [reqDate, setReqDate] = useState(now.toISOString().split("T")[0]);
-  const [refNum, setRefNum] = useState("");
-  const [sigDataUrl, setSigDataUrl] = useState(null);
-  const [uploadPct, setUploadPct] = useState(-1);
-  const [driveLink, setDriveLink] = useState(null);
-  const [templateId, setTemplateId] = useState(() => storage.get("template_id_ooc", ""));
-
-  useEffect(() => {
-    const saved = storage.get(STORAGE_KEY, null);
-    if (saved) {
-      setName(saved.name || emp.name);
-      setJobNum(saved.jobNum || emp.jobNum || "");
-      setJobTitle(saved.jobTitle || emp.title || "");
-      setDept(saved.dept || emp.dept || "");
-      setCountry(saved.country || "");
-      setDays(saved.days || "");
-      setSalaryType(saved.salaryType || "براتب");
-      setPurpose(saved.purpose || "");
-      setReqDate(saved.reqDate || now.toISOString().split("T")[0]);
-      setRefNum(saved.refNum || "");
-      setSigDataUrl(saved.sigDataUrl || null);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const save = () => {
-    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, country, days, salaryType, purpose, reqDate, refNum, sigDataUrl });
-    toast.success("تم حفظ بيانات إجازة خارج القطر");
-  };
-
-  const fmtDate = (d) => {
-    if (!d) return "____/____/____";
-    const dt = new Date(d + "T00:00:00");
-    return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`;
-  };
-
-  const BOC_LOGO = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="60" height="60">
-    <rect width="120" height="120" fill="white"/>
-    <path d="M 17.8,31.3 A 54,54 0 0,1 113.8,55.3 L 93.9,57 A 34,34 0 0,0 32.2,40.5 Z" fill="#cc1122" transform="translate(6,6)"/>
-    <path d="M 113.8,55.3 A 54,54 0 0,1 113.8,64.7 L 93.9,63 A 34,34 0 0,0 93.9,57 Z" fill="white" transform="translate(6,6)"/>
-    <path d="M 113.8,64.7 A 54,54 0 0,1 17.8,88.7 L 32.2,79.5 A 34,34 0 0,0 93.9,63 Z" fill="#111111" transform="translate(6,6)"/>
-    <circle cx="60" cy="60" r="30" fill="white"/>
-    <path d="M60,37 C72,51 80,63 80,71 Q80,90 60,90 Q40,90 40,71 C40,63 48,51 60,37Z" fill="#1e8b3a"/>
-    <ellipse cx="53" cy="52" rx="4" ry="7" fill="rgba(255,255,255,0.55)" transform="rotate(-25,53,52)"/>
-    <text x="60" y="22" text-anchor="middle" fill="white" font-family="Arial,sans-serif" font-size="8.5" font-weight="bold">شركة نفط البصرة</text>
-    <text x="60" y="106" text-anchor="middle" fill="white" font-family="Arial,sans-serif" font-size="9.5" font-weight="bold" letter-spacing="1">B.O.C</text>
-  </svg>`;
-
-  const buildOocHtml = () => {
-    const sigHtml = sigDataUrl
-      ? `<img src="${sigDataUrl}" style="max-width:120px;max-height:50px;display:block;margin:8px auto 0;"/>`
-      : "";
-    return `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/>
-<title>نموذج طلب اجازة خارج جمهورية العراق</title>
-<style>
-  @page{size:A4 portrait;margin:15mm 12mm}
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Times New Roman',Arial,sans-serif;font-size:11pt;direction:rtl;color:#111}
-  table{border-collapse:collapse}
-  .hdr{width:100%;margin-bottom:10px}
-  .hdr td{border:1px solid #444;padding:5px 8px;vertical-align:middle;text-align:center}
-  .hdr-company{font-size:12pt;font-weight:bold;background:#f0f0f0;width:20%;text-align:center}
-  .hdr-lbl{font-size:9pt;color:#555;text-align:right;padding-right:6px;background:#fafafa;width:14%}
-  .hdr-val{font-size:11.5pt;font-weight:bold;width:44%}
-  .hdr-info{font-size:9pt;width:22%}
-  .hdr-logo{width:10%;padding:3px}
-  .subject{font-size:13pt;font-weight:bold;margin:14px 0 10px;text-decoration:underline}
-  .flds{width:100%;margin-bottom:14px}
-  .flds td{padding:6px 10px;border-bottom:1px dotted #bbb;font-size:11pt}
-  .fld-lbl{font-weight:bold;width:32%;white-space:nowrap}
-  .fld-val{border-bottom:1.5px solid #333}
-  .req{font-size:11.5pt;line-height:2.6;border:1.5px solid #333;padding:10px 14px;margin-bottom:12px;background:#fefefe}
-  .blank{display:inline-block;border-bottom:1.5px solid #333;min-width:70px;text-align:center;padding:0 4px;font-weight:bold}
-  .blank-lg{min-width:130px}
-  .salut{font-size:11pt;text-align:right;margin-bottom:16px}
-  .sig4{display:flex;gap:8px;margin:14px 0 8px}
-  .sbox{flex:1;border:1.5px solid #333;text-align:center;padding:5px 3px;min-height:80px}
-  .stitle{font-weight:bold;font-size:10pt;border-bottom:1px solid #ccc;padding-bottom:4px;margin-bottom:6px}
-  .note{font-size:9.5pt;border:1px dotted #888;padding:7px 12px;margin-top:8px;line-height:1.8;color:#333}
-  .sep{border-top:2px dashed #444;margin:22px 0 16px}
-  .fwd-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
-  .fwd-meta{font-size:11pt;line-height:2.2}
-  .fwd-meta span{font-weight:bold;border-bottom:1.5px solid #333;min-width:60px;display:inline-block;padding:0 4px}
-  .fwd-refs{font-size:11pt;line-height:2.2;text-align:left;direction:ltr}
-  .fwd-refs span{border-bottom:1.5px solid #333;min-width:80px;display:inline-block;text-align:center}
-  .fwd-subj{font-size:12pt;font-weight:bold;text-decoration:underline;margin:10px 0 12px}
-  .fwd-body{font-size:11pt;line-height:2.4;margin-bottom:10px}
-  .fwd-sigrow{display:flex;justify-content:flex-start;margin-top:20px}
-  .fwd-sigbox{border:1.5px solid #333;text-align:center;padding:6px 24px;min-height:70px;min-width:220px}
-</style></head>
-<body>
-<table class="hdr">
-  <tr>
-    <td rowspan="2" class="hdr-company">شركة نفط البصرة<br/>(شركة عامة)</td>
-    <td class="hdr-lbl">عنوان النموذج</td>
-    <td colspan="2" class="hdr-val">نموذج طلب اجازة خارج جمهورية العراق</td>
-    <td rowspan="2" class="hdr-logo">${BOC_LOGO}</td>
-  </tr>
-  <tr>
-    <td class="hdr-lbl">رمز النموذج</td>
-    <td class="hdr-info" style="font-weight:bold">BOC-P-HR/F05</td>
-    <td class="hdr-info">رقم الإصدار: 1 &nbsp;|&nbsp; تاريخ الإصدار: 2023/4/10</td>
-  </tr>
-</table>
-
-<div class="subject">م/ إجازة اعتيادية خارج جمهورية العراق</div>
-
-<table class="flds">
-  <tr><td class="fld-lbl">الاسم الثلاثي :</td><td class="fld-val">${name}</td></tr>
-  <tr><td class="fld-lbl">الرقم الوظيفي :</td><td class="fld-val">${jobNum}</td></tr>
-  <tr><td class="fld-lbl">العنوان الوظيفي :</td><td class="fld-val">${jobTitle}</td></tr>
-  <tr><td class="fld-lbl">تاريخ تقديم الطلب :</td><td class="fld-val">${fmtDate(reqDate)}</td></tr>
-</table>
-
-<div class="req">
-  ارجو التفضل بالموافقة على منحي اجازة اعتيادية خارج جمهورية العراق
-  ( <span class="blank blank-lg">&nbsp;${country || "_______________"}&nbsp;</span> )
-  ولمدة
-  ( <span class="blank">&nbsp;${days || "____"}&nbsp;</span> يوما )
-  ( <span class="blank">&nbsp;${salaryType}&nbsp;</span> لغرض )
-  ( <span class="blank blank-lg">&nbsp;${purpose || "___________________________"}&nbsp;</span> )
-  وابتدآ من تاريخ الانفكاك .
-</div>
-
-<div class="salut">مع التقدير ...</div>
-
-<div class="sig4">
-  <div class="sbox"><div class="stitle">مسؤول الشعبة</div>${sigHtml}</div>
-  <div class="sbox"><div class="stitle">مدير القسم</div></div>
-  <div class="sbox"><div class="stitle">مدير هيأة الصيانة الهندسية</div></div>
-  <div class="sbox"><div class="stitle">المعاون المختص</div></div>
-</div>
-
-<div class="note">
-  <strong>ملاحظة :</strong>
-  يرسل الطلب الى الهيئة الادارية في حال طلب الاجازة ( براتب تام) لاكثر من 3 اشهر ولغاية 4 اشهر وفي حال طلب الاجازة ( بدون راتب )
-</div>
-
-<div class="sep"></div>
-
-<div class="fwd-top">
-  <div class="fwd-meta">
-    <div>من / <span>${dept || "قسم السيطرة والنظم"}</span></div>
-    <div>الى / السيد مدير هيأة الصيانة الهندسية</div>
-  </div>
-  <div class="fwd-refs" dir="rtl">
-    <div>العـــدد : <span>${refNum || "________"}</span></div>
-    <div>التاريخ : <span>${fmtDate(reqDate)}</span></div>
-  </div>
-</div>
-
-<div class="fwd-subj">م/ طلب اجازة اعتيادية خارج جمهورية العراق</div>
-
-<div class="fwd-body">
-  نرفق لكم اعلاه طلب السيد
-  <span style="border-bottom:1.5px solid #333;padding:0 6px;font-weight:bold">&nbsp;${name}&nbsp;</span>
-  للتفضل بالموافقة على منحه الاجازة المطلوبة وحسب صلاحيتكم
-</div>
-
-<div class="salut">مع التقدير...</div>
-
-<div class="fwd-sigrow">
-  <div class="fwd-sigbox">
-    <div class="stitle">توقيع مدير الهيئة الادارية</div>
-    <div style="margin-top:8px;font-size:10pt">التوقيع : ________________</div>
-  </div>
-</div>
-
-</body></html>`;
-  };
-
-  const printForm = () => {
-    const html = buildOocHtml();
-    const iframe = document.createElement("iframe");
-    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0";
-    document.body.appendChild(iframe);
-    iframe.contentDocument.write(html);
-    iframe.contentDocument.close();
-    iframe.contentWindow.focus();
-    setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 2000); }, 400);
-  };
-
-  const uploadAsWord = async () => {
-    if (!gDrive.isReady) { toast.warning("يرجى ربط Google Drive أولاً"); return; }
-    setUploadPct(0); setDriveLink(null);
-    try {
-      const {
-        Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-        WidthType, AlignmentType, VerticalAlign, BorderStyle, ShadingType,
-        UnderlineType,
-      } = await import("docx");
-
-      // ── border helpers ──
-      const SB  = { style: BorderStyle.SINGLE,  size: 8,  color: "444444" };
-      const DB  = { style: BorderStyle.DOTTED,  size: 4,  color: "AAAAAA" };
-      const DSH = { style: BorderStyle.DASHED,  size: 8,  color: "555555" };
-      const NB  = { style: BorderStyle.NONE,    size: 0,  color: "FFFFFF" };
-
-      // ── text helpers ──
-      const ar = (text, opts = {}) => new TextRun({
-        text,
-        rightToLeft: true,
-        font: "Times New Roman",
-        size: opts.sz || 22,
-        bold: opts.b || false,
-        underline: opts.u ? { type: UnderlineType.SINGLE } : undefined,
-      });
-
-      const p = (runs, opts = {}) => new Paragraph({
-        bidirectional: true,
-        alignment: opts.al !== undefined ? opts.al : AlignmentType.RIGHT,
-        spacing: { before: opts.sb !== undefined ? opts.sb : 80, after: opts.sa !== undefined ? opts.sa : 80 },
-        border: opts.bdr,
-        children: Array.isArray(runs) ? runs : [runs],
-      });
-
-      // ── cell helper ──
-      const tc = (content, opts = {}) => new TableCell({
-        width: opts.w ? { size: opts.w, type: WidthType.PERCENTAGE } : undefined,
-        rowSpan: opts.rs,
-        columnSpan: opts.cs,
-        verticalAlign: VerticalAlign.CENTER,
-        shading: opts.fill ? { type: ShadingType.CLEAR, fill: opts.fill } : undefined,
-        borders: {
-          top:    opts.bt !== undefined ? opts.bt : SB,
-          bottom: opts.bb !== undefined ? opts.bb : SB,
-          left:   opts.bl !== undefined ? opts.bl : SB,
-          right:  opts.br !== undefined ? opts.br : SB,
-        },
-        children: Array.isArray(content) ? content : [content],
-      });
-
-      // ── HEADER TABLE ──
-      const headerTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          new TableRow({ children: [
-            tc([p(ar("شركة نفط البصرة", { b: true, sz: 22 }), { al: AlignmentType.CENTER, sb: 40, sa: 20 }),
-                p(ar("(شركة عامة)", { sz: 20 }),              { al: AlignmentType.CENTER, sb: 20, sa: 40 })],
-               { rs: 2, fill: "F0F0F0" }),
-            tc(p(ar("عنوان النموذج", { sz: 18 }), { al: AlignmentType.CENTER }), { fill: "FAFAFA" }),
-            tc(p(ar("نموذج طلب اجازة خارج جمهورية العراق", { b: true, sz: 24 }), { al: AlignmentType.CENTER, sb: 40, sa: 40 }), { cs: 2 }),
-            tc([p(ar("B.O.C",              { b: true, sz: 28 }), { al: AlignmentType.CENTER, sb: 30, sa: 10 }),
-                p(ar("شركة نفط البصرة",   { sz: 14 }),           { al: AlignmentType.CENTER, sb: 0,  sa: 30 })],
-               { rs: 2 }),
-          ]}),
-          new TableRow({ children: [
-            tc(p(ar("رمز النموذج", { sz: 18 }), { al: AlignmentType.CENTER }), { fill: "FAFAFA" }),
-            tc(p(ar("BOC-P-HR/F05", { b: true, sz: 20 }), { al: AlignmentType.CENTER })),
-            tc([p(ar("رقم الإصدار: 1",        { sz: 18 }), { al: AlignmentType.CENTER, sb: 30, sa: 20 }),
-                p(ar("تاريخ الإصدار: 2023/4/10", { sz: 18 }), { al: AlignmentType.CENTER, sb: 20, sa: 30 })]),
-          ]}),
-        ],
-      });
-
-      // ── FIELDS TABLE ──
-      const fieldsTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          ["الاسم الثلاثي :", name || ""],
-          ["الرقم الوظيفي :", jobNum || ""],
-          ["العنوان الوظيفي :", jobTitle || ""],
-          ["تاريخ تقديم الطلب :", fmtDate(reqDate)],
-        ].map(([lbl, val]) => new TableRow({ children: [
-          tc(p(ar(lbl, { b: true }),  { sb: 80, sa: 80 }), { w: 30, bt: NB, bb: DB, bl: NB, br: NB }),
-          tc(p(ar(val),               { sb: 80, sa: 80 }), { w: 70, bt: NB, bb: SB, bl: NB, br: NB }),
-        ]})),
-      });
-
-      // ── REQUEST PARAGRAPH (bordered box) ──
-      const PB = { value: "single", size: 8, color: "333333" };
-      const reqPara = p([
-        ar("ارجو التفضل بالموافقة على منحي اجازة اعتيادية خارج جمهورية العراق ( "),
-        ar(country || "_______________", { b: true }),
-        ar(" ) ولمدة ( "),
-        ar(days || "____", { b: true }),
-        ar(" يوما ) ( "),
-        ar(salaryType || "براتب", { b: true }),
-        ar(" لغرض ) ( "),
-        ar(purpose || "___________________________", { b: true }),
-        ar(" ) وابتدآ من تاريخ الانفكاك ."),
-      ], { sb: 160, sa: 160, bdr: { top: PB, bottom: PB, left: PB, right: PB } });
-
-      // ── 4-COLUMN SIGNATURE TABLE ──
-      const sigCell = (title) => tc([
-        p(ar(title, { b: true, sz: 20 }), { al: AlignmentType.CENTER, sb: 60, sa: 300 }),
-        p(ar(""), { sb: 0, sa: 60 }),
-      ]);
-      const sig4Table = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [new TableRow({ children: [
-          sigCell("مسؤول الشعبة"),
-          sigCell("مدير القسم"),
-          sigCell("مدير هيأة الصيانة الهندسية"),
-          sigCell("المعاون المختص"),
-        ]})],
-      });
-
-      // ── NOTE ──
-      const PBD = { value: "dotted", size: 4, color: "999999" };
-      const notePara = p([
-        ar("ملاحظة : ", { b: true, sz: 20 }),
-        ar("يرسل الطلب الى الهيئة الادارية في حال طلب الاجازة ( براتب تام) لاكثر من 3 اشهر ولغاية 4 اشهر وفي حال طلب الاجازة ( بدون راتب )", { sz: 20 }),
-      ], { sb: 100, sa: 100, bdr: { top: PBD, bottom: PBD, left: PBD, right: PBD } });
-
-      // ── DASHED SEPARATOR ──
-      const sep = p(ar(""), { sb: 240, sa: 240,
-        bdr: { bottom: { value: "dashed", size: 8, color: "555555" } }
-      });
-
-      // ── FORWARDING LETTER HEADER (2-col, no-border table) ──
-      const fwdHeaderTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [new TableRow({ children: [
-          tc([
-            p([ar("من / "), ar(dept || "قسم السيطرة والنظم", { b: true })], { sb: 60, sa: 60 }),
-            p(ar("الى / السيد مدير هيأة الصيانة الهندسية"),                  { sb: 60, sa: 60 }),
-          ], { bt: NB, bb: NB, bl: NB, br: NB }),
-          tc([
-            p([ar("العـــدد : "), ar(refNum || "________", { b: true })], { al: AlignmentType.RIGHT, sb: 60, sa: 60 }),
-            p([ar("التاريخ : "), ar(fmtDate(reqDate), { b: true })],       { al: AlignmentType.RIGHT, sb: 60, sa: 60 }),
-          ], { bt: NB, bb: NB, bl: NB, br: NB }),
-        ]})],
-      });
-
-      // ── FWD SIGNATURE BOX ──
-      const fwdSigTable = new Table({
-        width: { size: 45, type: WidthType.PERCENTAGE },
-        rows: [new TableRow({ children: [
-          tc([
-            p(ar("توقيع مدير الهيئة الادارية", { b: true, sz: 20 }), { al: AlignmentType.CENTER, sb: 60, sa: 260 }),
-            p(ar("التوقيع : ________________", { sz: 20 }),            { al: AlignmentType.CENTER, sb: 40, sa: 60 }),
-          ]),
-        ]})],
-      });
-
-      // ── BUILD DOCUMENT ──
-      const doc = new Document({
-        sections: [{
-          properties: {
-            page: {
-              size:   { width: 11906, height: 16838 },
-              margin: { top: 1700, right: 1360, bottom: 1700, left: 1360 },
-            },
-          },
-          children: [
-            headerTable,
-            p(ar(""), { sb: 120, sa: 0 }),
-            p(ar("م/ إجازة اعتيادية خارج جمهورية العراق", { b: true, sz: 26, u: true }), { sb: 80, sa: 140 }),
-            fieldsTable,
-            p(ar(""), { sb: 80, sa: 0 }),
-            reqPara,
-            p(ar("مع التقدير ...", { sz: 22 }), { sb: 120, sa: 120 }),
-            sig4Table,
-            p(ar(""), { sb: 60, sa: 0 }),
-            notePara,
-            sep,
-            fwdHeaderTable,
-            p(ar("م/ طلب اجازة اعتيادية خارج جمهورية العراق", { b: true, sz: 24, u: true }), { sb: 120, sa: 80 }),
-            p([
-              ar("نرفق لكم اعلاه طلب السيد "),
-              ar(name || "___________", { b: true, u: true }),
-              ar(" للتفضل بالموافقة على منحه الاجازة المطلوبة وحسب صلاحيتكم"),
-            ], { sb: 80, sa: 120 }),
-            p(ar("مع التقدير...", { sz: 22 }), { sb: 120, sa: 180 }),
-            fwdSigTable,
-          ],
-        }],
-      });
-
-      const blob = await Packer.toBlob(doc);
-      const safeName = (name || "موظف").replace(/\s+/g, "-");
-      const file = new File(
-        [blob],
-        `اجازة-خارج-العراق-${safeName}-${reqDate || "بدون-تاريخ"}.docx`,
-        { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }
-      );
-      const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
-      setDriveLink(result.webViewLink);
-      toast.success("تم حفظ الاستمارة كملف Word في Drive");
-    } catch (e) {
-      console.error("docx build error:", e);
-      toast.error("فشل إنشاء ملف Word: " + e.message);
-    } finally {
-      setUploadPct(-1);
-    }
-  };
-
-  const fillFromTemplate = async () => {
-    if (!gDrive.isReady) { toast.warning("يرجى ربط Google Drive أولاً"); return; }
-    if (!templateId.trim()) { toast.warning("يرجى إدخال معرف ملف القالب"); return; }
-    setUploadPct(0); setDriveLink(null);
-    try {
-      const { default: JSZip } = await import("jszip");
-
-      // تنزيل القالب
-      let arrayBuffer;
-      try {
-        arrayBuffer = await gDrive.downloadFile(templateId.trim());
-      } catch (dlErr) {
-        throw new Error("فشل تنزيل القالب من Drive: " + dlErr.message);
-      }
-      if (!arrayBuffer || arrayBuffer.byteLength === 0) throw new Error("الملف المُنزَّل فارغ — تحقق من File ID");
-
-      const zip = await JSZip.loadAsync(arrayBuffer);
-
-      const esc = (s) => String(s || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-
-      const replacements = {
-        "{{الاسم}}":           esc(name),
-        "{{الرقم_الوظيفي}}":  esc(jobNum),
-        "{{العنوان_الوظيفي}}": esc(jobTitle),
-        "{{القسم}}":           esc(dept),
-        "{{البلد}}":           esc(country),
-        "{{الأيام}}":          esc(days),
-        "{{الراتب}}":          esc(salaryType),
-        "{{الغرض}}":           esc(purpose),
-        "{{التاريخ}}":         esc(fmtDate(reqDate)),
-        "{{العدد}}":           esc(refNum),
-      };
-
-      // دمج النصوص المقسّمة بين عناصر XML المتجاورة
-      // Word يقسّم {{النص}} أحياناً على عدة <w:r> مما يمنع الاستبدال
-      const mergeRuns = (xmlContent) =>
-        xmlContent.replace(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g, (para) =>
-          para.replace(
-            /<\/w:t><\/w:r>(\s*<w:r[^>]*>)(\s*<w:rPr>[\s\S]*?<\/w:rPr>)?\s*<w:t[^>]*>/g,
-            ""
-          )
-        );
-
-      let replacedCount = 0;
-      for (const path of Object.keys(zip.files).filter(f => f.startsWith("word/") && f.endsWith(".xml"))) {
-        let content = await zip.file(path).async("string");
-        content = mergeRuns(content);
-        for (const [ph, val] of Object.entries(replacements)) {
-          const before = content;
-          content = content.split(ph).join(val);
-          if (content !== before) replacedCount++;
-        }
-        zip.file(path, content);
-      }
-
-      if (replacedCount === 0) {
-        const phList = Object.keys(replacements).join("  ");
-        throw new Error(`لم يُعثر على أي حقل قابل للاستبدال في القالب.\n\nتأكد أن ملف القالب يحتوي على أحد هذه النصوص:\n${phList}`);
-      }
-
-      const blob = await zip.generateAsync({
-        type: "blob",
-        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      });
-      const safeName = (name || "موظف").replace(/\s+/g, "-");
-      const file = new File(
-        [blob],
-        `اجازة-خارج-العراق-${safeName}-${reqDate || "بدون-تاريخ"}.docx`,
-        { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }
-      );
-      const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
-      setDriveLink(result?.webViewLink || null);
-      toast.success(`تم تعبئة ${replacedCount} حقل ورفع النسخة المعبأة إلى Drive ✅`);
-    } catch (e) {
-      console.error("fillFromTemplate error:", e);
-      alert("خطأ في تعبئة القالب:\n\n" + e.message);
-      toast.error("فشل تعبئة القالب");
-    } finally {
-      setUploadPct(-1);
-    }
-  };
-
-  return (
-    <div className="p-6 max-w-2xl mx-auto space-y-5" dir="rtl">
-      <div className="flex items-center gap-3 pb-3 border-b border-color">
-        <div className="w-10 h-10 bg-violet-600 rounded-xl flex items-center justify-center"><Globe size={20} className="text-white"/></div>
-        <div><h2 className="text-xl font-bold text-primary">إجازة خارج جمهورية العراق</h2><p className="text-xs text-secondary">BOC-P-HR/F05 — ملف Word في Drive + طباعة A4</p></div>
-      </div>
-
-      <div><label className="block text-xs font-bold text-secondary mb-1">الاسم الثلاثي</label><input value={name} onChange={e=>setName(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="block text-xs font-bold text-secondary mb-1">الرقم الوظيفي</label><input value={jobNum} onChange={e=>setJobNum(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">العنوان الوظيفي</label><input value={jobTitle} onChange={e=>setJobTitle(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="block text-xs font-bold text-secondary mb-1">القسم (للكتاب المرفق)</label><input value={dept} onChange={e=>setDept(e.target.value)} placeholder="مثال: قسم السيطرة والنظم" className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ تقديم الطلب</label><input type="date" value={reqDate} onChange={e=>setReqDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="block text-xs font-bold text-secondary mb-1">البلد / الجمهورية المقصودة</label><input value={country} onChange={e=>setCountry(e.target.value)} placeholder="مثال: جمهورية الهند" className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">مدة الإجازة (يوم)</label><input type="number" min="1" value={days} onChange={e=>setDays(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-bold text-secondary mb-1">نوع الراتب</label>
-          <select value={salaryType} onChange={e=>setSalaryType(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm">
-            <option value="براتب">براتب</option>
-            <option value="بدون راتب">بدون راتب</option>
-          </select>
-        </div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">رقم العدد (للكتاب المرفق)</label><input value={refNum} onChange={e=>setRefNum(e.target.value)} placeholder="مثال: 1234" className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
-      </div>
-      <div><label className="block text-xs font-bold text-secondary mb-1">الغرض من الإجازة</label><input value={purpose} onChange={e=>setPurpose(e.target.value)} placeholder="مثال: مرافقة علاج مريض" className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-
-      <div>
-        <label className="block text-xs font-bold text-secondary mb-2">توقيع مسؤول الشعبة (إلكتروني)</label>
-        <SignaturePad onSave={setSigDataUrl} label="ارسم التوقيع ثم اضغط حفظ التوقيع"/>
-        {sigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={sigDataUrl} alt="توقيع" className="max-h-14"/></div>}
-      </div>
-
-      <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-800 leading-relaxed">
-        <strong>ملاحظة:</strong> يرسل الطلب الى الهيئة الادارية في حال طلب الاجازة (براتب تام) لأكثر من 3 اشهر ولغاية 4 اشهر وفي حال طلب الاجازة (بدون راتب)
-      </div>
-
-      {gDrive.isReady && (
-        <div className="p-4 rounded-xl border border-violet-200 bg-violet-50 space-y-3">
-          <p className="text-xs font-bold text-violet-800">تعبئة قالب Word موجود في Drive</p>
-          <div className="flex gap-2">
-            <input
-              value={templateId}
-              onChange={e => { setTemplateId(e.target.value); storage.set("template_id_ooc", e.target.value); }}
-              placeholder="معرّف ملف القالب في Drive (File ID)"
-              className="input flex-1 rounded-lg px-3 py-2 text-sm font-mono"
-              dir="ltr"
-            />
-            <button
-              onClick={fillFromTemplate}
-              disabled={uploadPct >= 0 || !templateId.trim()}
-              className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-xl font-bold text-sm disabled:opacity-50 whitespace-nowrap"
-            >
-              <FileText size={14}/> {uploadPct >= 0 ? `${uploadPct}%` : "تعبئة القالب"}
-            </button>
-          </div>
-          <p className="text-[11px] text-violet-600">
-            ستجد معرّف الملف في رابط Drive: .../file/d/<strong>FILE_ID</strong>/view
-            — ضع في القالب العناصر النصية: {"{{الاسم}}"} {"{{البلد}}"} {"{{الأيام}}"} {"{{الراتب}}"} {"{{الغرض}}"} {"{{التاريخ}}"} {"{{العدد}}"} إلخ.
-          </p>
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-3 justify-end pt-2 border-t border-color">
-        {driveLink && (
-          <a href={driveLink} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline self-center">
-            <CheckCircle size={14}/> عرض في Drive
-          </a>
-        )}
-        <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ</button>
-        {gDrive.isReady && (
-          <button onClick={uploadAsWord} disabled={uploadPct >= 0} className="flex items-center gap-2 px-4 py-2.5 bg-[#C87A2E] text-white rounded-xl font-bold text-sm disabled:opacity-60">
-            <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "Word في Drive"}
-          </button>
-        )}
-        <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
-      </div>
-    </div>
-  );
-}
-
-// ========== نموذج الإجازة الزمنية ==========
-function TimeLeaveForm({ emp }) {
-  const now = new Date();
-  const toast = useToast();
-  const gDrive = useGDrive();
-  const STORAGE_KEY = `time_leave_${emp.id}`;
-
-  const [name, setName] = useState(emp.name);
-  const [jobNum, setJobNum] = useState(emp.jobNum || "");
-  const [jobTitle, setJobTitle] = useState(emp.title || "");
-  const [dept, setDept] = useState(emp.dept || "");
-  const [leaveDate, setLeaveDate] = useState(now.toISOString().split("T")[0]);
-  const [departureTime, setDepartureTime] = useState("");
-  const [returnTime, setReturnTime] = useState("");
-  const [hours, setHours] = useState("");
-  const [reason, setReason] = useState("");
-  const [sigDataUrl, setSigDataUrl] = useState(null);
-  const [uploadPct, setUploadPct] = useState(-1);
-  const [driveLink, setDriveLink] = useState(null);
-
-  useEffect(() => {
-    const saved = storage.get(STORAGE_KEY, null);
-    if (saved) {
-      setName(saved.name || emp.name);
-      setJobNum(saved.jobNum || emp.jobNum || "");
-      setJobTitle(saved.jobTitle || emp.title || "");
-      setDept(saved.dept || emp.dept || "");
-      setLeaveDate(saved.leaveDate || now.toISOString().split("T")[0]);
-      setDepartureTime(saved.departureTime || "");
-      setReturnTime(saved.returnTime || "");
-      setHours(saved.hours || "");
-      setReason(saved.reason || "");
-      setSigDataUrl(saved.sigDataUrl || null);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (departureTime && returnTime) {
-      const [dh, dm] = departureTime.split(":").map(Number);
-      const [rh, rm] = returnTime.split(":").map(Number);
-      const diff = (rh * 60 + rm) - (dh * 60 + dm);
-      if (diff > 0) setHours((diff / 60).toFixed(1).replace(/\.0$/, ""));
-    }
-  }, [departureTime, returnTime]);
-
-  const save = () => {
-    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, leaveDate, departureTime, returnTime, hours, reason, sigDataUrl });
-    toast.success("تم حفظ بيانات الإجازة الزمنية");
-  };
-
-  const fmtDate = (d) => {
-    if (!d) return "____/____/____";
-    const dt = new Date(d);
-    return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`;
-  };
-
-  const fmtTime = (t) => t || "____ : ____";
-
-  const buildTimeHtml = () => {
-    const sigHtml = sigDataUrl
-      ? `<img src="${sigDataUrl}" style="max-width:120px;max-height:50px;display:block;margin:auto;"/>`
-      : `<div style="min-height:40px"></div>`;
-    return `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>إجازة زمنية</title>
+    const sigHtml = sigDataUrl ? `<img src="${sigDataUrl}" style="max-width:120px;max-height:50px;display:block;margin:auto;"/>` : `<div style="min-height:38px"></div>`;
+    const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>إجازة مرضية</title>
 <style>
   @page{size:A5 portrait;margin:8mm}
   *{margin:0;padding:0;box-sizing:border-box}
@@ -4744,64 +4224,35 @@ function TimeLeaveForm({ emp }) {
   .h-mid{flex:1;text-align:center;padding:4px 6px}
   .h-ref{width:85px;border-right:1px solid #333;padding:3px 5px;font-size:7.5pt;text-align:center;line-height:1.6}
   .company{font-size:10.5pt;font-weight:bold}
-  .csub{font-size:8pt;color:#444}
-  .form-title{font-size:11pt;font-weight:bold;text-align:center;margin-bottom:6px;border:1.5px solid #333;padding:4px}
+  .csub{font-size:8pt}
+  .form-title{font-size:11pt;font-weight:bold;text-align:center;margin-bottom:5px;border:1.5px solid #333;padding:3px}
   .fr{display:flex;align-items:baseline;gap:6px;margin-bottom:5px;border-bottom:1px dotted #bbb;padding-bottom:3px}
   .lbl{font-weight:bold;font-size:8.5pt;min-width:70px;white-space:nowrap}
   .val{flex:1;font-size:9pt}
-  .time-row{display:flex;gap:10px;margin:8px 0}
-  .time-box{flex:1;border:1.5px solid #333;text-align:center;padding:6px 4px}
-  .time-label{font-weight:bold;font-size:8pt;margin-bottom:4px;border-bottom:1px solid #ccc;padding-bottom:2px}
-  .time-val{font-size:11pt;font-weight:bold;direction:ltr}
-  .sentence{font-size:9pt;margin:6px 0;line-height:2.0;border:1px solid #ccc;padding:5px 8px;background:#fafafa}
-  .blank{display:inline-block;min-width:40px;text-align:center;font-weight:bold;border-bottom:1px solid #555;padding:0 2px}
-  .sig-row{display:flex;gap:8px;margin-top:8px}
-  .sig-box{border:1.5px solid #333;text-align:center;padding:5px 4px;min-height:58px;flex:1}
-  .sig-title{font-weight:bold;font-size:8pt;margin-bottom:3px}
-  .fn{font-size:7pt;margin-top:5px;text-align:center;border-top:1px dotted #aaa;padding-top:3px;color:#555}
+  .sig-box{border:1.5px solid #333;text-align:center;padding:4px;min-height:58px;margin:5px 0}
+  .stitle{font-weight:bold;font-size:8.5pt;margin-bottom:3px}
+  .divider{border-top:1.5px solid #333;margin:6px 0}
+  .fn{font-size:7pt;margin-top:6px;text-align:center;border-top:1px dotted #aaa;padding-top:3px;color:#555}
 </style></head>
 <body>
 <div class="header">
   <div class="h-logo">BOC</div>
-  <div class="h-mid">
-    <div class="company">شركة نفط البصرة (شركة عامة)</div>
-    <div class="csub">إدارة الموارد البشرية — شعبة مستودع الفاو</div>
-  </div>
-  <div class="h-ref"><div>BOC-P-13/F04</div><div>2022/6/1</div><div>372-3000-400</div></div>
+  <div class="h-mid"><div class="company">شركة نفط البصرة (شركة عامة)</div><div class="csub">استمارة ترك العمل للعلاج الطبي</div></div>
+  <div class="h-ref"><div>BOC-P-13//F02</div><div>2019/9/7</div><div>372-3000-400</div></div>
 </div>
-<div class="form-title">نموذج إجازة زمنية</div>
-<div class="fr"><span class="lbl">الاسم الثلاثي:</span><span class="val">${name}</span></div>
+<div class="form-title">نموذج إجازة مرضية</div>
+<div class="fr"><span class="lbl">الاسم:</span><span class="val">${name}</span></div>
 <div class="fr"><span class="lbl">الرقم الوظيفي:</span><span class="val">${jobNum}</span></div>
-<div class="fr"><span class="lbl">العنوان الوظيفي:</span><span class="val">${jobTitle}</span></div>
-<div class="fr"><span class="lbl">القسم / الشعبة:</span><span class="val">${dept || "—"}</span></div>
-<div class="fr"><span class="lbl">تاريخ الإجازة:</span><span class="val">${fmtDate(leaveDate)}</span></div>
-<div class="time-row">
-  <div class="time-box">
-    <div class="time-label">وقت المغادرة</div>
-    <div class="time-val">${fmtTime(departureTime)}</div>
-  </div>
-  <div class="time-box">
-    <div class="time-label">وقت العودة</div>
-    <div class="time-val">${fmtTime(returnTime)}</div>
-  </div>
-  <div class="time-box">
-    <div class="time-label">عدد الساعات</div>
-    <div class="time-val">${hours || "—"}</div>
-  </div>
-</div>
-<div class="sentence">
-  السبب / الغرض: &nbsp;<span class="blank">&nbsp;${reason || "___________________________________"}&nbsp;</span>
-</div>
-<div class="sig-row">
-  <div class="sig-box"><div class="sig-title">توقيع الموظف</div>${sigHtml}</div>
-  <div class="sig-box"><div class="sig-title">توقيع المسؤول المباشر</div></div>
-</div>
+<div class="fr"><span class="lbl">المهنة:</span><span class="val">${jobTitle}</span></div>
+<div class="fr"><span class="lbl">تاريخ/وقت ترك العمل:</span><span class="val">${fmtDT(leaveDateTime)}</span></div>
+<div class="sig-box"><div class="stitle">توقيع المسؤول</div>${sigHtml}</div>
+<div class="divider"></div>
+<div class="fr"><span class="lbl">تاريخ/وقت مراجعة المستوصف:</span><span class="val">${fmtDT(clinicDateTime)}</span></div>
+<div class="fr"><span class="lbl">ملاحظات الطبيب:</span><span class="val">${doctorNotes}</span></div>
+<div class="sig-box"><div class="stitle">توقيع الطبيب</div></div>
+<div class="fr"><span class="lbl">تاريخ/وقت العودة للعمل:</span><span class="val">${fmtDT(returnDateTime)}</span></div>
 <div class="fn">تحتفظ الجهة بنسخة وتسلم نسخة للموظف</div>
 </body></html>`;
-  };
-
-  const printForm = () => {
-    const html = buildTimeHtml();
     const iframe = document.createElement("iframe");
     iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0";
     document.body.appendChild(iframe);
@@ -4811,71 +4262,29 @@ function TimeLeaveForm({ emp }) {
     setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 2000); }, 400);
   };
 
-  const uploadToDrive = async () => {
-    if (!gDrive.isReady) { toast.warning("يرجى ربط Google Drive أولاً"); return; }
-    setUploadPct(0); setDriveLink(null);
-    try {
-      const html = buildTimeHtml();
-      const safeName = (name || "موظف").replace(/\s+/g, "-");
-      const file = new File([new Blob([html], { type: "text/html" })], `اجازة-زمنية-${safeName}-${leaveDate || "بدون-تاريخ"}.html`, { type: "text/html" });
-      const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
-      setDriveLink(result.webViewLink);
-      toast.success("تم رفع نموذج الإجازة الزمنية إلى Drive");
-    } catch (e) {
-      toast.error("فشل رفع الملف: " + e.message);
-    } finally {
-      setUploadPct(-1);
-    }
-  };
-
   return (
     <div className="p-6 max-w-xl mx-auto space-y-5" dir="rtl">
       <div className="flex items-center gap-3 pb-3 border-b border-color">
-        <div className="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center"><Clock size={20} className="text-white"/></div>
-        <div><h2 className="text-xl font-bold text-primary">إجازة زمنية</h2><p className="text-xs text-secondary">BOC-P-13/F04 — طباعة A5 portrait</p></div>
+        <div className="w-10 h-10 bg-rose-500 rounded-xl flex items-center justify-center"><FileText size={20} className="text-white"/></div>
+        <div><h2 className="text-xl font-bold text-primary">إجازة مرضية</h2><p className="text-xs text-secondary">BOC-P-13//F02 — طباعة A5 portrait</p></div>
       </div>
-      <div><label className="block text-xs font-bold text-secondary mb-1">الاسم الثلاثي</label><input value={name} onChange={e=>setName(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
       <div className="grid grid-cols-2 gap-3">
+        <div><label className="block text-xs font-bold text-secondary mb-1">الاسم</label><input value={name} onChange={e=>setName(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
         <div><label className="block text-xs font-bold text-secondary mb-1">الرقم الوظيفي</label><input value={jobNum} onChange={e=>setJobNum(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">العنوان الوظيفي</label><input value={jobTitle} onChange={e=>setJobTitle(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="block text-xs font-bold text-secondary mb-1">القسم / الشعبة</label><input value={dept} onChange={e=>setDept(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الإجازة</label><input type="date" value={leaveDate} onChange={e=>setLeaveDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="block text-xs font-bold text-secondary mb-1">وقت المغادرة</label>
-          <input type="time" value={departureTime} onChange={e=>setDepartureTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/>
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-secondary mb-1">وقت العودة</label>
-          <input type="time" value={returnTime} onChange={e=>setReturnTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/>
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-secondary mb-1">عدد الساعات</label>
-          <input value={hours} onChange={e=>setHours(e.target.value)} placeholder="محسوب تلقائياً" className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/>
-        </div>
-      </div>
-      <div><label className="block text-xs font-bold text-secondary mb-1">السبب / الغرض</label><textarea value={reason} onChange={e=>setReason(e.target.value)} rows={2} className="input w-full rounded-lg px-3 py-2 text-sm resize-none" placeholder="مثال: مراجعة طبية، أمور شخصية..."/></div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">المهنة</label><input value={jobTitle} onChange={e=>setJobTitle(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ/وقت ترك العمل</label><input type="datetime-local" value={leaveDateTime} onChange={e=>setLeaveDateTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
       <div>
-        <label className="block text-xs font-bold text-secondary mb-2">توقيع الموظف (إلكتروني)</label>
-        <SignaturePad onSave={setSigDataUrl} label="ارسم توقيعك ثم اضغط حفظ التوقيع"/>
+        <label className="block text-xs font-bold text-secondary mb-2">توقيع المسؤول (إلكتروني)</label>
+        <SignaturePad onSave={setSigDataUrl} label="ارسم التوقيع ثم اضغط حفظ التوقيع"/>
         {sigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={sigDataUrl} alt="توقيع" className="max-h-14"/></div>}
       </div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ/وقت مراجعة المستوصف</label><input type="datetime-local" value={clinicDateTime} onChange={e=>setClinicDateTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">ملاحظات الطبيب</label><textarea value={doctorNotes} onChange={e=>setDoctorNotes(e.target.value)} rows={2} className="input w-full rounded-lg px-3 py-2 text-sm resize-none"/></div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ/وقت العودة للعمل</label><input type="datetime-local" value={returnDateTime} onChange={e=>setReturnDateTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
       <div className="flex flex-wrap gap-3 justify-end pt-2 border-t border-color">
-        {driveLink && (
-          <a href={driveLink} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline self-center">
-            <CheckCircle size={14}/> عرض في Drive
-          </a>
-        )}
         <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ</button>
-        {gDrive.isReady && (
-          <button onClick={uploadToDrive} disabled={uploadPct >= 0} className="flex items-center gap-2 px-4 py-2.5 bg-[#C87A2E] text-white rounded-xl font-bold text-sm disabled:opacity-60">
-            <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "رفع إلى Drive"}
-          </button>
-        )}
-        <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
+        <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-rose-500 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
       </div>
     </div>
   );
@@ -4886,16 +4295,11 @@ function LeaveFormsPrintPage({ emp }) {
   const [tab, setTab] = useState("annual");
   return (
     <div className="p-4 max-w-3xl mx-auto">
-      <div className="flex flex-wrap gap-2 mb-5">
+      <div className="flex gap-2 mb-5">
         <button onClick={()=>setTab("annual")} className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="annual"?"bg-blue-600 text-white border-blue-600":"btn-secondary border-color"}`}>إجازة اعتيادية</button>
-        <button onClick={()=>setTab("time")}   className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="time"  ?"bg-teal-600 text-white border-teal-600"  :"btn-secondary border-color"}`}>إجازة زمنية</button>
-        <button onClick={()=>setTab("sick")}   className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="sick"  ?"bg-rose-500 text-white border-rose-500"  :"btn-secondary border-color"}`}>إجازة مرضية</button>
-        <button onClick={()=>setTab("ooc")}    className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="ooc"   ?"bg-violet-600 text-white border-violet-600":"btn-secondary border-color"}`}>إجازة خارج القطر</button>
+        <button onClick={()=>setTab("sick")} className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="sick"?"bg-rose-500 text-white border-rose-500":"btn-secondary border-color"}`}>إجازة مرضية</button>
       </div>
-      {tab==="annual" && <AnnualLeaveForm emp={emp}/>}
-      {tab==="time"   && <TimeLeaveForm emp={emp}/>}
-      {tab==="sick"   && <SickLeaveForm emp={emp}/>}
-      {tab==="ooc"    && <OutOfCountryLeaveForm emp={emp}/>}
+      {tab==="annual" ? <AnnualLeaveForm emp={emp}/> : <SickLeaveForm emp={emp}/>}
     </div>
   );
 }
@@ -5019,21 +4423,7 @@ function ProjectManagementPage({ emp }) {
   const addToast = useToast();
   const confirm = useConfirm();
 
-  // أي تعديل على المشاريع يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
-  const saveAll = (updated) => {
-    setProjects(updated);
-    storage.set("pm_projects", updated);
-    FirebaseAPI.saveProjects(updated);
-  };
-  useEffect(() => {
-    FirebaseAPI.loadProjects().then(list => {
-      if (list) {
-        setProjects(list);
-        storage.set("pm_projects", list);
-        setSelId(prev => list.some(p => p.id === prev) ? prev : (list[0]?.id || null));
-      }
-    });
-  }, []);
+  const saveAll = (updated) => { setProjects(updated); storage.set("pm_projects", updated); };
 
   const proj = projects.find(p => p.id === selId);
 
@@ -5528,355 +4918,119 @@ function ReportsTab({ proj, addReport, delReport, emp }) {
   );
 }
 
-// ========== نظام تخزين الملفات المحلي المتقدم ==========
-// استخدام IndexedDB للملفات الكبيرة (أكثر من 5MB)
-const FileStorage = {
-  dbName: "BOC_ProjectFiles",
-  dbVersion: 1,
-  db: null,
-
-  initDB: () => {
-    return new Promise((resolve, reject) => {
-      if (FileStorage.db) { resolve(FileStorage.db); return; }
-      const request = indexedDB.open(FileStorage.dbName, FileStorage.dbVersion);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => { FileStorage.db = request.result; resolve(FileStorage.db); };
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains("files")) {
-          const store = db.createObjectStore("files", { keyPath: "id" });
-          store.createIndex("projectId", "projectId", { unique: false });
-          store.createIndex("timestamp", "timestamp", { unique: false });
-        }
-      };
-    });
-  },
-
-  saveFile: async (projectId, docId, file, metadata) => {
-    await FileStorage.initDB();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const transaction = FileStorage.db.transaction(["files"], "readwrite");
-        const store = transaction.objectStore("files");
-        const fileRecord = {
-          id: docId, projectId, name: metadata.name, type: metadata.type,
-          size: file.size, timestamp: Date.now(), uploadedBy: metadata.uploadedBy,
-          date: metadata.date, data: e.target.result,
-        };
-        const request = store.put(fileRecord);
-        request.onsuccess = () => resolve(fileRecord);
-        request.onerror = () => reject(request.error);
-      };
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
-  },
-
-  getFile: async (fileId) => {
-    await FileStorage.initDB();
-    return new Promise((resolve, reject) => {
-      const transaction = FileStorage.db.transaction(["files"], "readonly");
-      const store = transaction.objectStore("files");
-      const request = store.get(fileId);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  },
-
-  deleteFile: async (fileId) => {
-    await FileStorage.initDB();
-    return new Promise((resolve, reject) => {
-      const transaction = FileStorage.db.transaction(["files"], "readwrite");
-      const store = transaction.objectStore("files");
-      const request = store.delete(fileId);
-      request.onsuccess = () => resolve(true);
-      request.onerror = () => reject(request.error);
-    });
-  },
-
-  getProjectFiles: async (projectId) => {
-    await FileStorage.initDB();
-    return new Promise((resolve, reject) => {
-      const transaction = FileStorage.db.transaction(["files"], "readonly");
-      const store = transaction.objectStore("files");
-      const index = store.index("projectId");
-      const request = index.getAll(projectId);
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(request.error);
-    });
-  },
-
-  getStorageUsage: async () => {
-    if (navigator.storage && navigator.storage.estimate) {
-      const estimate = await navigator.storage.estimate();
-      return {
-        usage: estimate.usage || 0,
-        quota: estimate.quota || 0,
-        percent: estimate.quota ? Math.round((estimate.usage / estimate.quota) * 100) : 0
-      };
-    }
-    return null;
-  }
-};
-
-// رفع ملف إلى Firebase Storage عبر REST API (بدون SDK)
-const uploadToFirebaseStorage = (file, path, onProgress) => new Promise((resolve, reject) => {
-  const url = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_STORAGE_BUCKET)}/o?uploadType=media&name=${encodeURIComponent(path)}`;
-  const xhr = new XMLHttpRequest();
-  xhr.upload.addEventListener("progress", e => {
-    if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
-  });
-  xhr.onload = () => {
-    if (xhr.status === 200) {
-      const data = JSON.parse(xhr.responseText);
-      const token = data.downloadTokens;
-      const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_STORAGE_BUCKET)}/o/${encodeURIComponent(data.name)}?alt=media&token=${token}`;
-      resolve({ url: downloadUrl, path: data.name, size: data.size });
-    } else {
-      reject(new Error(`فشل الرفع (${xhr.status}): ${xhr.responseText}`));
-    }
-  };
-  xhr.onerror = () => reject(new Error("خطأ في الشبكة أثناء الرفع"));
-  xhr.open("POST", url);
-  xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-  xhr.send(file);
-});
-
-// حد افتراضي لخطة Firebase المجانية (Spark) — 5GB تخزين. عدّله إذا كانت الخطة Blaze (غير محدود عملياً).
-const FIREBASE_STORAGE_LIMIT_BYTES = 5 * 1024 * 1024 * 1024;
-const fmtStorageSize = (b) => b >= 1e9 ? (b/1e9).toFixed(2)+" GB" : b >= 1e6 ? (b/1e6).toFixed(1)+" MB" : b >= 1e3 ? (b/1e3).toFixed(0)+" KB" : b+" B";
-
-// يحسب الاستخدام الفعلي لمخزن Firebase Storage عبر سرد كل الملفات وجمع أحجامها (REST بدون حاجة لصلاحيات إدارية)
-const getFirebaseStorageUsage = async () => {
-  try {
-    let usage = 0, pageToken;
-    do {
-      const url = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_STORAGE_BUCKET)}/o?maxResults=1000${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ""}`;
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      const data = await res.json();
-      (data.items || []).forEach(it => { usage += Number(it.size || 0); });
-      pageToken = data.nextPageToken;
-    } while (pageToken);
-    const limit = FIREBASE_STORAGE_LIMIT_BYTES;
-    const pct = Math.round((usage / limit) * 100);
-    return { usage, limit, pct, usageStr: fmtStorageSize(usage), limitStr: fmtStorageSize(limit), freeStr: fmtStorageSize(Math.max(limit - usage, 0)) };
-  } catch { return null; }
-};
-
 // ── تبويب الوثائق ──
 function DocsTab({ proj, addDoc, delDoc, emp }) {
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: "", type: "وثيقة هندسية", date: new Date().toISOString().split("T")[0], size: "", uploadedBy: emp.name });
+  const [form, setForm] = useState({ name:"", type:"وثيقة هندسية", date:new Date().toISOString().split("T")[0], size:"", uploadedBy:emp.name });
   const [fileData, setFileData] = useState(null);
   const [fileMime, setFileMime] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadPct, setUploadPct] = useState(0);
   const [previewDoc, setPreviewDoc] = useState(null);
-  const [localFiles, setLocalFiles] = useState([]);
-  const [storageUsage, setStorageUsage] = useState(null);
-  const [fbUsage, setFbUsage] = useState(null);
   const fileRef = useRef(null);
   const addToast = useToast();
   const confirm = useConfirm();
   const gDrive = useGDrive();
 
-  useEffect(() => { loadLocalFiles(); checkStorage(); }, [proj.id]);
-  useEffect(() => { getFirebaseStorageUsage().then(setFbUsage); }, []);
-
-  const loadLocalFiles = async () => {
-    try { const files = await FileStorage.getProjectFiles(proj.id); setLocalFiles(files); }
-    catch (err) { console.error("Error loading local files:", err); }
-  };
-
-  const checkStorage = async () => { setStorageUsage(await FileStorage.getStorageUsage()); };
-
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    // Google Drive: no size limit warning needed. Local: 3 MB cap.
+    if (!gDrive.isReady && file.size > 3 * 1024 * 1024) { addToast("حجم الملف يتجاوز 3 ميغابايت — فعّل Google Drive لرفع ملفات أكبر", "warning"); return; }
     setSelectedFile(file);
     setFileMime(file.type);
     setForm(prev => ({ ...prev, name: prev.name || file.name, size: (file.size / 1024).toFixed(0) + " KB" }));
-    if (file.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setFileData(ev.target.result);
-      reader.readAsDataURL(file);
-    } else { setFileData(null); }
+    // Preview (images + local fallback)
+    const reader = new FileReader();
+    reader.onload = (ev) => setFileData(ev.target.result);
+    reader.readAsDataURL(file);
   };
 
   const resetForm = () => {
     setShowAdd(false);
-    setForm({ name: "", type: "وثيقة هندسية", date: new Date().toISOString().split("T")[0], size: "", uploadedBy: emp.name });
+    setForm({ name:"", type:"وثيقة هندسية", date:new Date().toISOString().split("T")[0], size:"", uploadedBy:emp.name });
     setFileData(null); setFileMime(""); setSelectedFile(null);
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  const uploadViaFirebase = async () => {
-    const path = `projects/${proj.id}/${Date.now()}_${selectedFile.name}`;
-    const result = await uploadToFirebaseStorage(selectedFile, path, pct => setUploadPct(pct));
-    addDoc(proj.id, {
-      ...form, fileData: null, fileMime: fileMime || null,
-      fileUrl: result.url, firebasePath: result.path,
-      size: form.size || (Number(result.size) / 1024).toFixed(0) + " KB",
-      storageType: "firebase"
-    });
-    addToast("تم رفع الملف إلى Firebase Storage ✅", "success");
-    getFirebaseStorageUsage().then(setFbUsage);
-  };
-
-  const uploadViaDrive = async () => {
-    const result = await gDrive.uploadFile(selectedFile, pct => setUploadPct(pct));
-    addDoc(proj.id, {
-      ...form, fileData: null, fileMime: fileMime || null,
-      driveFileId: result.id, driveViewLink: result.webViewLink, driveDownloadLink: result.webContentLink,
-      size: form.size || (Number(result.size) / 1024).toFixed(0) + " KB",
-      storageType: "google_drive"
-    });
-    addToast("تم رفع الملف إلى Google Drive ✅", "success");
-  };
-
   const submit = async () => {
-    if (!form.name.trim()) { addToast("يرجى إدخال اسم الوثيقة", "warning"); return; }
+    if (!form.name.trim()) return;
     setUploading(true); setUploadPct(0);
     try {
-      if (selectedFile) {
-        // احتياطي تلقائي: إذا اقترب Firebase من الامتلاء وكان Google Drive متاحاً، يُستخدم Drive مباشرة
-        const nearFull = fbUsage && fbUsage.pct >= GDRIVE_WARN_PCT;
-        if (nearFull && gDrive.isReady) {
-          addToast(`⚠️ مساحة Firebase اقتربت من الامتلاء (${fbUsage.pct}%) — يتم الرفع إلى Google Drive`, "warning");
-          await uploadViaDrive();
-        } else {
-          try {
-            await uploadViaFirebase();
-          } catch (fbErr) {
-            if (gDrive.isReady) {
-              addToast("تعذّر الرفع إلى Firebase، تتم المحاولة عبر Google Drive كاحتياطي...", "warning");
-              await uploadViaDrive();
-            } else {
-              throw fbErr;
-            }
-          }
-        }
+      if (selectedFile && gDrive.isReady) {
+        const result = await gDrive.uploadFile(selectedFile, pct => setUploadPct(pct));
+        addDoc(proj.id, {
+          ...form,
+          fileData: null, fileMime: fileMime || null,
+          driveFileId: result.id,
+          driveViewLink: result.webViewLink,
+          driveDownloadLink: result.webContentLink,
+          size: form.size || (Number(result.size)/1024).toFixed(0) + " KB",
+        });
+        addToast("تم رفع الملف إلى Google Drive ✅", "success");
       } else {
-        addDoc(proj.id, { ...form, fileData: null, storageType: "metadata" });
-        addToast("تمت إضافة الوثيقة", "success");
+        addDoc(proj.id, { ...form, fileData: fileData || null, fileMime: fileMime || null });
+        addToast("تمت إضافة الوثيقة","success");
       }
       resetForm();
-    } catch (e) { addToast(`فشل الرفع: ${e.message}`, "error"); }
-    finally { setUploading(false); setUploadPct(0); }
-  };
-
-  const doDelete = async (doc) => {
-    if (!await confirm("حذف هذه الوثيقة؟", { title: "حذف الوثيقة", ok: "حذف" })) return;
-    if (doc.localFileId) { await FileStorage.deleteFile(doc.localFileId); await loadLocalFiles(); await checkStorage(); }
-    if (doc.driveFileId && gDrive.isReady) await gDrive.deleteFile(doc.driveFileId);
-    if (doc.firebasePath) {
-      try {
-        await fetch(`https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_STORAGE_BUCKET)}/o/${encodeURIComponent(doc.firebasePath)}`, { method: "DELETE" });
-      } catch {}
+    } catch (e) {
+      addToast(`فشل الرفع: ${e.message}`, "error");
     }
-    delDoc(proj.id, doc.id);
-    addToast("تم الحذف", "info");
+    setUploading(false); setUploadPct(0);
   };
 
-  const downloadFile = (doc) => {
-    if (doc.fileUrl) { window.open(doc.fileUrl, "_blank"); return; }
-    if (doc.driveDownloadLink) { window.open(doc.driveDownloadLink, "_blank"); return; }
-    if (doc.fileData) {
-      const a = document.createElement("a");
-      a.href = doc.fileData; a.download = doc.name;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      return;
+  const doDelete = async (d) => {
+    if (!await confirm("حذف هذه الوثيقة؟", { title:"حذف الوثيقة", ok:"حذف" })) return;
+    if (d.driveFileId && gDrive.isReady) {
+      await gDrive.deleteFile(d.driveFileId);
     }
-    addToast("لا يوجد ملف للتحميل", "warning");
+    delDoc(proj.id, d.id);
+    addToast("تم الحذف","info");
   };
 
-  const formatBytes = (bytes) => {
-    if (!bytes) return "0 B";
-    const k = 1024, sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  const downloadFile = (d) => {
+    if (d.driveDownloadLink) { window.open(d.driveDownloadLink, "_blank"); return; }
+    if (!d.fileData) return;
+    const a = document.createElement("a");
+    a.href = d.fileData;
+    a.download = d.name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
-  const docIcons = { "وثيقة هندسية": "🗂️", "عقد": "📋", "تقرير": "📊", "خطة": "📅", "رسم": "📐", "أخرى": "📄" };
+  const docIcons = { "وثيقة هندسية":"🗂️","عقد":"📋","تقرير":"📊","خطة":"📅","رسم":"📐","أخرى":"📄" };
   const isImage = (mime) => mime && mime.startsWith("image/");
-
-  const allDocs = useMemo(() => {
-    const projectDocs = proj.docs || [];
-    const localDocs = localFiles.map(f => ({
-      id: f.id, name: f.name, type: f.type || "وثيقة",
-      date: new Date(f.timestamp).toISOString().split("T")[0],
-      size: formatBytes(f.size), uploadedBy: f.uploadedBy,
-      fileData: f.data, fileMime: f.type, localFileId: f.id, storageType: "local"
-    }));
-    const localIds = new Set(localDocs.map(d => d.localFileId));
-    return [...projectDocs.filter(d => !d.localFileId || !localIds.has(d.localFileId)), ...localDocs];
-  }, [proj.docs, localFiles]);
 
   return (
     <div className="space-y-4">
-      {storageUsage && (
-        <div className={`rounded-xl p-3 flex items-center justify-between text-xs border ${storageUsage.percent > 80 ? "bg-red-50 border-red-200" : "bg-blue-50 border-blue-200"}`}>
-          <div className="flex items-center gap-2">
-            <span>💾</span>
-            <span className="font-medium">التخزين المحلي:</span>
-            <span>{formatBytes(storageUsage.usage)} / {formatBytes(storageUsage.quota)}</span>
-          </div>
-          <div className="flex-1 max-w-[200px] mx-3">
-            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div className={`h-full rounded-full ${storageUsage.percent > 80 ? "bg-red-500" : storageUsage.percent > 60 ? "bg-amber-500" : "bg-green-500"}`}
-                style={{ width: `${Math.min(100, storageUsage.percent)}%` }} />
-            </div>
-          </div>
-          <span className={storageUsage.percent > 80 ? "text-red-600 font-bold" : "text-gray-600"}>{storageUsage.percent}% مستخدم</span>
-        </div>
-      )}
-
-      {fbUsage && fbUsage.pct >= GDRIVE_WARN_PCT && (
-        <div className={`rounded-xl p-3 flex items-center justify-between text-xs border ${fbUsage.pct >= GDRIVE_CRIT_PCT ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200"}`}>
-          <div className="flex items-center gap-2">
-            <span>🔥</span>
-            <span className="font-medium">Firebase Storage:</span>
-            <span>{fbUsage.usageStr} / {fbUsage.limitStr}</span>
-          </div>
-          <span className={fbUsage.pct >= GDRIVE_CRIT_PCT ? "text-red-600 font-bold" : "text-amber-600 font-medium"}>
-            {fbUsage.pct}% — {gDrive.isReady ? "الرفع التالي سيتم عبر Google Drive احتياطياً" : "متاح: " + fbUsage.freeStr}
-          </span>
-        </div>
-      )}
-
+      {/* Image/file preview modal */}
       {previewDoc && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setPreviewDoc(null)}>
-          <div className="bg-white rounded-2xl p-4 max-w-3xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={()=>setPreviewDoc(null)}>
+          <div className="bg-white rounded-2xl p-4 max-w-3xl max-h-[90vh] overflow-auto" onClick={e=>e.stopPropagation()}>
             <div className="flex justify-between items-center mb-3">
               <span className="font-bold">{previewDoc.name}</span>
-              <button onClick={() => setPreviewDoc(null)} className="p-1 rounded-lg hover:bg-gray-100"><X size={18} /></button>
+              <button onClick={()=>setPreviewDoc(null)} className="p-1 rounded-lg hover:bg-gray-100"><X size={18}/></button>
             </div>
-            {isImage(previewDoc.fileMime) && (previewDoc.fileData || previewDoc.fileUrl)
-              ? <img src={previewDoc.fileData || previewDoc.fileUrl} alt={previewDoc.name} className="max-w-full rounded-xl" />
-              : <div className="text-center py-8 text-secondary">
-                  <p className="text-5xl mb-3">{previewDoc.storageType === "firebase" ? "🔥" : previewDoc.driveFileId ? "☁️" : "📄"}</p>
-                  <p>{previewDoc.name}</p>
-                </div>
+            {isImage(previewDoc.fileMime) && previewDoc.fileData
+              ? <img src={previewDoc.fileData} alt={previewDoc.name} className="max-w-full rounded-xl"/>
+              : <div className="text-center py-8 text-secondary"><p className="text-5xl mb-3">{previewDoc.driveFileId ? "☁️" : "📄"}</p><p>{previewDoc.name}</p></div>
             }
-            <button onClick={() => downloadFile(previewDoc)} className="mt-3 w-full py-2 bg-blue-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-              <Download size={14} /> {previewDoc.driveFileId ? "فتح في Google Drive" : previewDoc.fileUrl ? "فتح الملف" : "تحميل الملف"}
+            <button onClick={()=>downloadFile(previewDoc)} className="mt-3 w-full py-2 bg-blue-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2">
+              <Download size={14}/> {previewDoc.driveFileId ? "فتح في Google Drive" : "تحميل الملف"}
             </button>
           </div>
         </div>
       )}
 
       <div className="flex justify-between items-center">
-        <h3 className="font-bold flex items-center gap-2"><FolderOpen size={16} /> وثائق المشروع ({allDocs.length})</h3>
+        <h3 className="font-bold flex items-center gap-2"><FolderOpen size={16}/> وثائق المشروع</h3>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-            🔥 Firebase Storage
-          </span>
-          <button onClick={() => setShowAdd(!showAdd)} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">
-            <Plus size={14} /> إضافة وثيقة / صورة
+          {gDrive.isReady
+            ? <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">☁️ Drive متصل</span>
+            : <span className="text-xs text-gray-400 flex items-center gap-1">📦 تخزين محلي</span>
+          }
+          <button onClick={()=>setShowAdd(!showAdd)} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">
+            <Plus size={14}/> إضافة وثيقة / صورة
           </button>
         </div>
       </div>
@@ -5885,57 +5039,71 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
         <div className="card rounded-2xl border border-color p-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className="font-bold text-sm">إضافة وثيقة أو صورة</h4>
-            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">🔥 Firebase Storage</span>
+            {gDrive.isReady
+              ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">☁️ سيُرفع إلى Google Drive</span>
+              : <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">📦 تخزين محلي (حد 3 MB)</span>
+            }
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div><label className="block text-xs font-bold text-secondary mb-1">اسم الوثيقة</label>
-              <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="input w-full rounded-lg px-3 py-2 text-sm" placeholder="اسم الملف أو الوثيقة" /></div>
+              <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm" placeholder="اسم الملف أو الوثيقة"/></div>
             <div><label className="block text-xs font-bold text-secondary mb-1">نوع الوثيقة</label>
-              <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} className="input w-full rounded-lg px-3 py-2 text-sm">
-                {DOC_TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
+              <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm">
+                {DOC_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
             <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الرفع</label>
-              <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="input w-full rounded-lg px-3 py-2 text-sm" /></div>
+              <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
             <div><label className="block text-xs font-bold text-secondary mb-1">رُفع بواسطة</label>
-              <input value={form.uploadedBy} onChange={e => setForm({ ...form, uploadedBy: e.target.value })} className="input w-full rounded-lg px-3 py-2 text-sm" /></div>
+              <input value={form.uploadedBy} onChange={e=>setForm({...form,uploadedBy:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
             <div className="md:col-span-2">
-              <label className="block text-xs font-bold text-secondary mb-1">اختر ملف أو صورة</label>
+              <label className="block text-xs font-bold text-secondary mb-1">
+                اختر ملف أو صورة {gDrive.isReady ? "(بدون حد — Google Drive)" : "(حد أقصى 3 ميغابايت محلياً)"}
+              </label>
               <div className="flex items-center gap-3">
                 <input ref={fileRef} type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
                   onChange={handleFileSelect}
-                  className="block text-sm text-secondary file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
-                {selectedFile && <button onClick={() => { setFileData(null); setFileMime(""); setSelectedFile(null); if (fileRef.current) fileRef.current.value = ""; }} className="text-red-400 hover:text-red-600"><X size={16} /></button>}
+                  className="block text-sm text-secondary file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
+                {selectedFile && (
+                  <button onClick={()=>{ setFileData(null); setFileMime(""); setSelectedFile(null); if(fileRef.current) fileRef.current.value=""; }} className="text-red-400 hover:text-red-600"><X size={16}/></button>
+                )}
               </div>
-              {fileData && isImage(fileMime) && <img src={fileData} alt="معاينة" className="mt-2 max-h-32 rounded-lg border border-color object-contain" />}
-              {selectedFile && !isImage(fileMime) && <p className="mt-1 text-xs text-emerald-600 font-medium">✓ تم اختيار: {selectedFile.name} ({form.size})</p>}
+              {fileData && isImage(fileMime) && (
+                <img src={fileData} alt="معاينة" className="mt-2 max-h-32 rounded-lg border border-color object-contain"/>
+              )}
+              {selectedFile && !isImage(fileMime) && (
+                <p className="mt-1 text-xs text-emerald-600 font-medium">✓ تم اختيار: {selectedFile.name} ({form.size})</p>
+              )}
             </div>
           </div>
           <div className="flex gap-2 justify-end mt-3 pt-3 border-t border-color">
             <button onClick={resetForm} className="px-4 py-2 rounded-xl btn-secondary text-sm">إلغاء</button>
             <button onClick={submit} disabled={uploading} className="relative overflow-hidden flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm disabled:opacity-60 min-w-[100px]">
-              {uploading && uploadPct > 0 && <span className="absolute inset-0 bg-blue-400/50 transition-all" style={{ width: `${uploadPct}%` }} />}
+              {uploading && uploadPct > 0 && (
+                <span className="absolute inset-0 bg-blue-400/50 transition-all" style={{width:`${uploadPct}%`}}/>
+              )}
               <span className="relative">
-                {uploading ? <><span className="animate-spin">⏳</span> {uploadPct > 0 ? `${uploadPct}%` : "جارٍ الرفع..."}</> : <><Save size={14} /> إضافة</>}
+                {uploading ? <><span className="animate-spin">⏳</span> {uploadPct > 0 ? `${uploadPct}%` : "جارٍ الرفع..."}</> : <><Save size={14}/> إضافة</>}
               </span>
             </button>
           </div>
         </div>
       )}
 
-      {allDocs.length === 0 && !showAdd && (
-        <div className="text-center py-12 text-secondary"><FolderOpen size={32} className="mx-auto mb-2 opacity-30" /><p>لا توجد وثائق بعد</p></div>
+      {(proj.docs||[]).length === 0 && !showAdd && (
+        <div className="text-center py-12 text-secondary"><FolderOpen size={32} className="mx-auto mb-2 opacity-30"/><p>لا توجد وثائق بعد</p></div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {allDocs.map(d => (
+        {(proj.docs||[]).map(d => (
           <div key={d.id} className="card rounded-xl border border-color p-3">
-            {isImage(d.fileMime) && (d.fileData || d.fileUrl) && (
-              <div className="mb-2 cursor-pointer" onClick={() => setPreviewDoc(d)}>
-                <img src={d.fileData || d.fileUrl} alt={d.name} className="w-full h-32 object-cover rounded-lg border border-color hover:opacity-90 transition-opacity" />
+            {/* Image thumbnail */}
+            {d.fileData && isImage(d.fileMime) && (
+              <div className="mb-2 cursor-pointer" onClick={()=>setPreviewDoc(d)}>
+                <img src={d.fileData} alt={d.name} className="w-full h-32 object-cover rounded-lg border border-color hover:opacity-90 transition-opacity"/>
               </div>
             )}
             <div className="flex items-start gap-3">
-              <div className="text-2xl cursor-pointer" onClick={() => (d.fileData || d.fileUrl) && setPreviewDoc(d)}>
-                {isImage(d.fileMime) ? "🖼️" : (d.fileData || d.fileUrl) ? "📎" : (docIcons[d.type] || "📄")}
+              <div className="text-2xl cursor-pointer" onClick={()=>d.fileData && setPreviewDoc(d)}>
+                {d.fileData && isImage(d.fileMime) ? "🖼️" : d.fileData ? "📎" : (docIcons[d.type] || "📄")}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-sm truncate">{d.name}</p>
@@ -5943,25 +5111,18 @@ function DocsTab({ proj, addDoc, delDoc, emp }) {
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   {d.size && <span className="text-[10px] bg-gray-100 px-1.5 py-0.5 rounded font-mono">{d.size}</span>}
                   <span className="text-[10px] text-secondary">{d.uploadedBy}</span>
-                  {d.storageType === "local" && <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">📁 محلي</span>}
-                  {d.storageType === "gdrive" && <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full">☁️ Drive</span>}
-                  {d.storageType === "firebase" && <span className="text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">🔥 Firebase</span>}
-                  <button onClick={() => downloadFile(d)} className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5">
-                    <Download size={10} /> تحميل
-                  </button>
-                  {isImage(d.fileMime) && (d.fileData || d.fileUrl) && (
-                    <button onClick={() => setPreviewDoc(d)} className="text-[10px] text-purple-600 hover:underline">عرض</button>
+                  {d.fileData && (
+                    <button onClick={()=>downloadFile(d)} className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5">
+                      <Download size={10}/> تحميل
+                    </button>
+                  )}
+                  {d.fileData && isImage(d.fileMime) && (
+                    <button onClick={()=>setPreviewDoc(d)} className="text-[10px] text-purple-600 hover:underline">عرض</button>
                   )}
                 </div>
               </div>
-              <button onClick={() => doDelete(d)} className="p-1.5 hover:bg-red-50 text-red-400 rounded-lg flex-shrink-0"><Trash2 size={14} /></button>
+              <button onClick={()=>doDelete(d)} className="p-1.5 hover:bg-red-50 text-red-400 rounded-lg flex-shrink-0"><Trash2 size={14}/></button>
             </div>
-            {d.firebasePath && (
-              <div className="mt-1 pt-1 border-t border-color flex items-center gap-1">
-                <span className="text-[10px] text-orange-600 font-medium">🔥 Firebase Storage</span>
-                <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 hover:underline">فتح</a>
-              </div>
-            )}
             {d.driveFileId && (
               <div className="mt-1 pt-1 border-t border-color flex items-center gap-1">
                 <span className="text-[10px] text-emerald-600 font-medium">☁️ Google Drive</span>
@@ -6223,17 +5384,6 @@ function TimeSheetPage({ emp }) {
   const [showLegend, setShowLegend] = useState(false);
   const [searchEmp, setSearchEmp] = useState("");
 
-  // أي تعديل على التايم شيت يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
-  const persistTs = (updated) => {
-    storage.set(STORAGE_KEY, updated);
-    FirebaseAPI.saveTimesheet(updated);
-  };
-  useEffect(() => {
-    FirebaseAPI.loadTimesheet().then(d => {
-      if (d) { setData(d); storage.set(STORAGE_KEY, d); }
-    });
-  }, []);
-
   const TAB_INFO = {
     malak:     { label:"الملاك",     title:"استمارة ضبط وقت العمال المؤقتين (بعقد)", codes:TS_CODES_GENERAL },
     contracts: { label:"العقود",    title:"استمارة تفاصيل الدوام",                   codes:TS_CODES_GENERAL },
@@ -6276,7 +5426,7 @@ function TimeSheetPage({ emp }) {
           }
         })
       };
-      persistTs(updated);
+      storage.set(STORAGE_KEY, updated);
       return updated;
     });
   };
@@ -6284,7 +5434,7 @@ function TimeSheetPage({ emp }) {
   const updateNotes = (tabKey, empId, notes) => {
     setData(prev => {
       const updated = {...prev, [tabKey]: prev[tabKey].map(e => e.id===empId ? {...e, notes} : e)};
-      persistTs(updated);
+      storage.set(STORAGE_KEY, updated);
       return updated;
     });
   };
@@ -6297,7 +5447,7 @@ function TimeSheetPage({ emp }) {
     const newEmp = {id:id.trim(), name:name.trim(), movement:"", days:{}, hours:{}, notes:""};
     setData(prev => {
       const updated = {...prev, [tabKey]: [...prev[tabKey], newEmp]};
-      persistTs(updated);
+      storage.set(STORAGE_KEY, updated);
       return updated;
     });
     addToast("تمت إضافة الموظف", "success");
@@ -6308,7 +5458,7 @@ function TimeSheetPage({ emp }) {
     if (!ok) return;
     setData(prev => {
       const updated = {...prev, [tabKey]: prev[tabKey].filter(e => e.id !== empId)};
-      persistTs(updated);
+      storage.set(STORAGE_KEY, updated);
       return updated;
     });
     addToast("تم حذف الموظف", "success");
@@ -6322,7 +5472,7 @@ function TimeSheetPage({ emp }) {
         ...prev,
         [tabKey]: prev[tabKey].map(e => e.id === empId ? {...e, name:newName.trim(), id:newName.trim()} : e)
       };
-      persistTs(updated);
+      storage.set(STORAGE_KEY, updated);
       return updated;
     });
     addToast("تم تعديل اسم السائق", "success");
@@ -6331,7 +5481,7 @@ function TimeSheetPage({ emp }) {
   const resetData = async () => {
     const ok = await confirm("هل تريد إعادة تعيين جميع البيانات للبيانات الأصلية؟");
     if (!ok) return;
-    persistTs(INITIAL_TS);
+    storage.set(STORAGE_KEY, INITIAL_TS);
     setData(INITIAL_TS);
     addToast("تمت إعادة التعيين للبيانات الأصلية", "success");
   };
@@ -6344,7 +5494,7 @@ function TimeSheetPage({ emp }) {
         ...prev,
         [activeTab]: prev[activeTab].map(e => ({...e, days:{}, hours:{}}))
       };
-      persistTs(updated);
+      storage.set(STORAGE_KEY, updated);
       return updated;
     });
     addToast(`تم تصفير بيانات ${TAB_INFO[activeTab].label}`, "success");
@@ -6369,7 +5519,7 @@ function TimeSheetPage({ emp }) {
           return {...e, days: newDays};
         })
       };
-      persistTs(updated);
+      storage.set(STORAGE_KEY, updated);
       return updated;
     });
     addToast("تم ملء رموز عطلة نهاية الأسبوع للكادر الصباحي", "success");
@@ -6482,205 +5632,6 @@ function TimeSheetPage({ emp }) {
     document.body.appendChild(a); a.click();
     document.body.removeChild(a); URL.revokeObjectURL(url);
     addToast("تم تصدير الملف بتنسيق Excel", "success");
-  };
-
-  const exportExcelFormatted = () => {
-    const emps = data[activeTab] || [];
-    const monthLabel = MONTHS_AR_TS[tsMonth];
-    const yearNum = tsYear;
-    const daysInMonthEx = new Date(tsYear, tsMonth + 1, 0).getDate();
-    const daysEx = Array.from({ length: daysInMonthEx }, (_, i) => i + 1);
-
-    const getShiftForDayExport = (year, month, day) => {
-      const anchor = new Date(2026, 5, 14);
-      const current = new Date(year, month, day);
-      const diff = Math.floor((current - anchor) / (1000 * 60 * 60 * 24));
-      return ['أ', 'ب', 'ج', 'د'][((diff % 4) + 4) % 4];
-    };
-
-    const getDayName = (day) => {
-      const dow = new Date(tsYear, tsMonth, day).getDay();
-      return ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'][dow];
-    };
-
-    const isWeekend = (day) => {
-      const dow = new Date(tsYear, tsMonth, day).getDay();
-      return dow === 5 || dow === 6;
-    };
-
-    let employeeRows = '';
-    emps.forEach((e, idx) => {
-      const stats = calcTsStats(e);
-      const bgColor = idx % 2 === 0 ? '#ffffff' : '#f9fafb';
-
-      employeeRows += `
-        <tr style="background:${bgColor};">
-          <td rowspan="2" style="border:1px solid #000;text-align:center;vertical-align:middle;font-size:10px;">${e.id}</td>
-          <td rowspan="2" style="border:1px solid #000;text-align:right;vertical-align:middle;font-size:11px;font-weight:bold;">${e.name} ${e.movement ? `(${e.movement})` : ''}</td>
-          <td rowspan="2" style="border:1px solid #000;text-align:center;vertical-align:middle;font-size:9px;">${e.movement || ''}</td>
-          <td style="border:1px solid #000;text-align:center;font-weight:bold;background:#dbeafe;">أ</td>
-      `;
-      daysEx.forEach(day => {
-        const code = e.days[String(day)] || '';
-        const isWe = isWeekend(day);
-        const weBg = isWe && !code ? 'background:#fff7ed;' : '';
-        const codeColor = TS_CODES_ALL[code]?.color || '';
-        const colorStyle = codeColor ? `background:${codeColor.split(' ')[0]};` : '';
-        employeeRows += `<td style="border:1px solid #000;text-align:center;font-size:11px;font-weight:bold;${colorStyle}${weBg}">${code}</td>`;
-      });
-      employeeRows += `
-          <td rowspan="2" style="border:1px solid #000;text-align:center;font-weight:bold;color:#1d4ed8;">${stats.totalHours || ''}</td>
-          <td rowspan="2" style="border:1px solid #000;text-align:center;color:#15803d;">${stats.leaveDays || ''}</td>
-          <td rowspan="2" style="border:1px solid #000;text-align:center;color:#dc2626;">${stats.absenceDays || ''}</td>
-          <td rowspan="2" style="border:1px solid #000;text-align:center;color:#6b7280;">${stats.restDays || ''}</td>
-          <td rowspan="2" style="border:1px solid #000;text-align:right;font-size:9px;color:#6b7280;">${e.notes || ''}</td>
-        </tr>
-      `;
-      employeeRows += `<tr style="background:${bgColor};">
-          <td style="border:1px solid #000;text-align:center;font-weight:bold;background:#f3e8ff;">ق</td>
-      `;
-      daysEx.forEach(day => {
-        const hours = e.hours[String(day)];
-        const isWe = isWeekend(day);
-        const weBg = hours == null && isWe ? 'background:#fff7ed;' : '';
-        const hoursStyle = hours != null ? 'background:#f5f3ff;color:#7c3aed;font-weight:bold;' : '';
-        employeeRows += `<td style="border:1px solid #000;text-align:center;font-size:11px;${hoursStyle}${weBg}">${hours != null ? hours : ''}</td>`;
-      });
-      employeeRows += `</tr>`;
-    });
-
-    let dayHeaders = '';
-    daysEx.forEach(day => {
-      const dow = getDayName(day);
-      const shift = getShiftForDayExport(tsYear, tsMonth, day);
-      const isWe = isWeekend(day);
-      const weBg = isWe ? 'background:#fff7ed;' : 'background:#eff6ff;';
-      dayHeaders += `
-        <th style="border:1px solid #000;text-align:center;font-size:8px;min-width:28px;${weBg}">
-          <div style="font-weight:bold;font-size:10px;">${day}</div>
-          <div style="font-size:7px;">${dow}</div>
-          <div style="font-size:7px;font-weight:bold;color:${SHIFT_TEXT_COLORS[shift] || '#374151'};">${shift}</div>
-        </th>
-      `;
-    });
-
-    const symbolsTable = `
-      <table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:8px;direction:rtl;">
-        <tr><td colspan="4" style="border:1px solid #000;padding:3px;background:#f0f0f0;font-weight:bold;">دليل الرموز</td></tr>
-        <tr>
-          <td style="border:1px solid #000;padding:3px;"><strong>Z:</strong> مواظبة ولا تحتوي على متغيرات</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>5:</strong> أيام الحشد الشعبي</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>E:</strong> إصابة عمل صادرة من لجنة طبية</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>B:</strong> أيام بقسم آخر</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #000;padding:3px;"><strong>F:</strong> مواظبة تحتوي على متغيرات إجازة غياب أو ساعات</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>W:</strong> الوفاة</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>K:</strong> إجازة أمومة بأمر إداري</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>M:</strong> إجازة أمومة</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #000;padding:3px;"><strong>4:</strong> العالقين في المناطق الساخنة</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>A:</strong> إعالة (إجازة) لذوي الاحتياجات الخاصة</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>D:</strong> أيام العدة</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>H:</strong> إجازة بدون راتب خارج العراق</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #000;padding:3px;"><strong>8:</strong> مصاحبة زوجية</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>Y:</strong> عطلة رسمية</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>X:</strong> غياب</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>7:</strong> إجازة اعتيادية خارج العراق براتب تام</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #000;padding:3px;"><strong>U:</strong> تفرغ</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>Q:</strong> خارج الخدمة (أيام قبل المباشرة في الشركة)</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>P:</strong> إيفاد شامل كافة أنواع الإيفادات خارج العراق</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>O:</strong> المقيم الصباحي</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #000;padding:3px;"><strong>2:</strong> مناوبة ثنائية</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>3:</strong> مناوبة ثلاثية</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>N:</strong> استراحة مناوبة</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>V:</strong> استراحة مقيم</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #000;padding:3px;"><strong>L:</strong> إجازة اعتيادية</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>S:</strong> إجازة مرضية</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>R:</strong> استراحة</td>
-          <td style="border:1px solid #000;padding:3px;"><strong>J:</strong> مجاز دراسياً</td>
-        </tr>
-      </table>
-    `;
-
-    const fullHtml = `<!DOCTYPE html>
-    <html lang="ar" dir="rtl">
-    <head>
-      <meta charset="UTF-8">
-      <title>استمارة تفاصيل الدوام - ${monthLabel} ${yearNum}</title>
-      <style>
-        @page { size: A3 landscape; margin: 8mm; }
-        body { font-family: 'Arial', sans-serif; direction: rtl; margin: 0; padding: 0; }
-        .header { text-align: center; border: 2px solid #1d3557; padding: 6px; border-radius: 4px; margin-bottom: 10px; }
-        .header .company { font-size: 12px; font-weight: bold; }
-        .header .dept { font-size: 11px; }
-        .header .title { font-size: 14px; font-weight: bold; margin: 4px 0; }
-        .header .sub { font-size: 11px; }
-        .notice { background: #fef9c3; padding: 4px; font-size: 9px; text-align: center; margin: 6px 0; border: 1px solid #fde047; }
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #000; padding: 2px 1px; vertical-align: middle; }
-        th { background: #dbeafe; font-size: 9px; }
-        .signatures { display: flex; justify-content: space-between; margin-top: 20px; font-size: 10px; text-align: center; }
-        .sign-item { width: 30%; border-top: 1px solid #000; padding-top: 5px; margin-top: 30px; }
-        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <div class="company">الجمهورية العراقية — وزارة النفط</div>
-        <div class="company">شركة نفط البصرة (شركة عامة)</div>
-        <div class="dept">شعبة مستودع الفاو — قسم السيطرة والنظم</div>
-        <div class="title">استمارة تفاصيل الدوام لشهر ${monthLabel} ${yearNum}</div>
-        <div class="sub">الموقع: الفاو</div>
-      </div>
-      <div class="notice">ملاحظة: يرجى الانتباه إلى رموز المواظبة والتقيد بها وتثبيت مجموع الساعات للمشمولين بها</div>
-      <table>
-        <thead>
-          <tr>
-            <th rowspan="2" style="width:60px;">الرقم الوظيفي</th>
-            <th rowspan="2" style="width:160px;">اسم الموظف</th>
-            <th rowspan="2" style="width:40px;">الحركة</th>
-            <th rowspan="2" style="width:25px;">نوع</th>
-            ${dayHeaders}
-            <th rowspan="2" style="width:55px;">مجموع الساعات</th>
-            <th rowspan="2" style="width:40px;">إجازة</th>
-            <th rowspan="2" style="width:40px;">غياب</th>
-            <th rowspan="2" style="width:40px;">عطل</th>
-            <th rowspan="2" style="width:80px;">ملاحظات</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${employeeRows}
-        </tbody>
-      </table>
-      ${symbolsTable}
-      <div class="signatures">
-        <div class="sign-item">مدير القسم<br>التوقيع: _________________<br>التاريخ: _____ / _____ / _____</div>
-        <div class="sign-item">مسؤول الشعبة<br>التوقيع: _________________<br>التاريخ: _____ / _____ / _____</div>
-        <div class="sign-item">مسؤول ضبط الوقت<br>التوقيع: _________________<br>التاريخ: _____ / _____ / _____</div>
-      </div>
-    </body>
-    </html>`;
-
-    const blob = new Blob(["﻿" + fullHtml], { type: "application/vnd.ms-excel" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `تايم_شيت_${TAB_INFO[activeTab].label}_${yearNum}_${String(tsMonth + 1).padStart(2, "0")}.xls`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    addToast("تم تصدير الملف بنجاح بالتنسيق الرسمي ✅", "success");
   };
 
   const exportPDF = () => {
@@ -6849,10 +5800,6 @@ function TimeSheetPage({ emp }) {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-green-600 text-white hover:bg-green-700">
             <Download size={14}/> Excel
           </button>
-          <button onClick={exportExcelFormatted}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-indigo-700 text-white hover:bg-indigo-800">
-            <FileCheck size={14}/> Excel رسمي
-          </button>
           <button onClick={exportPDF}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700">
             <Printer size={14}/> PDF
@@ -6891,9 +5838,9 @@ function TimeSheetPage({ emp }) {
       <div className="flex items-center gap-1 border-b border-color pb-0">
         {Object.entries(TAB_INFO).map(([key,info])=>(
           <button key={key} onClick={()=>{setActiveTab(key);setSearchEmp("");setEditCell(null);}}
-            className={`px-5 py-2.5 text-sm font-semibold rounded-t-md transition-colors border-b-2 ${activeTab===key?"border-[#C87A2E] text-[#C87A2E] bg-[#FDF3E7]":"border-transparent text-secondary hover:text-primary"}`}>
+            className={`px-5 py-2.5 text-sm font-semibold rounded-t-xl transition-colors border-b-2 ${activeTab===key?"border-blue-500 text-blue-600 bg-blue-50":"border-transparent text-secondary hover:text-primary"}`}>
             {info.label}
-            <span className="mr-1.5 text-xs text-gray-400 ts-mono">({data[key]?.length||0})</span>
+            <span className="mr-1.5 text-xs text-gray-400">({data[key]?.length||0})</span>
           </button>
         ))}
       </div>
@@ -6911,7 +5858,7 @@ function TimeSheetPage({ emp }) {
               className="text-sm border border-color rounded-lg pr-8 pl-3 py-1.5 bg-surface text-primary w-48"/>
           </div>
           <button onClick={()=>addEmployee(activeTab)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm bg-[#C87A2E] text-white hover:bg-[#B06D27] transition-colors">
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700">
             <Plus size={14}/> إضافة
           </button>
           <button onClick={resetData} title="إعادة تعيين للبيانات الأصلية"
@@ -6927,54 +5874,56 @@ function TimeSheetPage({ emp }) {
           <table className="text-xs border-collapse" style={{minWidth:`${200+daysInMonth*30+240}px`}} dir="rtl">
             <thead>
               <tr>
-                <th className="border border-gray-200 px-2 py-2 text-center ts-header" style={{position:"sticky",right:0,zIndex:10,minWidth:"70px",fontSize:"11px"}}>الرقم</th>
-                <th className="border border-gray-200 px-2 py-2 text-right ts-header" style={{position:"sticky",right:"70px",zIndex:10,minWidth:"150px"}}>الاسم</th>
-                <th className="border border-gray-200 px-1 py-2 text-center ts-header ts-mono" style={{minWidth:"34px",fontSize:"10px"}}>ح/ق</th>
+                <th className="border border-gray-300 px-2 py-2 text-center bg-blue-50" style={{position:"sticky",right:0,zIndex:10,minWidth:"70px",backgroundColor:"#eff6ff"}}>الرقم</th>
+                <th className="border border-gray-300 px-2 py-2 text-right bg-blue-50" style={{position:"sticky",right:"70px",zIndex:10,minWidth:"150px",backgroundColor:"#eff6ff"}}>الاسم</th>
+                <th className="border border-gray-300 px-1 py-2 text-center bg-blue-50" style={{minWidth:"34px"}}>ح/ق</th>
                 {days.map(d=>{
                   const dow = new Date(tsYear, tsMonth, d).getDay();
                   const isWe = dow===5||dow===6;
                   const shift = getShiftForDay(tsYear, tsMonth, d);
                   const todayFlag = dayIsToday(d);
+                  const bgColor = todayFlag?"#bfdbfe":isWe?"#fff7ed":"#eff6ff";
+                  const numColor = todayFlag?"#1d4ed8":isWe?"#ea580c":undefined;
                   return (
-                    <th key={d} className={`border border-gray-200 py-1 text-center ts-mono ${todayFlag?"ts-today":isWe?"ts-we":"ts-header"}`} style={{minWidth:"30px"}}>
-                      <div style={{fontSize:"11px",fontWeight:"700",color:todayFlag?"#166534":isWe?"#C87A2E":undefined}}>{d}</div>
-                      <div style={{fontSize:"8px",color:isWe?"#C87A2E":"#9ca3af",lineHeight:"1"}}>{DAY_NAMES_AR[dow]}</div>
+                    <th key={d} className="border border-gray-300 py-1 text-center" style={{minWidth:"30px",backgroundColor:bgColor}}>
+                      <div style={{fontSize:"11px",fontWeight:"bold",color:numColor}}>{d}</div>
+                      <div style={{fontSize:"8px",color:isWe?"#ea580c":"#9ca3af",lineHeight:"1"}}>{DAY_NAMES_AR[dow]}</div>
                       <div style={{fontSize:"8px",fontWeight:"bold",color:SHIFT_TEXT_COLORS[shift]||"#374151",lineHeight:"1.2"}}>{shift}</div>
                     </th>
                   );
                 })}
-                <th className="border border-gray-200 px-1 py-2 text-center ts-header ts-mono" style={{minWidth:"52px",color:"#C87A2E"}}>ساعات</th>
-                <th className="border border-gray-200 px-1 py-2 text-center ts-header" style={{minWidth:"40px",color:"#15803d"}}>إجازة</th>
-                <th className="border border-gray-200 px-1 py-2 text-center ts-header" style={{minWidth:"40px",color:"#dc2626"}}>غياب</th>
-                <th className="border border-gray-200 px-1 py-2 text-center ts-header" style={{minWidth:"40px",color:"#6b7280"}}>عطل</th>
-                <th className="border border-gray-200 px-2 py-2 text-right ts-header" style={{minWidth:"100px"}}>ملاحظات</th>
-                <th className="border border-gray-200 px-1 py-2 text-center ts-header" style={{minWidth:"32px"}}></th>
+                <th className="border border-gray-300 px-1 py-2 text-center bg-blue-50 text-blue-700" style={{minWidth:"52px"}}>ساعات</th>
+                <th className="border border-gray-300 px-1 py-2 text-center bg-green-50 text-green-700" style={{minWidth:"40px"}}>إجازة</th>
+                <th className="border border-gray-300 px-1 py-2 text-center bg-red-50 text-red-700" style={{minWidth:"40px"}}>غياب</th>
+                <th className="border border-gray-300 px-1 py-2 text-center bg-gray-50 text-gray-600" style={{minWidth:"40px"}}>عطل</th>
+                <th className="border border-gray-300 px-2 py-2 text-right bg-gray-50" style={{minWidth:"100px"}}>ملاحظات</th>
+                <th className="border border-gray-300 px-1 py-2 text-center bg-gray-50" style={{minWidth:"32px"}}></th>
               </tr>
             </thead>
             <tbody>
               {employees.map((e, idx) => {
                 const stats = calcTsStats(e);
-                const bgBase = idx%2===0 ? "#ffffff" : "#FAFAF8";
+                const bgBase = idx%2===0 ? "#ffffff" : "#f9fafb";
                 const codes = TAB_INFO[activeTab].codes;
                 return (
                   <React.Fragment key={e.id}>
                     {/* A row - attendance codes */}
                     <tr>
-                      <td rowSpan={2} className="border border-gray-200 text-center text-gray-500 align-middle ts-mono" style={{position:"sticky",right:0,zIndex:5,backgroundColor:bgBase,fontSize:"10px"}}>
+                      <td rowSpan={2} className="border border-gray-300 text-center text-gray-500 align-middle" style={{position:"sticky",right:0,zIndex:5,backgroundColor:bgBase,fontSize:"10px"}}>
                         {e.id}
                       </td>
-                      <td rowSpan={2} className="border border-gray-200 px-1 text-right font-semibold align-middle" style={{position:"sticky",right:"70px",zIndex:5,backgroundColor:bgBase,maxWidth:"150px",fontSize:"11px"}}>
+                      <td rowSpan={2} className="border border-gray-300 px-1 text-right font-semibold align-middle" style={{position:"sticky",right:"70px",zIndex:5,backgroundColor:bgBase,maxWidth:"150px",fontSize:"11px"}}>
                         {e.name}
                         {e.movement && <span className="mr-1 text-[10px] text-blue-500 font-normal">({e.movement})</span>}
                       </td>
-                      <td className="border border-gray-200 text-center font-black ts-mono" style={{backgroundColor:bgBase,fontSize:"10px",color:"#C87A2E"}}>أ</td>
+                      <td className="border border-gray-300 text-center font-black text-blue-600" style={{backgroundColor:bgBase,fontSize:"10px"}}>أ</td>
                       {days.map(d=>{
                         const isWe = isWeekendDay(d);
                         const code = e.days[String(d)] || "";
                         const isEd = editCell?.empId===e.id && editCell?.day===d && editCell?.type==="code";
                         const cellBg = code ? "" : isWe ? "#fff7ed" : bgBase;
                         return (
-                          <td key={d} className={`border border-gray-200 text-center cursor-pointer relative select-none ts-mono ${code?getCellColor(code):""}`}
+                          <td key={d} className={`border border-gray-300 text-center cursor-pointer relative select-none ${code?getCellColor(code):""}`}
                             style={{height:"22px",minWidth:"30px",backgroundColor:cellBg}}
                             onClick={()=>setEditCell({empId:e.id,day:d,type:"code",tabKey:activeTab})}>
                             <span className="font-bold" style={{fontSize:"11px"}}>{code}</span>
@@ -6982,16 +5931,16 @@ function TimeSheetPage({ emp }) {
                           </td>
                         );
                       })}
-                      <td rowSpan={2} className="border border-gray-200 text-center font-bold ts-mono align-middle" style={{backgroundColor:bgBase,color:"#C87A2E"}}>{stats.totalHours||""}</td>
-                      <td rowSpan={2} className="border border-gray-200 text-center ts-mono font-medium align-middle" style={{backgroundColor:bgBase,color:"#15803d"}}>{stats.leaveDays||""}</td>
-                      <td rowSpan={2} className="border border-gray-200 text-center ts-mono font-medium align-middle" style={{backgroundColor:bgBase,color:"#dc2626"}}>{stats.absenceDays||""}</td>
-                      <td rowSpan={2} className="border border-gray-200 text-center ts-mono font-medium align-middle" style={{backgroundColor:bgBase,color:"#6b7280"}}>{stats.restDays||""}</td>
-                      <td rowSpan={2} className="border border-gray-200 px-1 align-middle" style={{backgroundColor:bgBase}}>
+                      <td rowSpan={2} className="border border-gray-300 text-center font-bold text-blue-700 align-middle" style={{backgroundColor:bgBase}}>{stats.totalHours||""}</td>
+                      <td rowSpan={2} className="border border-gray-300 text-center text-green-700 font-medium align-middle" style={{backgroundColor:bgBase}}>{stats.leaveDays||""}</td>
+                      <td rowSpan={2} className="border border-gray-300 text-center text-red-700 font-medium align-middle" style={{backgroundColor:bgBase}}>{stats.absenceDays||""}</td>
+                      <td rowSpan={2} className="border border-gray-300 text-center text-gray-500 font-medium align-middle" style={{backgroundColor:bgBase}}>{stats.restDays||""}</td>
+                      <td rowSpan={2} className="border border-gray-300 px-1 align-middle" style={{backgroundColor:bgBase}}>
                         <input value={e.notes||""} onChange={ev=>updateNotes(activeTab,e.id,ev.target.value)}
                           className="w-full text-xs bg-transparent outline-none text-gray-500"
                           placeholder="ملاحظة..." style={{minWidth:"90px"}}/>
                       </td>
-                      <td rowSpan={2} className="border border-gray-200 text-center align-middle" style={{backgroundColor:bgBase}}>
+                      <td rowSpan={2} className="border border-gray-300 text-center align-middle" style={{backgroundColor:bgBase}}>
                         {activeTab==="drivers" && (
                           <button onClick={()=>editDriverName(activeTab,e.id,e.name)} className="text-blue-400 hover:text-blue-600 p-0.5 block mx-auto mb-0.5" title="تعديل الاسم"><Edit3 size={12}/></button>
                         )}
@@ -7000,14 +5949,14 @@ function TimeSheetPage({ emp }) {
                     </tr>
                     {/* Q row - hours */}
                     <tr>
-                      <td className="border border-gray-200 text-center font-black ts-mono" style={{backgroundColor:bgBase,fontSize:"10px",color:"#7c3aed"}}>ق</td>
+                      <td className="border border-gray-300 text-center font-black text-purple-600" style={{backgroundColor:bgBase,fontSize:"10px"}}>ق</td>
                       {days.map(d=>{
                         const isWe = isWeekendDay(d);
                         const h = e.hours[String(d)];
                         const isEd = editCell?.empId===e.id && editCell?.day===d && editCell?.type==="hours";
-                        const cellBg = h!=null ? "#f5f3ff" : isWe ? "#FFF3E6" : bgBase;
+                        const cellBg = h!=null ? "#f5f3ff" : isWe ? "#fff7ed" : bgBase;
                         return (
-                          <td key={d} className={`border border-gray-200 text-center cursor-pointer relative ts-mono ${h!=null?"text-purple-700":""}`}
+                          <td key={d} className={`border border-gray-300 text-center cursor-pointer relative ${h!=null?"text-purple-700":""}`}
                             style={{height:"20px",minWidth:"30px",backgroundColor:cellBg}}
                             onClick={()=>setEditCell({empId:e.id,day:d,type:"hours",tabKey:activeTab})}>
                             {isEd ? (
@@ -7037,8 +5986,8 @@ function TimeSheetPage({ emp }) {
       {/* Summary stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
-          {label:"إجمالي الموظفين", val:data[activeTab]?.length||0, color:"text-[#C87A2E]"},
-          {label:"إجمالي ساعات العمل", val:(data[activeTab]||[]).reduce((s,e)=>s+calcTsStats(e).totalHours,0), color:"text-[#C87A2E]"},
+          {label:"إجمالي الموظفين", val:data[activeTab]?.length||0, color:"text-blue-600"},
+          {label:"إجمالي ساعات العمل", val:(data[activeTab]||[]).reduce((s,e)=>s+calcTsStats(e).totalHours,0), color:"text-indigo-600"},
           {label:"إجمالي أيام الإجازة", val:(data[activeTab]||[]).reduce((s,e)=>s+calcTsStats(e).leaveDays,0), color:"text-green-600"},
           {label:"إجمالي أيام الغياب", val:(data[activeTab]||[]).reduce((s,e)=>s+calcTsStats(e).absenceDays,0), color:"text-red-600"},
           {label:"إجمالي أيام العطل", val:(data[activeTab]||[]).reduce((s,e)=>s+calcTsStats(e).restDays,0), color:"text-gray-600"},
@@ -7059,21 +6008,7 @@ function TimeSheetPage({ emp }) {
 function Dashboard({ emp, onLogout, dark, setDark }) {
   const [view, setView] = useState("home");
   const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []));
-  const [employees, setEmployeesRaw] = useState(ACCOUNTS);
-
-  // حمّل قائمة الموظفين من Firebase عند البداية (ACCOUNTS كاحتياطي)
-  useEffect(() => {
-    FirebaseAPI.loadAccounts().then(list => {
-      if (list && list.length > 0) setEmployeesRaw(list);
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // كل تغيير على employees يُحفظ تلقائياً في Firebase/accounts
-  const setEmployees = useCallback((newList) => {
-    setEmployeesRaw(newList);
-    FirebaseAPI.saveAccounts(newList);
-  }, []);
+  const [employees, setEmployees] = useState(ACCOUNTS);
   const { isConnected } = useConnectionStatus();
   const smartAlerts = useSmartAlerts(employees);
   const confirm = useConfirm();
@@ -7137,7 +6072,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
       {/* Header */}
       <div className="header-bar px-6 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#C87A2E] flex items-center justify-center" style={{clipPath:"none"}}><span className="text-white font-bold text-xs tracking-widest" style={{fontFamily:"'JetBrains Mono',monospace"}}>BOC</span></div>
+          <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center"><span className="text-white font-bold text-sm">BOC</span></div>
           <div><h1 className="font-bold">شركة نفط البصرة</h1><p className="text-xs text-secondary">شعبة مستودع الفاو</p></div>
         </div>
         <div className="flex items-center gap-3">
@@ -7165,30 +6100,22 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
       </div>
 
       <div className="flex flex-col md:flex-row">
-        {/* Sidebar — rail محكم يتمدد عند hover */}
-        <aside className="group/sb md:w-14 md:hover:w-60 sidebar border-l border-color min-h-screen py-3 px-1.5 md:overflow-hidden transition-[width] duration-200 ease-out">
+        {/* Sidebar */}
+        <aside className="md:w-60 sidebar border-l min-h-screen p-3">
           <nav className="space-y-0.5">
             {menuItems.map(item => (
-              <div key={item.id} className="relative">
-                <button onClick={()=>setView(item.id)} title={item.label}
-                  className={`w-full flex items-center py-2.5 rounded-md text-sm font-medium transition-all ${view===item.id?"bg-[#C87A2E] text-white":"text-secondary hover:bg-hover"}`}>
-                  <span className="shrink-0 w-11 flex items-center justify-center">{item.icon}</span>
-                  <span className="whitespace-nowrap overflow-hidden max-w-full md:max-w-0 md:group-hover/sb:max-w-[180px] transition-[max-width] duration-150 pr-1">{item.label}</span>
-                  {item.badge>0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full mr-auto ml-1.5 shrink-0 whitespace-nowrap overflow-hidden max-w-full md:max-w-0 md:group-hover/sb:max-w-[40px] transition-[max-width] duration-150">{item.badge}</span>}
-                </button>
-                {item.badge>0 && <span className="hidden md:block md:group-hover/sb:hidden absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full pointer-events-none"/>}
-              </div>
+              <button key={item.id} onClick={()=>setView(item.id)} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${view===item.id?"bg-blue-600 text-white":"text-secondary hover:bg-hover"}`}>
+                <span className="flex items-center gap-2.5">{item.icon}{item.label}</span>
+                {item.badge>0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{item.badge}</span>}
+              </button>
             ))}
           </nav>
-          {smartAlerts.length > 0 && (
-            <div className="mt-4 mx-0.5 p-3 bg-amber-50 rounded-md border border-amber-200 overflow-hidden max-h-[120px] md:max-h-0 md:group-hover/sb:max-h-[120px] transition-[max-height] duration-200">
-              <p className="text-[10px] font-bold text-amber-800 mb-1 whitespace-nowrap">تنبيهات ذكية</p>
-              {smartAlerts.slice(0,3).map(a=><p key={a.id} className="text-[10px] text-amber-700 mt-1 truncate">{a.msg}</p>)}
-            </div>
-          )}
-          <div className="mt-3 mx-0.5 p-3 bg-hover rounded-md text-[10px] overflow-hidden max-h-16 md:max-h-0 md:group-hover/sb:max-h-16 transition-[max-height] duration-200">
-            <p className="font-bold whitespace-nowrap">{isConnected?"متصل بالخادم":"وضع محلي"}</p>
-          </div>
+          {/* Smart Alerts */}
+          {smartAlerts.length > 0 && <div className="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-200">
+            <p className="text-[10px] font-bold text-amber-800 mb-1">⚠️ تنبيهات ذكية</p>
+            {smartAlerts.slice(0,3).map(a=><p key={a.id} className="text-[10px] text-amber-700 mt-1">{a.msg}</p>)}
+          </div>}
+          <div className="mt-3 p-3 bg-hover rounded-xl text-[10px]"><p className="font-bold mb-1">ℹ️ النظام</p><p>✓ يعمل بكفاءة</p><p>✓ البيانات محفوظة</p><p>✓ {isConnected?"متصل بالخادم":"وضع محلي"}</p></div>
         </aside>
 
         {/* Main */}
@@ -7316,9 +6243,9 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           {view==="attendance" && <AttendanceSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>}
           {view==="training" && <TrainingSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>}
           {view==="tasks" && <TasksSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>}
-          {view==="inventory" && <InventorySystem emp={emp} isAdmin={isAdmin}/>}
-          {view==="furniture" && <FurnitureInventory emp={emp} isAdmin={isAdmin}/>}
-          {view==="maint_equipment" && <EquipmentMaintenance emp={emp} isAdmin={isAdmin}/>}
+          {view==="inventory" && <InventorySystem/>}
+          {view==="furniture" && <FurnitureInventory/>}
+          {view==="maint_equipment" && <EquipmentMaintenance/>}
           {view==="maint_parts" && <MaintenanceParts/>}
           {view==="maint_reports" && <MaintenanceAnalytics/>}
           {view==="chat" && <InternalChat emp={emp} isConnected={isConnected}/>}
@@ -7349,46 +6276,22 @@ export default function App() {
   const style = `
     :root { color-scheme: light; }
     .dark { color-scheme: dark; }
-    .bg-main { background: ${dark?"#0D1117":"#F4F4F0"}; }
-    .card {
-      background: ${dark?"#161B22":"#ffffff"};
-      color: ${dark?"#e2e8f0":"#1C1C1C"};
-      box-shadow: ${dark?
-        "0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 0 rgba(255,255,255,0.03)":
-        "0 0 0 1px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.9)"};
-    }
-    .header-bar { background: ${dark?"#0D1117":"#ffffff"}; border-bottom: 1px solid ${dark?"#30363D":"#E4E2DC"}; }
-    .sidebar { background: ${dark?"#0D1117":"#F4F4F0"}; }
-    .input { background: ${dark?"#0D1117":"#ffffff"}; border: 1px solid ${dark?"#30363D":"#E4E2DC"}; color: ${dark?"#e2e8f0":"#1C1C1C"}; border-radius:6px; }
-    .input:focus { border-color:#C87A2E; outline:none; }
-    .input::placeholder { color: ${dark?"#6b7280":"#a8a29e"}; }
-    .btn-secondary { background: ${dark?"#161B22":"#ffffff"}; color: ${dark?"#9ca3af":"#575553"}; }
-    .bg-hover { background: ${dark?"#1a222e":"#EDEDE9"}; }
-    .text-secondary { color: ${dark?"#6b7280":"#787774"}; }
-    .text-primary { color: ${dark?"#e2e8f0":"#1C1C1C"}; }
-    .border-color { border-color: ${dark?"#30363D":"#E4E2DC"} !important; }
-    .bg-surface { background: ${dark?"#0D1117":"#ffffff"}; }
-    select option { background: ${dark?"#161B22":"#ffffff"}; color: ${dark?"#e2e8f0":"#1C1C1C"}; }
-    * { transition: background-color 0.15s, border-color 0.15s, color 0.1s; }
-    @keyframes toastIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
-    .toast-item { animation: toastIn 0.2s cubic-bezier(0.32,0.72,0,1); }
+    .bg-main { background: ${dark?"#0f172a":"#f8fafc"}; }
+    .card { background: ${dark?"#1e293b":"#ffffff"}; color: ${dark?"#e2e8f0":"#1e293b"}; }
+    .header-bar { background: ${dark?"#1e293b":"#ffffff"}; border-bottom: 1px solid ${dark?"#334155":"#e2e8f0"}; }
+    .sidebar { background: ${dark?"#1e293b":"#ffffff"}; }
+    .input { background: ${dark?"#0f172a":"#ffffff"}; border: 1px solid ${dark?"#334155":"#e2e8f0"}; color: ${dark?"#e2e8f0":"#1e293b"}; }
+    .input::placeholder { color: ${dark?"#64748b":"#94a3b8"}; }
+    .btn-secondary { background: ${dark?"#1e293b":"#ffffff"}; color: ${dark?"#94a3b8":"#475569"}; }
+    .bg-hover { background: ${dark?"#0f172a":"#f1f5f9"}; }
+    .text-secondary { color: ${dark?"#64748b":"#64748b"}; }
+    .border-color { border-color: ${dark?"#334155":"#e2e8f0"} !important; }
+    select option { background: ${dark?"#1e293b":"#ffffff"}; color: ${dark?"#e2e8f0":"#1e293b"}; }
+    * { transition: background-color 0.2s, border-color 0.2s, color 0.1s; }
+    @keyframes toastIn { from { opacity:0; transform:translateX(30px); } to { opacity:1; transform:translateX(0); } }
+    .toast-item { animation: toastIn 0.25s ease-out; }
     @keyframes shimmer { from { background-position:-200% 0; } to { background-position:200% 0; } }
-    .skeleton { background: linear-gradient(90deg,${dark?"#1e2a38 25%,#273444 50%,#1e2a38 75%":"#EDEDE9 25%,#F4F4F0 50%,#EDEDE9 75%"}); background-size:200% 100%; animation:shimmer 1.5s infinite; }
-    .ts-mono { font-family:'JetBrains Mono','IBM Plex Mono',monospace; }
-    .ts-header { background:${dark?"#1a2232":"#F0EDE6"} !important; }
-    .ts-we { background:${dark?"#2a1f0a":"#FFF3E6"} !important; }
-    .ts-today { background:${dark?"#1a2d1a":"#E6F5E6"} !important; }
-    /* ── الأزرار — تحويل الأزرق إلى عنبري عالمياً ── */
-    button[class*="bg-blue-600"] { background-color: #C87A2E !important; }
-    button[class*="bg-blue-700"] { background-color: #B06D27 !important; }
-    button[class*="bg-indigo-600"] { background-color: #C87A2E !important; }
-    button[class*="bg-indigo-700"] { background-color: #9A5F1F !important; }
-    button[class*="hover:bg-blue-700"]:hover { background-color: #B06D27 !important; }
-    button[class*="hover:bg-blue-600"]:hover { background-color: #C87A2E !important; }
-    button[class*="hover:bg-indigo-800"]:hover { background-color: #875419 !important; }
-    button[class*="rounded-xl"] { border-radius: 6px !important; }
-    button[class*="rounded-2xl"] { border-radius: 8px !important; }
-    button:active:not(:disabled) { transform: scale(0.98); transition: transform 0.1s; }
+    .skeleton { background: linear-gradient(90deg,${dark?"#334155 25%,#475569 50%,#334155 75%":"#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%"}); background-size:200% 100%; animation:shimmer 1.5s infinite; }
   `;
 
   return (
