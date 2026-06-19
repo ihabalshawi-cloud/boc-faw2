@@ -127,9 +127,10 @@ export const GDriveAPI = {
       const err = await res.json().catch(() => ({}));
       const msg = err.error || `HTTP ${res.status}`;
       if (res.status === 404 || res.status === 403 || /not found|forbidden|access/i.test(msg)) {
+        const shareSteps = "Drive → Share → General access → Anyone with the link → Viewer → Done";
         const saHint = _saEmail
-          ? `شارك الملف مع:\n${_saEmail}\n(Drive → Share → أضف هذا البريد → Viewer)`
-          : `افتح Drive → Share → أضف بريد Service Account → Viewer`;
+          ? `الحل الأسرع: شارك الملف للعموم:\n${shareSteps}\n\nأو أضف Service Account:\n${_saEmail}\n(Drive → Share → أضف هذا البريد → Viewer)`
+          : `افتح ملف القالب في Drive → Share → General access → Anyone with the link → Done`;
         throw new Error(`لا يمكن الوصول إلى ملف القالب (${res.status}).\n\n${saHint}`);
       }
       throw new Error(`فشل تنزيل الملف: ${msg}`);
