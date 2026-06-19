@@ -133,6 +133,39 @@ module.exports = async (req, res) => {
     const token    = await getToken();
     const folderId = process.env.GDRIVE_FOLDER_ID;
 
+    // ── test-file (diagnostic) ────────────────────────────────
+    if (action === "test-file") {
+      const fileId = url.searchParams.get("fileId");
+      if (!fileId) { res.status(400).json({ error: "Missing fileId" }); return; }
+      const results = {};
+
+      // اختبار OAuth2
+      try {
+        const r1 = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        results.oauth2 = { status: r1.status, body: await r1.json().catch(() => ({})) };
+      } catch (e) { results.oauth2 = { error: e.message }; }
+
+      // اختبار SA
+      if (process.env.GDRIVE_SERVICE_ACCOUNT) {
+        try {
+          const saToken = await getTokenViaServiceAccount();
+          const r2 = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size`,
+            { headers: { Authorization: `Bearer ${saToken}` } }
+          );
+          results.sa = { status: r2.status, body: await r2.json().catch(() => ({})) };
+        } catch (e) { results.sa = { error: e.message }; }
+      } else {
+        results.sa = { error: "GDRIVE_SERVICE_ACCOUNT not configured" };
+      }
+
+      res.status(200).json({ fileId, authMethod: _authMethod, results });
+      return;
+    }
+
     // ── quota ─────────────────────────────────────────────────
     if (action === "quota") {
       const r = await fetch(
