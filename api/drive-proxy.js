@@ -332,23 +332,18 @@ module.exports = async (req, res) => {
       // 3. إذا فشل كلاهما، جرّب الرابط العام (للملفات المشاركة مع "Anyone with the link")
       if (!r.ok) {
         try {
-          const pubR = await fetch(
-            `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`,
-            { redirect: "follow" }
-          );
-          if (pubR.ok) {
-            const ct = pubR.headers.get("content-type") || "application/octet-stream";
-            // Drive أحياناً يرجع HTML لصفحة تحذير للملفات الكبيرة
-            if (!ct.includes("text/html")) {
-              r = pubR;
-            } else {
-              // استخرج رابط التأكيد من صفحة التحذير
-              const html = await pubR.text();
-              const m = html.match(/href="(\/uc\?export=download[^"]+confirm=[^"]+)"/);
-              if (m) {
-                const confirmUrl = "https://drive.google.com" + m[1].replace(/&amp;/g, "&");
-                const r3 = await fetch(confirmUrl, { redirect: "follow" });
-                if (r3.ok) r = r3;
+          // Google Drive usercontent endpoint — أكثر موثوقية للملفات العامة
+          const pubUrls = [
+            `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`,
+            `https://drive.google.com/uc?id=${fileId}&export=download&confirm=t`,
+          ];
+          for (const pubUrl of pubUrls) {
+            const pubR = await fetch(pubUrl, { redirect: "follow" });
+            if (pubR.ok) {
+              const ct = pubR.headers.get("content-type") || "";
+              if (!ct.includes("text/html")) {
+                r = pubR;
+                break;
               }
             }
           }
