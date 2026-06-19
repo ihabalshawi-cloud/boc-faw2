@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import {
   FIREBASE_URL, ACCOUNTS, DEFAULT_PASSWORD, LOW_STOCK_THRESHOLD,
+  INITIAL_EQUIPMENT, INITIAL_MAINT_SPARE_PARTS,
   VIEW_LABELS, GDRIVE_WARN_PCT, GDRIVE_CRIT_PCT,
 } from "./constants";
 import { storage, passStore, hashPassword, isHash } from "./utils";

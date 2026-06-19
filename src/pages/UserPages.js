@@ -2,10 +2,10 @@ import React, { useState, useEffect } from "react";
 import { Shield, Eye, EyeOff, Save, FileText, Plus, Trash2, Download,
   CheckCircle, Bell, ThumbsUp, ThumbsDown } from "lucide-react";
 import { ACCOUNTS, LEAVE_TYPES } from "../constants";
-import { storage, passStore, exportCSV } from "../utils";
+import { storage, passStore, exportCSV, hashPassword } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
-import { EmpPopover } from "../components/Shared";
+import { EmpPopover, SkeletonCard, useConnectionStatus, sendDesktopNotification, playAlert } from "../components/Shared";
 
 function ChangePasswordPage({ emp, onLogout }) {
   const [newPass, setNewPass] = useState("");
