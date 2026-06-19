@@ -117,10 +117,15 @@ module.exports = async (req, res) => {
     // ── ping ─────────────────────────────────────────────────
     if (action === "ping") {
       await getToken();
+      let saEmail = null;
+      if (process.env.GDRIVE_SERVICE_ACCOUNT) {
+        try { saEmail = JSON.parse(process.env.GDRIVE_SERVICE_ACCOUNT).client_email; } catch {}
+      }
       res.status(200).json({
         ok:       true,
         auth:     _authMethod,
         hasFolder: !!process.env.GDRIVE_FOLDER_ID,
+        saEmail,
       });
       return;
     }
@@ -272,13 +277,40 @@ module.exports = async (req, res) => {
     if (action === "download") {
       const fileId = url.searchParams.get("fileId");
       if (!fileId) { res.status(400).json({ error: "Missing fileId" }); return; }
-      const r = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+
+      const driveDownload = async (tok) =>
+        fetch(
+          `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
+          { headers: { Authorization: `Bearer ${tok}` } }
+        );
+
+      // أولاً: جرّب OAuth2
+      let r = await driveDownload(token);
+      let lastErrMsg = null;
+
+      // إذا فشل OAuth2 بـ 403/404 وتوفّر Service Account، جرّبه كبديل
+      if (!r.ok && (r.status === 403 || r.status === 404) && process.env.GDRIVE_SERVICE_ACCOUNT) {
+        try {
+          const saToken = await getTokenViaServiceAccount();
+          const r2 = await driveDownload(saToken);
+          if (r2.ok) {
+            r = r2;
+          } else {
+            // SA أيضاً فشل — احفظ سبب الخطأ للتشخيص
+            const errBody = await r2.json().catch(() => ({}));
+            lastErrMsg = `OAuth2:${r.status} / SA:${r2.status} — ${errBody.error?.message || errBody.error || "unknown"}`;
+          }
+        } catch (saErr) {
+          lastErrMsg = `OAuth2:${r.status} / SA:exception — ${saErr.message}`;
+        }
+      }
+
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
-        res.status(r.status).json({ error: err.error?.message || `HTTP ${r.status}` });
+        const baseMsg = err.error?.message || err.error || `HTTP ${r.status}`;
+        res.status(r.status).json({
+          error: lastErrMsg ? `${baseMsg} [${lastErrMsg}]` : baseMsg,
+        });
         return;
       }
       const buf = await r.arrayBuffer();

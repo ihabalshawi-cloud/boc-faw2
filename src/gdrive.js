@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { GDRIVE_PROXY, GDRIVE_WARN_PCT, GDRIVE_CRIT_PCT } from "./constants";
 
 // ── Raw API ───────────────────────────────────────────────────────────────────
+let _saEmail = null; // يُعبأ من ping
+
 export const GDriveAPI = {
   checkConnection: async () => {
     try {
@@ -11,6 +13,7 @@ export const GDriveAPI = {
       clearTimeout(tid);
       if (!res.ok) return false;
       const data = await res.json();
+      if (data.saEmail) _saEmail = data.saEmail;
       return data.ok === true;
     } catch { return false; }
   },
@@ -123,11 +126,12 @@ export const GDriveAPI = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       const msg = err.error || `HTTP ${res.status}`;
-      if (res.status === 404 || /not found/i.test(msg))
-        throw new Error(
-          `الملف غير موجود أو غير مشارك مع حساب الخدمة.\n\n` +
-          `الحل: افتح ملف القالب في Drive → Share → أضف بريد Service Account وامنحه صلاحية Viewer.`
-        );
+      if (res.status === 404 || res.status === 403 || /not found|forbidden|access/i.test(msg)) {
+        const saHint = _saEmail
+          ? `شارك الملف مع:\n${_saEmail}\n(Drive → Share → أضف هذا البريد → Viewer)`
+          : `افتح Drive → Share → أضف بريد Service Account → Viewer`;
+        throw new Error(`لا يمكن الوصول إلى ملف القالب (${res.status}).\n\n${saHint}`);
+      }
       throw new Error(`فشل تنزيل الملف: ${msg}`);
     }
     return await res.arrayBuffer();
