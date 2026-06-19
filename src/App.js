@@ -6270,6 +6270,10 @@ function TimeSheetPage({ emp }) {
   const [importing, setImporting] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importDriveId, setImportDriveId] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [exportDriveId, setExportDriveId] = useState("");
+  const exportFileRef = useRef(null);
   const fileInputRef = useRef(null);
 
   // أي تعديل على التايم شيت يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
@@ -6354,6 +6358,69 @@ function TimeSheetPage({ emp }) {
     } catch (e) {
       addToast("فشل تنزيل الملف من Drive: " + e.message, "error");
       setImporting(false);
+    }
+  };
+
+  // ── Export data INTO an existing Excel template ──────────────────────────────
+  const exportToTemplate = async (buffer) => {
+    setExporting(true);
+    try {
+      const { read, utils, write } = await import("xlsx");
+      const wb = read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = utils.sheet_to_json(ws, { header: 1, defval: "" });
+      const DAY_COL_START = 4;
+      const emps = data[activeTab] || [];
+      emps.forEach(emp => {
+        const codeRowIdx = rows.findIndex(r => String(r[0]).trim() === String(emp.id).trim());
+        if (codeRowIdx === -1) return;
+        const hoursRowIdx = codeRowIdx + 1;
+        for (let d = 1; d <= 31; d++) {
+          const col  = DAY_COL_START + (d - 1);
+          const code = (emp.days  || {})[String(d)] || "";
+          const h    = (emp.hours || {})[String(d)];
+          const cRef = utils.encode_cell({ r: codeRowIdx,  c: col });
+          const hRef = utils.encode_cell({ r: hoursRowIdx, c: col });
+          if (code) ws[cRef] = { v: code, t: "s" }; else delete ws[cRef];
+          if (h != null && h > 0) ws[hRef] = { v: h, t: "n" }; else delete ws[hRef];
+        }
+      });
+      const out  = write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url;
+      a.download = `تايم_شيت_${TAB_INFO[activeTab].label}_${tsYear}_${String(tsMonth+1).padStart(2,"0")}.xlsx`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+      addToast("تم تصدير البيانات إلى قالب Excel ✅", "success");
+      setShowExport(false);
+    } catch (e) {
+      addToast("فشل التصدير: " + e.message, "error");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportFromFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => exportToTemplate(ev.target.result);
+    reader.readAsArrayBuffer(file);
+    e.target.value = "";
+  };
+
+  const exportFromDrive = async () => {
+    if (!exportDriveId.trim()) { addToast("أدخل File ID من Drive", "warning"); return; }
+    if (!gDrive?.isReady) { addToast("يرجى ربط Google Drive أولاً", "warning"); return; }
+    setExporting(true);
+    try {
+      const buf = await gDrive.downloadFile(exportDriveId.trim());
+      await exportToTemplate(buf);
+    } catch (e) {
+      addToast("فشل تنزيل القالب من Drive: " + e.message, "error");
+      setExporting(false);
     }
   };
 
@@ -6968,15 +7035,15 @@ function TimeSheetPage({ emp }) {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm btn-secondary">
             <AlertTriangle size={14}/> دليل الرموز
           </button>
-          <button onClick={exportExcelFormatted}
+          <button onClick={()=>{setShowExport(v=>!v);setShowImport(false);}}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-green-700 text-white hover:bg-green-800">
-            <FileCheck size={14}/> Excel رسمي
+            <FileCheck size={14}/> تصدير بيانات اكسل
           </button>
           <button onClick={exportOfficialForm}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700">
             <Printer size={14}/> طباعة / PDF
           </button>
-          <button onClick={()=>setShowImport(v=>!v)}
+          <button onClick={()=>{setShowImport(v=>!v);setShowExport(false);}}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700">
             <Upload size={14}/> استيراد Excel
           </button>
@@ -7007,6 +7074,38 @@ function TimeSheetPage({ emp }) {
                   <button onClick={importFromDrive} disabled={importing}
                     className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
                     {importing ? "..." : "تنزيل"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Export to template panel */}
+      {showExport && (
+        <div className="card rounded-xl p-4 border border-green-200 bg-green-50 space-y-3" dir="rtl">
+          <h3 className="font-bold text-sm text-green-800">تصدير بيانات التايم شيت إلى قالب Excel</h3>
+          <p className="text-xs text-green-700">اختر ملف Excel القالب الموجود على جهازك أو Drive — سيتم ملء بيانات الحضور فيه مع الحفاظ على تنسيقه الأصلي</p>
+          <div className="flex flex-wrap gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <p className="text-xs font-semibold text-green-700 mb-1">من جهازك:</p>
+              <input ref={exportFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={exportFromFile}/>
+              <button onClick={()=>exportFileRef.current?.click()} disabled={exporting}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm bg-green-700 text-white hover:bg-green-800 disabled:opacity-50">
+                <FileCheck size={14}/> {exporting ? "جارٍ التصدير..." : "اختر قالب Excel"}
+              </button>
+            </div>
+            {gDrive?.isReady && (
+              <div className="flex-1 min-w-[240px]">
+                <p className="text-xs font-semibold text-green-700 mb-1">من Google Drive (File ID):</p>
+                <div className="flex gap-2">
+                  <input value={exportDriveId} onChange={e=>setExportDriveId(e.target.value)}
+                    placeholder="File ID للقالب في Drive"
+                    className="flex-1 text-sm border border-green-300 rounded-lg px-3 py-2 bg-white text-primary" dir="ltr"/>
+                  <button onClick={exportFromDrive} disabled={exporting}
+                    className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm bg-green-700 text-white hover:bg-green-800 disabled:opacity-50">
+                    {exporting ? "..." : "تصدير"}
                   </button>
                 </div>
               </div>
@@ -7230,6 +7329,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
   const confirm = useConfirm();
   const [showSearch, setShowSearch] = useState(false);
   const isAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
+  const isTimeSheetAdmin = isAdmin || emp.role === "attendance_admin";
   const pendingCount = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
   const unreadNotifs = (storage.get(`notifications_${emp.id}`, [])).filter(n => !n.read).length;
 
@@ -7269,7 +7369,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
     { id:"leave_forms", label:"نماذج الإجازات", icon:<FileText size={17}/> },
     { id:"projects", label:"إدارة المشاريع", icon:<Briefcase size={17}/> },
-    { id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> },
+    ...(isTimeSheetAdmin ? [{ id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> }] : []),
   ];
   if (isAdmin) {
     menuItems.unshift({ id:"approvals", label:"الموافقات", icon:<ThumbsUp size={17}/>, badge:pendingCount });
@@ -7482,7 +7582,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           {view==="health_insurance" && <HealthInsuranceForm emp={emp}/>}
           {view==="leave_forms" && <LeaveFormsPrintPage emp={emp}/>}
           {view==="projects" && <ProjectManagementPage emp={emp}/>}
-          {view==="timesheet" && <TsErrorBoundary><TimeSheetPage emp={emp}/></TsErrorBoundary>}
+          {view==="timesheet" && isTimeSheetAdmin && <TsErrorBoundary><TimeSheetPage emp={emp}/></TsErrorBoundary>}
           {view==="admin_dashboard" && isAdmin && <AdminDashboard emp={emp} employees={employees} setEmployees={setEmployees}/>}
         </main>
       </div>
