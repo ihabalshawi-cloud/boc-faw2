@@ -284,21 +284,33 @@ module.exports = async (req, res) => {
           { headers: { Authorization: `Bearer ${tok}` } }
         );
 
+      // أولاً: جرّب OAuth2
       let r = await driveDownload(token);
+      let lastErrMsg = null;
 
       // إذا فشل OAuth2 بـ 403/404 وتوفّر Service Account، جرّبه كبديل
-      // (يحدث عندما تكون صلاحية OAuth2 محدودة بـ drive.file فقط)
       if (!r.ok && (r.status === 403 || r.status === 404) && process.env.GDRIVE_SERVICE_ACCOUNT) {
         try {
           const saToken = await getTokenViaServiceAccount();
           const r2 = await driveDownload(saToken);
-          if (r2.ok) r = r2; // SA نجح، استخدمه
-        } catch {}
+          if (r2.ok) {
+            r = r2;
+          } else {
+            // SA أيضاً فشل — احفظ سبب الخطأ للتشخيص
+            const errBody = await r2.json().catch(() => ({}));
+            lastErrMsg = `OAuth2:${r.status} / SA:${r2.status} — ${errBody.error?.message || errBody.error || "unknown"}`;
+          }
+        } catch (saErr) {
+          lastErrMsg = `OAuth2:${r.status} / SA:exception — ${saErr.message}`;
+        }
       }
 
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
-        res.status(r.status).json({ error: err.error?.message || `HTTP ${r.status}` });
+        const baseMsg = err.error?.message || err.error || `HTTP ${r.status}`;
+        res.status(r.status).json({
+          error: lastErrMsg ? `${baseMsg} [${lastErrMsg}]` : baseMsg,
+        });
         return;
       }
       const buf = await r.arrayBuffer();
