@@ -332,16 +332,21 @@ module.exports = async (req, res) => {
       // 3. إذا فشل كلاهما، جرّب الرابط العام (للملفات المشاركة مع "Anyone with the link")
       if (!r.ok) {
         try {
-          // Google Drive usercontent endpoint — أكثر موثوقية للملفات العامة
+          // NOTE: do NOT include authuser=0 — Vercel has no Google session so that
+          // parameter causes a redirect to the Google login page.
+          const browserUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
           const pubUrls = [
-            `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`,
-            `https://drive.google.com/uc?id=${fileId}&export=download&confirm=t`,
+            `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`,
+            `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`,
           ];
           for (const pubUrl of pubUrls) {
-            const pubR = await fetch(pubUrl, { redirect: "follow" });
+            const pubR = await fetch(pubUrl, {
+              redirect: "follow",
+              headers: { "User-Agent": browserUA },
+            });
             if (pubR.ok) {
               const ct = pubR.headers.get("content-type") || "";
-              if (!ct.includes("text/html")) {
+              if (!ct.startsWith("text/html")) {
                 r = pubR;
                 break;
               }
@@ -354,7 +359,8 @@ module.exports = async (req, res) => {
         const errText = await r.text().catch(() => "");
         const errJson = (() => { try { return JSON.parse(errText); } catch { return {}; } })();
         res.status(r.status).json({
-          error: errJson.error?.message || `HTTP ${r.status} — الملف غير موجود أو غير متاح للعموم`,
+          error: errJson.error?.message ||
+            `HTTP ${r.status} — الملف غير موجود أو غير متاح للعموم. افتح Drive → Share → General access → Anyone with the link`,
         });
         return;
       }
