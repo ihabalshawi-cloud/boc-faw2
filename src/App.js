@@ -6219,7 +6219,25 @@ function TimeSheetPage({ emp }) {
   const [tsMonth, setTsMonth] = useState(() => new Date().getMonth());
   const [tsYear,  setTsYear]  = useState(() => new Date().getFullYear());
   const [activeTab, setActiveTab] = useState("malak");
-  const [data, setData] = useState(() => storage.get(STORAGE_KEY, null) || INITIAL_TS);
+  const [data, setData] = useState(() => {
+    // Firebase converts arrays to {0:…,1:…} — restore before using as state
+    const toArr = (v) => {
+      if (Array.isArray(v)) return v;
+      if (v && typeof v === "object") {
+        const ks = Object.keys(v);
+        if (ks.length > 0 && ks.every(k => /^\d+$/.test(k)))
+          return ks.sort((a,b)=>Number(a)-Number(b)).map(k=>v[k]);
+      }
+      return Array.isArray(v) ? v : [];
+    };
+    const raw = storage.get(STORAGE_KEY, null);
+    if (!raw || typeof raw !== "object") return INITIAL_TS;
+    return {
+      malak:     toArr(raw.malak)     .length ? toArr(raw.malak)     : INITIAL_TS.malak,
+      contracts: toArr(raw.contracts) .length ? toArr(raw.contracts) : INITIAL_TS.contracts,
+      drivers:   toArr(raw.drivers)   .length ? toArr(raw.drivers)   : INITIAL_TS.drivers,
+    };
+  });
   const [editCell, setEditCell] = useState(null);
   const [showLegend, setShowLegend] = useState(false);
   const [searchEmp, setSearchEmp] = useState("");
@@ -6235,7 +6253,9 @@ function TimeSheetPage({ emp }) {
   };
   useEffect(() => {
     FirebaseAPI.loadTimesheet().then(d => {
-      if (d) { setData(d); storage.set(STORAGE_KEY, d); }
+      if (d && Array.isArray(d.malak) && d.malak.length) {
+        setData(d); storage.set(STORAGE_KEY, d);
+      }
     });
   }, []);
 
