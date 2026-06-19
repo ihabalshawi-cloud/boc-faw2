@@ -6521,6 +6521,22 @@ function TimeSheetPage({ emp }) {
       malak:     malak.length     ? malak     : INITIAL_TS.malak,
       contracts: contracts.length ? contracts : INITIAL_TS.contracts,
       drivers:   drivers.length   ? drivers   : INITIAL_TS.drivers,
+    // Firebase converts arrays to {0:…,1:…} — restore before using as state
+    const toArr = (v) => {
+      if (Array.isArray(v)) return v;
+      if (v && typeof v === "object") {
+        const ks = Object.keys(v);
+        if (ks.length > 0 && ks.every(k => /^\d+$/.test(k)))
+          return ks.sort((a,b)=>Number(a)-Number(b)).map(k=>v[k]);
+      }
+      return Array.isArray(v) ? v : [];
+    };
+    const raw = storage.get(STORAGE_KEY, null);
+    if (!raw || typeof raw !== "object") return INITIAL_TS;
+    return {
+      malak:     toArr(raw.malak)     .length ? toArr(raw.malak)     : INITIAL_TS.malak,
+      contracts: toArr(raw.contracts) .length ? toArr(raw.contracts) : INITIAL_TS.contracts,
+      drivers:   toArr(raw.drivers)   .length ? toArr(raw.drivers)   : INITIAL_TS.drivers,
     };
   });
   const [editCell, setEditCell] = useState(null);
@@ -7310,6 +7326,7 @@ function TimeSheetPage({ emp }) {
             <Printer size={14}/> طباعة / PDF
           </button>
           <button onClick={()=>{setShowImport(v=>!v);setShowExport(false);}}
+          <button onClick={()=>setShowImport(v=>!v)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700">
             <Upload size={14}/> استيراد Excel
           </button>
