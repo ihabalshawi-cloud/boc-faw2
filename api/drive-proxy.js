@@ -277,10 +277,25 @@ module.exports = async (req, res) => {
     if (action === "download") {
       const fileId = url.searchParams.get("fileId");
       if (!fileId) { res.status(400).json({ error: "Missing fileId" }); return; }
-      const r = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+
+      const driveDownload = async (tok) =>
+        fetch(
+          `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
+          { headers: { Authorization: `Bearer ${tok}` } }
+        );
+
+      let r = await driveDownload(token);
+
+      // إذا فشل OAuth2 بـ 403/404 وتوفّر Service Account، جرّبه كبديل
+      // (يحدث عندما تكون صلاحية OAuth2 محدودة بـ drive.file فقط)
+      if (!r.ok && (r.status === 403 || r.status === 404) && process.env.GDRIVE_SERVICE_ACCOUNT) {
+        try {
+          const saToken = await getTokenViaServiceAccount();
+          const r2 = await driveDownload(saToken);
+          if (r2.ok) r = r2; // SA نجح، استخدمه
+        } catch {}
+      }
+
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
         res.status(r.status).json({ error: err.error?.message || `HTTP ${r.status}` });
