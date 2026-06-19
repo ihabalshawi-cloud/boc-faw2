@@ -104,7 +104,8 @@ async function readBody(req) {
 
 // ── Request handler ───────────────────────────────────────────────────────────
 module.exports = async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin",  "*");
+  const allowedOrigin = process.env.ALLOWED_ORIGIN || "*";
+  res.setHeader("Access-Control-Allow-Origin",  allowedOrigin);
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-filename, x-file-mime, x-file-size, x-session-uri, x-content-range");
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
