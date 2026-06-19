@@ -3231,6 +3231,9 @@ function HealthInsuranceForm({ emp }) {
   const [rows,         setRows]         = useState(() => Array.from({length:10},(_,i)=>emptyRow(i+1)));
   const [activeView,   setActiveView]   = useState("form"); // "form" | "history" | "preview"
   const [savedForms,   setSavedForms]   = useState(() => storage.get(HISTORY_KEY, []));
+  const [insExporting, setInsExporting] = useState(false);
+  const [showInsExport,setShowInsExport]= useState(false);
+  const insFileRef = useRef(null);
 
   useEffect(() => {
     const d = storage.get(STORAGE_KEY);
@@ -3436,6 +3439,93 @@ function HealthInsuranceForm({ emp }) {
     addToast("تم تصدير الاستمارة كملف Word","success");
   };
 
+  // ── تصدير إلى قالب إكسل (يحافظ على تنسيق الملف الأصلي) ──
+  const PROC_COL_MAP = {
+    "الامراض المستعصية":                              "A",
+    "العمليات الصغرى":                               "B",
+    "العمليات الوسطى":                               "D",
+    "العمليات الكبرى":                               "G",
+    "العمليات فوق الكبرى":                           "J",
+    "معالجة اسنان":                                  "M",
+    "اشعة وسونار":                                   "N",
+    "نظارات طبية":                                   "P",
+    "تحاليل مختبرية":                                "R",
+    "الرنين والمفراس/الايكو/تخطيط القلب":            "T",
+    "العلاجات (الادوية)":                            "W",
+    "اجور الطبيب":                                   "Y",
+  };
+
+  const exportToInsuranceTemplate = async (buffer) => {
+    try {
+      const { read, write } = await import("xlsx");
+      const wb = read(buffer, { type: "array", cellStyles: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+
+      const set = (ref, v, t = "s") => { ws[ref] = { ...(ws[ref] || {}), v, t }; };
+
+      // حقول الهيدر
+      set("I2",  "لجنة الضمان الصحي المركزية");
+      set("AH2", emp.name);
+      set("I4",  phone);
+      set("AH4", String(emp.jobNum || ""));
+      set("E5",  String(beneficiaries.length));
+      set("E6",  new Date().toLocaleDateString("ar-IQ"));
+      set("T6",  MONTHS_IRAQI[month] + " " + year);
+      set("AH6", marital);
+      set("E7",  String(formSequence));
+      set("Q7",  String(filledRows.length));
+      set("U7",  formEnvelope);
+
+      // مسح الصفوف 13-22 مع الحفاظ على التنسيق
+      const TABLE_COLS = ["A","B","D","G","J","M","N","P","R","T","W","Y","AB","AC","AH"];
+      for (let r = 13; r <= 22; r++) {
+        for (const col of TABLE_COLS) {
+          const ref = col + r;
+          if (ws[ref]) ws[ref] = { ...(ws[ref] || {}), v: "", t: "s" };
+        }
+      }
+
+      // تعبئة صفوف المراجعات
+      const dataRows = rows.filter(r => r.beneficiary && r.procedure);
+      dataRows.forEach((row, idx) => {
+        const r = 13 + idx;
+        if (r > 22) return;
+        set("AH" + r, idx + 1, "n");
+        set("AC" + r, row.beneficiary);
+        if (row.date) set("AB" + r, row.date);
+        const col = PROC_COL_MAP[row.procedure];
+        if (col) {
+          const v = row.amount ? Number(row.amount) : "✓";
+          ws[col + r] = { ...(ws[col + r] || {}), v, t: row.amount ? "n" : "s" };
+        }
+      });
+
+      const out  = write(wb, { bookType: "xlsx", type: "array", cellStyles: true });
+      const blob = new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const a    = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `استمارة_ضمان_${emp.name.replace(/\s+/g,"_")}_${MONTHS_IRAQI[month]}_${year}.xlsx`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(a.href);
+      addToast("تم تصدير الاستمارة بنجاح","success");
+    } catch(e) {
+      addToast("فشل تصدير الإكسل: " + e.message, "error");
+    } finally {
+      setInsExporting(false);
+      setShowInsExport(false);
+    }
+  };
+
+  const exportFromInsFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setInsExporting(true);
+    const reader = new FileReader();
+    reader.onload = (ev) => exportToInsuranceTemplate(ev.target.result);
+    reader.readAsArrayBuffer(file);
+    e.target.value = "";
+  };
+
   return (
     <div className="space-y-4" dir="rtl">
       {/* Deadline banner */}
@@ -3602,11 +3692,33 @@ function HealthInsuranceForm({ emp }) {
           </div>
         </div>
 
+        {/* لوحة تصدير قالب الإكسل */}
+        {showInsExport && (
+          <div className="card rounded-2xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-sm text-emerald-800 flex items-center gap-2">
+                <Download size={15}/> تصدير إلى قالب إكسل
+              </h4>
+              <button onClick={()=>setShowInsExport(false)} className="text-gray-400 hover:text-gray-600"><X size={16}/></button>
+            </div>
+            <p className="text-xs text-emerald-700">اختر ملف قالب الإكسل الخاص باستمارة الضمان الصحي — سيتم ملء البيانات مع الحفاظ على التنسيق الأصلي.</p>
+            <input ref={insFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={exportFromInsFile}/>
+            <button
+              onClick={()=>insFileRef.current?.click()}
+              disabled={insExporting}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 disabled:opacity-60">
+              {insExporting ? <span className="animate-spin">⏳</span> : <Download size={14}/>}
+              {insExporting ? "جاري التصدير..." : "اختيار ملف القالب"}
+            </button>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex flex-wrap gap-3 justify-end pb-4">
           <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 btn-secondary border border-color rounded-xl font-bold text-sm"><Save size={14}/> حفظ مسودة</button>
           <button onClick={saveToHistory} className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm hover:bg-violet-700"><Save size={14}/> حفظ في السجل</button>
-          <button onClick={exportWord} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700"><Download size={14}/> تصدير Word</button>
+          <button onClick={()=>setShowInsExport(v=>!v)} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700"><Download size={14}/> تصدير إكسل</button>
+          <button onClick={exportWord} className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm hover:bg-teal-700"><Download size={14}/> تصدير Word</button>
           <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700"><Printer size={14}/> طباعة الاستمارة</button>
         </div>
       </>)}
