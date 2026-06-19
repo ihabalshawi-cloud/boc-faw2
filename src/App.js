@@ -6845,21 +6845,13 @@ function TimeSheetPage({ emp }) {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm btn-secondary">
             <AlertTriangle size={14}/> دليل الرموز
           </button>
-          <button onClick={exportExcel}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-green-600 text-white hover:bg-green-700">
-            <Download size={14}/> Excel
-          </button>
           <button onClick={exportExcelFormatted}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-indigo-700 text-white hover:bg-indigo-800">
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-green-700 text-white hover:bg-green-800">
             <FileCheck size={14}/> Excel رسمي
           </button>
-          <button onClick={exportPDF}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700">
-            <Printer size={14}/> PDF
-          </button>
           <button onClick={exportOfficialForm}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-indigo-700 text-white hover:bg-indigo-800">
-            <FileCheck size={14}/> فورمة رسمية
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700">
+            <Printer size={14}/> طباعة / PDF
           </button>
         </div>
       </div>
