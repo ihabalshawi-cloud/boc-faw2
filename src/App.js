@@ -1454,12 +1454,28 @@ function EmployeeManager({ employees, setEmployees }) {
   const totalPages = Math.ceil(filtered.length / perPage);
   const paged = filtered.slice((page-1)*perPage, page*perPage);
 
-  const saveEmp = () => {
+  const saveEmp = async () => {
     if (!form.name || !form.jobNum) return;
-    if (adding) setEmployees([...employees, {...form, id:Date.now(), password:"1000"}]);
-    else setEmployees(employees.map(e => e.id===editId ? {...e,...form} : e));
+    const existing = employees.find(e => e.id === editId);
+    const empToSave = adding
+      ? { ...form, id: Date.now() }
+      : { ...existing, ...form };
+
+    if (adding) setEmployees(prev => [...prev, empToSave]);
+    else setEmployees(prev => prev.map(e => e.id === editId ? empToSave : e));
     setAdding(false); setEditId(null);
-    addToast(adding?"تمت إضافة الموظف":"تم تحديث البيانات","success");
+
+    if (isConnected) {
+      const ok = await FirebaseAPI.saveEmployee(empToSave);
+      addToast(
+        adding
+          ? (ok ? "تمت إضافة الموظف وحُفظ في Firebase ✅" : "تمت الإضافة محلياً — فشل Firebase ⚠️")
+          : (ok ? "تم تحديث البيانات في Firebase ✅"       : "تم التحديث محلياً — فشل Firebase ⚠️"),
+        ok ? "success" : "warning"
+      );
+    } else {
+      addToast(adding ? "تمت إضافة الموظف (غير متصل)" : "تم تحديث البيانات (غير متصل)", "success");
+    }
   };
 
   const toggleStatus = (e) => {

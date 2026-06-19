@@ -133,6 +133,27 @@ export const FirebaseAPI = {
     } catch { return false; }
   },
 
+  saveEmployee: async (emp) => {
+    if (!emp?.jobNum) return false;
+    try {
+      const { password: _pw, ...rest } = emp;
+      const res = await fetch(`${FIREBASE_URL}/accounts/${emp.jobNum}.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(rest),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+
+  deleteEmployee: async (jobNum) => {
+    if (!jobNum) return false;
+    try {
+      const res = await fetch(`${FIREBASE_URL}/accounts/${jobNum}.json`, { method: "DELETE" });
+      return res.ok;
+    } catch { return false; }
+  },
+
   // ── Chat ──────────────────────────────────────────────────────────────────
   sendMessage: async (msg) => {
     try {
