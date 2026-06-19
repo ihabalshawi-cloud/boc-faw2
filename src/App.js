@@ -3796,6 +3796,7 @@ function AnnualLeaveForm({ emp }) {
   const STORAGE_KEY = `annual_leave_${emp.id}`;
   const [uploadPct, setUploadPct] = useState(-1);
   const [driveLink, setDriveLink] = useState(null);
+  const [xlExporting, setXlExporting] = useState(false);
 
   const [name, setName] = useState(emp.name);
   const [jobNum, setJobNum] = useState(emp.jobNum || "");
@@ -3957,6 +3958,52 @@ function AnnualLeaveForm({ emp }) {
     }
   };
 
+  const exportToExcel = async () => {
+    setXlExporting(true);
+    try {
+      const res = await fetch("/templates/leave-annual.xlsx");
+      const buf0 = await res.arrayBuffer();
+      const mod = await import("exceljs");
+      const ExcelJS = mod.default || mod;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf0);
+      const ws = wb.worksheets[0];
+      const set = (r, v) => { ws.getCell(r).value = v ?? null; };
+      const fmtD = d => {
+        if (!d) return "";
+        const dt = new Date(d + "T00:00:00");
+        return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`;
+      };
+      set("C5",  fmtD(reqDate));
+      set("I8",  name);
+      set("I9",  String(jobNum || ""));
+      set("I10", jobTitle);
+      set("I11", fmtD(reqDate));
+      set("D13", days ? String(days) : "");
+      set("G13", fmtD(fromDate));
+      set("I14", purpose);
+      const outBuf = await wb.xlsx.writeBuffer();
+      const safeName = (name || "موظف").replace(/\s+/g, "_");
+      const fname = `اجازة_اعتيادية_${safeName}_${reqDate || "بدون_تاريخ"}.xlsx`;
+      const blob = new Blob([outBuf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = fname;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+      toast.success("تم تصدير نموذج الإجازة الاعتيادية");
+      if (gDrive.isReady) {
+        setUploadPct(0);
+        const file = new File([outBuf], fname, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
+        setDriveLink(result.webViewLink);
+        toast.success("تم رفع النموذج إلى Drive");
+      }
+    } catch(e) {
+      toast.error("فشل التصدير: " + e.message);
+    } finally {
+      setXlExporting(false); setUploadPct(-1);
+    }
+  };
+
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-5" dir="rtl">
       <div className="flex items-center gap-3 pb-3 border-b border-color">
@@ -3990,7 +4037,7 @@ function AnnualLeaveForm({ emp }) {
             <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "رفع إلى Drive"}
           </button>
         )}
-        <a href="/templates/leave-annual.xlsx" download className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm border border-gray-200 hover:bg-gray-200"><Download size={14}/> تنزيل النموذج</a>
+        <button onClick={exportToExcel} disabled={xlExporting} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-60"><Download size={14}/> {xlExporting ? "جاري التصدير..." : "تصدير إكسل"}</button>
         <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
       </div>
     </div>
@@ -4004,6 +4051,7 @@ function SickLeaveForm({ emp }) {
   const STORAGE_KEY = `sick_leave_${emp.id}`;
   const [uploadPct, setUploadPct] = useState(-1);
   const [driveLink, setDriveLink] = useState(null);
+  const [xlExporting, setXlExporting] = useState(false);
 
   const [name,        setName]        = useState(emp.name);
   const [jobNum,      setJobNum]      = useState(emp.jobNum || "");
@@ -4142,6 +4190,59 @@ function SickLeaveForm({ emp }) {
     }
   };
 
+  const exportToExcel = async () => {
+    setXlExporting(true);
+    try {
+      const res = await fetch("/templates/leave-sick.xlsx");
+      const buf0 = await res.arrayBuffer();
+      const mod = await import("exceljs");
+      const ExcelJS = mod.default || mod;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf0);
+      const ws = wb.worksheets[0];
+      const set = (r, v) => { ws.getCell(r).value = v ?? null; };
+      const fmtD = d => {
+        if (!d) return "";
+        const dt = new Date(d + "T00:00:00");
+        return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`;
+      };
+      const fmtDT = v => {
+        if (!v) return "";
+        const dt = new Date(v);
+        return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}  ${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
+      };
+      set("C5",  fmtD(new Date().toISOString().split("T")[0]));
+      set("I8",  name);
+      set("I9",  String(jobNum || ""));
+      set("I10", jobTitle);
+      set("I11", fmtD(leaveDate));
+      set("I12", leaveTime || "");
+      set("I16", fmtDT(clinicDT));
+      set("I18", notes);
+      set("I24", fmtD(returnDate));
+      set("I25", returnTime || "");
+      const outBuf = await wb.xlsx.writeBuffer();
+      const safeName = (name || "موظف").replace(/\s+/g, "_");
+      const fname = `اجازة_مرضية_${safeName}_${leaveDate || "بدون_تاريخ"}.xlsx`;
+      const blob = new Blob([outBuf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = fname;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+      toast.success("تم تصدير نموذج الإجازة المرضية");
+      if (gDrive.isReady) {
+        setUploadPct(0);
+        const file = new File([outBuf], fname, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
+        setDriveLink(result.webViewLink);
+        toast.success("تم رفع النموذج إلى Drive");
+      }
+    } catch(e) {
+      toast.error("فشل التصدير: " + e.message);
+    } finally {
+      setXlExporting(false); setUploadPct(-1);
+    }
+  };
+
   return (
     <div className="p-6 max-w-xl mx-auto space-y-5" dir="rtl">
       <div className="flex items-center gap-3 pb-3 border-b border-color">
@@ -4200,7 +4301,7 @@ function SickLeaveForm({ emp }) {
             <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "رفع إلى Drive"}
           </button>
         )}
-        <a href="/templates/leave-sick.xlsx" download className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm border border-gray-200 hover:bg-gray-200"><Download size={14}/> تنزيل النموذج</a>
+        <button onClick={exportToExcel} disabled={xlExporting} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-60"><Download size={14}/> {xlExporting ? "جاري التصدير..." : "تصدير إكسل"}</button>
         <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-rose-500 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
       </div>
     </div>
@@ -4801,6 +4902,7 @@ function TimeLeaveForm({ emp }) {
   const [sigDataUrl, setSigDataUrl] = useState(null);
   const [uploadPct, setUploadPct] = useState(-1);
   const [driveLink, setDriveLink] = useState(null);
+  const [xlExporting, setXlExporting] = useState(false);
 
   useEffect(() => {
     const saved = storage.get(STORAGE_KEY, null);
@@ -4939,6 +5041,51 @@ function TimeLeaveForm({ emp }) {
     }
   };
 
+  const exportToExcel = async () => {
+    setXlExporting(true);
+    try {
+      const res = await fetch("/templates/leave-time.xlsx");
+      const buf0 = await res.arrayBuffer();
+      const mod = await import("exceljs");
+      const ExcelJS = mod.default || mod;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf0);
+      const ws = wb.worksheets[0];
+      const set = (r, v) => { ws.getCell(r).value = v ?? null; };
+      const fmtD = d => {
+        if (!d) return "";
+        const dt = new Date(d + "T00:00:00");
+        return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`;
+      };
+      set("F2", fmtD(leaveDate));
+      set("C7", name);
+      set("E7", String(jobNum || ""));
+      set("G7", jobTitle);
+      set("D8", dept);
+      set("G8", departureTime || "");
+      set("C9", returnTime || "");
+      const outBuf = await wb.xlsx.writeBuffer();
+      const safeName = (name || "موظف").replace(/\s+/g, "_");
+      const fname = `اجازة_زمنية_${safeName}_${leaveDate || "بدون_تاريخ"}.xlsx`;
+      const blob = new Blob([outBuf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = fname;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+      toast.success("تم تصدير نموذج الإجازة الزمنية");
+      if (gDrive.isReady) {
+        setUploadPct(0);
+        const file = new File([outBuf], fname, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
+        setDriveLink(result.webViewLink);
+        toast.success("تم رفع النموذج إلى Drive");
+      }
+    } catch(e) {
+      toast.error("فشل التصدير: " + e.message);
+    } finally {
+      setXlExporting(false); setUploadPct(-1);
+    }
+  };
+
   return (
     <div className="p-6 max-w-xl mx-auto space-y-5" dir="rtl">
       <div className="flex items-center gap-3 pb-3 border-b border-color">
@@ -4986,7 +5133,7 @@ function TimeLeaveForm({ emp }) {
             <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "رفع إلى Drive"}
           </button>
         )}
-        <a href="/templates/leave-time.xlsx" download className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm border border-gray-200 hover:bg-gray-200"><Download size={14}/> تنزيل النموذج</a>
+        <button onClick={exportToExcel} disabled={xlExporting} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-60"><Download size={14}/> {xlExporting ? "جاري التصدير..." : "تصدير إكسل"}</button>
         <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
       </div>
     </div>
