@@ -3990,6 +3990,7 @@ function AnnualLeaveForm({ emp }) {
             <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "رفع إلى Drive"}
           </button>
         )}
+        <a href="/templates/leave-annual.xlsx" download className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm border border-gray-200 hover:bg-gray-200"><Download size={14}/> تنزيل النموذج</a>
         <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
       </div>
     </div>
@@ -4199,6 +4200,7 @@ function SickLeaveForm({ emp }) {
             <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "رفع إلى Drive"}
           </button>
         )}
+        <a href="/templates/leave-sick.xlsx" download className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm border border-gray-200 hover:bg-gray-200"><Download size={14}/> تنزيل النموذج</a>
         <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-rose-500 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
       </div>
     </div>
@@ -4773,6 +4775,7 @@ function OutOfCountryLeaveForm({ emp }) {
             <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "Word في Drive"}
           </button>
         )}
+        <a href="/templates/leave-ooc.xlsx" download className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm border border-gray-200 hover:bg-gray-200"><Download size={14}/> تنزيل النموذج</a>
         <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
       </div>
     </div>
@@ -4983,6 +4986,7 @@ function TimeLeaveForm({ emp }) {
             <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "رفع إلى Drive"}
           </button>
         )}
+        <a href="/templates/leave-time.xlsx" download className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm border border-gray-200 hover:bg-gray-200"><Download size={14}/> تنزيل النموذج</a>
         <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
       </div>
     </div>
@@ -4991,18 +4995,18 @@ function TimeLeaveForm({ emp }) {
 
 // ========== صفحة نماذج الإجازات ==========
 function LeaveFormsPrintPage({ emp }) {
-  const [tab, setTab] = useState("annual");
+  const [tab, setTab] = useState("time");
   return (
     <div className="p-4 max-w-3xl mx-auto">
       <div className="flex flex-wrap gap-2 mb-5">
-        <button onClick={()=>setTab("annual")} className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="annual"?"bg-blue-600 text-white border-blue-600":"btn-secondary border-color"}`}>إجازة اعتيادية</button>
         <button onClick={()=>setTab("time")}   className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="time"  ?"bg-teal-600 text-white border-teal-600"  :"btn-secondary border-color"}`}>إجازة زمنية</button>
         <button onClick={()=>setTab("sick")}   className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="sick"  ?"bg-rose-500 text-white border-rose-500"  :"btn-secondary border-color"}`}>إجازة مرضية</button>
+        <button onClick={()=>setTab("annual")} className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="annual"?"bg-blue-600 text-white border-blue-600":"btn-secondary border-color"}`}>إجازة اعتيادية</button>
         <button onClick={()=>setTab("ooc")}    className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="ooc"   ?"bg-violet-600 text-white border-violet-600":"btn-secondary border-color"}`}>إجازة خارج القطر</button>
       </div>
-      {tab==="annual" && <AnnualLeaveForm emp={emp}/>}
       {tab==="time"   && <TimeLeaveForm emp={emp}/>}
       {tab==="sick"   && <SickLeaveForm emp={emp}/>}
+      {tab==="annual" && <AnnualLeaveForm emp={emp}/>}
       {tab==="ooc"    && <OutOfCountryLeaveForm emp={emp}/>}
     </div>
   );
