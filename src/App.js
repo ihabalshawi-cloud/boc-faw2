@@ -6210,6 +6210,24 @@ function TsCodePicker({ codesArr, current, onSelect, onClose }) {
   );
 }
 
+class TsErrorBoundary extends React.Component {
+  constructor(p) { super(p); this.state = { err: null }; }
+  static getDerivedStateFromError(e) { return { err: e }; }
+  render() {
+    if (this.state.err) return (
+      <div dir="rtl" className="p-6 text-center">
+        <p className="text-red-600 font-bold mb-2">خطأ في تحميل صفحة التايم شيت</p>
+        <p className="text-sm text-gray-500 mb-4">{this.state.err?.message}</p>
+        <button onClick={()=>{localStorage.removeItem("boc_timesheet_v5");this.setState({err:null});}}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">
+          مسح البيانات المحلية وإعادة المحاولة
+        </button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
 function TimeSheetPage({ emp }) {
   const addToast = useToast();
   const confirm  = useConfirm();
@@ -6220,22 +6238,30 @@ function TimeSheetPage({ emp }) {
   const [tsYear,  setTsYear]  = useState(() => new Date().getFullYear());
   const [activeTab, setActiveTab] = useState("malak");
   const [data, setData] = useState(() => {
-    // Firebase converts arrays to {0:…,1:…} — restore before using as state
+    // Firebase converts arrays to {0:…,1:…} — restore before using as state.
+    // Also filter out null/sparse entries Firebase may leave behind after deletions.
     const toArr = (v) => {
-      if (Array.isArray(v)) return v;
-      if (v && typeof v === "object") {
+      let arr;
+      if (Array.isArray(v)) arr = v;
+      else if (v && typeof v === "object") {
         const ks = Object.keys(v);
         if (ks.length > 0 && ks.every(k => /^\d+$/.test(k)))
-          return ks.sort((a,b)=>Number(a)-Number(b)).map(k=>v[k]);
-      }
-      return Array.isArray(v) ? v : [];
+          arr = ks.sort((a,b)=>Number(a)-Number(b)).map(k=>v[k]);
+        else arr = [];
+      } else arr = [];
+      return arr.filter(e => e && typeof e === "object").map(e => ({
+        ...e, days: e.days || {}, hours: e.hours || {},
+      }));
     };
     const raw = storage.get(STORAGE_KEY, null);
     if (!raw || typeof raw !== "object") return INITIAL_TS;
+    const malak     = toArr(raw.malak);
+    const contracts = toArr(raw.contracts);
+    const drivers   = toArr(raw.drivers);
     return {
-      malak:     toArr(raw.malak)     .length ? toArr(raw.malak)     : INITIAL_TS.malak,
-      contracts: toArr(raw.contracts) .length ? toArr(raw.contracts) : INITIAL_TS.contracts,
-      drivers:   toArr(raw.drivers)   .length ? toArr(raw.drivers)   : INITIAL_TS.drivers,
+      malak:     malak.length     ? malak     : INITIAL_TS.malak,
+      contracts: contracts.length ? contracts : INITIAL_TS.contracts,
+      drivers:   drivers.length   ? drivers   : INITIAL_TS.drivers,
     };
   });
   const [editCell, setEditCell] = useState(null);
@@ -7095,7 +7121,7 @@ function TimeSheetPage({ emp }) {
                       <td className="border border-gray-200 text-center font-black ts-mono" style={{backgroundColor:bgBase,fontSize:"10px",color:"#C87A2E"}}>أ</td>
                       {days.map(d=>{
                         const isWe = isWeekendDay(d);
-                        const code = e.days[String(d)] || "";
+                        const code = (e.days||{})[String(d)] || "";
                         const isEd = editCell?.empId===e.id && editCell?.day===d && editCell?.type==="code";
                         const cellBg = code ? "" : isWe ? "#fff7ed" : bgBase;
                         return (
@@ -7128,7 +7154,7 @@ function TimeSheetPage({ emp }) {
                       <td className="border border-gray-200 text-center font-black ts-mono" style={{backgroundColor:bgBase,fontSize:"10px",color:"#7c3aed"}}>ق</td>
                       {days.map(d=>{
                         const isWe = isWeekendDay(d);
-                        const h = e.hours[String(d)];
+                        const h = (e.hours||{})[String(d)];
                         const isEd = editCell?.empId===e.id && editCell?.day===d && editCell?.type==="hours";
                         const cellBg = h!=null ? "#f5f3ff" : isWe ? "#FFF3E6" : bgBase;
                         return (
@@ -7456,7 +7482,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           {view==="health_insurance" && <HealthInsuranceForm emp={emp}/>}
           {view==="leave_forms" && <LeaveFormsPrintPage emp={emp}/>}
           {view==="projects" && <ProjectManagementPage emp={emp}/>}
-          {view==="timesheet" && <TimeSheetPage emp={emp}/>}
+          {view==="timesheet" && <TsErrorBoundary><TimeSheetPage emp={emp}/></TsErrorBoundary>}
           {view==="admin_dashboard" && isAdmin && <AdminDashboard emp={emp} employees={employees} setEmployees={setEmployees}/>}
         </main>
       </div>
