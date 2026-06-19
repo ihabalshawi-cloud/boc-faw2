@@ -22,11 +22,20 @@ import { storage, passStore, hashPassword, isHash, printElement, exportCSV } fro
 import { FirebaseAPI } from "./firebase";
 import { GDriveAPI, GDriveContext, GDriveProvider, useGDrive } from "./gdrive";
 import { useToast, useConfirm, ToastProvider, ConfirmProvider } from "./contexts";
+import { EmpPopover, PrintButton } from "./components/Shared";
 import { PERMISSIONS_DEF, BUILT_IN_ROLES, getEmpStatus, setEmpStatus, hasPermission } from "./permissions";
 import { SVGBarChart, SVGPieChart } from "./components/Charts";
 
 const LazyTimeSheetPage = React.lazy(() => import('./pages/TimeSheetPage'));
 const LazyEmployeeManager = React.lazy(() => import('./pages/EmployeeManagerPage'));
+const LazyInventoryPage = React.lazy(() => import('./pages/InventoryPage'));
+const LazyFurnitureInventory = React.lazy(() => import('./pages/InventoryPage').then(m => ({ default: m.FurnitureInventory })));
+const LazyAttendanceSystem = React.lazy(() => import('./pages/WorkplacePage'));
+const LazyTrainingSystem = React.lazy(() => import('./pages/WorkplacePage').then(m => ({ default: m.TrainingSystem })));
+const LazyTasksSystem = React.lazy(() => import('./pages/WorkplacePage').then(m => ({ default: m.TasksSystem })));
+const LazyInternalChat = React.lazy(() => import('./pages/WorkplacePage').then(m => ({ default: m.InternalChat })));
+const LazyEvaluationSystem = React.lazy(() => import('./pages/WorkplacePage').then(m => ({ default: m.EvaluationSystem })));
+
 const LazyAdminDashboard = React.lazy(() => import('./pages/AdminDashboardPage'));
 
 const LazyEquipmentPage = React.lazy(() => import('./pages/EquipmentPage'));
@@ -63,41 +72,6 @@ function SkeletonMsg({ mine }) {
 }
 
 // ========== بطاقة الموظف السريعة ==========
-function EmpPopover({ emp, children }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [open]);
-  if (!emp) return <span>{children}</span>;
-  return (
-    <span ref={ref} className="relative inline-block">
-      <button onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
-        className="font-medium hover:text-blue-600 hover:underline transition-colors">
-        {children}
-      </button>
-      {open && (
-        <div className="absolute z-[150] card rounded-2xl shadow-2xl border border-color p-4 min-w-[220px] top-full mt-1 right-0">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shrink-0">
-              <span className="text-white text-sm font-bold">{emp.name?.[0]}</span>
-            </div>
-            <div><p className="font-bold text-sm">{emp.name}</p><p className="text-xs text-secondary">{emp.jobNum}</p></div>
-          </div>
-          <div className="space-y-1.5 text-xs border-t border-color pt-2">
-            <div className="flex justify-between gap-2"><span className="text-secondary">المنصب</span><span className="font-medium text-left">{emp.title}</span></div>
-            <div className="flex justify-between gap-2"><span className="text-secondary shrink-0">القسم</span><span className="font-medium text-left text-[11px]">{emp.dept}</span></div>
-            <div className="flex justify-between gap-2"><span className="text-secondary">الدوام</span><span className="font-medium">{emp.shift || "—"}</span></div>
-          </div>
-        </div>
-      )}
-    </span>
-  );
-}
-
 
 function GlobalSearch({ setView, onClose }) {
   const [q, setQ] = useState("");
@@ -191,10 +165,6 @@ function sendDesktopNotification(title, body) {
   }
 }
 
-
-function PrintButton({ targetId, label = "طباعة" }) {
-  return (<button onClick={() => targetId ? printElement(targetId) : window.print()} className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl shadow-sm border btn-secondary"><Printer size={13}/> {label}</button>);
-}
 
 
 
@@ -878,469 +848,6 @@ function NotificationsPage({ emp }) {
 }
 
 // ========== نظام الحضور ==========
-function AttendanceSystem({ emp, isAdmin, allEmployees }) {
-  const now = new Date();
-  const [selMonth, setSelMonth] = useState(now.getMonth());
-  const [selYear, setSelYear] = useState(now.getFullYear());
-  const [selEmpId, setSelEmpId] = useState(isAdmin ? null : emp.id);
-  const [selectedDate, setSelectedDate] = useState(now.toISOString().slice(0,10));
-  const [dailyRecords, setDailyRecords] = useState(() => storage.get(`attendance_${emp.id}`, {}));
-  const [toast, setToast] = useState("");
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
-  const daysInMonth = new Date(selYear, selMonth+1, 0).getDate();
-
-  useEffect(() => { storage.set(`attendance_${emp.id}`, dailyRecords); }, [dailyRecords, emp.id]);
-
-  const handleCheckIn = () => {
-    const t = new Date().toLocaleTimeString("ar-IQ", { hour:"2-digit", minute:"2-digit" });
-    setDailyRecords({ ...dailyRecords, [selectedDate]: { ...(dailyRecords[selectedDate]||{}), checkIn: t, status:"حاضر" } });
-    showToast("✅ تم تسجيل دخولك بنجاح"); playAlert("notification");
-  };
-  const handleCheckOut = () => {
-    const t = new Date().toLocaleTimeString("ar-IQ", { hour:"2-digit", minute:"2-digit" });
-    if (!dailyRecords[selectedDate]?.checkIn) { showToast("⚠️ يجب تسجيل الدخول أولاً"); return; }
-    setDailyRecords({ ...dailyRecords, [selectedDate]: { ...dailyRecords[selectedDate], checkOut: t } });
-    showToast("✅ تم تسجيل خروجك بنجاح"); playAlert("notification");
-  };
-
-  const stats = { حاضر: 0, غائب: 0 };
-  for (let d = 1; d <= daysInMonth; d++) {
-    const k = `${selYear}-${String(selMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-    if (dailyRecords[k]?.checkIn) stats.حاضر++; else stats.غائب++;
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-3 items-center justify-between">
-        <div className="flex gap-2 flex-wrap">
-          <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))} className="input rounded-xl px-3 py-2 text-sm">{MONTHS_AR.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
-          <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))} className="input rounded-xl px-3 py-2 text-sm">{[2024,2025,2026].map(y=><option key={y}>{y}</option>)}</select>
-          {isAdmin && <select value={selEmpId||""} onChange={e=>setSelEmpId(Number(e.target.value)||null)} className="input rounded-xl px-3 py-2 text-sm min-w-[180px]"><option value="">-- اختر موظفاً --</option>{allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,2).join(" ")}</option>)}</select>}
-        </div>
-        <div className="flex gap-2">
-          <button onClick={()=>exportCSV(Array.from({length:daysInMonth},(_,i)=>i+1).map(d=>{const k=`${selYear}-${String(selMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;const r=dailyRecords[k]||{};return{اليوم:d,التاريخ:k,دخول:r.checkIn||"—",خروج:r.checkOut||"—",الحالة:r.checkIn?"حاضر":"غائب"}}),"سجل_الحضور")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/> تصدير</button>
-          <PrintButton targetId="print-attendance" label="طباعة التقرير"/>
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-emerald-50 rounded-2xl p-3 text-center border border-emerald-100"><p className="text-2xl font-bold text-emerald-700">{stats.حاضر}</p><p className="text-[10px] text-emerald-600">أيام الحضور</p></div>
-        <div className="bg-red-50 rounded-2xl p-3 text-center border border-red-100"><p className="text-2xl font-bold text-red-700">{stats.غائب}</p><p className="text-[10px] text-red-600">أيام الغياب</p></div>
-        <div className="bg-blue-50 rounded-2xl p-3 text-center border border-blue-100"><p className="text-2xl font-bold text-blue-700">{Math.round(stats.حاضر/daysInMonth*100)}%</p><p className="text-[10px] text-blue-600">نسبة الحضور</p></div>
-      </div>
-      {(!isAdmin || selEmpId === emp.id) && (<div className="card rounded-2xl border-color border p-5"><h3 className="font-bold mb-3">تسجيل الحضور اليومي</h3>
-        <div className="flex flex-wrap gap-4 items-end">
-          <div><label className="block text-xs font-bold text-secondary mb-1">التاريخ</label><input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} className="input rounded-xl px-3 py-2"/></div>
-          <div className="flex gap-2"><button onClick={handleCheckIn} className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold"><LogIn size={14} className="inline ml-1"/> تسجيل دخول</button>
-            <button onClick={handleCheckOut} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><LogOut size={14} className="inline ml-1"/> تسجيل خروج</button></div>
-        </div>
-        {dailyRecords[selectedDate]?.checkIn && <div className="mt-3 text-sm text-emerald-600">✅ تم تسجيل الدخول الساعة {dailyRecords[selectedDate].checkIn}</div>}
-      </div>)}
-      <div id="print-attendance" className="card rounded-2xl border-color border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-opacity-50 border-b border-color"><th className="px-3 py-2">اليوم</th><th className="px-3 py-2">التاريخ</th><th className="px-3 py-2">دخول</th><th className="px-3 py-2">خروج</th><th className="px-3 py-2">الحالة</th></tr></thead>
-        <tbody>{Array.from({length:daysInMonth},(_,i)=>i+1).map(day=>{const k=`${selYear}-${String(selMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;const r=dailyRecords[k]||{};
-          return(<tr key={day} className="border-b border-color"><td className="px-3 py-2">{new Date(k).toLocaleDateString("ar-IQ",{weekday:"short"})}</td><td className="px-3 py-2">{day}</td><td className="px-3 py-2">{r.checkIn||"—"}</td><td className="px-3 py-2">{r.checkOut||"—"}</td>
-            <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.checkIn?"bg-emerald-100 text-emerald-700":"bg-red-100 text-red-700"}`}>{r.checkIn?"حاضر":"غائب"}</span></td></tr>);})}</tbody></table></div></div>
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
-    </div>
-  );
-}
-
-// ========== نظام التدريب ==========
-function TrainingSystem({ emp, isAdmin }) {
-  const [trainings, setTrainings] = useState(() => storage.get(`trainings_${emp.id}`, []));
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title:"", type:"تدريب ذاتي", desc:"", startDate:"", endDate:"", provider:"" });
-  const [toast, setToast] = useState("");
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
-  useEffect(() => { storage.set(`trainings_${emp.id}`, trainings); }, [trainings, emp.id]);
-
-  const addTraining = () => {
-    if (!form.title) return showToast("عنوان التدريب مطلوب");
-    setTrainings([{ ...form, id: Date.now(), status:"مسندة", assignedAt: new Date().toISOString() }, ...trainings]);
-    setForm({ title:"", type:"تدريب ذاتي", desc:"", startDate:"", endDate:"", provider:"" });
-    setShowForm(false); showToast("✅ تم إضافة التدريب");
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-bold text-lg">المهام التدريبية</h3>
-        <div className="flex gap-2">{isAdmin && <button onClick={()=>setShowForm(!showForm)} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button>}
-        <PrintButton targetId="print-training" label="طباعة"/></div></div>
-      {showForm && isAdmin && (<div className="card rounded-2xl border-2 border-violet-200 p-5">
-        <div className="grid grid-cols-2 gap-3">
-          <input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="عنوان التدريب" className="input rounded-xl px-3 py-2 text-sm col-span-2"/>
-          <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} className="input rounded-xl px-3 py-2 text-sm">{TRAINING_TYPES.map(t=><option key={t}>{t}</option>)}</select>
-          <input value={form.provider} onChange={e=>setForm({...form,provider:e.target.value})} placeholder="الجهة المقدمة" className="input rounded-xl px-3 py-2 text-sm"/>
-          <input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} className="input rounded-xl px-3 py-2 text-sm"/>
-          <input type="date" value={form.endDate} onChange={e=>setForm({...form,endDate:e.target.value})} className="input rounded-xl px-3 py-2 text-sm"/>
-          <textarea value={form.desc} onChange={e=>setForm({...form,desc:e.target.value})} rows={2} placeholder="وصف التدريب" className="input rounded-xl px-3 py-2 text-sm col-span-2"/>
-        </div>
-        <div className="flex gap-2 justify-end mt-4"><button onClick={()=>setShowForm(false)} className="px-4 py-2 text-sm text-secondary btn-secondary rounded-xl border">إلغاء</button><button onClick={addTraining} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> إضافة</button></div>
-      </div>)}
-      <div id="print-training" className="space-y-3">{trainings.length===0?<div className="card rounded-2xl p-10 text-center border-color border"><GraduationCap size={40} className="text-secondary mx-auto"/><p className="text-secondary">لا توجد مهام تدريبية</p></div>:
-        trainings.map(t=>(<div key={t.id} className="card rounded-2xl border-color border p-4"><div className="flex justify-between">
-          <div><div className="flex gap-2 mb-1"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${t.status==="مكتملة"?"bg-emerald-100 text-emerald-700":"bg-amber-100 text-amber-700"}`}>{t.status}</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-50 text-violet-700">{t.type}</span></div>
-            <p className="font-bold">{t.title}</p>{t.desc && <p className="text-xs text-secondary mt-1">{t.desc}</p>}
-            <div className="flex gap-3 text-[10px] text-secondary mt-2">{t.startDate && <span>📅 من {t.startDate}</span>}{t.endDate && <span>إلى {t.endDate}</span>}</div></div>
-          {isAdmin && t.status!=="مكتملة" && <button onClick={()=>setTrainings(trainings.map(x=>x.id===t.id?{...x,status:"مكتملة"}:x))} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs"><CheckCircle size={12}/> إكمال</button>}</div></div>))}</div>
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
-    </div>
-  );
-}
-
-// ========== جرد المخزن ==========
-function InventorySystem({ emp, isAdmin }) {
-  const canEdit = isAdmin || hasPermission(emp, "MANAGE_INVENTORY");
-  const [items, setItemsState] = useState(() => storage.get("inventory_items", [
-    {id:1, code:"2301280010", name:"مقاومة متغيرة", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"2489"},
-    {id:2, code:"2301243008", name:"مولد ذبذبات", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"JB21280"},
-    {id:3, code:"2309443025", name:"جهاز معايرة مقياس الضغط", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"2605079"},
-    {id:4, code:"2309443011", name:"جهاز معايرة مقياس الضغط", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"12064"},
-    {id:5, code:"2301373023", name:"جهاز مقياس متعدد الاغراض", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"22460049"},
-    {id:6, code:"2301390031", name:"جهازقياس الضغط بالاوزان", category:"أجهزة قياس", qty:1, condition:"تالف", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"1B77"},
-    {id:7, code:"2308513026", name:"جهاز معايرة الضغوط", category:"أجهزة معايرة", qty:1, condition:"يحتاج صيانة", location:"ورشة الصيانة", minQty:1, serialNo:"2414"},
-    {id:8, code:"2301493004", name:"جهاز معايرة المزدوجات درجة الحرارة", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"B3-C511"},
-    {id:9, code:"2301293019", name:"جهاز تمييز الحساسات الحرارية", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"2645"},
-    {id:10, code:"2335613000", name:"جهاز فحص الفولتيه", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"SS22344089"},
-    {id:11, code:"2336263013", name:"جهاز كشف مسار القابولات", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"SS257676213"},
-    {id:12, code:"2335070006", name:"جهاز راسم الذبذبات", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"RS-248-898"},
-    {id:13, code:"2311183002", name:"كامرة تصوير حرارية", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"TL-12513120"},
-    {id:14, code:"2503163065", name:"ايفو ميتر", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"263458"},
-    {id:15, code:"", name:"ايفو ميتر", category:"أجهزة قياس", qty:1, condition:"يحتاج صيانة", location:"ورشة الصيانة", minQty:1, serialNo:"90410374"},
-    {id:16, code:"2501035893", name:"كوسرة طيارية", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:17, code:"2505133097", name:"منكنة", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:18, code:"2505503033", name:"جهاز ضغط يدوي هوائي", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"13104"},
-    {id:19, code:"2505503013", name:"جهاز ضغط يدوي هوائي", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"220828"},
-    {id:20, code:"2507973015", name:"جهاز ضغط هايدروليك", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"17093"},
-    {id:21, code:"2507973016", name:"جهاز ضغط هايدروليك", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"17077"},
-    {id:22, code:"2509133009", name:"جهاز معايرة الحرارة", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"204822"},
-    {id:23, code:"2503303018", name:"جهاز معايرة الحرارة", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"2594143"},
-    {id:24, code:"2503513013", name:"جهاز معايرة التيار الكهربائي الواطئ", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"2029006"},
-    {id:25, code:"2511233055", name:"كلاب ميتر", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"1400004"},
-    {id:26, code:"2511090188", name:"ميتر", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"MEQ-2"},
-    {id:27, code:"2504786015", name:"ضاغطة هواء", category:"معدات ميكانيكية", qty:1, condition:"يحتاج صيانة", location:"ورشة الصيانة", minQty:1},
-    {id:28, code:"2505073613", name:"مقياس ضغط هايدروليك", category:"مقاييس ضغط", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"2605162"},
-    {id:29, code:"2510593033", name:"جهاز قياس الحرارة", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"12157"},
-    {id:30, code:"2503303032", name:"جهاز قياس الحرارة الدقيق", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"227-005"},
-    {id:31, code:"", name:"دريل كهربائي", category:"عدد كهربائية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:32, code:"", name:"منفاخ هواء", category:"عدد كهربائية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:33, code:"2313973022", name:"ماكنة لحام", category:"عدد كهربائية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:34, code:"", name:"جهاز معايرة هايدروليك", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"S.N117079,17092"},
-    {id:35, code:"", name:"جهاز معايرة هوائي", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"S.N2041104"},
-    {id:36, code:"", name:"جهاز معايير الحرارة", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"S.N2034224"},
-    {id:37, code:"", name:"جهاز معايرة الحراري BL-7", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"S.N2642"},
-    {id:38, code:"", name:"جهاز معايرة ضغط بالاوزان", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"S.N3164"},
-    {id:39, code:"2624033", name:"جهاز متعدد الاغراض مع قياس الضغط", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"FLUKE726"},
-    {id:40, code:"26242703", name:"جهاز متعدد الاغراض مع قياس الضغط", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"FLUKE700P27"},
-    {id:41, code:"", name:"جهاز معايرة الضغط بالهواء", category:"أجهزة معايرة", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"S.N13081"},
-    {id:42, code:"5869856100", name:"VALVE SOLINOIED EXPROOF 3WA", category:"صمامات", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:43, code:"5899710065", name:"VALVE NEDEL", category:"صمامات", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:44, code:"5869892300", name:"VALVE SWITSHING", category:"صمامات", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:45, code:"5869996510", name:"VALVE CHAAK INODC250", category:"صمامات", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:46, code:"5869856050", name:"NEEDLE SOLINIED 1/2 TUPE", category:"صمامات", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:47, code:"5883202040", name:"NEEDLE VALVUE P-N215129", category:"صمامات", qty:4, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:48, code:"5889835125", name:"NEEDLE VALVUE P-N915370", category:"صمامات", qty:5, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:49, code:"5863208250", name:"NEEDLE VALVUE 4F-V6LN-SS", category:"صمامات", qty:21, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:50, code:"00-036-3401", name:"FNPTV BOLL 1/2 NEEDEL", category:"صمامات", qty:7, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:51, code:"", name:"ايفيو ميتر", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"57440394"},
-    {id:52, code:"", name:"FLUKE", category:"أجهزة قياس", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"9110016"},
-    {id:53, code:"", name:"صمام ذاتي التفريق", category:"صمامات", qty:1, condition:"تالف", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:54, code:"", name:"قلم حديد", category:"عدد يدوية", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:55, code:"", name:"عدة قلم حديد مختلفة", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:56, code:"", name:"كاغد جام", category:"مواد استهلاكية", qty:8, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:57, code:"", name:"فرشاة سيم", category:"مواد استهلاكية", qty:6, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:58, code:"", name:"شريط صمغ", category:"مواد استهلاكية", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:59, code:"", name:"عدة غلقوز", category:"عدد يدوية", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:60, code:"", name:"منكنة بوري", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:61, code:"", name:"منظم ضغط نيتروجين", category:"معدات ميكانيكية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:62, code:"", name:"برغي مختلف الاحجام", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:63, code:"", name:"تيب حراري", category:"مواد استهلاكية", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:64, code:"", name:"درنفيس فحص", category:"عدد يدوية", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:65, code:"", name:"لاوي مع مقص", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:66, code:"", name:"بكرة كيبل سيار", category:"معدات كهربائية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:67, code:"", name:"منشار كهربائي", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:68, code:"", name:"عدة اخراج بوري حديد", category:"عدد يدوية", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:69, code:"", name:"واشر ربل داي فرام", category:"قطع غيار", qty:10, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:70, code:"", name:"ركريتر كبير", category:"عدد يدوية", qty:3, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:71, code:"", name:"بوري انبوب 6 متر", category:"معدات ميكانيكية", qty:20, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:72, code:"", name:"افيوميتر لون ازرق", category:"أجهزة قياس", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:73, code:"", name:"ريكوليتر لون اسود صغير", category:"قطع غيار", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:74, code:"", name:"كرنات", category:"عدد يدوية", qty:5, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:75, code:"", name:"برشر سويج", category:"معدات ميكانيكية", qty:3, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:76, code:"", name:"سبانه حجم 55", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:77, code:"", name:"رافعة هايدروليك", category:"معدات ميكانيكية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:78, code:"", name:"حجر كوسرة", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:79, code:"", name:"ربت", category:"عدد يدوية", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:80, code:"", name:"عدة النكي", category:"عدد يدوية", qty:5, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:81, code:"", name:"عدة لغم", category:"عدد يدوية", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:82, code:"", name:"عدة سباين مختلفة", category:"عدد يدوية", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:83, code:"", name:"مبرد", category:"مواد استهلاكية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:84, code:"", name:"برينه مختلفة الحجم", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:85, code:"", name:"عدة درنفيس مختلفة الحجم", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:86, code:"", name:"تفلون", category:"مواد استهلاكية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:87, code:"", name:"كلوب صغير", category:"عدد يدوية", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:88, code:"", name:"صولدر", category:"مواد استهلاكية", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:89, code:"", name:"شريط ربط", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:90, code:"", name:"توصالة ترامل", category:"توصيلات", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:91, code:"", name:"تيغه", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:92, code:"", name:"واير لحيم", category:"مواد استهلاكية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:93, code:"", name:"فرش صبغ", category:"مواد استهلاكية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:94, code:"", name:"كابسة ربت", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:95, code:"", name:"مسدس صمغ", category:"عدد يدوية", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:96, code:"", name:"برينه صغيرة", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:97, code:"", name:"قلقوز", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:98, code:"", name:"كماشة", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:99, code:"", name:"عدة استخراج ربل", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:100, code:"", name:"منشار تيغه", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:101, code:"", name:"كماشة حجم كبير", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:102, code:"", name:"جاكوج", category:"عدد يدوية", qty:3, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:103, code:"", name:"كبان كبير", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:104, code:"", name:"كاوية لحيم", category:"عدد كهربائية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:105, code:"", name:"سكور سبانه كبير", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:106, code:"", name:"كندك كبير", category:"عدد يدوية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:107, code:"", name:"كيج 30 par", category:"مقاييس ضغط", qty:6, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"صغير"},
-    {id:108, code:"", name:"كيج 60 psi", category:"مقاييس ضغط", qty:25, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"صغير"},
-    {id:109, code:"", name:"كيج 30 psi", category:"مقاييس ضغط", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"صغير"},
-    {id:110, code:"", name:"كيج kgf/cm 250", category:"مقاييس ضغط", qty:5, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"كبير"},
-    {id:111, code:"", name:"كيج 25kg/cm", category:"مقاييس ضغط", qty:8, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"كبير"},
-    {id:112, code:"", name:"صمام 1/2 HGVS12NC", category:"صمامات", qty:14, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:113, code:"", name:"صمام مختلف الاستخدام", category:"صمامات", qty:5, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"كبير ذو 5 اتجاهات"},
-    {id:114, code:"", name:"مقياس ضغط /برشر سويج", category:"مقاييس ضغط", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:115, code:"", name:"عكس مختلف الانواع والاستخدام حرفT", category:"توصيلات", qty:150, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:116, code:"", name:"عكس مختلف الانواع والاستخدام حرف  L", category:"توصيلات", qty:110, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:117, code:"", name:"نبله مختلف الاستخدام والاحجام", category:"عدد يدوية", qty:100, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:118, code:"", name:"50KG كيج", category:"مقاييس ضغط", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:119, code:"", name:"25 par كيج", category:"مقاييس ضغط", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"وسط"},
-    {id:120, code:"", name:"مرسله ضغط", category:"عدد يدوية", qty:7, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:121, code:"", name:"مرسلة جريان", category:"مقاييس ضغط", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:122, code:"584-5002-529", name:"كيج 10 Kg", category:"مقاييس ضغط", qty:9, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"كبير"},
-    {id:123, code:"", name:"16 kg كيج", category:"مقاييس ضغط", qty:10, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"كبير"},
-    {id:124, code:"", name:"100 C كيج", category:"مقاييس ضغط", qty:2, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1, serialNo:"كبير"},
-    {id:125, code:"", name:"PIC كارت", category:"قطع إلكترونية", qty:8, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:126, code:"", name:"لوحة اشارة", category:"قطع إلكترونية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:127, code:"", name:"مفتاح تشغيل", category:"قطع إلكترونية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:128, code:"", name:"ثرموستات متحسس حرارة  RTD", category:"قطع إلكترونية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:129, code:"", name:"بريس ضغط", category:"مقاييس ضغط", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:130, code:"", name:"رولة صبغ حجم صغير", category:"مواد استهلاكية", qty:1, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:131, code:"", name:"متحكم ضغط", category:"قطع إلكترونية", qty:3, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:132, code:"", name:"بايب سبانه قياس 8 انج", category:"عدد يدوية", qty:5, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:133, code:"", name:"بايب سبانه قياس 10 انج", category:"عدد يدوية", qty:5, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:134, code:"", name:"كندك قياس مختلف الاحجام", category:"عدد يدوية", qty:5, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:135, code:"", name:"قاشطة متعددة", category:"عدد يدوية", qty:5, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:136, code:"", name:"كابسة ترامل", category:"معدات كهربائية", qty:5, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1},
-    {id:137, code:"0020261519", name:"عكس سبيل", category:"توصيلات", qty:12, condition:"جيد", location:"شعبة الآلات الدقيقة", minQty:1}
-  ]));
-  const [search, setSearch] = useState("");
-  const [filterCat, setFilterCat] = useState("الكل");
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ code:"", name:"", category:"أجهزة قياس", qty:1, condition:"جيد", location:"", minQty:3, serialNo:"" });
-  const [adding, setAdding] = useState(false);
-  const [toast, setToast] = useState("");
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
-  const confirm = useConfirm();
-  // أي تعديل يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
-  const setItems = useCallback((updater) => {
-    setItemsState(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      storage.set("inventory_items", next);
-      FirebaseAPI.saveInventory(next);
-      return next;
-    });
-  }, []);
-  useEffect(() => {
-    FirebaseAPI.loadInventory().then(list => {
-      if (list) { setItemsState(list); storage.set("inventory_items", list); }
-    });
-  }, []);
-
-  const categories = ["الكل", ...INVENTORY_CATS];
-  const filtered = items.filter(i => (i.name.includes(search)||i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
-  const lowStock = items.filter(i => i.qty <= (i.minQty || LOW_STOCK_THRESHOLD));
-
-  const deleteItem = async (id) => {
-    if (!canEdit) return;
-    if (await confirm("هل تريد حذف هذا الصنف؟", { danger: true, ok: "حذف", title: "حذف الصنف" }))
-      setItems(prev => prev.filter(i => i.id !== id));
-  };
-
-  const saveItem = () => {
-    if (!canEdit) return;
-    if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
-    if (adding) setItems(prev => [...prev, { ...form, id: Date.now() }]);
-    else setItems(prev => prev.map(i => i.id===editId ? form : i));
-    setEditId(null); setAdding(false); showToast("✅ تم الحفظ");
-  };
-
-  return (
-    <div className="space-y-4">
-      {lowStock.length > 0 && <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-2"><AlertTriangle size={16} className="text-amber-600 shrink-0"/><div><p className="text-xs font-bold text-amber-800">تنبيه مخزون منخفض ({lowStock.length} صنف)</p><p className="text-xs text-amber-700">{lowStock.map(i=>i.name).join(" • ")}</p></div></div>}
-      <div className="flex flex-wrap gap-3 items-center justify-between">
-        <div className="flex gap-2 flex-1"><div className="flex items-center gap-2 input rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-secondary"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
-          <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select></div>
-        <div className="flex gap-2">
-          <button onClick={()=>exportCSV(items.map(i=>({الرمز:i.code,الاسم:i.name,رقم_الصنع:i.serialNo||"",الفئة:i.category,الكمية:i.qty,الحالة:i.condition,الموقع:i.location})),"المخزون_شعبة_الآلات_الدقيقة")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/> تصدير</button>
-          {canEdit && <button onClick={()=>{setAdding(true);setForm({code:"",name:"",category:"أجهزة قياس",qty:1,condition:"جيد",location:"شعبة الآلات الدقيقة",minQty:3,serialNo:""});}} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button>}
-          <PrintButton targetId="print-inventory" label="طباعة"/></div>
-      </div>
-      {canEdit && (adding||editId) && (<div className="card rounded-2xl border-2 border-blue-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة صنف":"تعديل صنف"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[["الرمز الرمزي","code"],["الاسم *","name"],["رقم الصنع","serialNo"],["الكمية","qty"],["الحد الأدنى","minQty"],["الموقع","location"]].map(([l,k])=>(<div key={k}><label className="block text-[10px] font-bold text-secondary mb-1">{l}</label><input value={form[k]||""} onChange={e=>setForm({...form,[k]:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>))}
-          <div><label className="block text-[10px] font-bold text-secondary mb-1">الفئة</label><select value={form.category} onChange={e=>setForm({...form,category:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm">{INVENTORY_CATS.map(c=><option key={c}>{c}</option>)}</select></div>
-          <div><label className="block text-[10px] font-bold text-secondary mb-1">الحالة</label><select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm">{ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}</select></div>
-        </div>
-        <div className="flex gap-2 justify-end mt-4"><button onClick={()=>{setEditId(null);setAdding(false);}} className="px-4 py-2 text-sm btn-secondary rounded-xl border">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl"><Save size={13}/> حفظ</button></div></div>)}
-      <div id="print-inventory" className="card rounded-2xl border-color border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="border-b border-color"><th className="px-3 py-2">الرمز</th><th className="px-3 py-2">الاسم</th><th className="px-3 py-2">رقم الصنع</th><th className="px-3 py-2">الفئة</th><th className="px-3 py-2">الكمية</th><th className="px-3 py-2">الحالة</th><th className="px-3 py-2">الموقع</th><th className="px-3 py-2 no-print">إجراءات</th></tr></thead>
-        <tbody>{filtered.map(it=>(<tr key={it.id} className={`border-b border-color ${it.qty<=(it.minQty||3)?"bg-amber-50/50":""}`}>
-          <td className="px-3 py-2 font-mono text-[10px]">{it.code||"—"}</td><td className="px-3 py-2">{it.name}</td><td className="px-3 py-2 font-mono text-[10px] text-secondary">{it.serialNo||"—"}</td><td className="px-3 py-2">{it.category}</td>
-          <td className="px-3 py-2 font-bold">{it.qty} {it.qty<=(it.minQty||3)&&<span className="text-amber-500">⚠️</span>}</td>
-          <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":it.condition==="تالف"||it.condition==="تم الشطب"?"bg-red-100 text-red-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td>
-          <td className="px-3 py-2 text-[10px]">{it.location}</td>
-          <td className="px-3 py-2 no-print">{canEdit && <div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div>}</td></tr>))}</tbody></table></div></div>
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
-    </div>
-  );
-}
-
-// ========== جرد الأثاث ==========
-function FurnitureInventory({ emp, isAdmin }) {
-  const canEdit = isAdmin || hasPermission(emp, "MANAGE_INVENTORY");
-  const [items, setItemsState] = useState(() => storage.get("furniture_items", [
-    // ═══ أجهزة تكييف وتبريد ═══
-    {id:1,  code:"لا يوجد",      name:"سبلت 2 طن LG",                 category:"أجهزة تكييف",    qty:1, condition:"تم الشطب",    location:"السيطرة والنظم شعبة الفاو"},
-    {id:2,  code:"لا يوجد",      name:"سبلت 2 طن LG",                 category:"أجهزة تكييف",    qty:1, condition:"تم الشطب",    location:"السيطرة والنظم شعبة الفاو"},
-    {id:3,  code:"لا يوجد",      name:"سبلت 2 طن LG",                 category:"أجهزة تكييف",    qty:1, condition:"تم الشطب",    location:"السيطرة والنظم شعبة الفاو"},
-    {id:4,  code:"لا يوجد",      name:"سبلت 2 طن LG",                 category:"أجهزة تكييف",    qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:5,  code:"لا يوجد",      name:"سبلت 2 طن LG",                 category:"أجهزة تكييف",    qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:6,  code:"لا يوجد",      name:"سبلت 2 طن LG",                 category:"أجهزة تكييف",    qty:1, condition:"تالف",        location:"السيطرة والنظم شعبة الفاو"},
-    {id:7,  code:"لا يوجد",      name:"سبلت 2 طن LG",                 category:"أجهزة تكييف",    qty:1, condition:"تالف",        location:"المخزن"},
-    {id:8,  code:"لا يوجد",      name:"سبلت 2 طن LG",                 category:"أجهزة تكييف",    qty:1, condition:"تالف",        location:"المخزن"},
-    {id:9,  code:"1504688400",   name:"سبلت 2 طن LG",                 category:"أجهزة تكييف",    qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:10, code:"1504688401",   name:"سبلت 2 طن LG",                 category:"أجهزة تكييف",    qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:11, code:"1523114957",   name:"مروحة عمودية",                  category:"أجهزة تكييف",    qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:12, code:"1523114958",   name:"مروحة عمودية",                  category:"أجهزة تكييف",    qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:13, code:"1515674402",   name:"ثلاجة عمودية فستل 16 قدم",     category:"أجهزة منزلية",   qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    // ═══ أثاث مكتبي - منضدات ═══
-    {id:14, code:"1402228079",   name:"منضدة كتابة 160 م",             category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:15, code:"1402228080",   name:"منضدة كتابة 160 م",             category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:16, code:"1402035187",   name:"كرسي مداولة",                   category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:17, code:"1402035188",   name:"كرسي مداولة",                   category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:18, code:"1402035189",   name:"كرسي مداولة",                   category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:19, code:"1402035190",   name:"كرسي مداولة",                   category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:20, code:"1402024339",   name:"كرسي دوار جلد",                 category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:21, code:"1402024340",   name:"كرسي دوار جلد",                 category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:22, code:"1402214928",   name:"مكتبة خشب",                    category:"أثاث مكتبي",     qty:1, condition:"تالف",        location:"السيطرة والنظم شعبة الفاو"},
-    {id:23, code:"1402214929",   name:"مكتبة خشب",                    category:"أثاث مكتبي",     qty:1, condition:"تالف",        location:"السيطرة والنظم شعبة الفاو"},
-    {id:24, code:"1402284803",   name:"دولاب حديد",                    category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:25, code:"لا يوجد",      name:"سرير منام",                     category:"أثاث مكتبي",     qty:2, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:26, code:"لا يوجد",      name:"كرسي مداولة",                   category:"أثاث مكتبي",     qty:3, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:27, code:"لا يوجد",      name:"كرسي دوار جلد",                 category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    // ═══ أجهزة حاسوب ومعدات مكتبية ═══
-    {id:28, code:"",             name:"حاسبة HP",                      category:"أجهزة حاسوب",    qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:29, code:"1901114388",   name:"طابعة كانون",                   category:"معدات مكتبية",   qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    // ═══ أجهزة تكييف إضافية ═══
-    {id:30, code:"لا يوجد",      name:"مكيف هواء كرافت 1.5 طن",        category:"أجهزة تكييف",    qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:31, code:"1513674126",   name:"ثلاجة فستل 9 قدم",              category:"أجهزة منزلية",   qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:32, code:"1403114492",   name:"مكنسة كهربائية",                category:"معدات مكتبية",   qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:33, code:"لا يوجد",      name:"مدفأة زيتية",                   category:"أجهزة منزلية",   qty:2, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:34, code:"لا يوجد",      name:"سخان ماء",                      category:"أجهزة منزلية",   qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:35, code:"1403014212",   name:"طباخ كهربائي",                  category:"أجهزة منزلية",   qty:1, condition:"تالف",        location:"المخزن"},
-    {id:36, code:"1403024031",   name:"فرن كهربائي",                   category:"أجهزة منزلية",   qty:1, condition:"تالف",        location:"المخزن"},
-    // ═══ منضدات ومزيد من الأثاث ═══
-    {id:37, code:"1402139368",   name:"منضدة كتابة",                   category:"أثاث مكتبي",     qty:1, condition:"تم الشطب",    location:"السيطرة والنظم شعبة الفاو"},
-    {id:38, code:"1402139370",   name:"منضدة كتابة",                   category:"أثاث مكتبي",     qty:1, condition:"تالف",        location:"السيطرة والنظم شعبة الفاو"},
-    {id:39, code:"1402139371",   name:"منضدة كتابة",                   category:"أثاث مكتبي",     qty:1, condition:"تم الشطب",    location:"السيطرة والنظم شعبة الفاو"},
-    {id:40, code:"1402139372",   name:"منضدة كتابة",                   category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:41, code:"1402139369",   name:"منضدة كتابة",                   category:"أثاث مكتبي",     qty:1, condition:"تم الشطب",    location:"السيطرة والنظم شعبة الفاو"},
-    {id:42, code:"1402123785",   name:"منضدة كتابة خشب",               category:"أثاث مكتبي",     qty:1, condition:"تالف",        location:"السيطرة والنظم شعبة الفاو"},
-    {id:43, code:"1402123786",   name:"منضدة كتابة خشب",               category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:44, code:"1402208897",   name:"مكتبة بابين",                   category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:45, code:"1402208898",   name:"مكتبة بابين",                   category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:46, code:"14022149284929",name:"مكتبة بابين",                  category:"أثاث مكتبي",     qty:2, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:47, code:"1402203092",   name:"مكتبة بابين",                   category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:48, code:"1402208899",   name:"مكتبة بابين",                   category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:49, code:"1402225456",   name:"منضدة كتابة مع ملحق",            category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:50, code:"1402225457",   name:"منضدة كتابة مع ملحق",            category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:51, code:"1401644198",   name:"كرسي بلاستك",                   category:"أثاث مكتبي",     qty:13,condition:"تالف",        location:"السيطرة والنظم شعبة الفاو"},
-    {id:52, code:"1504443042",   name:"سبلت 4 طن LG",                  category:"أجهزة تكييف",    qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:53, code:"1402198907",   name:"دولاب حديد",                    category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:54, code:"1402198908",   name:"دولاب حديد",                    category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:55, code:"1402198909",   name:"دولاب حديد",                    category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:56, code:"1402194054",   name:"دولاب حديد",                    category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:57, code:"1522042001",   name:"براد ماء",                      category:"أجهزة منزلية",   qty:1, condition:"تالف",        location:"المخزن"},
-    {id:58, code:"1402113052",   name:"منضدة عمل",                     category:"أثاث مكتبي",     qty:2, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:59, code:"05K130042835", name:"مروحة عمودية",                  category:"أجهزة تكييف",    qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:60, code:"1401263016",   name:"شمعة ملابس",                    category:"أثاث مكتبي",     qty:4, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:61, code:"1402193333",   name:"دولاب حديد",                    category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:62, code:"1402033212",   name:"كرسي ذو مسند",                  category:"أثاث مكتبي",     qty:6, condition:"تالف",        location:"السيطرة والنظم شعبة الفاو"},
-    {id:63, code:"1402033212",   name:"كرسي ذو مسند",                  category:"أثاث مكتبي",     qty:6, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-    {id:64, code:"1402133738",   name:"منضدة كتابة خشب",               category:"أثاث مكتبي",     qty:1, condition:"تالف",        location:"المخزن"},
-    {id:65, code:"1402134055",   name:"منضدة كتابة",                   category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
-  ]));
-  const [search, setSearch] = useState("");
-  const [filterCat, setFilterCat] = useState("الكل");
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ code:"", name:"", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"" });
-  const [adding, setAdding] = useState(false);
-  const [toast, setToast] = useState("");
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
-  const confirm = useConfirm();
-  // أي تعديل يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
-  const setItems = useCallback((updater) => {
-    setItemsState(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      storage.set("furniture_items", next);
-      FirebaseAPI.saveFurniture(next);
-      return next;
-    });
-  }, []);
-  useEffect(() => {
-    FirebaseAPI.loadFurniture().then(list => {
-      if (list) { setItemsState(list); storage.set("furniture_items", list); }
-    });
-  }, []);
-
-  const deleteItem = async (id) => {
-    if (!canEdit) return;
-    if (await confirm("هل تريد حذف هذا الصنف؟", { danger: true, ok: "حذف", title: "حذف الصنف" }))
-      setItems(prev => prev.filter(i => i.id !== id));
-  };
-
-  const categories = ["الكل", ...FURNITURE_CATS];
-  const filtered = items.filter(i => (i.name.includes(search)||i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
-
-  const saveItem = () => {
-    if (!canEdit) return;
-    if (!form.code || !form.name) return showToast("الرمز والاسم مطلوبان");
-    if (adding) setItems(prev => [...prev, { ...form, id: Date.now() }]);
-    else setItems(prev => prev.map(i => i.id===editId ? form : i));
-    setEditId(null); setAdding(false); showToast("✅ تم الحفظ");
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-3 items-center justify-between">
-        <div className="flex gap-2 flex-1"><div className="flex items-center gap-2 input rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-secondary"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
-          <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select></div>
-        <div className="flex gap-2">
-          <button onClick={()=>exportCSV(items.map(i=>({الرمز:i.code,الاسم:i.name,الفئة:i.category,الكمية:i.qty,الحالة:i.condition,الموقع:i.location})),"الأثاث")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/> تصدير</button>
-          {canEdit && <button onClick={()=>{setAdding(true);setForm({code:"",name:"",category:"أثاث مكتبي",qty:1,condition:"جيد",location:""});}} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl"><Plus size={13}/> إضافة</button>}
-          <PrintButton targetId="print-furniture" label="طباعة"/></div>
-      </div>
-      {canEdit && (adding||editId) && (<div className="card rounded-2xl border-2 border-violet-200 p-5"><div className="flex justify-between mb-3"><h4 className="font-bold">{adding?"إضافة قطعة":"تعديل قطعة"}</h4><button onClick={()=>{setEditId(null);setAdding(false);}}><X size={15}/></button></div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[["الرمز *","code"],["الاسم *","name"],["الكمية","qty"],["الموقع","location"]].map(([l,k])=>(<div key={k}><label className="block text-[10px] font-bold text-secondary mb-1">{l}</label><input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>))}
-          <div><label className="block text-[10px] font-bold text-secondary mb-1">الحالة</label><select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm">{ITEM_CONDITIONS.map(c=><option key={c}>{c}</option>)}</select></div></div>
-        <div className="flex gap-2 justify-end mt-4"><button onClick={()=>{setEditId(null);setAdding(false);}} className="px-4 py-2 text-sm btn-secondary rounded-xl border">إلغاء</button><button onClick={saveItem} className="px-4 py-2 text-sm font-bold text-white bg-violet-600 rounded-xl"><Save size={13}/> حفظ</button></div></div>)}
-      <div id="print-furniture" className="card rounded-2xl border-color border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="border-b border-color"><th className="px-3 py-2">الرمز</th><th className="px-3 py-2">الاسم</th><th className="px-3 py-2">الفئة</th><th className="px-3 py-2">الكمية</th><th className="px-3 py-2">الحالة</th><th className="px-3 py-2">الموقع</th><th className="px-3 py-2 no-print">إجراءات</th></tr></thead>
-        <tbody>{filtered.map(it=>(<tr key={it.id} className="border-b border-color"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2">{it.name}</td><td className="px-3 py-2">{it.category}</td><td className="px-3 py-2 font-bold">{it.qty}</td>
-          <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td>
-          <td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 no-print">{canEdit && <div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div>}</td></tr>))}</tbody></table></div></div>
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
-    </div>
-  );
-}
-
-// ========== إدارة الموظفين (المحسّنة) ==========
-
 function AnalyticsDashboard({ employees, allRequests }) {
   const now = new Date();
   const currentMonth = now.getMonth();
@@ -1423,227 +930,6 @@ function AnalyticsDashboard({ employees, allRequests }) {
 }
 
 // ========== نظام المهام (جديد) ==========
-function TasksSystem({ emp, isAdmin, allEmployees }) {
-  const [tasks, setTasks] = useState(() => storage.get("tasks_system", []));
-  const [showForm, setShowForm] = useState(false);
-  const [filter, setFilter] = useState("الكل");
-  const [form, setForm] = useState({ title:"", desc:"", assignedTo:"", priority:"متوسطة", dueDate:"", status:"معلقة" });
-  const [toast, setToast] = useState("");
-  const showToast = (msg, type) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
-  const confirm = useConfirm();
-  useEffect(() => { storage.set("tasks_system", tasks); }, [tasks]);
-
-  const displayed = isAdmin ? (filter==="الكل" ? tasks : tasks.filter(t=>t.status===filter)) : tasks.filter(t=>t.assignedTo===emp.id);
-
-  const addTask = () => {
-    if (!form.title) return showToast("عنوان المهمة مطلوب");
-    const assignee = allEmployees.find(e => e.id === Number(form.assignedTo));
-    const newTask = { ...form, id: Date.now(), createdBy: emp.name, createdAt: new Date().toISOString(), assignedToName: assignee?.name || "غير محدد" };
-    const updated = [newTask, ...tasks];
-    setTasks(updated);
-    // إشعار
-    if (assignee) {
-      const notifs = storage.get(`notifications_${assignee.id}`, []);
-      storage.set(`notifications_${assignee.id}`, [{ id:Date.now(), type:"مهمة", title:"📋 مهمة جديدة", body:form.title, timestamp:new Date().toISOString(), read:false }, ...notifs]);
-    }
-    setShowForm(false); setForm({ title:"", desc:"", assignedTo:"", priority:"متوسطة", dueDate:"", status:"معلقة" });
-    showToast("✅ تم إضافة المهمة"); playAlert("notification");
-  };
-
-  const updateStatus = (id, status) => {
-    setTasks(tasks.map(t => t.id===id ? { ...t, status } : t));
-    showToast(`✅ تم تحديث الحالة`);
-  };
-
-  const deleteTask = async (id) => {
-    if (await confirm("هل تريد حذف هذه المهمة؟", { danger: true, ok: "حذف", title: "حذف المهمة" })) { setTasks(tasks.filter(t=>t.id!==id)); showToast("تم حذف المهمة", "success"); }
-  };
-
-  const priorityColor = (p) => p==="عالية"?"bg-red-100 text-red-700":p==="متوسطة"?"bg-amber-100 text-amber-700":"bg-blue-100 text-blue-700";
-  const statusColor = (s) => s==="مكتملة"?"bg-emerald-100 text-emerald-700":s==="قيد التنفيذ"?"bg-blue-100 text-blue-700":"bg-slate-100 text-slate-700";
-
-  const overdue = tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "مكتملة");
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-bold text-lg">نظام المهام</h3>
-        <div className="flex gap-2">
-          <select value={filter} onChange={e=>setFilter(e.target.value)} className="input rounded-xl px-3 py-2 text-sm"><option>الكل</option>{TASK_STATUSES.map(s=><option key={s}>{s}</option>)}</select>
-          <button onClick={()=>exportCSV(tasks.map(t=>({العنوان:t.title,الوصف:t.desc||"",المكلف:t.assignedToName,الأولوية:t.priority,الحالة:t.status,الاستحقاق:t.dueDate||"",بواسطة:t.createdBy})),"المهام")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/> CSV</button>
-          {isAdmin && <button onClick={()=>setShowForm(!showForm)} className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 px-3 py-2 rounded-xl"><Plus size={13}/> مهمة جديدة</button>}
-        </div>
-      </div>
-
-      {overdue.length > 0 && <div className="bg-red-50 border border-red-200 rounded-2xl p-3 flex items-center gap-2"><AlertTriangle size={16} className="text-red-600 shrink-0"/><p className="text-xs font-bold text-red-800">{overdue.length} مهمة متأخرة: {overdue.map(t=>t.title).join(" • ")}</p></div>}
-
-      {showForm && isAdmin && (
-        <div className="card rounded-2xl border-2 border-emerald-200 p-5">
-          <div className="grid grid-cols-2 gap-3">
-            <input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="عنوان المهمة *" className="input rounded-xl px-3 py-2 text-sm col-span-2"/>
-            <textarea value={form.desc} onChange={e=>setForm({...form,desc:e.target.value})} rows={2} placeholder="تفاصيل المهمة" className="input rounded-xl px-3 py-2 text-sm col-span-2"/>
-            <select value={form.assignedTo} onChange={e=>setForm({...form,assignedTo:e.target.value})} className="input rounded-xl px-3 py-2 text-sm"><option value="">-- تعيين لـ --</option>{allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,2).join(" ")}</option>)}</select>
-            <select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="input rounded-xl px-3 py-2 text-sm">{TASK_PRIORITIES.map(p=><option key={p}>{p}</option>)}</select>
-            <div><label className="block text-[10px] font-bold text-secondary mb-1">تاريخ الاستحقاق</label><input type="date" value={form.dueDate} onChange={e=>setForm({...form,dueDate:e.target.value})} className="input rounded-xl px-3 py-2 text-sm w-full"/></div>
-          </div>
-          <div className="flex gap-2 justify-end mt-4"><button onClick={()=>setShowForm(false)} className="px-4 py-2 text-sm btn-secondary rounded-xl border">إلغاء</button><button onClick={addTask} className="px-4 py-2 text-sm font-bold text-white bg-emerald-600 rounded-xl"><Save size={13}/> إضافة</button></div>
-        </div>
-      )}
-
-      <div className="space-y-3">{displayed.length===0?<div className="card rounded-2xl p-8 text-center border-color border"><CheckSquare size={40} className="mx-auto text-secondary"/><p className="text-secondary">لا توجد مهام</p></div>:
-        displayed.map(t=>(<div key={t.id} className={`card rounded-2xl border p-4 ${new Date(t.dueDate)<new Date()&&t.status!=="مكتملة"?"border-red-200":"border-color"}`}>
-          <div className="flex justify-between items-start">
-            <div className="flex-1"><div className="flex flex-wrap gap-2 mb-2">
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${priorityColor(t.priority)}`}>{t.priority}</span>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColor(t.status)}`}>{t.status}</span>
-              {t.dueDate && new Date(t.dueDate) < new Date() && t.status!=="مكتملة" && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">متأخرة</span>}
-            </div>
-            <p className="font-bold">{t.title}</p>
-            {t.desc && <p className="text-xs text-secondary mt-1">{t.desc}</p>}
-            <div className="flex gap-3 text-[10px] text-secondary mt-2">
-              <span>👤 <EmpPopover emp={allEmployees.find(e=>e.id===Number(t.assignedTo))}>{t.assignedToName}</EmpPopover></span>
-              {t.dueDate && <span>📅 {t.dueDate}</span>}
-              <span>بواسطة {t.createdBy}</span>
-            </div></div>
-            <div className="flex gap-1 mr-2">
-              {t.status === "معلقة" && <button onClick={()=>updateStatus(t.id,"قيد التنفيذ")} className="px-2 py-1 bg-blue-600 text-white rounded-lg text-[10px]">بدء</button>}
-              {t.status === "قيد التنفيذ" && <button onClick={()=>updateStatus(t.id,"مكتملة")} className="px-2 py-1 bg-emerald-600 text-white rounded-lg text-[10px]">إكمال</button>}
-              {isAdmin && <button onClick={()=>deleteTask(t.id)} className="p-1 text-red-400"><Trash2 size={12}/></button>}
-            </div>
-          </div></div>))}</div>
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
-    </div>
-  );
-}
-
-// ========== الدردشة الداخلية (Firebase) (جديدة) ==========
-function InternalChat({ emp, isConnected }) {
-  const [messages, setMessages] = useState([]);
-  const [text, setText] = useState("");
-  const [chatLoading, setChatLoading] = useState(true);
-  const bottomRef = useRef(null);
-
-  const loadMessages = useCallback(async () => {
-    if (!isConnected) {
-      setMessages(storage.get("chat_offline", []));
-      setChatLoading(false);
-      return;
-    }
-    const msgs = await FirebaseAPI.getMessages(50);
-    setMessages(msgs);
-    storage.set("chat_offline", msgs);
-    setChatLoading(false);
-  }, [isConnected]);
-
-  useEffect(() => { loadMessages(); const t = setInterval(loadMessages, 5000); return () => clearInterval(t); }, [loadMessages]);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
-
-  const send = async () => {
-    if (!text.trim()) return;
-    const msg = { text: text.trim(), sender: emp.name, senderId: emp.id, timestamp: Date.now(), dept: emp.dept };
-    setText("");
-    if (isConnected) { await FirebaseAPI.sendMessage(msg); await loadMessages(); }
-    else { const offline = storage.get("chat_offline", []); storage.set("chat_offline", [...offline, { ...msg, _key: Date.now().toString() }]); setMessages(prev => [...prev, msg]); }
-    playAlert("message");
-  };
-
-  return (
-    <div className="flex flex-col h-[calc(100vh-200px)] min-h-[400px]">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold text-lg">الدردشة الداخلية</h3>
-        <div className="flex items-center gap-2 text-xs">{isConnected?<><Wifi size={12} className="text-emerald-500"/><span className="text-emerald-600">متصل</span></>:<><WifiOff size={12} className="text-amber-500"/><span className="text-amber-600">غير متصل (محلي)</span></>}</div>
-      </div>
-      <div className="flex-1 card rounded-2xl border-color border p-4 overflow-y-auto space-y-3">
-        {chatLoading ? <>{[...Array(4)].map((_,i)=><SkeletonMsg key={i} mine={i%2===0}/>)}</> : <>
-        {messages.length === 0 && <div className="text-center text-secondary py-8"><MessageSquare size={40} className="mx-auto mb-2"/><p>لا توجد رسائل بعد</p></div>}
-        {messages.map((m,i) => {
-          const isMine = m.senderId === emp.id;
-          return (<div key={m._key||i} className={`flex ${isMine?"justify-start":"justify-end"}`}>
-            <div className={`max-w-[70%] rounded-2xl px-4 py-2 ${isMine?"bg-blue-600 text-white":"card border border-color"}`}>
-              {!isMine && <p className="text-[10px] font-bold text-secondary mb-1">{m.sender}</p>}
-              <p className="text-sm">{m.text}</p>
-              <p className={`text-[10px] mt-1 ${isMine?"text-blue-200":"text-secondary"}`}>{new Date(m.timestamp).toLocaleTimeString("ar-IQ",{hour:"2-digit",minute:"2-digit"})}</p>
-            </div>
-          </div>);
-        })}
-        <div ref={bottomRef}/>
-        </>}
-      </div>
-      <div className="flex gap-2 mt-3">
-        <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="اكتب رسالة..." className="input flex-1 rounded-xl px-4 py-3"/>
-        <button onClick={send} disabled={!text.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-xl disabled:opacity-50"><Send size={18}/></button>
-      </div>
-    </div>
-  );
-}
-
-// ========== التقييم الشهري (جديد) ==========
-function EvaluationSystem({ emp, isAdmin, allEmployees }) {
-  const [evals, setEvals] = useState(() => storage.get("evaluations", []));
-  const [showForm, setShowForm] = useState(false);
-  const [selEmp, setSelEmp] = useState("");
-  const [selMonth, setSelMonth] = useState(new Date().getMonth());
-  const [selYear, setSelYear] = useState(new Date().getFullYear());
-  const [scores, setScores] = useState(Object.fromEntries(EVAL_CRITERIA.map(c=>[c,3])));
-  const [notes, setNotes] = useState("");
-  const [toast, setToast] = useState("");
-  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
-  useEffect(() => { storage.set("evaluations", evals); }, [evals]);
-
-  const saveEval = () => {
-    if (!selEmp) return showToast("اختر الموظف");
-    const emp2 = allEmployees.find(e=>e.id===Number(selEmp));
-    const total = Math.round(Object.values(scores).reduce((s,v)=>s+v,0) / EVAL_CRITERIA.length * 20);
-    const newEval = { id:Date.now(), empId:Number(selEmp), empName:emp2?.name, month:selMonth, year:selYear, scores:{...scores}, total, notes, evaluatedBy:emp.name, createdAt:new Date().toISOString() };
-    setEvals([newEval, ...evals.filter(e=>!(e.empId===Number(selEmp)&&e.month===selMonth&&e.year===selYear))]);
-    setShowForm(false); showToast("✅ تم حفظ التقييم");
-  };
-
-  const myEvals = isAdmin ? evals : evals.filter(e=>e.empId===emp.id);
-
-  const gradeLabel = (s) => s>=90?"ممتاز":s>=75?"جيد جداً":s>=60?"جيد":s>=50?"مقبول":"ضعيف";
-  const gradeColor = (s) => s>=90?"text-emerald-600":s>=75?"text-blue-600":s>=60?"text-amber-600":"text-red-600";
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-bold text-lg">التقييم الشهري</h3>
-        {isAdmin && <button onClick={()=>setShowForm(!showForm)} className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 px-3 py-2 rounded-xl"><Plus size={13}/> تقييم جديد</button>}
-      </div>
-
-      {showForm && isAdmin && (
-        <div className="card rounded-2xl border-2 border-indigo-200 p-5 space-y-4">
-          <div className="grid grid-cols-3 gap-3">
-            <select value={selEmp} onChange={e=>setSelEmp(e.target.value)} className="input rounded-xl px-3 py-2 text-sm"><option value="">-- اختر موظفاً --</option>{allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,2).join(" ")}</option>)}</select>
-            <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))} className="input rounded-xl px-3 py-2 text-sm">{MONTHS_AR.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
-            <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))} className="input rounded-xl px-3 py-2 text-sm">{[2024,2025,2026].map(y=><option key={y}>{y}</option>)}</select>
-          </div>
-          <div className="space-y-3">
-            {EVAL_CRITERIA.map(c => (<div key={c} className="flex items-center gap-3">
-              <span className="text-sm flex-1">{c}</span>
-              <div className="flex gap-1">{[1,2,3,4,5].map(n=><button key={n} onClick={()=>setScores({...scores,[c]:n})} className={`w-8 h-8 rounded-full text-sm font-bold transition-all ${scores[c]>=n?"bg-indigo-600 text-white":"border border-color"}`}>{n}</button>)}</div>
-            </div>))}
-          </div>
-          <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={2} placeholder="ملاحظات التقييم" className="input rounded-xl px-3 py-2 text-sm w-full"/>
-          <div className="flex gap-2 justify-end"><button onClick={()=>setShowForm(false)} className="px-4 py-2 text-sm btn-secondary rounded-xl border">إلغاء</button><button onClick={saveEval} className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl"><Save size={13}/> حفظ التقييم</button></div>
-        </div>
-      )}
-
-      <div className="space-y-3">{myEvals.length===0?<div className="card rounded-2xl p-8 text-center border-color border"><Star size={40} className="mx-auto text-secondary"/><p className="text-secondary">لا توجد تقييمات</p></div>:
-        myEvals.map(ev=>(<div key={ev.id} className="card rounded-2xl border-color border p-4">
-          <div className="flex justify-between items-start">
-            <div><p className="font-bold">{ev.empName}</p><p className="text-xs text-secondary">{MONTHS_AR[ev.month]} {ev.year} — بواسطة {ev.evaluatedBy}</p>
-              {ev.notes && <p className="text-xs text-secondary mt-1 italic">{ev.notes}</p>}
-              <div className="flex flex-wrap gap-2 mt-2">{EVAL_CRITERIA.map(c=><span key={c} className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{c}: {ev.scores[c]}/5</span>)}</div>
-            </div>
-            <div className="text-center"><p className={`text-3xl font-bold ${gradeColor(ev.total)}`}>{ev.total}%</p><p className={`text-xs font-bold ${gradeColor(ev.total)}`}>{gradeLabel(ev.total)}</p></div>
-          </div></div>))}</div>
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
-    </div>
-  );
-}
-
-// ========== المعدات والصيانة ==========
-// ========== لوحة الإدارة المتكاملة ==========
-// ========== سجل التعديلات ==========
 function AuditLogPage() {
   const [logs] = useState(() => storage.get("audit_log", []));
   return (<div className="space-y-3">
@@ -1936,11 +1222,31 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           )}
           {view==="analytics" && <AnalyticsDashboard employees={employees} allRequests={allRequests}/>}
           {view==="requests" && <RequestsPage emp={emp}/>}
-          {view==="attendance" && <AttendanceSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>}
-          {view==="training" && <TrainingSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>}
-          {view==="tasks" && <TasksSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>}
-          {view==="inventory" && <InventorySystem emp={emp} isAdmin={isAdmin}/>}
-          {view==="furniture" && <FurnitureInventory emp={emp} isAdmin={isAdmin}/>}
+          {view==="attendance" && (
+            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+              <LazyAttendanceSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
+            </React.Suspense>
+          )}
+          {view==="training" && (
+            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+              <LazyTrainingSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
+            </React.Suspense>
+          )}
+          {view==="tasks" && (
+            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+              <LazyTasksSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
+            </React.Suspense>
+          )}
+          {view==="inventory" && (
+            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+              <LazyInventoryPage emp={emp} isAdmin={isAdmin}/>
+            </React.Suspense>
+          )}
+          {view==="furniture" && (
+            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+              <LazyFurnitureInventory emp={emp} isAdmin={isAdmin}/>
+            </React.Suspense>
+          )}
           {view==="maint_equipment" && (
             <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
               <LazyEquipmentPage emp={emp} isAdmin={isAdmin}/>
@@ -1956,8 +1262,16 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
               <LazyMaintenanceAnalytics/>
             </React.Suspense>
           )}
-          {view==="chat" && <InternalChat emp={emp} isConnected={isConnected}/>}
-          {view==="evaluation" && <EvaluationSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>}
+          {view==="chat" && (
+            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+              <LazyInternalChat emp={emp} isConnected={isConnected}/>
+            </React.Suspense>
+          )}
+          {view==="evaluation" && (
+            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+              <LazyEvaluationSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
+            </React.Suspense>
+          )}
           {view==="notifications" && <NotificationsPage emp={emp}/>}
           {view==="audit" && <AuditLogPage/>}
           {view==="changepass" && <ChangePasswordPage emp={emp} onLogout={onLogout}/>}
