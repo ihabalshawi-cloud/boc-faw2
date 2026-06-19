@@ -117,10 +117,15 @@ module.exports = async (req, res) => {
     // ── ping ─────────────────────────────────────────────────
     if (action === "ping") {
       await getToken();
+      let saEmail = null;
+      if (process.env.GDRIVE_SERVICE_ACCOUNT) {
+        try { saEmail = JSON.parse(process.env.GDRIVE_SERVICE_ACCOUNT).client_email; } catch {}
+      }
       res.status(200).json({
         ok:       true,
         auth:     _authMethod,
         hasFolder: !!process.env.GDRIVE_FOLDER_ID,
+        saEmail,
       });
       return;
     }
