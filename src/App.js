@@ -4442,7 +4442,16 @@ function OutOfCountryLeaveForm({ emp }) {
     setUploadPct(0); setDriveLink(null);
     try {
       const { default: JSZip } = await import("jszip");
-      const arrayBuffer = await gDrive.downloadFile(templateId.trim());
+
+      // تنزيل القالب
+      let arrayBuffer;
+      try {
+        arrayBuffer = await gDrive.downloadFile(templateId.trim());
+      } catch (dlErr) {
+        throw new Error("فشل تنزيل القالب من Drive: " + dlErr.message);
+      }
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) throw new Error("الملف المُنزَّل فارغ — تحقق من File ID");
+
       const zip = await JSZip.loadAsync(arrayBuffer);
 
       const esc = (s) => String(s || "")
@@ -4463,12 +4472,31 @@ function OutOfCountryLeaveForm({ emp }) {
         "{{العدد}}":           esc(refNum),
       };
 
+      // دمج النصوص المقسّمة بين عناصر XML المتجاورة
+      // Word يقسّم {{النص}} أحياناً على عدة <w:r> مما يمنع الاستبدال
+      const mergeRuns = (xmlContent) =>
+        xmlContent.replace(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g, (para) =>
+          para.replace(
+            /<\/w:t><\/w:r>(\s*<w:r[^>]*>)(\s*<w:rPr>[\s\S]*?<\/w:rPr>)?\s*<w:t[^>]*>/g,
+            ""
+          )
+        );
+
+      let replacedCount = 0;
       for (const path of Object.keys(zip.files).filter(f => f.startsWith("word/") && f.endsWith(".xml"))) {
         let content = await zip.file(path).async("string");
+        content = mergeRuns(content);
         for (const [ph, val] of Object.entries(replacements)) {
+          const before = content;
           content = content.split(ph).join(val);
+          if (content !== before) replacedCount++;
         }
         zip.file(path, content);
+      }
+
+      if (replacedCount === 0) {
+        const phList = Object.keys(replacements).join("  ");
+        throw new Error(`لم يُعثر على أي حقل قابل للاستبدال في القالب.\n\nتأكد أن ملف القالب يحتوي على أحد هذه النصوص:\n${phList}`);
       }
 
       const blob = await zip.generateAsync({
@@ -4482,10 +4510,12 @@ function OutOfCountryLeaveForm({ emp }) {
         { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }
       );
       const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
-      setDriveLink(result.webViewLink);
-      toast.success("تم تعبئة القالب ورفع النسخة المعبأة إلى Drive");
+      setDriveLink(result?.webViewLink || null);
+      toast.success(`تم تعبئة ${replacedCount} حقل ورفع النسخة المعبأة إلى Drive ✅`);
     } catch (e) {
-      toast.error("فشل تعبئة القالب: " + e.message);
+      console.error("fillFromTemplate error:", e);
+      alert("خطأ في تعبئة القالب:\n\n" + e.message);
+      toast.error("فشل تعبئة القالب");
     } finally {
       setUploadPct(-1);
     }
