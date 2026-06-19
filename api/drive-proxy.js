@@ -311,38 +311,55 @@ module.exports = async (req, res) => {
       const fileId = url.searchParams.get("fileId");
       if (!fileId) { res.status(400).json({ error: "Missing fileId" }); return; }
 
-      const driveDownload = async (tok) =>
+      const apiDownload = (tok) =>
         fetch(
           `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
           { headers: { Authorization: `Bearer ${tok}` } }
         );
 
-      // أولاً: جرّب OAuth2
-      let r = await driveDownload(token);
-      let lastErrMsg = null;
+      // 1. جرّب OAuth2
+      let r = await apiDownload(token);
 
-      // إذا فشل OAuth2 بـ 403/404 وتوفّر Service Account، جرّبه كبديل
+      // 2. إذا فشل OAuth2، جرّب SA
       if (!r.ok && (r.status === 403 || r.status === 404) && process.env.GDRIVE_SERVICE_ACCOUNT) {
         try {
           const saToken = await getTokenViaServiceAccount();
-          const r2 = await driveDownload(saToken);
-          if (r2.ok) {
-            r = r2;
-          } else {
-            // SA أيضاً فشل — احفظ سبب الخطأ للتشخيص
-            const errBody = await r2.json().catch(() => ({}));
-            lastErrMsg = `OAuth2:${r.status} / SA:${r2.status} — ${errBody.error?.message || errBody.error || "unknown"}`;
+          const r2 = await apiDownload(saToken);
+          if (r2.ok) r = r2;
+        } catch {}
+      }
+
+      // 3. إذا فشل كلاهما، جرّب الرابط العام (للملفات المشاركة مع "Anyone with the link")
+      if (!r.ok) {
+        try {
+          const pubR = await fetch(
+            `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`,
+            { redirect: "follow" }
+          );
+          if (pubR.ok) {
+            const ct = pubR.headers.get("content-type") || "application/octet-stream";
+            // Drive أحياناً يرجع HTML لصفحة تحذير للملفات الكبيرة
+            if (!ct.includes("text/html")) {
+              r = pubR;
+            } else {
+              // استخرج رابط التأكيد من صفحة التحذير
+              const html = await pubR.text();
+              const m = html.match(/href="(\/uc\?export=download[^"]+confirm=[^"]+)"/);
+              if (m) {
+                const confirmUrl = "https://drive.google.com" + m[1].replace(/&amp;/g, "&");
+                const r3 = await fetch(confirmUrl, { redirect: "follow" });
+                if (r3.ok) r = r3;
+              }
+            }
           }
-        } catch (saErr) {
-          lastErrMsg = `OAuth2:${r.status} / SA:exception — ${saErr.message}`;
-        }
+        } catch {}
       }
 
       if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        const baseMsg = err.error?.message || err.error || `HTTP ${r.status}`;
+        const errText = await r.text().catch(() => "");
+        const errJson = (() => { try { return JSON.parse(errText); } catch { return {}; } })();
         res.status(r.status).json({
-          error: lastErrMsg ? `${baseMsg} [${lastErrMsg}]` : baseMsg,
+          error: errJson.error?.message || `HTTP ${r.status} — الملف غير موجود أو غير متاح للعموم`,
         });
         return;
       }
