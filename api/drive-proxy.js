@@ -46,7 +46,7 @@ async function getTokenViaServiceAccount() {
   const hdr = base64url({ alg: "RS256", typ: "JWT" });
   const cla = base64url({
     iss:   sa.client_email,
-    scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly",
+    scope: "https://www.googleapis.com/auth/drive",
     aud:   sa.token_uri || "https://oauth2.googleapis.com/token",
     iat:   now,
     exp:   now + 3600,

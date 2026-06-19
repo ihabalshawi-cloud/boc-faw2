@@ -122,7 +122,13 @@ export const GDriveAPI = {
     const res = await fetch(`${GDRIVE_PROXY}?action=download&fileId=${encodeURIComponent(fileId)}`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `فشل تنزيل الملف: HTTP ${res.status}`);
+      const msg = err.error || `HTTP ${res.status}`;
+      if (res.status === 404 || /not found/i.test(msg))
+        throw new Error(
+          `الملف غير موجود أو غير مشارك مع حساب الخدمة.\n\n` +
+          `الحل: افتح ملف القالب في Drive → Share → أضف بريد Service Account وامنحه صلاحية Viewer.`
+        );
+      throw new Error(`فشل تنزيل الملف: ${msg}`);
     }
     return await res.arrayBuffer();
   },
