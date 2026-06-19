@@ -2,29 +2,37 @@
   "rules": {
     ".read": "false",
     ".write": "false",
+
     "accounts": {
-      ".read": "false",
-      ".write": "false",
-      "$jobNum": {
-        ".read": "true",
-        ".write": "false"
-      }
+      "$jobNum": { ".read": "true", ".write": "false" }
     },
     "init_hashes": {
-      ".read": "false",
-      ".write": "false",
-      "$jobNum": {
-        ".read": "true",
-        ".write": "false"
-      }
+      "$jobNum": { ".read": "true", ".write": "false" }
     },
     "passwords": {
-      ".read": "false",
-      ".write": "false",
       "$id": {
         ".read": "true",
         ".write": "true",
         ".validate": "newData.isString() && newData.val().length == 64"
+      }
+    },
+
+    "emp_statuses":    { ".read": "true", ".write": "true" },
+    "employees_list":  { ".read": "true", ".write": "true" },
+    "inventory_items": { ".read": "true", ".write": "true" },
+    "furniture_items": { ".read": "true", ".write": "true" },
+    "equipment_list":  { ".read": "true", ".write": "true" },
+    "pm_projects":     { ".read": "true", ".write": "true" },
+    "timesheet_data":  { ".read": "true", ".write": "true" },
+    "requests":        { ".read": "true", ".write": "true" },
+    "notifications":   { ".read": "true", ".write": "true" },
+    "backups":         { ".read": "true", ".write": "true" },
+
+    "login_history": {
+      ".read": "true",
+      ".write": "true",
+      "$record": {
+        ".validate": "newData.hasChildren(['loginTime', 'status', 'userName']) && newData.child('loginTime').isString() && newData.child('status').isString() && newData.child('userName').isString()"
       }
     },
     "chat": {

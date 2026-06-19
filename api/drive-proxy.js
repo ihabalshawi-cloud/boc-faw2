@@ -46,7 +46,7 @@ async function getTokenViaServiceAccount() {
   const hdr = base64url({ alg: "RS256", typ: "JWT" });
   const cla = base64url({
     iss:   sa.client_email,
-    scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly",
+    scope: "https://www.googleapis.com/auth/drive",
     aud:   sa.token_uri || "https://oauth2.googleapis.com/token",
     iat:   now,
     exp:   now + 3600,
@@ -104,7 +104,8 @@ async function readBody(req) {
 
 // ── Request handler ───────────────────────────────────────────────────────────
 module.exports = async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin",  "*");
+  const allowedOrigin = process.env.ALLOWED_ORIGIN || "*";
+  res.setHeader("Access-Control-Allow-Origin",  allowedOrigin);
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-filename, x-file-mime, x-file-size, x-session-uri, x-content-range");
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
@@ -264,6 +265,25 @@ module.exports = async (req, res) => {
         { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }
       );
       res.status(r.status).end();
+      return;
+    }
+
+    // ── download ──────────────────────────────────────────────
+    if (action === "download") {
+      const fileId = url.searchParams.get("fileId");
+      if (!fileId) { res.status(400).json({ error: "Missing fileId" }); return; }
+      const r = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        res.status(r.status).json({ error: err.error?.message || `HTTP ${r.status}` });
+        return;
+      }
+      const buf = await r.arrayBuffer();
+      res.setHeader("Content-Type", r.headers.get("content-type") || "application/octet-stream");
+      res.status(200).send(Buffer.from(buf));
       return;
     }
 
