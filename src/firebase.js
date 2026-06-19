@@ -301,15 +301,19 @@ export const FirebaseAPI = {
       if (!res.ok) return null;
       const data = await res.json();
       if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-      // Firebase converts arrays to {0:…,1:…} — restore each tab back to an array
+      // Firebase converts arrays to {0:…,1:…} and may leave null slots after deletions.
       const toArray = (val) => {
-        if (Array.isArray(val)) return val;
-        if (val && typeof val === "object") {
+        let arr;
+        if (Array.isArray(val)) arr = val;
+        else if (val && typeof val === "object") {
           const keys = Object.keys(val);
           if (keys.length > 0 && keys.every(k => /^\d+$/.test(k)))
-            return keys.sort((a,b) => Number(a)-Number(b)).map(k => val[k]);
-        }
-        return val;
+            arr = keys.sort((a,b) => Number(a)-Number(b)).map(k => val[k]);
+          else return val;
+        } else return val;
+        return arr.filter(e => e && typeof e === "object").map(e => ({
+          ...e, days: e.days || {}, hours: e.hours || {},
+        }));
       };
       return { malak: toArray(data.malak), contracts: toArray(data.contracts), drivers: toArray(data.drivers) };
     } catch { return null; }

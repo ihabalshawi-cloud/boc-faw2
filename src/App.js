@@ -3231,6 +3231,9 @@ function HealthInsuranceForm({ emp }) {
   const [rows,         setRows]         = useState(() => Array.from({length:10},(_,i)=>emptyRow(i+1)));
   const [activeView,   setActiveView]   = useState("form"); // "form" | "history" | "preview"
   const [savedForms,   setSavedForms]   = useState(() => storage.get(HISTORY_KEY, []));
+  const [insExporting, setInsExporting] = useState(false);
+  const [showInsExport,setShowInsExport]= useState(false);
+  const insFileRef = useRef(null);
 
   useEffect(() => {
     const d = storage.get(STORAGE_KEY);
@@ -3436,6 +3439,89 @@ function HealthInsuranceForm({ emp }) {
     addToast("تم تصدير الاستمارة كملف Word","success");
   };
 
+  const exportToInsuranceTemplate = async (buffer) => {
+    try {
+      const mod = await import("exceljs");
+      const ExcelJS = mod.default || mod;
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      const ws = workbook.worksheets[0];
+
+      // ExcelJS: cell.value = x يغير القيمة فقط دون المساس بالتنسيق
+      const set = (ref, v) => { ws.getCell(ref).value = v ?? null; };
+
+      // ── الهيدر — خرائط الخلايا مبنية على الملف الفعلي ──
+      set("B2",  "هيأة الصيانة الهندسية / قسم السيطرة والنظم");  // اسم الهيأة/القسم (B2:G3)
+      set("AB2", emp.name);
+      set("B4",  phone);                                            // رقم الهاتف (B4:G4)
+      set("AB4", String(emp.jobNum || ""));
+      set("B5",  filledRows.length);                               // عدد المراجعات (B5:C5)
+      set("B6",  new Date().toLocaleDateString("ar-IQ"));          // تاريخ تقديم الطلب (B6:C6)
+      set("M6",  MONTHS_IRAQI[month] + " " + year);               // الشهر (M6:R6)
+      set("AB6", marital);
+      set("B7",  rows.reduce((s, r) => s + (Number(r.amount) || 0), 0)); // المجموع (B7:C7)
+      set("M7",  String(formSequence));
+      set("Y7",  formEnvelope);
+
+      // ── خرائط أعمدة أنواع الإجراءات (Master cell لكل دمج) ──
+      const PROC_COL = {
+        "الامراض المستعصية":                              "B",
+        "العمليات الصغرى":                               "C",
+        "العمليات الوسطى":                               "E",
+        "العمليات الكبرى":                               "H",
+        "العمليات فوق الكبرى":                           "K",
+        "معالجة اسنان":                                  "N",
+        "اشعة وسونار":                                   "O",
+        "نظارات طبية":                                   "Q",
+        "تحاليل مختبرية":                                "S",
+        "الرنين والمفراس/الايكو/تخطيط القلب":            "U",
+        "العلاجات (الادوية)":                            "Y",
+        "اجور الطبيب":                                   "Z",
+      };
+
+      // مسح بيانات الجدول (صفوف 14-23) مع الحفاظ على التنسيق
+      const CLEAR_COLS = ["B","C","E","H","K","N","O","Q","S","U","Y","Z","AC","AD"];
+      for (let r = 14; r <= 23; r++) {
+        for (const col of CLEAR_COLS) ws.getCell(col + r).value = null;
+      }
+
+      // تعبئة صفوف المراجعات
+      const dataRows = rows.filter(r => r.beneficiary && r.procedure);
+      dataRows.forEach((row, idx) => {
+        const r = 14 + idx;
+        if (r > 23) return;
+        set("AD" + r, row.beneficiary);
+        if (row.date) set("AC" + r, row.date);
+        const col = PROC_COL[row.procedure];
+        if (col) ws.getCell(col + r).value = row.amount ? Number(row.amount) : "✓";
+      });
+
+      const outBuf = await workbook.xlsx.writeBuffer();
+      const blob   = new Blob([outBuf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const a      = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `استمارة_ضمان_${emp.name.replace(/\s+/g,"_")}_${MONTHS_IRAQI[month]}_${year}.xlsx`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(a.href);
+      addToast("تم تصدير الاستمارة بنجاح","success");
+    } catch(e) {
+      addToast("فشل تصدير الإكسل: " + e.message, "error");
+    } finally {
+      setInsExporting(false);
+      setShowInsExport(false);
+    }
+  };
+
+  const exportFromInsFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setInsExporting(true);
+    const reader = new FileReader();
+    reader.onload = (ev) => exportToInsuranceTemplate(ev.target.result);
+    reader.readAsArrayBuffer(file);
+    e.target.value = "";
+  };
+
   return (
     <div className="space-y-4" dir="rtl">
       {/* Deadline banner */}
@@ -3602,11 +3688,33 @@ function HealthInsuranceForm({ emp }) {
           </div>
         </div>
 
+        {/* لوحة تصدير قالب الإكسل */}
+        {showInsExport && (
+          <div className="card rounded-2xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-sm text-emerald-800 flex items-center gap-2">
+                <Download size={15}/> تصدير إلى قالب إكسل
+              </h4>
+              <button onClick={()=>setShowInsExport(false)} className="text-gray-400 hover:text-gray-600"><X size={16}/></button>
+            </div>
+            <p className="text-xs text-emerald-700">اختر ملف قالب الإكسل الخاص باستمارة الضمان الصحي — سيتم ملء البيانات مع الحفاظ على التنسيق الأصلي.</p>
+            <input ref={insFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={exportFromInsFile}/>
+            <button
+              onClick={()=>insFileRef.current?.click()}
+              disabled={insExporting}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 disabled:opacity-60">
+              {insExporting ? <span className="animate-spin">⏳</span> : <Download size={14}/>}
+              {insExporting ? "جاري التصدير..." : "اختيار ملف القالب"}
+            </button>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex flex-wrap gap-3 justify-end pb-4">
           <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 btn-secondary border border-color rounded-xl font-bold text-sm"><Save size={14}/> حفظ مسودة</button>
           <button onClick={saveToHistory} className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm hover:bg-violet-700"><Save size={14}/> حفظ في السجل</button>
-          <button onClick={exportWord} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700"><Download size={14}/> تصدير Word</button>
+          <button onClick={()=>setShowInsExport(v=>!v)} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700"><Download size={14}/> تصدير إكسل</button>
+          <button onClick={exportWord} className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm hover:bg-teal-700"><Download size={14}/> تصدير Word</button>
           <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700"><Printer size={14}/> طباعة الاستمارة</button>
         </div>
       </>)}
@@ -3688,6 +3796,7 @@ function AnnualLeaveForm({ emp }) {
   const STORAGE_KEY = `annual_leave_${emp.id}`;
   const [uploadPct, setUploadPct] = useState(-1);
   const [driveLink, setDriveLink] = useState(null);
+  const [xlExporting, setXlExporting] = useState(false);
 
   const [name, setName] = useState(emp.name);
   const [jobNum, setJobNum] = useState(emp.jobNum || "");
@@ -3849,6 +3958,52 @@ function AnnualLeaveForm({ emp }) {
     }
   };
 
+  const exportToExcel = async () => {
+    setXlExporting(true);
+    try {
+      const res = await fetch("/templates/leave-annual.xlsx");
+      const buf0 = await res.arrayBuffer();
+      const mod = await import("exceljs");
+      const ExcelJS = mod.default || mod;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf0);
+      const ws = wb.worksheets[0];
+      const set = (r, v) => { ws.getCell(r).value = v ?? null; };
+      const fmtD = d => {
+        if (!d) return "";
+        const dt = new Date(d + "T00:00:00");
+        return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`;
+      };
+      set("C5",  fmtD(reqDate));
+      set("I8",  name);
+      set("I9",  String(jobNum || ""));
+      set("I10", jobTitle);
+      set("I11", fmtD(reqDate));
+      set("D13", days ? String(days) : "");
+      set("G13", fmtD(fromDate));
+      set("I14", purpose);
+      const outBuf = await wb.xlsx.writeBuffer();
+      const safeName = (name || "موظف").replace(/\s+/g, "_");
+      const fname = `اجازة_اعتيادية_${safeName}_${reqDate || "بدون_تاريخ"}.xlsx`;
+      const blob = new Blob([outBuf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = fname;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+      toast.success("تم تصدير نموذج الإجازة الاعتيادية");
+      if (gDrive.isReady) {
+        setUploadPct(0);
+        const file = new File([outBuf], fname, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
+        setDriveLink(result.webViewLink);
+        toast.success("تم رفع النموذج إلى Drive");
+      }
+    } catch(e) {
+      toast.error("فشل التصدير: " + e.message);
+    } finally {
+      setXlExporting(false); setUploadPct(-1);
+    }
+  };
+
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-5" dir="rtl">
       <div className="flex items-center gap-3 pb-3 border-b border-color">
@@ -3882,6 +4037,7 @@ function AnnualLeaveForm({ emp }) {
             <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "رفع إلى Drive"}
           </button>
         )}
+        <button onClick={exportToExcel} disabled={xlExporting} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-60"><Download size={14}/> {xlExporting ? "جاري التصدير..." : "تصدير إكسل"}</button>
         <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
       </div>
     </div>
@@ -3895,6 +4051,7 @@ function SickLeaveForm({ emp }) {
   const STORAGE_KEY = `sick_leave_${emp.id}`;
   const [uploadPct, setUploadPct] = useState(-1);
   const [driveLink, setDriveLink] = useState(null);
+  const [xlExporting, setXlExporting] = useState(false);
 
   const [name,        setName]        = useState(emp.name);
   const [jobNum,      setJobNum]      = useState(emp.jobNum || "");
@@ -4033,6 +4190,59 @@ function SickLeaveForm({ emp }) {
     }
   };
 
+  const exportToExcel = async () => {
+    setXlExporting(true);
+    try {
+      const res = await fetch("/templates/leave-sick.xlsx");
+      const buf0 = await res.arrayBuffer();
+      const mod = await import("exceljs");
+      const ExcelJS = mod.default || mod;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf0);
+      const ws = wb.worksheets[0];
+      const set = (r, v) => { ws.getCell(r).value = v ?? null; };
+      const fmtD = d => {
+        if (!d) return "";
+        const dt = new Date(d + "T00:00:00");
+        return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`;
+      };
+      const fmtDT = v => {
+        if (!v) return "";
+        const dt = new Date(v);
+        return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}  ${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
+      };
+      set("C5",  fmtD(new Date().toISOString().split("T")[0]));
+      set("I8",  name);
+      set("I9",  String(jobNum || ""));
+      set("I10", jobTitle);
+      set("I11", fmtD(leaveDate));
+      set("I12", leaveTime || "");
+      set("I16", fmtDT(clinicDT));
+      set("I18", notes);
+      set("I24", fmtD(returnDate));
+      set("I25", returnTime || "");
+      const outBuf = await wb.xlsx.writeBuffer();
+      const safeName = (name || "موظف").replace(/\s+/g, "_");
+      const fname = `اجازة_مرضية_${safeName}_${leaveDate || "بدون_تاريخ"}.xlsx`;
+      const blob = new Blob([outBuf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = fname;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+      toast.success("تم تصدير نموذج الإجازة المرضية");
+      if (gDrive.isReady) {
+        setUploadPct(0);
+        const file = new File([outBuf], fname, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
+        setDriveLink(result.webViewLink);
+        toast.success("تم رفع النموذج إلى Drive");
+      }
+    } catch(e) {
+      toast.error("فشل التصدير: " + e.message);
+    } finally {
+      setXlExporting(false); setUploadPct(-1);
+    }
+  };
+
   return (
     <div className="p-6 max-w-xl mx-auto space-y-5" dir="rtl">
       <div className="flex items-center gap-3 pb-3 border-b border-color">
@@ -4091,6 +4301,7 @@ function SickLeaveForm({ emp }) {
             <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "رفع إلى Drive"}
           </button>
         )}
+        <button onClick={exportToExcel} disabled={xlExporting} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-60"><Download size={14}/> {xlExporting ? "جاري التصدير..." : "تصدير إكسل"}</button>
         <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-rose-500 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
       </div>
     </div>
@@ -4665,6 +4876,7 @@ function OutOfCountryLeaveForm({ emp }) {
             <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "Word في Drive"}
           </button>
         )}
+        <a href="/templates/leave-ooc.xlsx" download className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm border border-gray-200 hover:bg-gray-200"><Download size={14}/> تنزيل النموذج</a>
         <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
       </div>
     </div>
@@ -4690,6 +4902,7 @@ function TimeLeaveForm({ emp }) {
   const [sigDataUrl, setSigDataUrl] = useState(null);
   const [uploadPct, setUploadPct] = useState(-1);
   const [driveLink, setDriveLink] = useState(null);
+  const [xlExporting, setXlExporting] = useState(false);
 
   useEffect(() => {
     const saved = storage.get(STORAGE_KEY, null);
@@ -4828,6 +5041,51 @@ function TimeLeaveForm({ emp }) {
     }
   };
 
+  const exportToExcel = async () => {
+    setXlExporting(true);
+    try {
+      const res = await fetch("/templates/leave-time.xlsx");
+      const buf0 = await res.arrayBuffer();
+      const mod = await import("exceljs");
+      const ExcelJS = mod.default || mod;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf0);
+      const ws = wb.worksheets[0];
+      const set = (r, v) => { ws.getCell(r).value = v ?? null; };
+      const fmtD = d => {
+        if (!d) return "";
+        const dt = new Date(d + "T00:00:00");
+        return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`;
+      };
+      set("F2", fmtD(leaveDate));
+      set("C7", name);
+      set("E7", String(jobNum || ""));
+      set("G7", jobTitle);
+      set("D8", dept);
+      set("G8", departureTime || "");
+      set("C9", returnTime || "");
+      const outBuf = await wb.xlsx.writeBuffer();
+      const safeName = (name || "موظف").replace(/\s+/g, "_");
+      const fname = `اجازة_زمنية_${safeName}_${leaveDate || "بدون_تاريخ"}.xlsx`;
+      const blob = new Blob([outBuf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = fname;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+      toast.success("تم تصدير نموذج الإجازة الزمنية");
+      if (gDrive.isReady) {
+        setUploadPct(0);
+        const file = new File([outBuf], fname, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
+        setDriveLink(result.webViewLink);
+        toast.success("تم رفع النموذج إلى Drive");
+      }
+    } catch(e) {
+      toast.error("فشل التصدير: " + e.message);
+    } finally {
+      setXlExporting(false); setUploadPct(-1);
+    }
+  };
+
   return (
     <div className="p-6 max-w-xl mx-auto space-y-5" dir="rtl">
       <div className="flex items-center gap-3 pb-3 border-b border-color">
@@ -4875,6 +5133,7 @@ function TimeLeaveForm({ emp }) {
             <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "رفع إلى Drive"}
           </button>
         )}
+        <button onClick={exportToExcel} disabled={xlExporting} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-60"><Download size={14}/> {xlExporting ? "جاري التصدير..." : "تصدير إكسل"}</button>
         <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
       </div>
     </div>
@@ -4883,18 +5142,18 @@ function TimeLeaveForm({ emp }) {
 
 // ========== صفحة نماذج الإجازات ==========
 function LeaveFormsPrintPage({ emp }) {
-  const [tab, setTab] = useState("annual");
+  const [tab, setTab] = useState("time");
   return (
     <div className="p-4 max-w-3xl mx-auto">
       <div className="flex flex-wrap gap-2 mb-5">
-        <button onClick={()=>setTab("annual")} className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="annual"?"bg-blue-600 text-white border-blue-600":"btn-secondary border-color"}`}>إجازة اعتيادية</button>
         <button onClick={()=>setTab("time")}   className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="time"  ?"bg-teal-600 text-white border-teal-600"  :"btn-secondary border-color"}`}>إجازة زمنية</button>
         <button onClick={()=>setTab("sick")}   className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="sick"  ?"bg-rose-500 text-white border-rose-500"  :"btn-secondary border-color"}`}>إجازة مرضية</button>
+        <button onClick={()=>setTab("annual")} className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="annual"?"bg-blue-600 text-white border-blue-600":"btn-secondary border-color"}`}>إجازة اعتيادية</button>
         <button onClick={()=>setTab("ooc")}    className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="ooc"   ?"bg-violet-600 text-white border-violet-600":"btn-secondary border-color"}`}>إجازة خارج القطر</button>
       </div>
-      {tab==="annual" && <AnnualLeaveForm emp={emp}/>}
       {tab==="time"   && <TimeLeaveForm emp={emp}/>}
       {tab==="sick"   && <SickLeaveForm emp={emp}/>}
+      {tab==="annual" && <AnnualLeaveForm emp={emp}/>}
       {tab==="ooc"    && <OutOfCountryLeaveForm emp={emp}/>}
     </div>
   );
@@ -6210,6 +6469,24 @@ function TsCodePicker({ codesArr, current, onSelect, onClose }) {
   );
 }
 
+class TsErrorBoundary extends React.Component {
+  constructor(p) { super(p); this.state = { err: null }; }
+  static getDerivedStateFromError(e) { return { err: e }; }
+  render() {
+    if (this.state.err) return (
+      <div dir="rtl" className="p-6 text-center">
+        <p className="text-red-600 font-bold mb-2">خطأ في تحميل صفحة التايم شيت</p>
+        <p className="text-sm text-gray-500 mb-4">{this.state.err?.message}</p>
+        <button onClick={()=>{localStorage.removeItem("boc_timesheet_v5");this.setState({err:null});}}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">
+          مسح البيانات المحلية وإعادة المحاولة
+        </button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
 function TimeSheetPage({ emp }) {
   const addToast = useToast();
   const confirm  = useConfirm();
@@ -6220,6 +6497,30 @@ function TimeSheetPage({ emp }) {
   const [tsYear,  setTsYear]  = useState(() => new Date().getFullYear());
   const [activeTab, setActiveTab] = useState("malak");
   const [data, setData] = useState(() => {
+    // Firebase converts arrays to {0:…,1:…} — restore before using as state.
+    // Also filter out null/sparse entries Firebase may leave behind after deletions.
+    const toArr = (v) => {
+      let arr;
+      if (Array.isArray(v)) arr = v;
+      else if (v && typeof v === "object") {
+        const ks = Object.keys(v);
+        if (ks.length > 0 && ks.every(k => /^\d+$/.test(k)))
+          arr = ks.sort((a,b)=>Number(a)-Number(b)).map(k=>v[k]);
+        else arr = [];
+      } else arr = [];
+      return arr.filter(e => e && typeof e === "object").map(e => ({
+        ...e, days: e.days || {}, hours: e.hours || {},
+      }));
+    };
+    const raw = storage.get(STORAGE_KEY, null);
+    if (!raw || typeof raw !== "object") return INITIAL_TS;
+    const malak     = toArr(raw.malak);
+    const contracts = toArr(raw.contracts);
+    const drivers   = toArr(raw.drivers);
+    return {
+      malak:     malak.length     ? malak     : INITIAL_TS.malak,
+      contracts: contracts.length ? contracts : INITIAL_TS.contracts,
+      drivers:   drivers.length   ? drivers   : INITIAL_TS.drivers,
     // Firebase converts arrays to {0:…,1:…} — restore before using as state
     const toArr = (v) => {
       if (Array.isArray(v)) return v;
@@ -6244,6 +6545,10 @@ function TimeSheetPage({ emp }) {
   const [importing, setImporting] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importDriveId, setImportDriveId] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [exportDriveId, setExportDriveId] = useState("");
+  const exportFileRef = useRef(null);
   const fileInputRef = useRef(null);
 
   // أي تعديل على التايم شيت يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
@@ -6328,6 +6633,76 @@ function TimeSheetPage({ emp }) {
     } catch (e) {
       addToast("فشل تنزيل الملف من Drive: " + e.message, "error");
       setImporting(false);
+    }
+  };
+
+  // ── Export data INTO an existing Excel template ──────────────────────────────
+  const exportToTemplate = async (buffer) => {
+    setExporting(true);
+    try {
+      const mod = await import("exceljs");
+      const ExcelJS = mod.default || mod;
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      const ws = workbook.worksheets[0];
+
+      // ExcelJS: إسناد القيمة فقط لا يمس التنسيق إطلاقاً
+      const DAY_COL_START = 5; // العمود E = 5 (تعداد ExcelJS من 1)
+      const emps = data[activeTab] || [];
+
+      // نبني فهرس: id الموظف → رقم الصف
+      const colAVals = ws.getColumn(1).values; // فهرسة تبدأ من 1
+      emps.forEach(emp => {
+        const codeRowIdx = colAVals.findIndex(
+          (v, i) => i > 0 && String(v ?? "").trim() === String(emp.id).trim()
+        );
+        if (codeRowIdx === -1) return;
+        const hoursRowIdx = codeRowIdx + 1;
+        for (let d = 1; d <= 31; d++) {
+          const col  = DAY_COL_START + (d - 1);
+          const code = (emp.days  || {})[String(d)] || "";
+          const h    = (emp.hours || {})[String(d)];
+          ws.getCell(codeRowIdx,  col).value = code || null;
+          ws.getCell(hoursRowIdx, col).value = (h != null && h > 0) ? h : null;
+        }
+      });
+
+      const outBuf = await workbook.xlsx.writeBuffer();
+      const blob   = new Blob([outBuf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url    = URL.createObjectURL(blob);
+      const a      = document.createElement("a");
+      a.href = url;
+      a.download = `تايم_شيت_${TAB_INFO[activeTab].label}_${tsYear}_${String(tsMonth+1).padStart(2,"0")}.xlsx`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+      addToast("تم تصدير البيانات إلى قالب Excel ✅", "success");
+      setShowExport(false);
+    } catch (e) {
+      addToast("فشل التصدير: " + e.message, "error");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportFromFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => exportToTemplate(ev.target.result);
+    reader.readAsArrayBuffer(file);
+    e.target.value = "";
+  };
+
+  const exportFromDrive = async () => {
+    if (!exportDriveId.trim()) { addToast("أدخل File ID من Drive", "warning"); return; }
+    if (!gDrive?.isReady) { addToast("يرجى ربط Google Drive أولاً", "warning"); return; }
+    setExporting(true);
+    try {
+      const buf = await gDrive.downloadFile(exportDriveId.trim());
+      await exportToTemplate(buf);
+    } catch (e) {
+      addToast("فشل تنزيل القالب من Drive: " + e.message, "error");
+      setExporting(false);
     }
   };
 
@@ -6942,14 +7317,15 @@ function TimeSheetPage({ emp }) {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm btn-secondary">
             <AlertTriangle size={14}/> دليل الرموز
           </button>
-          <button onClick={exportExcelFormatted}
+          <button onClick={()=>{setShowExport(v=>!v);setShowImport(false);}}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-green-700 text-white hover:bg-green-800">
-            <FileCheck size={14}/> Excel رسمي
+            <FileCheck size={14}/> تصدير بيانات اكسل
           </button>
           <button onClick={exportOfficialForm}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700">
             <Printer size={14}/> طباعة / PDF
           </button>
+          <button onClick={()=>{setShowImport(v=>!v);setShowExport(false);}}
           <button onClick={()=>setShowImport(v=>!v)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700">
             <Upload size={14}/> استيراد Excel
@@ -6981,6 +7357,38 @@ function TimeSheetPage({ emp }) {
                   <button onClick={importFromDrive} disabled={importing}
                     className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
                     {importing ? "..." : "تنزيل"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Export to template panel */}
+      {showExport && (
+        <div className="card rounded-xl p-4 border border-green-200 bg-green-50 space-y-3" dir="rtl">
+          <h3 className="font-bold text-sm text-green-800">تصدير بيانات التايم شيت إلى قالب Excel</h3>
+          <p className="text-xs text-green-700">اختر ملف Excel القالب الموجود على جهازك أو Drive — سيتم ملء بيانات الحضور فيه مع الحفاظ على تنسيقه الأصلي</p>
+          <div className="flex flex-wrap gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <p className="text-xs font-semibold text-green-700 mb-1">من جهازك:</p>
+              <input ref={exportFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={exportFromFile}/>
+              <button onClick={()=>exportFileRef.current?.click()} disabled={exporting}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm bg-green-700 text-white hover:bg-green-800 disabled:opacity-50">
+                <FileCheck size={14}/> {exporting ? "جارٍ التصدير..." : "اختر قالب Excel"}
+              </button>
+            </div>
+            {gDrive?.isReady && (
+              <div className="flex-1 min-w-[240px]">
+                <p className="text-xs font-semibold text-green-700 mb-1">من Google Drive (File ID):</p>
+                <div className="flex gap-2">
+                  <input value={exportDriveId} onChange={e=>setExportDriveId(e.target.value)}
+                    placeholder="File ID للقالب في Drive"
+                    className="flex-1 text-sm border border-green-300 rounded-lg px-3 py-2 bg-white text-primary" dir="ltr"/>
+                  <button onClick={exportFromDrive} disabled={exporting}
+                    className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm bg-green-700 text-white hover:bg-green-800 disabled:opacity-50">
+                    {exporting ? "..." : "تصدير"}
                   </button>
                 </div>
               </div>
@@ -7095,7 +7503,7 @@ function TimeSheetPage({ emp }) {
                       <td className="border border-gray-200 text-center font-black ts-mono" style={{backgroundColor:bgBase,fontSize:"10px",color:"#C87A2E"}}>أ</td>
                       {days.map(d=>{
                         const isWe = isWeekendDay(d);
-                        const code = e.days[String(d)] || "";
+                        const code = (e.days||{})[String(d)] || "";
                         const isEd = editCell?.empId===e.id && editCell?.day===d && editCell?.type==="code";
                         const cellBg = code ? "" : isWe ? "#fff7ed" : bgBase;
                         return (
@@ -7128,7 +7536,7 @@ function TimeSheetPage({ emp }) {
                       <td className="border border-gray-200 text-center font-black ts-mono" style={{backgroundColor:bgBase,fontSize:"10px",color:"#7c3aed"}}>ق</td>
                       {days.map(d=>{
                         const isWe = isWeekendDay(d);
-                        const h = e.hours[String(d)];
+                        const h = (e.hours||{})[String(d)];
                         const isEd = editCell?.empId===e.id && editCell?.day===d && editCell?.type==="hours";
                         const cellBg = h!=null ? "#f5f3ff" : isWe ? "#FFF3E6" : bgBase;
                         return (
@@ -7204,6 +7612,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
   const confirm = useConfirm();
   const [showSearch, setShowSearch] = useState(false);
   const isAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
+  const isTimeSheetAdmin = isAdmin || emp.role === "attendance_admin";
   const pendingCount = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
   const unreadNotifs = (storage.get(`notifications_${emp.id}`, [])).filter(n => !n.read).length;
 
@@ -7243,7 +7652,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
     { id:"leave_forms", label:"نماذج الإجازات", icon:<FileText size={17}/> },
     { id:"projects", label:"إدارة المشاريع", icon:<Briefcase size={17}/> },
-    { id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> },
+    ...(isTimeSheetAdmin ? [{ id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> }] : []),
   ];
   if (isAdmin) {
     menuItems.unshift({ id:"approvals", label:"الموافقات", icon:<ThumbsUp size={17}/>, badge:pendingCount });
@@ -7456,7 +7865,7 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           {view==="health_insurance" && <HealthInsuranceForm emp={emp}/>}
           {view==="leave_forms" && <LeaveFormsPrintPage emp={emp}/>}
           {view==="projects" && <ProjectManagementPage emp={emp}/>}
-          {view==="timesheet" && <TimeSheetPage emp={emp}/>}
+          {view==="timesheet" && isTimeSheetAdmin && <TsErrorBoundary><TimeSheetPage emp={emp}/></TsErrorBoundary>}
           {view==="admin_dashboard" && isAdmin && <AdminDashboard emp={emp} employees={employees} setEmployees={setEmployees}/>}
         </main>
       </div>
