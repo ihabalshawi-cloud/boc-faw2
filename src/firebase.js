@@ -301,7 +301,17 @@ export const FirebaseAPI = {
       if (!res.ok) return null;
       const data = await res.json();
       if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-      return data;
+      // Firebase converts arrays to {0:…,1:…} — restore each tab back to an array
+      const toArray = (val) => {
+        if (Array.isArray(val)) return val;
+        if (val && typeof val === "object") {
+          const keys = Object.keys(val);
+          if (keys.length > 0 && keys.every(k => /^\d+$/.test(k)))
+            return keys.sort((a,b) => Number(a)-Number(b)).map(k => val[k]);
+        }
+        return val;
+      };
+      return { malak: toArray(data.malak), contracts: toArray(data.contracts), drivers: toArray(data.drivers) };
     } catch { return null; }
   },
 };
