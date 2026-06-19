@@ -3457,32 +3457,32 @@ function HealthInsuranceForm({ emp }) {
 
   const exportToInsuranceTemplate = async (buffer) => {
     try {
-      const { read, write } = await import("xlsx");
-      const wb = read(buffer, { type: "array", cellStyles: true });
-      const ws = wb.Sheets[wb.SheetNames[0]];
+      const mod = await import("exceljs");
+      const ExcelJS = mod.default || mod;
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      const ws = workbook.worksheets[0];
 
-      const set = (ref, v, t = "s") => { ws[ref] = { ...(ws[ref] || {}), v, t }; };
+      // ExcelJS: cell.value = x يغير القيمة فقط دون المساس بالتنسيق
+      const set = (ref, v) => { ws.getCell(ref).value = v ?? null; };
 
       // حقول الهيدر
       set("I2",  "لجنة الضمان الصحي المركزية");
       set("AH2", emp.name);
       set("I4",  phone);
       set("AH4", String(emp.jobNum || ""));
-      set("E5",  String(beneficiaries.length));
+      set("E5",  beneficiaries.length);
       set("E6",  new Date().toLocaleDateString("ar-IQ"));
       set("T6",  MONTHS_IRAQI[month] + " " + year);
       set("AH6", marital);
       set("E7",  String(formSequence));
-      set("Q7",  String(filledRows.length));
+      set("Q7",  filledRows.length);
       set("U7",  formEnvelope);
 
-      // مسح الصفوف 13-22 مع الحفاظ على التنسيق
+      // مسح الصفوف 13-22 (null يحافظ على التنسيق ويمسح القيمة فقط)
       const TABLE_COLS = ["A","B","D","G","J","M","N","P","R","T","W","Y","AB","AC","AH"];
       for (let r = 13; r <= 22; r++) {
-        for (const col of TABLE_COLS) {
-          const ref = col + r;
-          if (ws[ref]) ws[ref] = { ...(ws[ref] || {}), v: "", t: "s" };
-        }
+        for (const col of TABLE_COLS) ws.getCell(col + r).value = null;
       }
 
       // تعبئة صفوف المراجعات
@@ -3490,19 +3490,16 @@ function HealthInsuranceForm({ emp }) {
       dataRows.forEach((row, idx) => {
         const r = 13 + idx;
         if (r > 22) return;
-        set("AH" + r, idx + 1, "n");
-        set("AC" + r, row.beneficiary);
-        if (row.date) set("AB" + r, row.date);
+        ws.getCell("AH" + r).value = idx + 1;
+        ws.getCell("AC" + r).value = row.beneficiary;
+        if (row.date) ws.getCell("AB" + r).value = row.date;
         const col = PROC_COL_MAP[row.procedure];
-        if (col) {
-          const v = row.amount ? Number(row.amount) : "✓";
-          ws[col + r] = { ...(ws[col + r] || {}), v, t: row.amount ? "n" : "s" };
-        }
+        if (col) ws.getCell(col + r).value = row.amount ? Number(row.amount) : "✓";
       });
 
-      const out  = write(wb, { bookType: "xlsx", type: "array", cellStyles: true });
-      const blob = new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const a    = document.createElement("a");
+      const outBuf = await workbook.xlsx.writeBuffer();
+      const blob   = new Blob([outBuf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const a      = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = `استمارة_ضمان_${emp.name.replace(/\s+/g,"_")}_${MONTHS_IRAQI[month]}_${year}.xlsx`;
       document.body.appendChild(a); a.click();
@@ -6477,37 +6474,37 @@ function TimeSheetPage({ emp }) {
   const exportToTemplate = async (buffer) => {
     setExporting(true);
     try {
-      const { read, utils, write } = await import("xlsx");
-      // cellStyles:true preserves all colour/font/border data in cell objects
-      const wb = read(buffer, { type: "array", cellStyles: true });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = utils.sheet_to_json(ws, { header: 1, defval: "" });
-      const DAY_COL_START = 4;
+      const mod = await import("exceljs");
+      const ExcelJS = mod.default || mod;
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      const ws = workbook.worksheets[0];
+
+      // ExcelJS: إسناد القيمة فقط لا يمس التنسيق إطلاقاً
+      const DAY_COL_START = 5; // العمود E = 5 (تعداد ExcelJS من 1)
       const emps = data[activeTab] || [];
+
+      // نبني فهرس: id الموظف → رقم الصف
+      const colAVals = ws.getColumn(1).values; // فهرسة تبدأ من 1
       emps.forEach(emp => {
-        const codeRowIdx = rows.findIndex(r => String(r[0]).trim() === String(emp.id).trim());
+        const codeRowIdx = colAVals.findIndex(
+          (v, i) => i > 0 && String(v ?? "").trim() === String(emp.id).trim()
+        );
         if (codeRowIdx === -1) return;
         const hoursRowIdx = codeRowIdx + 1;
         for (let d = 1; d <= 31; d++) {
           const col  = DAY_COL_START + (d - 1);
           const code = (emp.days  || {})[String(d)] || "";
           const h    = (emp.hours || {})[String(d)];
-          const cRef = utils.encode_cell({ r: codeRowIdx,  c: col });
-          const hRef = utils.encode_cell({ r: hoursRowIdx, c: col });
-          // Spread existing cell to keep all formatting (s=style, z=format, etc.)
-          // then only overwrite the value; this preserves colours, fonts, borders
-          ws[cRef] = { ...(ws[cRef] || {}), v: code, t: "s" };
-          if (h != null && h > 0) {
-            ws[hRef] = { ...(ws[hRef] || {}), v: h,    t: "n" };
-          } else {
-            ws[hRef] = { ...(ws[hRef] || {}), v: "",   t: "s" };
-          }
+          ws.getCell(codeRowIdx,  col).value = code || null;
+          ws.getCell(hoursRowIdx, col).value = (h != null && h > 0) ? h : null;
         }
       });
-      const out  = write(wb, { bookType: "xlsx", type: "array", cellStyles: true });
-      const blob = new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
+
+      const outBuf = await workbook.xlsx.writeBuffer();
+      const blob   = new Blob([outBuf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url    = URL.createObjectURL(blob);
+      const a      = document.createElement("a");
       a.href = url;
       a.download = `تايم_شيت_${TAB_INFO[activeTab].label}_${tsYear}_${String(tsMonth+1).padStart(2,"0")}.xlsx`;
       document.body.appendChild(a); a.click();
