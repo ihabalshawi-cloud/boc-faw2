@@ -175,4 +175,133 @@ export const FirebaseAPI = {
         .sort((a, b) => a.timestamp - b.timestamp);
     } catch { return []; }
   },
+
+  // ── Inventory ─────────────────────────────────────────────────────────────
+  saveInventory: async (list) => {
+    if (!Array.isArray(list)) return false;
+    try {
+      const data = {};
+      for (const item of list) data[`item_${item.id}`] = item;
+      const res = await fetch(`${FIREBASE_URL}/inventory_items.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+
+  loadInventory: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/inventory_items.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+      return Object.values(data).filter(Boolean).sort((a, b) => a.id - b.id);
+    } catch { return null; }
+  },
+
+  // ── Furniture ─────────────────────────────────────────────────────────────
+  saveFurniture: async (list) => {
+    if (!Array.isArray(list)) return false;
+    try {
+      const data = {};
+      for (const item of list) data[`item_${item.id}`] = item;
+      const res = await fetch(`${FIREBASE_URL}/furniture_items.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+
+  loadFurniture: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/furniture_items.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+      return Object.values(data).filter(Boolean).sort((a, b) => a.id - b.id);
+    } catch { return null; }
+  },
+
+  // ── Equipment ─────────────────────────────────────────────────────────────
+  saveEquipmentList: async (list) => {
+    if (!Array.isArray(list)) return false;
+    try {
+      const data = {};
+      for (const item of list) {
+        const key = String(item.id).replace(/[.#$[\]]/g, "_");
+        data[key] = item;
+      }
+      const res = await fetch(`${FIREBASE_URL}/equipment_list.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+
+  loadEquipmentList: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/equipment_list.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+      return Object.values(data).filter(Boolean);
+    } catch { return null; }
+  },
+
+  // ── Projects ──────────────────────────────────────────────────────────────
+  saveProjects: async (list) => {
+    if (!Array.isArray(list)) return false;
+    try {
+      const data = {};
+      for (const item of list) {
+        const key = String(item.id).replace(/[.#$[\]]/g, "_");
+        data[key] = item;
+      }
+      const res = await fetch(`${FIREBASE_URL}/pm_projects.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+
+  loadProjects: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/pm_projects.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+      return Object.values(data).filter(Boolean);
+    } catch { return null; }
+  },
+
+  // ── Timesheet ─────────────────────────────────────────────────────────────
+  saveTimesheet: async (tsData) => {
+    if (!tsData || typeof tsData !== "object") return false;
+    try {
+      const res = await fetch(`${FIREBASE_URL}/timesheet_data.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(tsData),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+
+  loadTimesheet: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/timesheet_data.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+      return data;
+    } catch { return null; }
+  },
 };
