@@ -4,6 +4,7 @@ import { storage, passStore, exportCSV } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
 import { BUILT_IN_ROLES, getEmpStatus, setEmpStatus } from "../permissions";
+import { useConnectionStatus } from "../components/Shared";
 
 function EmployeeManager({ employees, setEmployees }) {
   const [search, setSearch]   = useState("");
