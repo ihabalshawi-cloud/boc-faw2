@@ -6213,15 +6213,20 @@ function TsCodePicker({ codesArr, current, onSelect, onClose }) {
 function TimeSheetPage({ emp }) {
   const addToast = useToast();
   const confirm  = useConfirm();
+  const gDrive   = useGDrive();
   const STORAGE_KEY = "boc_timesheet_v5";
 
-  const [tsMonth, setTsMonth] = useState(4);
-  const [tsYear,  setTsYear]  = useState(2026);
+  const [tsMonth, setTsMonth] = useState(() => new Date().getMonth());
+  const [tsYear,  setTsYear]  = useState(() => new Date().getFullYear());
   const [activeTab, setActiveTab] = useState("malak");
   const [data, setData] = useState(() => storage.get(STORAGE_KEY, null) || INITIAL_TS);
   const [editCell, setEditCell] = useState(null);
   const [showLegend, setShowLegend] = useState(false);
   const [searchEmp, setSearchEmp] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [importDriveId, setImportDriveId] = useState("");
+  const fileInputRef = useRef(null);
 
   // أي تعديل على التايم شيت يُحفظ محلياً فوراً + يُرفع إلى قاعدة البيانات ليبقى ثابتاً ولا يختفي بعد التحديث
   const persistTs = (updated) => {
@@ -6233,6 +6238,78 @@ function TimeSheetPage({ emp }) {
       if (d) { setData(d); storage.set(STORAGE_KEY, d); }
     });
   }, []);
+
+  // ── Import from Excel (local file or Google Drive) ──────────────────────────
+  const importFromBuffer = async (buffer) => {
+    setImporting(true);
+    try {
+      const { read, utils } = await import("xlsx");
+      const wb = read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = utils.sheet_to_json(ws, { header: 1, defval: "" });
+      // Build lookup: empId → rowIndex (code row) and rowIndex+1 (hours row)
+      // Columns: A=0(id), B=1(name), C=2..., D=3, E..AI = days 1-31 (cols 4-34)
+      const DAY_COL_START = 4; // column E = index 4
+      const buildUpdate = (tabKey) => {
+        const tabEmps = data[tabKey] || [];
+        return tabEmps.map(emp => {
+          // Find matching row by employee ID
+          const codeRowIdx = rows.findIndex(r => String(r[0]).trim() === String(emp.id).trim());
+          if (codeRowIdx === -1) return emp;
+          const codeRow  = rows[codeRowIdx];
+          const hoursRow = rows[codeRowIdx + 1] || [];
+          const newDays  = { ...emp.days };
+          const newHours = { ...emp.hours };
+          for (let d = 1; d <= 31; d++) {
+            const col  = DAY_COL_START + (d - 1);
+            const code = String(codeRow[col] || "").trim();
+            const h    = String(hoursRow[col] || "").trim();
+            if (code) newDays[String(d)] = code;
+            else delete newDays[String(d)];
+            const hNum = parseInt(h);
+            if (!isNaN(hNum) && hNum > 0) newHours[String(d)] = hNum;
+            else delete newHours[String(d)];
+          }
+          return { ...emp, days: newDays, hours: newHours };
+        });
+      };
+      const updated = {
+        malak:     buildUpdate("malak"),
+        contracts: buildUpdate("contracts"),
+        drivers:   buildUpdate("drivers"),
+      };
+      persistTs(updated);
+      setData(updated);
+      setShowImport(false);
+      addToast("تم استيراد بيانات التايم شيت من Excel ✅", "success");
+    } catch (e) {
+      addToast("فشل الاستيراد: " + e.message, "error");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const importFromFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => importFromBuffer(ev.target.result);
+    reader.readAsArrayBuffer(file);
+    e.target.value = "";
+  };
+
+  const importFromDrive = async () => {
+    if (!importDriveId.trim()) { addToast("أدخل File ID من Drive", "warning"); return; }
+    if (!gDrive?.isReady) { addToast("يرجى ربط Google Drive أولاً", "warning"); return; }
+    setImporting(true);
+    try {
+      const buf = await gDrive.downloadFile(importDriveId.trim());
+      await importFromBuffer(buf);
+    } catch (e) {
+      addToast("فشل تنزيل الملف من Drive: " + e.message, "error");
+      setImporting(false);
+    }
+  };
 
   const TAB_INFO = {
     malak:     { label:"الملاك",     title:"استمارة ضبط وقت العمال المؤقتين (بعقد)", codes:TS_CODES_GENERAL },
@@ -6853,8 +6930,44 @@ function TimeSheetPage({ emp }) {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700">
             <Printer size={14}/> طباعة / PDF
           </button>
+          <button onClick={()=>setShowImport(v=>!v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700">
+            <Upload size={14}/> استيراد Excel
+          </button>
         </div>
       </div>
+
+      {/* Import Panel */}
+      {showImport && (
+        <div className="card rounded-xl p-4 border border-blue-200 bg-blue-50 space-y-3" dir="rtl">
+          <h3 className="font-bold text-sm text-blue-800">استيراد بيانات الحضور من Excel</h3>
+          <p className="text-xs text-blue-700">يقرأ الأعمدة E→AI (أيام 1-31) والصف السفلي (الساعات) حسب الرقم الوظيفي في العمود A</p>
+          <div className="flex flex-wrap gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <p className="text-xs font-semibold text-blue-700 mb-1">من جهازك:</p>
+              <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={importFromFile}/>
+              <button onClick={()=>fileInputRef.current?.click()} disabled={importing}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+                <Upload size={14}/> {importing ? "جارٍ الاستيراد..." : "اختر ملف Excel"}
+              </button>
+            </div>
+            {gDrive?.isReady && (
+              <div className="flex-1 min-w-[240px]">
+                <p className="text-xs font-semibold text-blue-700 mb-1">من Google Drive:</p>
+                <div className="flex gap-2">
+                  <input value={importDriveId} onChange={e=>setImportDriveId(e.target.value)}
+                    placeholder="File ID من Drive"
+                    className="flex-1 text-sm border border-blue-300 rounded-lg px-3 py-2 bg-white text-primary" dir="ltr"/>
+                  <button onClick={importFromDrive} disabled={importing}
+                    className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+                    {importing ? "..." : "تنزيل"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Legend */}
       {showLegend && (
