@@ -3451,15 +3451,15 @@ function HealthInsuranceForm({ emp }) {
       const set = (ref, v) => { ws.getCell(ref).value = v ?? null; };
 
       // ── الهيدر — خرائط الخلايا مبنية على الملف الفعلي ──
-      set("J2",  "هيأة الصيانة الهندسية / قسم السيطرة والنظم");  // اسم الهيأة/القسم
+      set("B2",  "هيأة الصيانة الهندسية / قسم السيطرة والنظم");  // اسم الهيأة/القسم (B2:G3)
       set("AB2", emp.name);
-      set("J4",  phone);
+      set("B4",  phone);                                            // رقم الهاتف (B4:G4)
       set("AB4", String(emp.jobNum || ""));
-      set("J5",  filledRows.length);                               // عدد المراجعات
-      set("J6",  new Date().toLocaleDateString("ar-IQ"));          // تاريخ تقديم الطلب
-      set("M6",  MONTHS_IRAQI[month] + " " + year);               // الشهر
+      set("B5",  filledRows.length);                               // عدد المراجعات (B5:C5)
+      set("B6",  new Date().toLocaleDateString("ar-IQ"));          // تاريخ تقديم الطلب (B6:C6)
+      set("M6",  MONTHS_IRAQI[month] + " " + year);               // الشهر (M6:R6)
       set("AB6", marital);
-      set("J7",  rows.reduce((s, r) => s + (Number(r.amount) || 0), 0)); // المجموع
+      set("B7",  rows.reduce((s, r) => s + (Number(r.amount) || 0), 0)); // المجموع (B7:C7)
       set("M7",  String(formSequence));
       set("Y7",  formEnvelope);
 
