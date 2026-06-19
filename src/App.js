@@ -6366,7 +6366,8 @@ function TimeSheetPage({ emp }) {
     setExporting(true);
     try {
       const { read, utils, write } = await import("xlsx");
-      const wb = read(buffer, { type: "array" });
+      // cellStyles:true preserves all colour/font/border data in cell objects
+      const wb = read(buffer, { type: "array", cellStyles: true });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = utils.sheet_to_json(ws, { header: 1, defval: "" });
       const DAY_COL_START = 4;
@@ -6381,11 +6382,17 @@ function TimeSheetPage({ emp }) {
           const h    = (emp.hours || {})[String(d)];
           const cRef = utils.encode_cell({ r: codeRowIdx,  c: col });
           const hRef = utils.encode_cell({ r: hoursRowIdx, c: col });
-          if (code) ws[cRef] = { v: code, t: "s" }; else delete ws[cRef];
-          if (h != null && h > 0) ws[hRef] = { v: h, t: "n" }; else delete ws[hRef];
+          // Spread existing cell to keep all formatting (s=style, z=format, etc.)
+          // then only overwrite the value; this preserves colours, fonts, borders
+          ws[cRef] = { ...(ws[cRef] || {}), v: code, t: "s" };
+          if (h != null && h > 0) {
+            ws[hRef] = { ...(ws[hRef] || {}), v: h,    t: "n" };
+          } else {
+            ws[hRef] = { ...(ws[hRef] || {}), v: "",   t: "s" };
+          }
         }
       });
-      const out  = write(wb, { bookType: "xlsx", type: "array" });
+      const out  = write(wb, { bookType: "xlsx", type: "array", cellStyles: true });
       const blob = new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement("a");
