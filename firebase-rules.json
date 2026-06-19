@@ -27,6 +27,13 @@
         ".validate": "newData.isString() && newData.val().length == 64"
       }
     },
+    "login_history": {
+      ".read": "true",
+      ".write": "true",
+      "$record": {
+        ".validate": "newData.hasChildren(['loginTime', 'status', 'userName']) && newData.child('loginTime').isString() && newData.child('status').isString() && newData.child('userName').isString()"
+      }
+    },
     "chat": {
       ".read": "true",
       ".write": "true",
