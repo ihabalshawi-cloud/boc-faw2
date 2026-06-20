@@ -46,33 +46,38 @@ export function PhasesTab({ proj, addPhase, editPhase, delPhase }) {
       </div>
 
       {(showAdd || editId) && (
-        <div className="card rounded-2xl border border-color p-4">
-          <h4 className="font-bold text-sm mb-3">{editId ? "تعديل المرحلة" : "مرحلة جديدة"}</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <FormRow label="اسم المرحلة">
-              <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm" placeholder="مثال: تركيب الأنابيب"/>
-            </FormRow>
-            <FormRow label="المسؤول">
-              <input value={form.responsible} onChange={e=>setForm({...form,responsible:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm" placeholder="اسم المسؤول"/>
-            </FormRow>
-            <FormRow label="الحالة">
-              <select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm">
-                {PHASE_STATUSES.map(s=><option key={s}>{s}</option>)}
-              </select>
-            </FormRow>
-            <FormRow label="نسبة الإنجاز %">
-              <input type="number" min="0" max="100" value={form.progress} onChange={e=>setForm({...form,progress:+e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/>
-            </FormRow>
-            <FormRow label="تاريخ البدء">
-              <input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/>
-            </FormRow>
-            <FormRow label="تاريخ الانتهاء">
-              <input type="date" value={form.endDate} onChange={e=>setForm({...form,endDate:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/>
-            </FormRow>
-          </div>
-          <div className="flex gap-2 justify-end mt-3 pt-3 border-t border-color">
-            <button onClick={()=>{ setShowAdd(false); setEditId(null); }} className="px-4 py-2 rounded-xl btn-secondary text-sm">إلغاء</button>
-            <button onClick={editId ? submitEdit : submitAdd} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> {editId?"حفظ":"إضافة"}</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e=>{if(e.target===e.currentTarget){setShowAdd(false);setEditId(null);}}}>
+          <div className="card rounded-2xl w-full max-w-lg shadow-2xl p-4">
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="font-bold text-sm">{editId ? "تعديل المرحلة" : "مرحلة جديدة"}</h4>
+              <button onClick={()=>{setShowAdd(false);setEditId(null);}} className="text-secondary hover:text-red-500"><X size={15}/></button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <FormRow label="اسم المرحلة">
+                <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm" placeholder="مثال: تركيب الأنابيب"/>
+              </FormRow>
+              <FormRow label="المسؤول">
+                <input value={form.responsible} onChange={e=>setForm({...form,responsible:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm" placeholder="اسم المسؤول"/>
+              </FormRow>
+              <FormRow label="الحالة">
+                <select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm">
+                  {PHASE_STATUSES.map(s=><option key={s}>{s}</option>)}
+                </select>
+              </FormRow>
+              <FormRow label="نسبة الإنجاز %">
+                <input type="number" min="0" max="100" value={form.progress} onChange={e=>setForm({...form,progress:+e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/>
+              </FormRow>
+              <FormRow label="تاريخ البدء">
+                <input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/>
+              </FormRow>
+              <FormRow label="تاريخ الانتهاء">
+                <input type="date" value={form.endDate} onChange={e=>setForm({...form,endDate:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/>
+              </FormRow>
+            </div>
+            <div className="flex gap-2 justify-end mt-3 pt-3 border-t border-color">
+              <button onClick={()=>{ setShowAdd(false); setEditId(null); }} className="px-4 py-2 rounded-xl btn-secondary text-sm">إلغاء</button>
+              <button onClick={editId ? submitEdit : submitAdd} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> {editId?"حفظ":"إضافة"}</button>
+            </div>
           </div>
         </div>
       )}
@@ -136,23 +141,28 @@ export function ReportsTab({ proj, addReport, delReport, emp }) {
       </div>
 
       {showAdd && (
-        <div className="card rounded-2xl border border-color p-4">
-          <h4 className="font-bold text-sm mb-3">تقرير يومي جديد</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div><label className="block text-xs font-bold text-secondary mb-1">التاريخ</label>
-              <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-            <div><label className="block text-xs font-bold text-secondary mb-1">اسم المُعِد</label>
-              <input value={form.author} onChange={e=>setForm({...form,author:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-            <div className="md:col-span-2"><label className="block text-xs font-bold text-secondary mb-1">الأعمال المنجزة اليوم</label>
-              <textarea value={form.work} onChange={e=>setForm({...form,work:e.target.value})} rows={2} className="input w-full rounded-lg px-3 py-2 text-sm resize-none" placeholder="صف الأعمال المنجزة اليوم..."/></div>
-            <div className="md:col-span-2"><label className="block text-xs font-bold text-secondary mb-1">الملاحظات والعقبات</label>
-              <textarea value={form.issues} onChange={e=>setForm({...form,issues:e.target.value})} rows={2} className="input w-full rounded-lg px-3 py-2 text-sm resize-none" placeholder="اكتب لا توجد إذا لم تكن هناك عقبات"/></div>
-            <div><label className="block text-xs font-bold text-secondary mb-1">نسبة الإنجاز الكلية % (تحديث)</label>
-              <input type="number" min="0" max="100" value={form.progress} onChange={e=>setForm({...form,progress:+e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-          </div>
-          <div className="flex gap-2 justify-end mt-3 pt-3 border-t border-color">
-            <button onClick={()=>setShowAdd(false)} className="px-4 py-2 rounded-xl btn-secondary text-sm">إلغاء</button>
-            <button onClick={submit} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ التقرير</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e=>{if(e.target===e.currentTarget)setShowAdd(false)}}>
+          <div className="card rounded-2xl w-full max-w-lg shadow-2xl p-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="font-bold text-sm">تقرير يومي جديد</h4>
+              <button onClick={()=>setShowAdd(false)} className="text-secondary hover:text-red-500"><X size={15}/></button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div><label className="block text-xs font-bold text-secondary mb-1">التاريخ</label>
+                <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+              <div><label className="block text-xs font-bold text-secondary mb-1">اسم المُعِد</label>
+                <input value={form.author} onChange={e=>setForm({...form,author:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+              <div className="md:col-span-2"><label className="block text-xs font-bold text-secondary mb-1">الأعمال المنجزة اليوم</label>
+                <textarea value={form.work} onChange={e=>setForm({...form,work:e.target.value})} rows={2} className="input w-full rounded-lg px-3 py-2 text-sm resize-none" placeholder="صف الأعمال المنجزة اليوم..."/></div>
+              <div className="md:col-span-2"><label className="block text-xs font-bold text-secondary mb-1">الملاحظات والعقبات</label>
+                <textarea value={form.issues} onChange={e=>setForm({...form,issues:e.target.value})} rows={2} className="input w-full rounded-lg px-3 py-2 text-sm resize-none" placeholder="اكتب لا توجد إذا لم تكن هناك عقبات"/></div>
+              <div><label className="block text-xs font-bold text-secondary mb-1">نسبة الإنجاز الكلية % (تحديث)</label>
+                <input type="number" min="0" max="100" value={form.progress} onChange={e=>setForm({...form,progress:+e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+            </div>
+            <div className="flex gap-2 justify-end mt-3 pt-3 border-t border-color">
+              <button onClick={()=>setShowAdd(false)} className="px-4 py-2 rounded-xl btn-secondary text-sm">إلغاء</button>
+              <button onClick={submit} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ التقرير</button>
+            </div>
           </div>
         </div>
       )}
@@ -262,24 +272,29 @@ export function InspectionsTab({ proj, addInsp, delInsp, emp }) {
       </div>
 
       {showAdd && (
-        <div className="card rounded-2xl border border-color p-4">
-          <h4 className="font-bold text-sm mb-3">تسجيل فحص جديد</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الفحص</label>
-              <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-            <div><label className="block text-xs font-bold text-secondary mb-1">المفتش</label>
-              <input value={form.inspector} onChange={e=>setForm({...form,inspector:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-            <div><label className="block text-xs font-bold text-secondary mb-1">القسم / الموقع المفحوص</label>
-              <input value={form.section} onChange={e=>setForm({...form,section:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm" placeholder="مثال: قسم A — الوصلات"/></div>
-            <div><label className="block text-xs font-bold text-secondary mb-1">نتيجة الفحص</label>
-              <select value={form.result} onChange={e=>setForm({...form,result:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm">
-                {INSP_RESULTS.map(r=><option key={r}>{r}</option>)}</select></div>
-            <div className="md:col-span-2"><label className="block text-xs font-bold text-secondary mb-1">ملاحظات الفحص</label>
-              <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={2} className="input w-full rounded-lg px-3 py-2 text-sm resize-none" placeholder="ملاحظات ونتائج الفحص..."/></div>
-          </div>
-          <div className="flex gap-2 justify-end mt-3 pt-3 border-t border-color">
-            <button onClick={()=>setShowAdd(false)} className="px-4 py-2 rounded-xl btn-secondary text-sm">إلغاء</button>
-            <button onClick={submit} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ الفحص</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e=>{if(e.target===e.currentTarget)setShowAdd(false)}}>
+          <div className="card rounded-2xl w-full max-w-lg shadow-2xl p-4">
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="font-bold text-sm">تسجيل فحص جديد</h4>
+              <button onClick={()=>setShowAdd(false)} className="text-secondary hover:text-red-500"><X size={15}/></button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الفحص</label>
+                <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+              <div><label className="block text-xs font-bold text-secondary mb-1">المفتش</label>
+                <input value={form.inspector} onChange={e=>setForm({...form,inspector:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+              <div><label className="block text-xs font-bold text-secondary mb-1">القسم / الموقع المفحوص</label>
+                <input value={form.section} onChange={e=>setForm({...form,section:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm" placeholder="مثال: قسم A — الوصلات"/></div>
+              <div><label className="block text-xs font-bold text-secondary mb-1">نتيجة الفحص</label>
+                <select value={form.result} onChange={e=>setForm({...form,result:e.target.value})} className="input w-full rounded-lg px-3 py-2 text-sm">
+                  {INSP_RESULTS.map(r=><option key={r}>{r}</option>)}</select></div>
+              <div className="md:col-span-2"><label className="block text-xs font-bold text-secondary mb-1">ملاحظات الفحص</label>
+                <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={2} className="input w-full rounded-lg px-3 py-2 text-sm resize-none" placeholder="ملاحظات ونتائج الفحص..."/></div>
+            </div>
+            <div className="flex gap-2 justify-end mt-3 pt-3 border-t border-color">
+              <button onClick={()=>setShowAdd(false)} className="px-4 py-2 rounded-xl btn-secondary text-sm">إلغاء</button>
+              <button onClick={submit} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ الفحص</button>
+            </div>
           </div>
         </div>
       )}
