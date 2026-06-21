@@ -32,13 +32,16 @@ export const TS_CODES_ALL = {
   "Z": { label:"مواظبة (بدون متغيرات)", color:"bg-green-50 text-green-600",     type:"work" },
   "E": { label:"إصابة عمل",             color:"bg-red-300 text-red-900",        type:"sick" },
   "F": { label:"مواظبة (مع متغيرات)",   color:"bg-green-200 text-green-800",    type:"work" },
-  "ف": { label:"فاو",                    color:"bg-amber-100 text-amber-700",    type:"work" },
-  "ر": { label:"رميلة",                  color:"bg-teal-100 text-teal-700",      type:"work" },
-  "ب": { label:"باب الزبير",             color:"bg-cyan-100 text-cyan-700",      type:"work" },
-  "غ": { label:"إجازة/غياب",            color:"bg-red-100 text-red-700",        type:"absent" },
+  "ف": { label:"فاو",                          color:"bg-amber-100 text-amber-700",    type:"work" },
+  "ر": { label:"رميلة",                        color:"bg-teal-100 text-teal-700",      type:"work" },
+  "ب": { label:"باب الزبير",                   color:"bg-cyan-100 text-cyan-700",      type:"work" },
+  "غ": { label:"إجازة/غياب",                  color:"bg-red-100 text-red-700",        type:"absent" },
+  "م": { label:"المكينة",                      color:"bg-stone-100 text-stone-800",    type:"work" },
+  "ث": { label:"المركز الثقافي النفطي",        color:"bg-lime-200 text-lime-800",      type:"work" },
+  "ق": { label:"قسم",                          color:"bg-orange-50 text-orange-600",   type:"work" },
 };
 export const TS_CODES_GENERAL = ["O","2","3","R","L","S","Y","X","N","V","I","B","G","M","T","H","D","7","J","P","4","5","K","U","8","W","A","Z","E","F"];
-export const TS_CODES_DRIVER  = ["ف","ر","ب","غ","R","Y","L","S","X","I","M","W","U"];
+export const TS_CODES_DRIVER  = ["م","ث","ف","ر","ب","ق","غ","R","Y","L","S","X","I","M","W","U"];
 export const MONTHS_AR_TS = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
 export const DAY_NAMES_AR = ['أحد','إثن','ثلا','أرب','خمي','جمع','سبت'];
 export const SHIFT_TEXT_COLORS = { 'أ':'#dc2626','ب':'#2563eb','ج':'#16a34a','د':'#7c3aed' };
@@ -53,7 +56,7 @@ export const getShiftForDay = (year, month, day) => {
 export const TAB_INFO = {
   malak:     { label:"الملاك",    title:"استمارة ضبط وقت العمال المؤقتين (بعقد)", codes:TS_CODES_GENERAL },
   contracts: { label:"العقود",   title:"استمارة تفاصيل الدوام",                   codes:TS_CODES_GENERAL },
-  drivers:   { label:"السواقين", title:"استمارة ضبط الوقت للسيارات المؤجرة",       codes:TS_CODES_DRIVER  },
+  drivers:   { label:"السائقين", title:"استمارة ضبط الوقت للسيارات المؤجرة",       codes:TS_CODES_DRIVER  },
 };
 
 export const INITIAL_TS = {
