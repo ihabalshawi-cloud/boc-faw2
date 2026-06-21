@@ -9,6 +9,8 @@ import { PhasesTab, ReportsTab, AddProjectModal } from "./ProjectTabs";
 
 const PROJ_STATUS_COLORS = {"قيد التنفيذ":"bg-blue-100 text-blue-700","مكتمل":"bg-emerald-100 text-emerald-700","متوقف":"bg-red-100 text-red-700","قيد التخطيط":"bg-amber-100 text-amber-700"};
 const PRIORITY_COLORS = {"عالي":"bg-red-100 text-red-700","متوسط":"bg-amber-100 text-amber-700","منخفض":"bg-emerald-100 text-emerald-700"};
+const PROJ_STATUSES = ["قيد التنفيذ","مكتمل","متوقف","قيد التخطيط"];
+const PROJ_PRIORITIES = ["عالي","متوسط","منخفض"];
 
 const INITIAL_PROJECTS = [
   {

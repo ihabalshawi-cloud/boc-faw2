@@ -82,8 +82,12 @@ class TsErrorBoundary extends React.Component {
   }
 }
 
+const ADMIN_VIEWS = new Set(["home","analytics","requests","leave_forms","training","tasks","evaluation","chat","notifications","audit","changepass","health_insurance","approvals","employees","admin_dashboard"]);
+const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","inventory","furniture","projects","timesheet"]);
+
 export default function Dashboard({ emp, onLogout, dark, setDark }) {
   const [view, setView] = useState("home");
+  const [section, setSection] = useState(() => storage.get("dash_section","admin"));
   const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []));
   const [employees, setEmployeesRaw] = useState(ACCOUNTS);
 
@@ -122,33 +126,42 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
 
   useEffect(() => { setAllRequests(storage.get("all_requests", [])); }, [view]);
 
-  const menuItems = [
+  const switchSection = (s) => { setSection(s); storage.set("dash_section", s); };
+  const switchView = (id) => {
+    setView(id);
+    if (ADMIN_VIEWS.has(id) && section !== "admin") switchSection("admin");
+    if (TECH_VIEWS.has(id)  && section !== "tech")  switchSection("tech");
+  };
+
+  const adminMenuItems = [
+    ...(isAdmin ? [
+      { id:"admin_dashboard", label:"لوحة الإدارة", icon:<Shield size={17}/> },
+      { id:"employees", label:"الموظفين", icon:<Users size={17}/> },
+      { id:"approvals", label:"الموافقات", icon:<ThumbsUp size={17}/>, badge:pendingCount },
+    ] : []),
     { id:"home", label:"الرئيسية", icon:<Home size={17}/> },
     { id:"analytics", label:"لوحة التحليلات", icon:<BarChart size={17}/> },
     { id:"requests", label:"طلبات الإجازة", icon:<FileText size={17}/> },
-    { id:"attendance", label:"الحضور", icon:<Calendar size={17}/> },
+    { id:"leave_forms", label:"نماذج الإجازات", icon:<FileText size={17}/> },
     { id:"training", label:"التدريب", icon:<GraduationCap size={17}/> },
     { id:"tasks", label:"المهام", icon:<CheckSquare size={17}/> },
-    { id:"inventory", label:"جرد الآلات الدقيقة", icon:<Package size={17}/> },
-    { id:"furniture", label:"جرد الأثاث 2025", icon:<ClipboardList size={17}/> },
-    { id:"maint_equipment", label:"المعدات والصيانة", icon:<Wrench size={17}/> },
-    { id:"maint_parts",    label:"قطع غيار الصيانة", icon:<Box size={17}/> },
-    { id:"maint_reports",  label:"تقارير الصيانة",   icon:<TrendingUp size={17}/> },
-    { id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> },
     { id:"evaluation", label:"التقييم", icon:<Star size={17}/> },
+    { id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> },
+    { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
     { id:"notifications", label:"الإشعارات", icon:<Bell size={17}/>, badge:unreadNotifs },
     { id:"audit", label:"سجل التعديلات", icon:<ClipboardList size={17}/> },
     { id:"changepass", label:"تغيير المرور", icon:<Shield size={17}/> },
-    { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
-    { id:"leave_forms", label:"نماذج الإجازات", icon:<FileText size={17}/> },
+  ];
+  const techMenuItems = [
+    { id:"maint_equipment", label:"المعدات والصيانة", icon:<Wrench size={17}/> },
+    { id:"maint_parts",    label:"قطع غيار الصيانة", icon:<Box size={17}/> },
+    { id:"maint_reports",  label:"تقارير الصيانة",   icon:<TrendingUp size={17}/> },
+    { id:"inventory", label:"جرد الآلات الدقيقة", icon:<Package size={17}/> },
+    { id:"furniture", label:"جرد الأثاث 2025", icon:<ClipboardList size={17}/> },
     { id:"projects", label:"إدارة المشاريع", icon:<Briefcase size={17}/> },
     ...(isTimeSheetAdmin ? [{ id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> }] : []),
   ];
-  if (isAdmin) {
-    menuItems.unshift({ id:"approvals", label:"الموافقات", icon:<ThumbsUp size={17}/>, badge:pendingCount });
-    menuItems.unshift({ id:"employees", label:"الموظفين", icon:<Users size={17}/> });
-    menuItems.unshift({ id:"admin_dashboard", label:"لوحة الإدارة", icon:<Shield size={17}/> });
-  }
+  const menuItems = section === "admin" ? adminMenuItems : techMenuItems;
 
   const [showDriveSettings, setShowDriveSettings] = useState(false);
   const gDrive = useGDrive();
@@ -183,10 +196,18 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
 
       <div className="flex flex-col md:flex-row">
         <aside className="group/sb md:w-14 md:hover:w-60 sidebar border-l border-color min-h-screen py-3 px-1.5 md:overflow-hidden transition-[width] duration-200 ease-out">
+          <div className="flex gap-1 mb-2 overflow-hidden max-w-full md:max-w-0 md:group-hover/sb:max-w-full transition-[max-width] duration-150">
+            {[{k:"admin",lbl:"الإداري"},{k:"tech",lbl:"الفني"}].map(s=>(
+              <button key={s.k} onClick={()=>switchSection(s.k)}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors whitespace-nowrap ${section===s.k?"bg-[#C87A2E] text-white":"btn-secondary text-secondary border border-color"}`}>
+                {s.lbl}
+              </button>
+            ))}
+          </div>
           <nav className="space-y-0.5">
             {menuItems.map(item => (
               <div key={item.id} className="relative">
-                <button onClick={()=>setView(item.id)} title={item.label}
+                <button onClick={()=>switchView(item.id)} title={item.label}
                   className={`w-full flex items-center py-2.5 rounded-md text-sm font-medium transition-all ${view===item.id?"bg-[#C87A2E] text-white":"text-secondary hover:bg-hover"}`}>
                   <span className="shrink-0 w-11 flex items-center justify-center">{item.icon}</span>
                   <span className="whitespace-nowrap overflow-hidden max-w-full md:max-w-0 md:group-hover/sb:max-w-[180px] transition-[max-width] duration-150 pr-1">{item.label}</span>
@@ -237,12 +258,12 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {[
-                    { label:"إجمالي الموظفين",  value:employees.length,                                                        icon:<Users size={22}/>,        color:"from-blue-500 to-blue-600",    action:()=>setView("employees") },
-                    { label:"طلبات معلقة",       value:allRequests.filter(r=>r.status==="بانتظار المراجعة").length,             icon:<Clock size={22}/>,         color:"from-amber-500 to-amber-600",  action:()=>setView(isAdmin?"approvals":"requests") },
-                    { label:"طلبات مقبولة",      value:allRequests.filter(r=>r.status==="موافق عليها").length,                  icon:<CheckCircle size={22}/>,   color:"from-emerald-500 to-emerald-600", action:()=>setView("requests") },
-                    { label:"مخزون الآلات",      value:storage.get("inventory_items",[]).length,                               icon:<Package size={22}/>,       color:"from-violet-500 to-violet-600",  action:()=>setView("inventory") },
-                    { label:"مخزون منخفض",       value:storage.get("inventory_items",[]).filter(i=>i.qty<=(i.minQty||3)).length, icon:<AlertTriangle size={22}/>, color:"from-red-500 to-red-600",       action:()=>setView("inventory") },
-                    { label:"مهام نشطة",         value:storage.get("tasks",[]).filter(t=>t.status!=="مكتملة").length,           icon:<CheckSquare size={22}/>,   color:"from-indigo-500 to-indigo-600",  action:()=>setView("tasks") },
+                    { label:"إجمالي الموظفين",  value:employees.length,                                                        icon:<Users size={22}/>,        color:"from-blue-500 to-blue-600",    action:()=>switchView("employees") },
+                    { label:"طلبات معلقة",       value:allRequests.filter(r=>r.status==="بانتظار المراجعة").length,             icon:<Clock size={22}/>,         color:"from-amber-500 to-amber-600",  action:()=>switchView(isAdmin?"approvals":"requests") },
+                    { label:"طلبات مقبولة",      value:allRequests.filter(r=>r.status==="موافق عليها").length,                  icon:<CheckCircle size={22}/>,   color:"from-emerald-500 to-emerald-600", action:()=>switchView("requests") },
+                    { label:"مخزون الآلات",      value:storage.get("inventory_items",[]).length,                               icon:<Package size={22}/>,       color:"from-violet-500 to-violet-600",  action:()=>switchView("inventory") },
+                    { label:"مخزون منخفض",       value:storage.get("inventory_items",[]).filter(i=>i.qty<=(i.minQty||3)).length, icon:<AlertTriangle size={22}/>, color:"from-red-500 to-red-600",       action:()=>switchView("inventory") },
+                    { label:"مهام نشطة",         value:storage.get("tasks",[]).filter(t=>t.status!=="مكتملة").length,           icon:<CheckSquare size={22}/>,   color:"from-indigo-500 to-indigo-600",  action:()=>switchView("tasks") },
                   ].map((k,i)=>(
                     <button key={i} onClick={k.action} className={`bg-gradient-to-r ${k.color} rounded-2xl p-4 text-white text-right hover:opacity-90 transition-opacity`}>
                       <div className="flex items-center justify-between">{k.icon}<p className="text-3xl font-bold">{k.value}</p></div>
@@ -264,14 +285,14 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
                   return (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {[
-                        { label:"إجمالي المعدات",   value:eq.length,                                                      icon:<Wrench size={22}/>,        color:"from-blue-600 to-blue-700",    action:()=>setView("maint_equipment") },
-                        { label:"معدات حرجة",        value:eq.filter(e=>e.critical).length,                               icon:<AlertTriangle size={22}/>,  color:"from-red-600 to-red-700",       action:()=>setView("maint_equipment") },
-                        { label:"صيانة مستحقة",      value:eq.filter(e=>new Date(e.nextMaintenance)<=new Date()).length,  icon:<Clock size={22}/>,          color:"from-amber-600 to-amber-700",   action:()=>setView("maint_equipment") },
-                        { label:"طلبات قيد التنفيذ", value:recs.filter(r=>r.status!=="مكتملة").length,                   icon:<CheckCircle size={22}/>,    color:"from-orange-500 to-orange-600", action:()=>setView("maint_equipment") },
-                        { label:"قطع الغيار",        value:prts.length,                                                    icon:<Box size={22}/>,            color:"from-emerald-600 to-emerald-700",action:()=>setView("maint_parts") },
-                        { label:"مخزون قطع منخفض",  value:prts.filter(p=>p.qty<=p.minAlert).length,                     icon:<AlertTriangle size={22}/>,  color:"from-rose-500 to-rose-600",     action:()=>setView("maint_parts") },
-                        { label:"صيانة مكتملة",      value:recs.filter(r=>r.status==="مكتملة").length,                   icon:<CheckCircle size={22}/>,    color:"from-teal-500 to-teal-600",     action:()=>setView("maint_reports") },
-                        { label:"معدات جيدة",        value:eq.filter(e=>e.status==="جيد").length,                        icon:<Wrench size={22}/>,         color:"from-cyan-500 to-cyan-600",     action:()=>setView("maint_equipment") },
+                        { label:"إجمالي المعدات",   value:eq.length,                                                      icon:<Wrench size={22}/>,        color:"from-blue-600 to-blue-700",    action:()=>switchView("maint_equipment") },
+                        { label:"معدات حرجة",        value:eq.filter(e=>e.critical).length,                               icon:<AlertTriangle size={22}/>,  color:"from-red-600 to-red-700",       action:()=>switchView("maint_equipment") },
+                        { label:"صيانة مستحقة",      value:eq.filter(e=>new Date(e.nextMaintenance)<=new Date()).length,  icon:<Clock size={22}/>,          color:"from-amber-600 to-amber-700",   action:()=>switchView("maint_equipment") },
+                        { label:"طلبات قيد التنفيذ", value:recs.filter(r=>r.status!=="مكتملة").length,                   icon:<CheckCircle size={22}/>,    color:"from-orange-500 to-orange-600", action:()=>switchView("maint_equipment") },
+                        { label:"قطع الغيار",        value:prts.length,                                                    icon:<Box size={22}/>,            color:"from-emerald-600 to-emerald-700",action:()=>switchView("maint_parts") },
+                        { label:"مخزون قطع منخفض",  value:prts.filter(p=>p.qty<=p.minAlert).length,                     icon:<AlertTriangle size={22}/>,  color:"from-rose-500 to-rose-600",     action:()=>switchView("maint_parts") },
+                        { label:"صيانة مكتملة",      value:recs.filter(r=>r.status==="مكتملة").length,                   icon:<CheckCircle size={22}/>,    color:"from-teal-500 to-teal-600",     action:()=>switchView("maint_reports") },
+                        { label:"معدات جيدة",        value:eq.filter(e=>e.status==="جيد").length,                        icon:<Wrench size={22}/>,         color:"from-cyan-500 to-cyan-600",     action:()=>switchView("maint_equipment") },
                       ].map((k,i)=>(
                         <button key={i} onClick={k.action} className={`bg-gradient-to-r ${k.color} rounded-2xl p-4 text-white text-right hover:opacity-90 transition-opacity`}>
                           <div className="flex items-center justify-between">{k.icon}<p className="text-3xl font-bold">{k.value}</p></div>
@@ -287,7 +308,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
                 <div className="card rounded-2xl border-color border p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-bold text-sm flex items-center gap-1.5"><FileText size={15}/> آخر طلبات الإجازة</h4>
-                    <button onClick={()=>setView(isAdmin?"approvals":"requests")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
+                    <button onClick={()=>switchView(isAdmin?"approvals":"requests")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
                   </div>
                   {allRequests.length===0 ? <p className="text-secondary text-xs text-center py-4">لا توجد طلبات</p> :
                   allRequests.slice(0,4).map(r=>(
@@ -302,7 +323,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
                 <div className="card rounded-2xl border-color border p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-bold text-sm flex items-center gap-1.5"><Wrench size={15}/> آخر طلبات الصيانة</h4>
-                    <button onClick={()=>setView("maint_equipment")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
+                    <button onClick={()=>switchView("maint_equipment")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
                   </div>
                   {(() => {
                     const recs = storage.get("maintenance_records",[]);

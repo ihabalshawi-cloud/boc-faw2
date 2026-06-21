@@ -3,7 +3,8 @@ import { Shield, CheckCircle, Wifi, Clock, Trash2, X, Users, BarChart, Search } 
 import { FIREBASE_URL } from "../constants";
 import { storage } from "../utils";
 import { useToast, useConfirm } from "../contexts";
-import { BUILT_IN_ROLES, getEmpStatus } from "../permissions";
+import { PERMISSIONS_DEF, BUILT_IN_ROLES, getEmpStatus } from "../permissions";
+import EmployeeManager from "./EmployeeManagerPage";
 
 function AdminDashboard({ emp, employees, setEmployees }) {
   const addToast = useToast();
@@ -79,6 +80,8 @@ function AdminDashboard({ emp, employees, setEmployees }) {
   const clearHistory = async () => {
     if (!await confirm("هل تريد مسح سجل الدخول بالكامل؟")) return;
     storage.set("login_history", []);
+    try { await fetch(`${FIREBASE_URL}/login_history.json`, { method: "DELETE" }); } catch {}
+    setFbHistory([]);
     setTick(n=>n+1);
     addToast("تم مسح سجل الدخول","success");
   };
