@@ -7,6 +7,7 @@ import { storage } from "../utils";
 export default function HomeWidgets({ emp, employees, allRequests, isAdmin, switchView }) {
   const hour = new Date().getHours();
   const greeting = hour < 5 ? "مساء النور" : hour < 12 ? "صباح الخير" : hour < 17 ? "مساء الخير" : "مساء النور";
+  const isPrivileged = isAdmin || emp.role === "inventory_manager";
 
   const eq   = storage.get("equipment", INITIAL_EQUIPMENT);
   const prts = storage.get("maint_spare_parts", INITIAL_MAINT_SPARE_PARTS);
@@ -86,21 +87,23 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="card rounded-2xl border-color border p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="font-bold text-sm flex items-center gap-1.5"><FileText size={15}/> آخر طلبات الإجازة</h4>
-            <button onClick={()=>switchView(isAdmin?"approvals":"requests")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
-          </div>
-          {allRequests.length===0 ? <p className="text-secondary text-xs text-center py-4">لا توجد طلبات</p> :
-          allRequests.slice(0,4).map(r=>(
-            <div key={r.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 text-xs">
-              <span className="font-medium">{r.empName?.split(" ").slice(0,2).join(" ")}</span>
-              <span className="text-secondary">{r.type} — {r.days} يوم</span>
-              <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] ${r.status==="موافق عليها"?"bg-emerald-100 text-emerald-700":r.status==="مرفوضة"?"bg-red-100 text-red-700":"bg-amber-100 text-amber-700"}`}>{r.status}</span>
+      <div className={`grid grid-cols-1 gap-6 ${isPrivileged ? "md:grid-cols-3" : "md:grid-cols-1 max-w-lg"}`}>
+        {isPrivileged && (
+          <div className="card rounded-2xl border-color border p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-bold text-sm flex items-center gap-1.5"><FileText size={15}/> آخر طلبات الإجازة</h4>
+              <button onClick={()=>switchView(isAdmin?"approvals":"requests")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
             </div>
-          ))}
-        </div>
+            {allRequests.length===0 ? <p className="text-secondary text-xs text-center py-4">لا توجد طلبات</p> :
+            allRequests.slice(0,4).map(r=>(
+              <div key={r.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 text-xs">
+                <span className="font-medium">{r.empName?.split(" ").slice(0,2).join(" ")}</span>
+                <span className="text-secondary">{r.type} — {r.days} يوم</span>
+                <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] ${r.status==="موافق عليها"?"bg-emerald-100 text-emerald-700":r.status==="مرفوضة"?"bg-red-100 text-red-700":"bg-amber-100 text-amber-700"}`}>{r.status}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="card rounded-2xl border-color border p-4">
           <div className="flex items-center justify-between mb-3">
@@ -117,22 +120,24 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
           ))}
         </div>
 
-        <div className="card rounded-2xl border-color border p-4">
-          <h4 className="font-bold text-sm mb-3">⚡ آخر النشاطات</h4>
-          {activityFeed.length === 0
-            ? <p className="text-secondary text-xs text-center py-4">لا توجد نشاطات حديثة</p>
-            : activityFeed.map((a,i) => (
-              <button key={i} onClick={()=>switchView(a.view)}
-                className="w-full flex items-start gap-2 py-2 border-b border-color last:border-0 text-right hover:bg-hover rounded px-1 transition-colors">
-                <span className="text-base shrink-0 mt-0.5">{a.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate">{a.text}</p>
-                  <p className="text-[10px] text-secondary">{fmtTime(a.time)}</p>
-                </div>
-              </button>
-            ))
-          }
-        </div>
+        {isPrivileged && (
+          <div className="card rounded-2xl border-color border p-4">
+            <h4 className="font-bold text-sm mb-3">⚡ آخر النشاطات</h4>
+            {activityFeed.length === 0
+              ? <p className="text-secondary text-xs text-center py-4">لا توجد نشاطات حديثة</p>
+              : activityFeed.map((a,i) => (
+                <button key={i} onClick={()=>switchView(a.view)}
+                  className="w-full flex items-start gap-2 py-2 border-b border-color last:border-0 text-right hover:bg-hover rounded px-1 transition-colors">
+                  <span className="text-base shrink-0 mt-0.5">{a.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{a.text}</p>
+                    <p className="text-[10px] text-secondary">{fmtTime(a.time)}</p>
+                  </div>
+                </button>
+              ))
+            }
+          </div>
+        )}
       </div>
     </div>
   );
