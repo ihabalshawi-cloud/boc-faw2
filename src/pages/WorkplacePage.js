@@ -127,7 +127,11 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
   const [toast, setToast] = useState("");
   const showToast = (msg, type) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
   const confirm = useConfirm();
-  useEffect(() => { storage.set("tasks_system", tasks); }, [tasks]);
+  useEffect(() => { storage.set("tasks_system", tasks); FirebaseAPI.saveTasks(tasks); }, [tasks]);
+  useEffect(() => {
+    FirebaseAPI.loadTasks().then(list => { if (list && list.length > 0) { setTasks(list); storage.set("tasks_system", list); } });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const displayed = isAdmin ? (filter==="الكل" ? tasks : tasks.filter(t=>t.status===filter)) : tasks.filter(t=>t.assignedTo===emp.id);
 
@@ -362,7 +366,11 @@ function EvaluationSystem({ emp, isAdmin, allEmployees }) {
   const [notes, setNotes] = useState("");
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
-  useEffect(() => { storage.set("evaluations", evals); }, [evals]);
+  useEffect(() => { storage.set("evaluations", evals); FirebaseAPI.saveEvaluations(evals); }, [evals]);
+  useEffect(() => {
+    FirebaseAPI.loadEvaluations().then(list => { if (list && list.length > 0) { setEvals(list); storage.set("evaluations", list); } });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const saveEval = () => {
     if (!selEmp) return showToast("اختر الموظف");

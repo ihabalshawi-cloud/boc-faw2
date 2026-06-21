@@ -82,11 +82,12 @@ class TsErrorBoundary extends React.Component {
   }
 }
 
-const ADMIN_VIEWS = new Set(["home","analytics","requests","leave_forms","training","tasks","evaluation","chat","notifications","audit","changepass","health_insurance","approvals","employees","admin_dashboard"]);
+const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","audit","changepass","health_insurance","approvals","employees","admin_dashboard"]);
 const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","inventory","furniture","projects","timesheet"]);
 
 export default function Dashboard({ emp, onLogout, dark, setDark }) {
   const [view, setView] = useState("home");
+  const [reqSubTab, setReqSubTab] = useState("requests");
   const [section, setSection] = useState(() => storage.get("dash_section","admin"));
   const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []));
   const [employees, setEmployeesRaw] = useState(ACCOUNTS);
@@ -128,6 +129,12 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
 
   const switchSection = (s) => { setSection(s); storage.set("dash_section", s); };
   const switchView = (id) => {
+    if (id === "leave_forms") {
+      setView("requests"); setReqSubTab("leave_forms");
+      if (section !== "admin") switchSection("admin");
+      return;
+    }
+    if (id === "requests") setReqSubTab("requests");
     setView(id);
     if (ADMIN_VIEWS.has(id) && section !== "admin") switchSection("admin");
     if (TECH_VIEWS.has(id)  && section !== "tech")  switchSection("tech");
@@ -141,8 +148,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
     ] : []),
     { id:"home", label:"الرئيسية", icon:<Home size={17}/> },
     { id:"analytics", label:"لوحة التحليلات", icon:<BarChart size={17}/> },
-    { id:"requests", label:"طلبات الإجازة", icon:<FileText size={17}/> },
-    { id:"leave_forms", label:"نماذج الإجازات", icon:<FileText size={17}/> },
+    { id:"requests", label:"طلبات ونماذج الإجازات", icon:<FileText size={17}/> },
     { id:"training", label:"التدريب", icon:<GraduationCap size={17}/> },
     { id:"tasks", label:"المهام", icon:<CheckSquare size={17}/> },
     { id:"evaluation", label:"التقييم", icon:<Star size={17}/> },
@@ -347,7 +353,17 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
           )}
           {view==="requests" && (
             <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
-              <LazyRequestsPage emp={emp}/>
+              <div>
+                <div className="flex gap-1 mb-4 border-b border-color">
+                  {[{k:"requests",lbl:"طلبات الإجازة"},{k:"leave_forms",lbl:"نماذج الإجازات"}].map(t=>(
+                    <button key={t.k} onClick={()=>setReqSubTab(t.k)}
+                      className={`px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 transition-colors ${reqSubTab===t.k?"border-blue-500 text-blue-600":"border-transparent text-secondary hover:text-primary"}`}>
+                      {t.lbl}
+                    </button>
+                  ))}
+                </div>
+                {reqSubTab==="requests" ? <LazyRequestsPage emp={emp}/> : <LazyLeaveFormsPage emp={emp}/>}
+              </div>
             </React.Suspense>
           )}
           {view==="attendance" && (
@@ -430,11 +446,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
               <LazyHealthInsurancePage emp={emp}/>
             </React.Suspense>
           )}
-          {view==="leave_forms" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
-              <LazyLeaveFormsPage emp={emp}/>
-            </React.Suspense>
-          )}
+
           {view==="projects" && (
             <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
               <LazyProjectManagementPage emp={emp}/>
