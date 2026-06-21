@@ -282,6 +282,60 @@ export const FirebaseAPI = {
     } catch { return null; }
   },
 
+  // ── Leave Requests ────────────────────────────────────────────────────────
+  saveRequests: async (list) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/all_requests.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(list||[]),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadRequests: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/all_requests.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data) ? data : (data && typeof data==="object" ? Object.values(data).filter(Boolean) : null);
+    } catch { return null; }
+  },
+
+  // ── Tasks ─────────────────────────────────────────────────────────────────
+  saveTasks: async (list) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/tasks_system.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(list||[]),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadTasks: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/tasks_system.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data) ? data : null;
+    } catch { return null; }
+  },
+
+  // ── Evaluations ───────────────────────────────────────────────────────────
+  saveEvaluations: async (list) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/evaluations.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(list||[]),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadEvaluations: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/evaluations.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data) ? data : null;
+    } catch { return null; }
+  },
+
   // ── Timesheet ─────────────────────────────────────────────────────────────
   saveTimesheet: async (tsData) => {
     if (!tsData || typeof tsData !== "object") return false;

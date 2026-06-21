@@ -454,7 +454,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
           )}
         </main>
       </div>
-      {showSearch && <GlobalSearch setView={setView} onClose={()=>setShowSearch(false)}/>}
+      {showSearch && <GlobalSearch setView={switchView} onClose={()=>setShowSearch(false)}/>}
     </div>
   );
 }

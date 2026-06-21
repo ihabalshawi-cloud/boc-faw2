@@ -27,7 +27,11 @@ export default function GlobalSearch({ setView, onClose }) {
       .forEach(i => out.push({ type:"مخزون", label:i.name, sub:i.code, view:"inventory", icon:"📦" }));
     storage.get("maint_spare_parts",[]).filter(p => p.name.includes(ql)||p.code?.includes(ql)).slice(0,3)
       .forEach(p => out.push({ type:"قطعة غيار", label:p.name, sub:p.category, view:"maint_parts", icon:"🔧" }));
-    return out.slice(0,10);
+    storage.get("pm_projects",[]).filter(p => p.name?.includes(ql)||p.manager?.includes(ql)).slice(0,3)
+      .forEach(p => out.push({ type:"مشروع", label:p.name, sub:`${p.status} — ${p.manager||""}`, view:"projects", icon:"🏗" }));
+    storage.get("equipment",[]).filter(e => e.name?.includes(ql)||e.id?.toString().includes(ql)).slice(0,3)
+      .forEach(e => out.push({ type:"معدة", label:e.name, sub:e.status, view:"maint_equipment", icon:"⚙" }));
+    return out.slice(0,12);
   }, [q]);
 
   return (
