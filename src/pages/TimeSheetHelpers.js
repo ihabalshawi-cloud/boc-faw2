@@ -2,23 +2,43 @@ import React, { useRef, useEffect, useMemo, useCallback } from "react";
 import { Edit3, Trash2 } from "lucide-react";
 
 export const TS_CODES_ALL = {
-  "O": { label:"المقيم الصباحي",  color:"bg-orange-100 text-orange-700",  type:"work" },
-  "2": { label:"مناوبة ثنائية",   color:"bg-blue-100 text-blue-700",      type:"work" },
-  "3": { label:"مناوبة ثلاثية",   color:"bg-purple-100 text-purple-700",  type:"work" },
-  "R": { label:"استراحة",         color:"bg-gray-100 text-gray-600",      type:"rest" },
-  "L": { label:"إجازة اعتيادية", color:"bg-green-100 text-green-700",    type:"leave" },
-  "S": { label:"إجازة مرضية",    color:"bg-red-100 text-red-600",        type:"sick" },
-  "Y": { label:"عطلة رسمية",     color:"bg-yellow-100 text-yellow-700",  type:"holiday" },
-  "X": { label:"غياب",           color:"bg-red-200 text-red-800",        type:"absent" },
-  "N": { label:"استراحة مناوبة", color:"bg-slate-100 text-slate-600",    type:"rest" },
-  "V": { label:"استراحة مقيم",   color:"bg-slate-200 text-slate-500",    type:"rest" },
-  "ف": { label:"فاو",            color:"bg-amber-100 text-amber-700",    type:"work" },
-  "ر": { label:"رميلة",          color:"bg-teal-100 text-teal-700",      type:"work" },
-  "ب": { label:"باب الزبير",     color:"bg-cyan-100 text-cyan-700",      type:"work" },
-  "غ": { label:"إجازة/غياب",    color:"bg-red-100 text-red-700",        type:"absent" },
+  "O": { label:"المقيم الصباحي",          color:"bg-orange-100 text-orange-700",  type:"work" },
+  "2": { label:"مناوبة ثنائية",           color:"bg-blue-100 text-blue-700",      type:"work" },
+  "3": { label:"مناوبة ثلاثية",           color:"bg-purple-100 text-purple-700",  type:"work" },
+  "R": { label:"استراحة",                 color:"bg-gray-100 text-gray-600",      type:"rest" },
+  "L": { label:"إجازة اعتيادية",         color:"bg-green-100 text-green-700",    type:"leave" },
+  "S": { label:"إجازة مرضية",            color:"bg-red-100 text-red-600",        type:"sick" },
+  "Y": { label:"عطلة رسمية",             color:"bg-yellow-100 text-yellow-700",  type:"holiday" },
+  "X": { label:"غياب",                   color:"bg-red-200 text-red-800",        type:"absent" },
+  "N": { label:"استراحة مناوبة",         color:"bg-slate-100 text-slate-600",    type:"rest" },
+  "V": { label:"استراحة مقيم",           color:"bg-slate-200 text-slate-500",    type:"rest" },
+  "I": { label:"إيفاد داخل العراق",      color:"bg-indigo-100 text-indigo-700",  type:"leave" },
+  "B": { label:"أيام بقسم آخر",          color:"bg-sky-100 text-sky-700",        type:"work" },
+  "G": { label:"دورة داخل البصرة",       color:"bg-teal-100 text-teal-700",      type:"leave" },
+  "M": { label:"إجازة أمومة",            color:"bg-pink-100 text-pink-700",      type:"leave" },
+  "T": { label:"بدون راتب داخلي",        color:"bg-amber-100 text-amber-700",    type:"leave" },
+  "H": { label:"بدون راتب خارجي",        color:"bg-amber-200 text-amber-800",    type:"leave" },
+  "D": { label:"أيام العدة",             color:"bg-violet-100 text-violet-700",  type:"leave" },
+  "7": { label:"إجازة خارج العراق",      color:"bg-emerald-100 text-emerald-700",type:"leave" },
+  "J": { label:"مجاز دراسي",            color:"bg-cyan-100 text-cyan-700",      type:"leave" },
+  "P": { label:"إيفاد خارج العراق",      color:"bg-indigo-200 text-indigo-800",  type:"leave" },
+  "4": { label:"مناطق ساخنة",           color:"bg-orange-200 text-orange-800",  type:"leave" },
+  "5": { label:"أيام الحشد الشعبي",      color:"bg-red-50 text-red-600",         type:"leave" },
+  "K": { label:"أمومة بأمر إداري",       color:"bg-pink-200 text-pink-800",      type:"leave" },
+  "U": { label:"تفرغ",                   color:"bg-lime-100 text-lime-700",      type:"leave" },
+  "8": { label:"مصاحبة زوجية",           color:"bg-rose-100 text-rose-700",      type:"leave" },
+  "W": { label:"أيام الوفاة",            color:"bg-gray-200 text-gray-700",      type:"leave" },
+  "A": { label:"إجازة إعالة",            color:"bg-fuchsia-100 text-fuchsia-700",type:"leave" },
+  "Z": { label:"مواظبة (بدون متغيرات)", color:"bg-green-50 text-green-600",     type:"work" },
+  "E": { label:"إصابة عمل",             color:"bg-red-300 text-red-900",        type:"sick" },
+  "F": { label:"مواظبة (مع متغيرات)",   color:"bg-green-200 text-green-800",    type:"work" },
+  "ف": { label:"فاو",                    color:"bg-amber-100 text-amber-700",    type:"work" },
+  "ر": { label:"رميلة",                  color:"bg-teal-100 text-teal-700",      type:"work" },
+  "ب": { label:"باب الزبير",             color:"bg-cyan-100 text-cyan-700",      type:"work" },
+  "غ": { label:"إجازة/غياب",            color:"bg-red-100 text-red-700",        type:"absent" },
 };
-export const TS_CODES_GENERAL = ["O","2","3","R","L","S","Y","X","N","V"];
-export const TS_CODES_DRIVER  = ["ف","ر","ب","غ","R","Y","L","S","X"];
+export const TS_CODES_GENERAL = ["O","2","3","R","L","S","Y","X","N","V","I","B","G","M","T","H","D","7","J","P","4","5","K","U","8","W","A","Z","E","F"];
+export const TS_CODES_DRIVER  = ["ف","ر","ب","غ","R","Y","L","S","X","I","M","W","U"];
 export const MONTHS_AR_TS = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
 export const DAY_NAMES_AR = ['أحد','إثن','ثلا','أرب','خمي','جمع','سبت'];
 export const SHIFT_TEXT_COLORS = { 'أ':'#dc2626','ب':'#2563eb','ج':'#16a34a','د':'#7c3aed' };

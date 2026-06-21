@@ -165,7 +165,7 @@ export const FirebaseAPI = {
   getMessages: async (limit = 50) => {
     try {
       const res = await fetch(
-        `${FIREBASE_URL}/chat.json?orderBy="timestamp"&limitToLast=${limit}`
+        `${FIREBASE_URL}/chat.json?limitToLast=${limit}`
       );
       if (!res.ok) return [];
       const data = await res.json();

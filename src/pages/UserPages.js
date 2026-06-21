@@ -56,12 +56,22 @@ function RequestsPage({ emp }) {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState(() => storage.get(DRAFT_KEY, { type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" }));
   const [errors, setErrors] = useState({});
+  const [empSigUrl, setEmpSigUrl] = useState("");
+  const sigCanvasRef = useRef(null);
+  const sigDrawing = useRef(false);
+  const sigLastPos = useRef(null);
   const [pageLoading, setPageLoading] = useState(true);
   const showToast = useToast();
   const confirm = useConfirm();
   const { isConnected } = useConnectionStatus();
   useEffect(() => { const t = setTimeout(() => setPageLoading(false), 250); return () => clearTimeout(t); }, []);
   useEffect(() => { if (showForm) storage.set(DRAFT_KEY, formData); }, [formData, showForm, DRAFT_KEY]);
+
+  const getSigPos = (e, c) => { const r=c.getBoundingClientRect(),sx=c.width/r.width,sy=c.height/r.height; return e.touches?{x:(e.touches[0].clientX-r.left)*sx,y:(e.touches[0].clientY-r.top)*sy}:{x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy}; };
+  const sigStartDraw = (e) => { e.preventDefault(); sigDrawing.current=true; sigLastPos.current=getSigPos(e,sigCanvasRef.current); };
+  const sigDraw = (e) => { e.preventDefault(); if(!sigDrawing.current)return; const c=sigCanvasRef.current,ctx=c.getContext("2d"),p=getSigPos(e,c); ctx.beginPath();ctx.moveTo(sigLastPos.current.x,sigLastPos.current.y);ctx.lineTo(p.x,p.y);ctx.strokeStyle="#1a1a1a";ctx.lineWidth=2;ctx.lineCap="round";ctx.stroke();sigLastPos.current=p; setEmpSigUrl(c.toDataURL("image/png")); };
+  const sigStop = () => { sigDrawing.current=false; };
+  const clearSig = () => { const c=sigCanvasRef.current; if(c) c.getContext("2d").clearRect(0,0,c.width,c.height); setEmpSigUrl(""); };
 
   const saveAllRequests = (list) => {
     storage.set("all_requests", list);
@@ -80,13 +90,23 @@ function RequestsPage({ emp }) {
     });
   };
 
+  const handleSaveDraft = () => {
+    storage.set(DRAFT_KEY, formData);
+    setShowForm(false);
+    setEmpSigUrl(""); clearSig();
+    showToast("تم حفظ المسودة — ستجد بياناتك محفوظة عند فتح النموذج مجدداً", "success");
+  };
+
   const handleSubmit = () => {
-    if (!formData.purpose.trim()) { setErrors({purpose:"الغرض مطلوب"}); return; }
-    if (new Date(formData.dateFrom) > new Date(formData.dateTo)) { setErrors({date:"تاريخ البداية يجب أن يكون قبل تاريخ النهاية"}); return; }
+    const newErrors = {};
+    if (!formData.purpose.trim()) newErrors.purpose = "الغرض مطلوب";
+    if (!empSigUrl) newErrors.sig = "التوقيع الإلكتروني إلزامي";
+    if (new Date(formData.dateFrom) > new Date(formData.dateTo)) newErrors.date = "تاريخ البداية يجب أن يكون قبل تاريخ النهاية";
+    if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
     const days = Math.ceil((new Date(formData.dateTo) - new Date(formData.dateFrom)) / 86400000) + 1;
     const maxDays = LEAVE_TYPES[formData.type].max;
     if (days > maxDays) { setErrors({days:`الحد الأقصى ${maxDays} يوم`}); return; }
-    const newReq = { id:Date.now(), ...formData, days, status:"بانتظار المراجعة", submittedAt:new Date().toISOString(), empId:emp.id, empName:emp.name };
+    const newReq = { id:Date.now(), ...formData, days, status:"بانتظار المراجعة", submittedAt:new Date().toISOString(), empId:emp.id, empName:emp.name, empSigDataUrl:empSigUrl };
     const allReqs = storage.get("all_requests", []);
     const updated = [newReq, ...allReqs];
     saveAllRequests(updated);
@@ -96,7 +116,7 @@ function RequestsPage({ emp }) {
     const blank = { type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" };
     setFormData(blank);
     storage.set(DRAFT_KEY, null);
-    setErrors({});
+    setErrors({}); setEmpSigUrl(""); clearSig();
     showToast("تم إرسال طلبك — سيصل إشعار للمشرف", "success");
     sendDesktopNotification("طلب إجازة", "تم إرسال طلبك بنجاح وهو الآن بانتظار المراجعة");
     playAlert("notification");
@@ -113,9 +133,10 @@ function RequestsPage({ emp }) {
   };
 
   const printApprovedReq = (req) => {
-    const sig = req.sigDataUrl ? `<img src="${req.sigDataUrl}" style="max-width:150px;max-height:50px;"/>` : "(غير موقّع)";
+    const supSig = req.sigDataUrl ? `<img src="${req.sigDataUrl}" style="max-width:150px;max-height:50px;"/>` : "(غير موقّع)";
+    const empSig = req.empSigDataUrl ? `<img src="${req.empSigDataUrl}" style="max-width:150px;max-height:50px;"/>` : "(غير موقّع)";
     const w = window.open("","_blank");
-    w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>إجازة موافق عليها</title><style>body{font-family:Arial,sans-serif;padding:30px;direction:rtl}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:8px;text-align:right}h2{text-align:center}.sig{margin-top:20px;text-align:center}</style></head><body>
+    w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>إجازة موافق عليها</title><style>body{font-family:Arial,sans-serif;padding:30px;direction:rtl}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:8px;text-align:right}h2{text-align:center}.sigs{display:flex;justify-content:space-around;margin-top:30px;text-align:center}</style></head><body>
     <h2>شركة نفط البصرة — شعبة مستودع الفاو</h2>
     <h3 style="text-align:center">نموذج إجازة ${req.type} — موافق عليها</h3>
     <table><tr><th>الموظف</th><td>${req.empName}</td><th>نوع الإجازة</th><td>${req.type}</td></tr>
@@ -123,7 +144,7 @@ function RequestsPage({ emp }) {
     <tr><th>عدد الأيام</th><td>${req.days}</td><th>الغرض</th><td>${req.purpose}</td></tr>
     <tr><th>تاريخ الطلب</th><td>${new Date(req.submittedAt).toLocaleDateString("ar-IQ")}</td><th>تاريخ الموافقة</th><td>${req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</td></tr>
     <tr><th>وافق عليها</th><td colspan="3">${req.decidedBy||""}</td></tr></table>
-    <div class="sig"><p>توقيع المشرف العام</p>${sig}</div>
+    <div class="sigs"><div><p>توقيع الموظف</p>${empSig}</div><div><p>توقيع المشرف العام</p>${supSig}</div></div>
     </body></html>`);
     w.document.close(); w.focus(); setTimeout(()=>w.print(),400);
   };
@@ -140,7 +161,7 @@ function RequestsPage({ emp }) {
       </div>
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e=>{if(e.target===e.currentTarget)setShowForm(false)}}>
-          <div className="card rounded-2xl w-full max-w-md shadow-2xl p-5">
+          <div className="card rounded-2xl w-full max-w-md shadow-2xl p-5 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h4 className="font-bold">طلب إجازة جديد</h4>
               <button onClick={()=>setShowForm(false)} className="text-secondary hover:text-red-500"><X size={16}/></button>
@@ -150,8 +171,28 @@ function RequestsPage({ emp }) {
               <div className="grid grid-cols-2 gap-3"><input type="date" value={formData.dateFrom} onChange={e=>setFormData({...formData,dateFrom:e.target.value})} className="input rounded-xl px-4 py-2"/><input type="date" value={formData.dateTo} onChange={e=>setFormData({...formData,dateTo:e.target.value})} className="input rounded-xl px-4 py-2"/></div>
               <input value={formData.purpose} onChange={e=>setFormData({...formData,purpose:e.target.value})} placeholder="الغرض من الإجازة" className="input w-full rounded-xl px-4 py-2"/>
               {formData.purpose && <p className="text-[10px] text-emerald-600">✓ مسودة محفوظة تلقائياً</p>}
-              {errors.purpose && <p className="text-red-500 text-xs">{errors.purpose}</p>}{errors.date && <p className="text-red-500 text-xs">{errors.date}</p>}{errors.days && <p className="text-red-500 text-xs">{errors.days}</p>}
-              <div className="flex gap-3"><button onClick={()=>setShowForm(false)} className="flex-1 py-2 border border-color rounded-xl">إلغاء</button><button onClick={handleSubmit} className="flex-1 py-2 bg-blue-600 text-white rounded-xl">إرسال</button></div>
+              {errors.purpose && <p className="text-red-500 text-xs">{errors.purpose}</p>}
+              {errors.date && <p className="text-red-500 text-xs">{errors.date}</p>}
+              {errors.days && <p className="text-red-500 text-xs">{errors.days}</p>}
+
+              <div className="border border-dashed border-gray-300 rounded-xl p-3 space-y-2">
+                <p className="text-xs font-bold flex items-center gap-1.5"><PenTool size={12}/> توقيع الموظف <span className="text-red-500 text-[10px]">* إلزامي للتقديم</span></p>
+                <canvas ref={sigCanvasRef} width={380} height={80}
+                  className={`border-2 rounded-lg cursor-crosshair touch-none w-full bg-gray-50 ${empSigUrl?"border-emerald-400":"border-dashed border-gray-300"}`}
+                  onMouseDown={sigStartDraw} onMouseMove={sigDraw} onMouseUp={sigStop} onMouseLeave={sigStop}
+                  onTouchStart={sigStartDraw} onTouchMove={sigDraw} onTouchEnd={sigStop}/>
+                <div className="flex justify-between items-center text-xs">
+                  {empSigUrl ? <span className="text-emerald-600 font-bold">✓ تم التوقيع</span> : <span className="text-secondary">ارسم توقيعك بالماوس أو اللمس</span>}
+                  <button type="button" onClick={clearSig} className="text-secondary hover:text-red-500">مسح</button>
+                </div>
+                {errors.sig && <p className="text-red-500 text-xs">{errors.sig}</p>}
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button onClick={()=>setShowForm(false)} className="py-2 px-3 border border-color rounded-xl text-sm text-secondary">إلغاء</button>
+                <button onClick={handleSaveDraft} className="flex-1 py-2 border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl text-sm font-bold transition-colors">حفظ مسودة</button>
+                <button onClick={handleSubmit} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${empSigUrl?"bg-blue-600 hover:bg-blue-700 text-white":"bg-blue-300 text-white cursor-not-allowed"}`}>حفظ وتقديم</button>
+              </div>
             </div>
           </div>
         </div>
