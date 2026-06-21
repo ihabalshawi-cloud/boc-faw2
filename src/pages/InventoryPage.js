@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Save, CheckCircle, Plus, Trash2, Edit3, X, Download, Search, AlertTriangle } from "lucide-react";
+import { Save, CheckCircle, Plus, Trash2, Edit3, X, Download, Search, AlertTriangle, ChevronUp, ChevronDown } from "lucide-react";
 import { ITEM_CONDITIONS, INVENTORY_CATS, FURNITURE_CATS, LOW_STOCK_THRESHOLD, INITIAL_INVENTORY_ITEMS } from "../constants";
 import { storage, exportCSV } from "../utils";
 import { FirebaseAPI } from "../firebase";
@@ -19,6 +19,9 @@ function InventorySystem({ emp, isAdmin }) {
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
   const confirm = useConfirm();
   const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState(null);
+  const [sortDir, setSortDir] = useState("asc");
+  const [selected, setSelected] = useState(new Set());
   const PER_PAGE = 20;
 
   const setItems = useCallback((updater) => {
@@ -47,9 +50,14 @@ function InventorySystem({ emp, isAdmin }) {
 
   const categories = ["الكل", ...INVENTORY_CATS];
   const filtered = items.filter(i => (i.name.includes(search)||i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
-  const paged = filtered.slice((page-1)*PER_PAGE, page*PER_PAGE);
+  const sorted = sortBy ? [...filtered].sort((a,b) => { const va=a[sortBy],vb=b[sortBy]; const c=typeof va==="number"?va-vb:String(va||"").localeCompare(String(vb||""),"ar"); return sortDir==="asc"?c:-c; }) : filtered;
+  const paged = sorted.slice((page-1)*PER_PAGE, page*PER_PAGE);
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const lowStock = items.filter(i => i.qty <= (i.minQty || LOW_STOCK_THRESHOLD));
+  const toggleSelect = (id) => setSelected(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
+  const toggleAll = () => setSelected(prev => prev.size===paged.length ? new Set() : new Set(paged.map(i=>i.id)));
+  const bulkDelete = async () => { if(!canEdit)return; if(await confirm(`حذف ${selected.size} أصناف؟`,{danger:true,ok:"حذف",title:"حذف متعدد"})){setItems(prev=>prev.filter(i=>!selected.has(i.id)));setSelected(new Set());} };
+  const SortTh = ({col,label}) => { const active=sortBy===col; return <th className="px-3 py-2 cursor-pointer select-none hover:bg-hover whitespace-nowrap" onClick={()=>{if(active)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortBy(col);setSortDir("asc");}}}>{label}{active?(sortDir==="asc"?<ChevronUp size={10} className="inline ml-0.5"/>:<ChevronDown size={10} className="inline ml-0.5"/>):null}</th>; };
 
   const deleteItem = async (id) => {
     if (!canEdit) return;
@@ -98,8 +106,19 @@ function InventorySystem({ emp, isAdmin }) {
           </div>
         </div>
       )}
-      <div id="print-inventory" className="card rounded-2xl border-color border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="border-b border-color"><th className="px-3 py-2">الرمز</th><th className="px-3 py-2">الاسم</th><th className="px-3 py-2">رقم الصنع</th><th className="px-3 py-2">الفئة</th><th className="px-3 py-2">الكمية</th><th className="px-3 py-2">الحالة</th><th className="px-3 py-2">الموقع</th><th className="px-3 py-2 no-print">إجراءات</th></tr></thead>
-        <tbody>{paged.map(it=>(<tr key={it.id} className={`border-b border-color ${it.qty<=(it.minQty||3)?"bg-amber-50/50":""}`}>
+      {selected.size > 0 && canEdit && (
+        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2 text-sm">
+          <span className="font-bold text-blue-700">تم تحديد {selected.size} صنف</span>
+          <button onClick={()=>exportCSV(items.filter(i=>selected.has(i.id)).map(i=>({الرمز:i.code,الاسم:i.name,الفئة:i.category,الكمية:i.qty,الحالة:i.condition,الموقع:i.location})),"المحدد")} className="px-3 py-1 bg-white border border-blue-300 text-blue-700 rounded-lg text-xs font-bold flex items-center gap-1"><Download size={11}/> تصدير</button>
+          <button onClick={bulkDelete} className="px-3 py-1 bg-red-600 text-white rounded-lg text-xs font-bold flex items-center gap-1"><Trash2 size={11}/> حذف</button>
+          <button onClick={()=>setSelected(new Set())} className="mr-auto text-xs text-secondary hover:text-primary">إلغاء</button>
+        </div>
+      )}
+      <div id="print-inventory" className="card rounded-2xl border-color border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="border-b border-color">
+        <th className="px-3 py-2 no-print w-8"><input type="checkbox" checked={selected.size===paged.length&&paged.length>0} onChange={toggleAll} className="cursor-pointer"/></th>
+        <SortTh col="code" label="الرمز"/><SortTh col="name" label="الاسم"/><th className="px-3 py-2">رقم الصنع</th><SortTh col="category" label="الفئة"/><SortTh col="qty" label="الكمية"/><SortTh col="condition" label="الحالة"/><th className="px-3 py-2">الموقع</th><th className="px-3 py-2 no-print">إجراءات</th></tr></thead>
+        <tbody>{paged.map(it=>(<tr key={it.id} className={`border-b border-color ${selected.has(it.id)?"bg-blue-50/60":it.qty<=(it.minQty||3)?"bg-amber-50/50":""}`}>
+          <td className="px-3 py-2 no-print"><input type="checkbox" checked={selected.has(it.id)} onChange={()=>toggleSelect(it.id)} className="cursor-pointer"/></td>
           <td className="px-3 py-2 font-mono text-[10px]">{it.code||"—"}</td><td className="px-3 py-2">{it.name}</td><td className="px-3 py-2 font-mono text-[10px] text-secondary">{it.serialNo||"—"}</td><td className="px-3 py-2">{it.category}</td>
           <td className="px-3 py-2 font-bold">{it.qty} {it.qty<=(it.minQty||3)&&<span className="text-amber-500">⚠️</span>}</td>
           <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":it.condition==="تالف"||it.condition==="تم الشطب"?"bg-red-100 text-red-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td>

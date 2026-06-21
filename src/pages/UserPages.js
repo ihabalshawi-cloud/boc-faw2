@@ -51,15 +51,17 @@ function ChangePasswordPage({ emp, onLogout }) {
 // ========== طلبات الإجازة ==========
 
 function RequestsPage({ emp }) {
+  const DRAFT_KEY = `draft_leave_${emp.id}`;
   const [requests, setRequests] = useState(() => storage.get(`requests_${emp.id}`, []));
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" });
+  const [formData, setFormData] = useState(() => storage.get(DRAFT_KEY, { type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" }));
   const [errors, setErrors] = useState({});
   const [pageLoading, setPageLoading] = useState(true);
   const showToast = useToast();
   const confirm = useConfirm();
   const { isConnected } = useConnectionStatus();
   useEffect(() => { const t = setTimeout(() => setPageLoading(false), 250); return () => clearTimeout(t); }, []);
+  useEffect(() => { if (showForm) storage.set(DRAFT_KEY, formData); }, [formData, showForm, DRAFT_KEY]);
 
   const saveAllRequests = (list) => {
     storage.set("all_requests", list);
@@ -91,7 +93,9 @@ function RequestsPage({ emp }) {
     setRequests([newReq, ...requests]);
     notifyAdmin(newReq);
     setShowForm(false);
-    setFormData({ type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" });
+    const blank = { type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" };
+    setFormData(blank);
+    storage.set(DRAFT_KEY, null);
     setErrors({});
     showToast("تم إرسال طلبك — سيصل إشعار للمشرف", "success");
     sendDesktopNotification("طلب إجازة", "تم إرسال طلبك بنجاح وهو الآن بانتظار المراجعة");
@@ -145,6 +149,7 @@ function RequestsPage({ emp }) {
               <select value={formData.type} onChange={e=>setFormData({...formData,type:e.target.value})} className="input w-full rounded-xl px-4 py-2">{Object.entries(LEAVE_TYPES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select>
               <div className="grid grid-cols-2 gap-3"><input type="date" value={formData.dateFrom} onChange={e=>setFormData({...formData,dateFrom:e.target.value})} className="input rounded-xl px-4 py-2"/><input type="date" value={formData.dateTo} onChange={e=>setFormData({...formData,dateTo:e.target.value})} className="input rounded-xl px-4 py-2"/></div>
               <input value={formData.purpose} onChange={e=>setFormData({...formData,purpose:e.target.value})} placeholder="الغرض من الإجازة" className="input w-full rounded-xl px-4 py-2"/>
+              {formData.purpose && <p className="text-[10px] text-emerald-600">✓ مسودة محفوظة تلقائياً</p>}
               {errors.purpose && <p className="text-red-500 text-xs">{errors.purpose}</p>}{errors.date && <p className="text-red-500 text-xs">{errors.date}</p>}{errors.days && <p className="text-red-500 text-xs">{errors.days}</p>}
               <div className="flex gap-3"><button onClick={()=>setShowForm(false)} className="flex-1 py-2 border border-color rounded-xl">إلغاء</button><button onClick={handleSubmit} className="flex-1 py-2 bg-blue-600 text-white rounded-xl">إرسال</button></div>
             </div>

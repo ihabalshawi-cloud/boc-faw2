@@ -4,7 +4,7 @@ import {
   CheckCircle, Wifi, WifiOff, FileText, Clock, Calendar,
   Bell, ThumbsUp, Users, Package,
   ClipboardList, GraduationCap, BarChart, Star,
-  Search, Moon, Sun, MessageSquare,
+  Search, Moon, Sun, MessageSquare, X,
   CheckSquare, AlertTriangle, ChevronLeft,
   Wrench, Box, TrendingUp, Heart,
   Briefcase
@@ -21,6 +21,7 @@ import { useConfirm } from "../contexts";
 import { playAlert, useConnectionStatus } from "../components/Shared";
 import { GDriveSettingsModal, GDriveQuotaBar } from "../components/GDriveComponents";
 import GlobalSearch from "../components/GlobalSearch";
+import HomeWidgets from "../components/HomeWidgets";
 
 const LazyTimeSheetPage = React.lazy(() => import('./TimeSheetPage'));
 const LazyEmployeeManager = React.lazy(() => import('./EmployeeManagerPage'));
@@ -82,8 +83,8 @@ class TsErrorBoundary extends React.Component {
   }
 }
 
-const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","audit","changepass","health_insurance","approvals","employees","admin_dashboard"]);
-const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","inventory","furniture","projects","timesheet"]);
+const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","audit","changepass","health_insurance","approvals","employees","admin_dashboard","timesheet"]);
+const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","inventory","furniture","projects"]);
 
 export default function Dashboard({ emp, onLogout, dark, setDark }) {
   const [view, setView] = useState("home");
@@ -107,6 +108,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
   const smartAlerts = useSmartAlerts(employees);
   const confirm = useConfirm();
   const [showSearch, setShowSearch] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const isAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
   const isTimeSheetAdmin = isAdmin || emp.role === "attendance_admin";
   const pendingCount = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
@@ -125,6 +127,10 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
     return () => document.removeEventListener("keydown", h);
   }, []);
 
+  useEffect(() => {
+    document.title = unreadNotifs > 0 ? `(${unreadNotifs}) شركة نفط البصرة` : "شركة نفط البصرة";
+  }, [unreadNotifs]);
+
   useEffect(() => { setAllRequests(storage.get("all_requests", [])); }, [view]);
 
   const switchSection = (s) => { setSection(s); storage.set("dash_section", s); };
@@ -134,6 +140,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
       if (section !== "admin") switchSection("admin");
       return;
     }
+    if (id === "chat") { setChatOpen(true); return; }
     if (id === "requests") setReqSubTab("requests");
     setView(id);
     if (ADMIN_VIEWS.has(id) && section !== "admin") switchSection("admin");
@@ -154,6 +161,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
     { id:"evaluation", label:"التقييم", icon:<Star size={17}/> },
     { id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> },
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
+    ...(isTimeSheetAdmin ? [{ id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> }] : []),
     { id:"notifications", label:"الإشعارات", icon:<Bell size={17}/>, badge:unreadNotifs },
     { id:"audit", label:"سجل التعديلات", icon:<ClipboardList size={17}/> },
     { id:"changepass", label:"تغيير المرور", icon:<Shield size={17}/> },
@@ -165,7 +173,6 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
     { id:"inventory", label:"جرد الآلات الدقيقة", icon:<Package size={17}/> },
     { id:"furniture", label:"جرد الأثاث 2025", icon:<ClipboardList size={17}/> },
     { id:"projects", label:"إدارة المشاريع", icon:<Briefcase size={17}/> },
-    ...(isTimeSheetAdmin ? [{ id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> }] : []),
   ];
   const menuItems = section === "admin" ? adminMenuItems : techMenuItems;
 
@@ -191,6 +198,9 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
           </button>
           <button onClick={()=>setShowSearch(true)} className="flex items-center gap-2 px-3 py-1.5 rounded-xl btn-secondary border border-color text-secondary hover:text-primary text-xs">
             <Search size={14}/> <span className="hidden md:inline">بحث</span> <kbd className="hidden md:inline px-1 bg-hover rounded text-[10px]">Ctrl K</kbd>
+          </button>
+          <button onClick={()=>setChatOpen(o=>!o)} className={`relative p-2 rounded-xl border transition-colors ${chatOpen?"bg-blue-50 border-blue-200 text-blue-600":"btn-secondary border-color text-secondary hover:text-primary"}`}>
+            <MessageSquare size={16}/>
           </button>
           {smartAlerts.length > 0 && <div className="relative"><AlertTriangle size={20} className="text-amber-500"/><span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center">{smartAlerts.length}</span></div>}
           <div className="flex items-center gap-1">{isConnected?<Wifi size={14} className="text-emerald-500"/>:<WifiOff size={14} className="text-amber-500"/>}</div>
@@ -234,7 +244,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
           </div>
         </aside>
 
-        <main className="flex-1 p-5">
+        <main className="flex-1 p-5 pb-20 md:pb-5">
           {view !== "home" && (
             <div className="flex items-center gap-1.5 text-sm text-secondary mb-4">
               <button onClick={()=>setView("home")} className="hover:text-blue-600 transition-colors flex items-center gap-1">
@@ -245,106 +255,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
             </div>
           )}
           {view==="home" && (
-            <div className="space-y-6">
-              <div className="card rounded-2xl p-6 border-color border">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center"><User size={28} className="text-white"/></div>
-                  <div>
-                    <h2 className="text-xl font-bold">مرحباً، {emp.name.split(" ")[0]}</h2>
-                    <p className="text-secondary text-sm">{emp.title} — {emp.dept}</p>
-                    <p className="text-secondary text-xs">{new Date().toLocaleDateString("ar-IQ",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="h-5 w-1 bg-blue-600 rounded-full"/>
-                  <h3 className="font-bold text-base">إدارة الموارد البشرية والمستودع</h3>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {[
-                    { label:"إجمالي الموظفين",  value:employees.length,                                                        icon:<Users size={22}/>,        color:"from-blue-500 to-blue-600",    action:()=>switchView("employees") },
-                    { label:"طلبات معلقة",       value:allRequests.filter(r=>r.status==="بانتظار المراجعة").length,             icon:<Clock size={22}/>,         color:"from-amber-500 to-amber-600",  action:()=>switchView(isAdmin?"approvals":"requests") },
-                    { label:"طلبات مقبولة",      value:allRequests.filter(r=>r.status==="موافق عليها").length,                  icon:<CheckCircle size={22}/>,   color:"from-emerald-500 to-emerald-600", action:()=>switchView("requests") },
-                    { label:"مخزون الآلات",      value:storage.get("inventory_items",[]).length,                               icon:<Package size={22}/>,       color:"from-violet-500 to-violet-600",  action:()=>switchView("inventory") },
-                    { label:"مخزون منخفض",       value:storage.get("inventory_items",[]).filter(i=>i.qty<=(i.minQty||3)).length, icon:<AlertTriangle size={22}/>, color:"from-red-500 to-red-600",       action:()=>switchView("inventory") },
-                    { label:"مهام نشطة",         value:storage.get("tasks",[]).filter(t=>t.status!=="مكتملة").length,           icon:<CheckSquare size={22}/>,   color:"from-indigo-500 to-indigo-600",  action:()=>switchView("tasks") },
-                  ].map((k,i)=>(
-                    <button key={i} onClick={k.action} className={`bg-gradient-to-r ${k.color} rounded-2xl p-4 text-white text-right hover:opacity-90 transition-opacity`}>
-                      <div className="flex items-center justify-between">{k.icon}<p className="text-3xl font-bold">{k.value}</p></div>
-                      <p className="text-sm mt-2 text-white/80">{k.label}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="h-5 w-1 bg-orange-500 rounded-full"/>
-                  <h3 className="font-bold text-base">إدارة الصيانة والمعدات</h3>
-                </div>
-                {(() => {
-                  const eq   = storage.get("equipment", INITIAL_EQUIPMENT);
-                  const prts = storage.get("maint_spare_parts", INITIAL_MAINT_SPARE_PARTS);
-                  const recs = storage.get("maintenance_records", []);
-                  return (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {[
-                        { label:"إجمالي المعدات",   value:eq.length,                                                      icon:<Wrench size={22}/>,        color:"from-blue-600 to-blue-700",    action:()=>switchView("maint_equipment") },
-                        { label:"معدات حرجة",        value:eq.filter(e=>e.critical).length,                               icon:<AlertTriangle size={22}/>,  color:"from-red-600 to-red-700",       action:()=>switchView("maint_equipment") },
-                        { label:"صيانة مستحقة",      value:eq.filter(e=>new Date(e.nextMaintenance)<=new Date()).length,  icon:<Clock size={22}/>,          color:"from-amber-600 to-amber-700",   action:()=>switchView("maint_equipment") },
-                        { label:"طلبات قيد التنفيذ", value:recs.filter(r=>r.status!=="مكتملة").length,                   icon:<CheckCircle size={22}/>,    color:"from-orange-500 to-orange-600", action:()=>switchView("maint_equipment") },
-                        { label:"قطع الغيار",        value:prts.length,                                                    icon:<Box size={22}/>,            color:"from-emerald-600 to-emerald-700",action:()=>switchView("maint_parts") },
-                        { label:"مخزون قطع منخفض",  value:prts.filter(p=>p.qty<=p.minAlert).length,                     icon:<AlertTriangle size={22}/>,  color:"from-rose-500 to-rose-600",     action:()=>switchView("maint_parts") },
-                        { label:"صيانة مكتملة",      value:recs.filter(r=>r.status==="مكتملة").length,                   icon:<CheckCircle size={22}/>,    color:"from-teal-500 to-teal-600",     action:()=>switchView("maint_reports") },
-                        { label:"معدات جيدة",        value:eq.filter(e=>e.status==="جيد").length,                        icon:<Wrench size={22}/>,         color:"from-cyan-500 to-cyan-600",     action:()=>switchView("maint_equipment") },
-                      ].map((k,i)=>(
-                        <button key={i} onClick={k.action} className={`bg-gradient-to-r ${k.color} rounded-2xl p-4 text-white text-right hover:opacity-90 transition-opacity`}>
-                          <div className="flex items-center justify-between">{k.icon}<p className="text-3xl font-bold">{k.value}</p></div>
-                          <p className="text-sm mt-2 text-white/80">{k.label}</p>
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="card rounded-2xl border-color border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-bold text-sm flex items-center gap-1.5"><FileText size={15}/> آخر طلبات الإجازة</h4>
-                    <button onClick={()=>switchView(isAdmin?"approvals":"requests")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
-                  </div>
-                  {allRequests.length===0 ? <p className="text-secondary text-xs text-center py-4">لا توجد طلبات</p> :
-                  allRequests.slice(0,4).map(r=>(
-                    <div key={r.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 text-xs">
-                      <span className="font-medium">{r.empName?.split(" ").slice(0,2).join(" ")}</span>
-                      <span className="text-secondary">{r.type} — {r.days} يوم</span>
-                      <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] ${r.status==="موافق عليها"?"bg-emerald-100 text-emerald-700":r.status==="مرفوضة"?"bg-red-100 text-red-700":"bg-amber-100 text-amber-700"}`}>{r.status}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="card rounded-2xl border-color border p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-bold text-sm flex items-center gap-1.5"><Wrench size={15}/> آخر طلبات الصيانة</h4>
-                    <button onClick={()=>switchView("maint_equipment")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
-                  </div>
-                  {(() => {
-                    const recs = storage.get("maintenance_records",[]);
-                    return recs.length===0 ? <p className="text-secondary text-xs text-center py-4">لا توجد طلبات صيانة</p> :
-                    recs.slice(0,4).map(r=>(
-                      <div key={r.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 text-xs">
-                        <span className="font-medium truncate max-w-[120px]">{r.equipmentName}</span>
-                        <span className="text-secondary">{new Date(r.requestedAt).toLocaleDateString("ar-IQ")}</span>
-                        <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] ${r.status==="مكتملة"?"bg-emerald-100 text-emerald-700":"bg-amber-100 text-amber-700"}`}>{r.status}</span>
-                      </div>
-                    ));
-                  })()}
-                </div>
-              </div>
-            </div>
+            <HomeWidgets emp={emp} employees={employees} allRequests={allRequests} isAdmin={isAdmin} switchView={switchView}/>
           )}
           {view==="analytics" && (
             <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
@@ -406,11 +317,6 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
               <LazyMaintenanceAnalytics/>
             </React.Suspense>
           )}
-          {view==="chat" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
-              <LazyInternalChat emp={emp} isConnected={isConnected}/>
-            </React.Suspense>
-          )}
           {view==="evaluation" && (
             <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
               <LazyEvaluationSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
@@ -467,6 +373,42 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
         </main>
       </div>
       {showSearch && <GlobalSearch setView={switchView} onClose={()=>setShowSearch(false)}/>}
+
+      {chatOpen && (
+        <div className="fixed inset-0 z-[300] bg-black/30" onClick={e=>e.target===e.currentTarget&&setChatOpen(false)}>
+          <div className="absolute top-0 right-0 h-full w-full max-w-sm bg-main border-l border-color shadow-2xl flex flex-col" dir="rtl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-color shrink-0">
+              <h3 className="font-bold text-sm">الدردشة الداخلية</h3>
+              <button onClick={()=>setChatOpen(false)} className="text-secondary hover:text-primary p-1 rounded-lg hover:bg-hover"><X size={16}/></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <React.Suspense fallback={<div className="text-center text-secondary text-sm py-8">جارٍ التحميل...</div>}>
+                <LazyInternalChat emp={emp} isConnected={isConnected}/>
+              </React.Suspense>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white dark:bg-gray-900 border-t border-color z-20 flex" dir="ltr">
+        {[
+          {id:"home",          icon:<Home size={20}/>,         label:"الرئيسية"},
+          {id:"requests",      icon:<FileText size={20}/>,     label:"الطلبات"},
+          {id:"tasks",         icon:<CheckSquare size={20}/>,  label:"المهام"},
+          {id:"chat",          icon:<MessageSquare size={20}/>,label:"الدردشة"},
+          {id:"notifications", icon:<Bell size={20}/>,         label:"الإشعارات", badge:unreadNotifs},
+        ].map(item => (
+          <button key={item.id}
+            onClick={()=>item.id==="chat"?setChatOpen(o=>!o):switchView(item.id)}
+            className={`flex-1 flex flex-col items-center py-2 gap-0.5 relative text-xs ${
+              (item.id==="chat"&&chatOpen)||(item.id!=="chat"&&view===item.id)?"text-[#C87A2E]":"text-secondary"
+            }`}>
+            {item.icon}
+            <span className="text-[9px]">{item.label}</span>
+            {item.badge>0 && <span className="absolute top-1 right-2 bg-red-500 text-white text-[8px] min-w-[14px] h-3.5 rounded-full flex items-center justify-center px-0.5">{item.badge}</span>}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

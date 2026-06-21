@@ -221,20 +221,25 @@ const CHAT_ADMINS = [{ id:1, name:"ايهاب الشاوي", title:"المشرف
 
 function ChatWindow({ emp, partnerId, partnerName, messages, isConnected, onBack, loadMessages }) {
   const [text, setText] = useState("");
+  const [sentMsgs, setSentMsgs] = useState([]);
   const bottomRef = useRef(null);
+  const n = (v) => Number(v);
   const filtered = messages.filter(m =>
-    (m.senderId === emp.id && m.toId === partnerId) ||
-    (m.senderId === partnerId && m.toId === emp.id)
+    (n(m.senderId) === n(emp.id) && n(m.toId) === n(partnerId)) ||
+    (n(m.senderId) === n(partnerId) && n(m.toId) === n(emp.id))
   );
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [filtered.length]);
+  const allMsgs = [...filtered, ...sentMsgs.filter(s => !filtered.some(f => f._key === s._key))];
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [allMsgs.length]);
 
   const send = async () => {
     if (!text.trim()) return;
-    const msg = { text:text.trim(), sender:emp.name, senderId:emp.id, toId:partnerId, timestamp:Date.now(), dept:emp.dept };
+    const key = `opt_${Date.now()}`;
+    const msg = { text:text.trim(), sender:emp.name, senderId:emp.id, toId:partnerId, timestamp:Date.now(), dept:emp.dept, _key:key };
+    setSentMsgs(prev => [...prev, msg]);
     storage.set(`chat_active_${partnerId}`, { empId:emp.id, timestamp:Date.now() });
     setText("");
-    if (isConnected) { await FirebaseAPI.sendMessage(msg); await loadMessages(); }
-    else { const off=storage.get("chat_offline",[]); storage.set("chat_offline",[...off,{...msg,_key:Date.now().toString()}]); }
+    if (isConnected) { await FirebaseAPI.sendMessage(msg); await loadMessages(); setSentMsgs([]); }
+    else { const off=storage.get("chat_offline",[]); storage.set("chat_offline",[...off,msg]); }
     playAlert("message");
   };
 
@@ -246,9 +251,9 @@ function ChatWindow({ emp, partnerId, partnerName, messages, isConnected, onBack
         <div className="flex items-center gap-1 text-xs">{isConnected?<><Wifi size={12} className="text-emerald-500"/><span className="text-emerald-600">متصل</span></>:<><WifiOff size={12} className="text-amber-500"/><span className="text-amber-600">غير متصل</span></>}</div>
       </div>
       <div className="flex-1 card rounded-2xl border-color border p-4 overflow-y-auto space-y-3">
-        {filtered.length === 0 && <div className="text-center text-secondary py-8"><MessageSquare size={40} className="mx-auto mb-2"/><p>ابدأ المحادثة</p></div>}
-        {filtered.map((m,i) => {
-          const isMine = m.senderId === emp.id;
+        {allMsgs.length === 0 && <div className="text-center text-secondary py-8"><MessageSquare size={40} className="mx-auto mb-2"/><p>ابدأ المحادثة</p></div>}
+        {allMsgs.map((m,i) => {
+          const isMine = n(m.senderId) === n(emp.id);
           return (<div key={m._key||i} className={`flex ${isMine?"justify-start":"justify-end"}`}>
             <div className={`max-w-[70%] rounded-2xl px-4 py-2 ${m.system?"bg-amber-100 text-amber-800":isMine?"bg-blue-600 text-white":"card border border-color"}`}>
               {!isMine && !m.system && <p className="text-[10px] font-bold text-secondary mb-1">{m.sender}</p>}
@@ -305,7 +310,7 @@ function InternalChat({ emp, isConnected }) {
         {chatLoading ? <>{[...Array(2)].map((_,i)=><div key={i} className="skeleton h-16 rounded-xl"/>)}</> :
         CHAT_ADMINS.map(admin => {
           const busy = isBusy(admin.id);
-          const lastMsg = messages.filter(m=>(m.senderId===emp.id&&m.toId===admin.id)||(m.senderId===admin.id&&m.toId===emp.id)).slice(-1)[0];
+          const lastMsg = messages.filter(m=>(Number(m.senderId)===Number(emp.id)&&Number(m.toId)===Number(admin.id))||(Number(m.senderId)===Number(admin.id)&&Number(m.toId)===Number(emp.id))).slice(-1)[0];
           return (
             <div key={admin.id} className="card rounded-xl border border-color p-4 flex items-center justify-between">
               <div>
@@ -325,9 +330,9 @@ function InternalChat({ emp, isConnected }) {
   }
 
   const convMap = new Map();
-  messages.filter(m => m.toId === emp.id || m.senderId === emp.id).forEach(m => {
-    const otherId = m.senderId === emp.id ? m.toId : m.senderId;
-    if (otherId && otherId !== emp.id && !convMap.has(otherId)) convMap.set(otherId, { id:otherId, name:m.senderId===emp.id?"":(m.sender||`موظف ${otherId}`), last:m });
+  messages.filter(m => Number(m.toId) === Number(emp.id) || Number(m.senderId) === Number(emp.id)).forEach(m => {
+    const otherId = Number(m.senderId) === Number(emp.id) ? m.toId : m.senderId;
+    if (otherId && Number(otherId) !== Number(emp.id) && !convMap.has(otherId)) convMap.set(otherId, { id:otherId, name:Number(m.senderId)===Number(emp.id)?"":(m.sender||`موظف ${otherId}`), last:m });
   });
   const convList = [...convMap.values()];
 
@@ -338,7 +343,7 @@ function InternalChat({ emp, isConnected }) {
       convList.length===0
         ? <div className="card rounded-xl border border-color p-8 text-center text-secondary"><MessageSquare size={40} className="mx-auto mb-2"/><p>لا توجد محادثات</p></div>
         : convList.map(c => {
-          const unread = messages.filter(m=>m.senderId===c.id&&m.toId===emp.id&&!m.read).length;
+          const unread = messages.filter(m=>Number(m.senderId)===Number(c.id)&&Number(m.toId)===Number(emp.id)&&!m.read).length;
           return (
             <button key={c.id} onClick={()=>openChat(c.id, c.name||`موظف ${c.id}`, false)} className="w-full card rounded-xl border border-color p-4 text-right flex items-center justify-between hover:bg-hover">
               <div>
