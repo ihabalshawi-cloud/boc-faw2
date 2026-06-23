@@ -57,6 +57,13 @@ export const FirebaseAPI = {
     } catch { return false; }
   },
 
+  clearPasswordChanged: async (empId) => {
+    try {
+      await fetch(`${FIREBASE_URL}/pass_changed/${empId}.json`, { method: "DELETE" });
+      return true;
+    } catch { return false; }
+  },
+
   clearInitHash: async (jobNum) => {
     try {
       await fetch(`${FIREBASE_URL}/init_hashes/${jobNum}.json`, { method: "DELETE" });

@@ -24,6 +24,7 @@ function ChangePasswordPage({ emp, onLogout }) {
       const hashed = await hashPassword(newPass.trim());
       if (!hashed) { toast("المتصفح لا يدعم التشفير — حاول مجدداً أو استخدم متصفحاً حديثاً", "error"); return; }
       passStore.set(`pass_${emp.id}`, hashed);
+      storage.set(`pass_set_${emp.id}`, true);
       if (isConnected) {
         await FirebaseAPI.savePassword(emp.id, hashed);
         FirebaseAPI.markPasswordChanged(emp.id);

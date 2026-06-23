@@ -180,11 +180,26 @@ function LoginScreen({ onLogin, dark }) {
     if (localPass) {
       if (isHash(localPass)) {
         isValid = inputHash !== null && inputHash === localPass;
+        if (isValid) {
+          storage.set(`pass_set_${account.id}`, true);
+          if (isConnected) {
+            FirebaseAPI.getPassword(account.id).then(fp => {
+              if (!fp) {
+                FirebaseAPI.savePassword(account.id, localPass);
+                FirebaseAPI.markPasswordChanged(account.id);
+              }
+            }).catch(() => {});
+          }
+        }
       } else {
         isValid = pass.trim() === localPass;
         if (isValid && inputHash) {
           passStore.set(`pass_${account.id}`, inputHash);
-          if (isConnected) await FirebaseAPI.savePassword(account.id, inputHash);
+          storage.set(`pass_set_${account.id}`, true);
+          if (isConnected) {
+            await FirebaseAPI.savePassword(account.id, inputHash);
+            FirebaseAPI.markPasswordChanged(account.id);
+          }
         }
       }
     } else if (isConnected) {
@@ -193,11 +208,12 @@ function LoginScreen({ onLogin, dark }) {
         isValid = isHash(fp) ? (inputHash !== null && inputHash === fp) : pass.trim() === fp;
         if (isValid) {
           const toStore = isHash(fp) ? fp : (inputHash || null);
-          if (toStore) passStore.set(`pass_${account.id}`, toStore);
+          if (toStore) { passStore.set(`pass_${account.id}`, toStore); storage.set(`pass_set_${account.id}`, true); }
           if (!isHash(fp) && inputHash) await FirebaseAPI.savePassword(account.id, inputHash);
         }
       } else {
-        const everChanged = await FirebaseAPI.hasPasswordChanged(account.id);
+        const localChanged = !!storage.get(`pass_set_${account.id}`);
+        const everChanged = localChanged || await FirebaseAPI.hasPasswordChanged(account.id);
         if (!everChanged) {
           const def = DEFAULT_PASSWORD;
           isValid = pass.trim() === def;
@@ -205,9 +221,12 @@ function LoginScreen({ onLogin, dark }) {
         }
       }
     } else {
-      const def = DEFAULT_PASSWORD;
-      isValid = pass.trim() === def;
-      if (isValid && inputHash) passStore.set(`pass_${account.id}`, inputHash);
+      const localChanged = !!storage.get(`pass_set_${account.id}`);
+      if (!localChanged) {
+        const def = DEFAULT_PASSWORD;
+        isValid = pass.trim() === def;
+        if (isValid && inputHash) passStore.set(`pass_${account.id}`, inputHash);
+      }
     }
 
     if (isValid) {
@@ -245,8 +264,12 @@ function LoginScreen({ onLogin, dark }) {
     if (!acc) { setErr("الرقم الوظيفي غير موجود"); return; }
     sessionStorage.removeItem(`pass_${acc.id}`);
     localStorage.removeItem(`pass_${acc.id}`);
+    localStorage.removeItem(`pass_set_${acc.id}`);
     localStorage.removeItem(`login_lock_${acc.jobNum}`);
-    if (isConnected) await FirebaseAPI.deletePassword(acc.id);
+    if (isConnected) {
+      await FirebaseAPI.deletePassword(acc.id);
+      FirebaseAPI.clearPasswordChanged(acc.id);
+    }
     setErr(""); setPass("");
     alert(`تمت إعادة ضبط كلمة مرور ${acc.name}\nالرقم الوظيفي: ${acc.jobNum}\nكلمة المرور الافتراضية: ${acc.password}`);
   };
