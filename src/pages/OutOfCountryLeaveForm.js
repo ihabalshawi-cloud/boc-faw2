@@ -47,7 +47,7 @@ function OutOfCountryLeaveForm({ emp }) {
 
   const save = () => {
     storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, country, days, salaryType, purpose, reqDate, refNum, sigDataUrl });
-    toast.success("تم حفظ بيانات إجازة خارج القطر");
+    toast("تم حفظ بيانات إجازة خارج القطر", "success");
   };
 
   const fmtDate = (d) => {
@@ -182,7 +182,7 @@ function OutOfCountryLeaveForm({ emp }) {
   };
 
   const uploadAsWord = async () => {
-    if (!gDrive.isReady) { toast.warning("يرجى ربط Google Drive أولاً"); return; }
+    if (!gDrive.isReady) { toast("يرجى ربط Google Drive أولاً", "warning"); return; }
     setUploadPct(0); setDriveLink(null);
     try {
       const blob = await buildOocDocx({ name, jobNum, jobTitle, dept, country, days, salaryType, purpose, reqDate, refNum, fmtDate });
@@ -194,18 +194,18 @@ function OutOfCountryLeaveForm({ emp }) {
       );
       const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
       setDriveLink(result.webViewLink);
-      toast.success("تم حفظ الاستمارة كملف Word في Drive");
+      toast("تم حفظ الاستمارة كملف Word في Drive", "success");
     } catch (e) {
       console.error("docx build error:", e);
-      toast.error("فشل إنشاء ملف Word: " + e.message);
+      toast("فشل إنشاء ملف Word: " + e.message, "error");
     } finally {
       setUploadPct(-1);
     }
   };
 
   const fillFromTemplate = async () => {
-    if (!gDrive.isReady) { toast.warning("يرجى ربط Google Drive أولاً"); return; }
-    if (!templateId.trim()) { toast.warning("يرجى إدخال معرف ملف القالب"); return; }
+    if (!gDrive.isReady) { toast("يرجى ربط Google Drive أولاً", "warning"); return; }
+    if (!templateId.trim()) { toast("يرجى إدخال معرف ملف القالب", "warning"); return; }
     setUploadPct(0); setDriveLink(null);
     try {
       const { default: JSZip } = await import("jszip");
@@ -254,11 +254,11 @@ function OutOfCountryLeaveForm({ emp }) {
       const file = new File([blob], `اجازة-خارج-العراق-${safeName}-${reqDate || "بدون-تاريخ"}.docx`, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
       const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
       setDriveLink(result?.webViewLink || null);
-      toast.success(`تم تعبئة ${replacedCount} حقل ورفع النسخة المعبأة إلى Drive ✅`);
+      toast(`تم تعبئة ${replacedCount} حقل ورفع النسخة المعبأة إلى Drive ✅`, "success");
     } catch (e) {
       console.error("fillFromTemplate error:", e);
       alert("خطأ في تعبئة القالب:\n\n" + e.message);
-      toast.error("فشل تعبئة القالب");
+      toast("فشل تعبئة القالب", "error");
     } finally {
       setUploadPct(-1);
     }

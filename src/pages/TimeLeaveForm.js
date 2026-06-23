@@ -53,7 +53,7 @@ function TimeLeaveForm({ emp }) {
 
   const save = () => {
     storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, leaveDate, departureTime, returnTime, hours, reason, sigDataUrl });
-    toast.success("تم حفظ بيانات الإجازة الزمنية");
+    toast("تم حفظ بيانات الإجازة الزمنية", "success");
   };
 
   const fmtDate = (d) => {
@@ -146,7 +146,7 @@ function TimeLeaveForm({ emp }) {
   };
 
   const uploadToDrive = async () => {
-    if (!gDrive.isReady) { toast.warning("يرجى ربط Google Drive أولاً"); return; }
+    if (!gDrive.isReady) { toast("يرجى ربط Google Drive أولاً", "warning"); return; }
     setUploadPct(0); setDriveLink(null);
     try {
       const html = buildTimeHtml();
@@ -154,9 +154,9 @@ function TimeLeaveForm({ emp }) {
       const file = new File([new Blob([html], { type: "text/html" })], `اجازة-زمنية-${safeName}-${leaveDate || "بدون-تاريخ"}.html`, { type: "text/html" });
       const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
       setDriveLink(result.webViewLink);
-      toast.success("تم رفع نموذج الإجازة الزمنية إلى Drive");
+      toast("تم رفع نموذج الإجازة الزمنية إلى Drive", "success");
     } catch (e) {
-      toast.error("فشل رفع الملف: " + e.message);
+      toast("فشل رفع الملف: " + e.message, "error");
     } finally {
       setUploadPct(-1);
     }
@@ -192,16 +192,16 @@ function TimeLeaveForm({ emp }) {
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob); a.download = fname;
       document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
-      toast.success("تم تصدير نموذج الإجازة الزمنية");
+      toast("تم تصدير نموذج الإجازة الزمنية", "success");
       if (gDrive.isReady) {
         setUploadPct(0);
         const file = new File([outBuf], fname, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
         const result = await gDrive.uploadFile(file, pct => setUploadPct(pct));
         setDriveLink(result.webViewLink);
-        toast.success("تم رفع النموذج إلى Drive");
+        toast("تم رفع النموذج إلى Drive", "success");
       }
     } catch(e) {
-      toast.error("فشل التصدير: " + e.message);
+      toast("فشل التصدير: " + e.message, "error");
     } finally {
       setXlExporting(false); setUploadPct(-1);
     }
