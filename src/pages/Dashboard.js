@@ -97,6 +97,12 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
     FirebaseAPI.loadAccounts().then(list => {
       if (list && list.length > 0) setEmployeesRaw(list);
     });
+    FirebaseAPI.loadRequests().then(list => {
+      if (list && list.length > 0) {
+        storage.set("all_requests", list);
+        setAllRequests(list);
+      }
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

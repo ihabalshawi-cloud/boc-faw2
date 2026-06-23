@@ -64,7 +64,18 @@ function RequestsPage({ emp }) {
   const showToast = useToast();
   const confirm = useConfirm();
   const { isConnected } = useConnectionStatus();
-  useEffect(() => { const t = setTimeout(() => setPageLoading(false), 250); return () => clearTimeout(t); }, []);
+  useEffect(() => {
+    FirebaseAPI.loadRequests().then(list => {
+      if (list && list.length > 0) {
+        storage.set("all_requests", list);
+        const mine = list.filter(r => Number(r.empId) === Number(emp.id));
+        if (mine.length > 0) { storage.set(`requests_${emp.id}`, mine); setRequests(mine); }
+      }
+    });
+    const t = setTimeout(() => setPageLoading(false), 250);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emp.id]);
   useEffect(() => { if (showForm) storage.set(DRAFT_KEY, formData); }, [formData, showForm, DRAFT_KEY]);
 
   const getSigPos = (e, c) => { const r=c.getBoundingClientRect(),sx=c.width/r.width,sy=c.height/r.height; return e.touches?{x:(e.touches[0].clientX-r.left)*sx,y:(e.touches[0].clientY-r.top)*sy}:{x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy}; };
@@ -259,6 +270,17 @@ function ApprovalsPage({ emp }) {
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
 
   const refreshApproved = () => setApproved(storage.get("all_requests",[]).filter(r=>r.status==="موافق عليها").sort((a,b)=>new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt)));
+
+  useEffect(() => {
+    FirebaseAPI.loadRequests().then(list => {
+      if (list && list.length > 0) {
+        storage.set("all_requests", list);
+        setRequests(list.filter(r => r.status === "بانتظار المراجعة"));
+        setApproved(list.filter(r => r.status === "موافق عليها").sort((a,b)=>new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt)));
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const updateStatus = (id, status, sigDataUrl=null) => {
     const allRequests = storage.get("all_requests", []);
