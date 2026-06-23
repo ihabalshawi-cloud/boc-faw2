@@ -300,6 +300,26 @@ export const FirebaseAPI = {
     } catch { return null; }
   },
 
+  // ── Notifications ─────────────────────────────────────────────────────────
+  saveNotifications: async (empId, list) => {
+    if (!empId) return false;
+    try {
+      const res = await fetch(`${FIREBASE_URL}/notifications/${empId}.json`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(list || []),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadNotifications: async (empId) => {
+    if (!empId) return null;
+    try {
+      const res = await fetch(`${FIREBASE_URL}/notifications/${empId}.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data) ? data : (data && typeof data === "object" ? Object.values(data).filter(Boolean) : null);
+    } catch { return null; }
+  },
+
   // ── Tasks ─────────────────────────────────────────────────────────────────
   saveTasks: async (list) => {
     try {

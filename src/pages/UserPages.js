@@ -93,11 +93,12 @@ function RequestsPage({ emp }) {
     const admins = ACCOUNTS.filter(a => a.role === "admin" || a.username === "i.shawi");
     admins.forEach(admin => {
       const key = `notifications_${admin.id}`;
-      const notifs = storage.get(key, []);
-      storage.set(key, [{ id:Date.now()+admin.id, type:"طلب_إجازة",
+      const notifs = [{ id:Date.now()+admin.id, type:"طلب_إجازة",
         title:`📋 طلب إجازة — ${emp.name}`,
         body:`${req.type} — ${req.days} يوم | الغرض: ${req.purpose}`,
-        timestamp:new Date().toISOString(), read:false, reqId:req.id }, ...notifs]);
+        timestamp:new Date().toISOString(), read:false, reqId:req.id }, ...storage.get(key, [])];
+      storage.set(key, notifs);
+      if (isConnected) FirebaseAPI.saveNotifications(admin.id, notifs);
     });
   };
 
@@ -291,10 +292,12 @@ function ApprovalsPage({ emp }) {
     if(req) {
       const empReqs = storage.get(`requests_${req.empId}`, []);
       storage.set(`requests_${req.empId}`, empReqs.map(r => r.id === id ? { ...r, status, sigDataUrl } : r));
-      const notifEmp = storage.get(`notifications_${req.empId}`, []);
-      storage.set(`notifications_${req.empId}`, [{ id:Date.now(), type:status==="موافق عليها"?"موافقة":"رفض",
+      const empNotifs = [{ id:Date.now(), type:status==="موافق عليها"?"موافقة":"رفض",
         title:status==="موافق عليها"?"✅ تمت الموافقة على طلبك":"❌ تم رفض طلبك",
-        body:`${req.type} — ${req.days} يوم`, timestamp:new Date().toISOString(), read:false }, ...notifEmp]);
+        body:`${req.type} — ${req.days} يوم`, timestamp:new Date().toISOString(), read:false },
+        ...storage.get(`notifications_${req.empId}`, [])];
+      storage.set(`notifications_${req.empId}`, empNotifs);
+      if (isConnected) FirebaseAPI.saveNotifications(req.empId, empNotifs);
     }
     setRequests(requests.filter(r => r.id !== id));
     setSigReqId(null);
@@ -310,10 +313,12 @@ function ApprovalsPage({ emp }) {
     if (isConnected) FirebaseAPI.saveRequests(updated);
     ACCOUNTS.filter(a=>a.role==="admin").forEach(admin => {
       const nk = `notifications_${admin.id}`;
-      storage.set(nk, [{ id:Date.now()+admin.id, type:"أرشفة_إجازة",
+      const adminNotifs = [{ id:Date.now()+admin.id, type:"أرشفة_إجازة",
         title:`📁 إجازة للأرشفة — ${req.empName}`,
         body:`${req.type} — ${req.days} يوم | وافق: ${req.decidedBy}`,
-        timestamp:new Date().toISOString(), read:false, reqId:req.id }, ...storage.get(nk,[])]);
+        timestamp:new Date().toISOString(), read:false, reqId:req.id }, ...storage.get(nk,[])];
+      storage.set(nk, adminNotifs);
+      if (isConnected) FirebaseAPI.saveNotifications(admin.id, adminNotifs);
     });
     refreshApproved();
     showToast("📁 تم الدفع للإداري وحفظ النسخة للأرشيف");
@@ -409,21 +414,33 @@ const NOTIF_FILTERS = [
 ];
 
 function NotificationsPage({ emp }) {
+  const { isConnected } = useConnectionStatus();
   const [notifications, setNotifications] = useState(() => storage.get(`notifications_${emp.id}`, []));
   const [filter, setFilter] = useState("الكل");
 
-  const markAsRead = (id) => {
-    const u = notifications.map(n => n.id === id ? { ...n, read: true } : n);
-    setNotifications(u); storage.set(`notifications_${emp.id}`, u);
+  useEffect(() => {
+    FirebaseAPI.loadNotifications(emp.id).then(list => {
+      if (list && list.length > 0) {
+        const merged = [...list];
+        const local = storage.get(`notifications_${emp.id}`, []);
+        local.forEach(n => { if (!merged.some(m => m.id === n.id)) merged.push(n); });
+        merged.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+        setNotifications(merged);
+        storage.set(`notifications_${emp.id}`, merged);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emp.id]);
+
+  const saveNotifs = (list) => {
+    setNotifications(list);
+    storage.set(`notifications_${emp.id}`, list);
+    if (isConnected) FirebaseAPI.saveNotifications(emp.id, list);
   };
-  const markAllRead = () => {
-    const u = notifications.map(n => ({ ...n, read: true }));
-    setNotifications(u); storage.set(`notifications_${emp.id}`, u);
-  };
-  const deleteNotif = (id) => {
-    const u = notifications.filter(n => n.id !== id);
-    setNotifications(u); storage.set(`notifications_${emp.id}`, u);
-  };
+
+  const markAsRead = (id) => saveNotifs(notifications.map(n => n.id === id ? { ...n, read: true } : n));
+  const markAllRead = () => saveNotifs(notifications.map(n => ({ ...n, read: true })));
+  const deleteNotif = (id) => saveNotifs(notifications.filter(n => n.id !== id));
 
   const unread = notifications.filter(n => !n.read).length;
   const activeFilter = NOTIF_FILTERS.find(f => f.key === filter);
