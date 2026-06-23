@@ -54,7 +54,11 @@ function RequestsPage({ emp }) {
   const DRAFT_KEY = `draft_leave_${emp.id}`;
   const [requests, setRequests] = useState(() => storage.get(`requests_${emp.id}`, []));
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState(() => storage.get(DRAFT_KEY, { type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" }));
+  const [formData, setFormData] = useState(() => {
+    const saved = storage.get(DRAFT_KEY, null);
+    const blank = { type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" };
+    return (saved && typeof saved === "object" && saved.type) ? saved : blank;
+  });
   const [errors, setErrors] = useState({});
   const [empSigUrl, setEmpSigUrl] = useState("");
   const sigCanvasRef = useRef(null);
@@ -83,7 +87,7 @@ function RequestsPage({ emp }) {
   const sigStartDraw = (e) => { e.preventDefault(); sigDrawing.current=true; sigLastPos.current=getSigPos(e,sigCanvasRef.current); };
   const sigDraw = (e) => { e.preventDefault(); if(!sigDrawing.current)return; const c=sigCanvasRef.current,ctx=c.getContext("2d"),p=getSigPos(e,c); ctx.beginPath();ctx.moveTo(sigLastPos.current.x,sigLastPos.current.y);ctx.lineTo(p.x,p.y);ctx.strokeStyle="#1a1a1a";ctx.lineWidth=2;ctx.lineCap="round";ctx.stroke();sigLastPos.current=p; setEmpSigUrl(c.toDataURL("image/png")); };
   const sigStop = () => { sigDrawing.current=false; };
-  const clearSig = () => { const c=sigCanvasRef.current; if(c) c.getContext("2d").clearRect(0,0,c.width,c.height); setEmpSigUrl(""); };
+  const clearSig = () => { const c=sigCanvasRef.current; if(c) c.getContext("2d").clearRect(0,0,c.width,c.height); setEmpSigUrl(""); sigDrawing.current=false; sigLastPos.current=null; };
 
   const saveAllRequests = (list) => {
     storage.set("all_requests", list);
@@ -130,7 +134,7 @@ function RequestsPage({ emp }) {
     setShowForm(false);
     const blank = { type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" };
     setFormData(blank);
-    storage.set(DRAFT_KEY, null);
+    storage.set(DRAFT_KEY, blank);
     setErrors({}); setEmpSigUrl(""); clearSig();
     showToast("تم إرسال طلبك — سيصل إشعار للمشرف", "success");
     sendDesktopNotification("طلب إجازة", "تم إرسال طلبك بنجاح وهو الآن بانتظار المراجعة");

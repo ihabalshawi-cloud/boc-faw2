@@ -83,6 +83,24 @@ class TsErrorBoundary extends React.Component {
   }
 }
 
+class ReqErrorBoundary extends React.Component {
+  constructor(p) { super(p); this.state = { err: null }; }
+  static getDerivedStateFromError(e) { return { err: e }; }
+  componentDidCatch() { this.setState({ err: this.state.err }); }
+  render() {
+    if (this.state.err) return (
+      <div dir="rtl" className="p-6 text-center">
+        <p className="text-red-600 font-bold mb-2">حدث خطأ في صفحة الطلبات</p>
+        <button onClick={()=>this.setState({err:null})}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+          إعادة المحاولة
+        </button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
 const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","audit","changepass","health_insurance","approvals","employees","admin_dashboard","timesheet"]);
 const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","inventory","furniture","projects"]);
 
@@ -269,19 +287,21 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
             </React.Suspense>
           )}
           {view==="requests" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
-              <div>
-                <div className="flex gap-1 mb-4 border-b border-color">
-                  {[{k:"requests",lbl:"طلبات الإجازة"},{k:"leave_forms",lbl:"نماذج الإجازات"}].map(t=>(
-                    <button key={t.k} onClick={()=>setReqSubTab(t.k)}
-                      className={`px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 transition-colors ${reqSubTab===t.k?"border-blue-500 text-blue-600":"border-transparent text-secondary hover:text-primary"}`}>
-                      {t.lbl}
-                    </button>
-                  ))}
+            <ReqErrorBoundary>
+              <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+                <div>
+                  <div className="flex gap-1 mb-4 border-b border-color">
+                    {[{k:"requests",lbl:"طلبات الإجازة"},{k:"leave_forms",lbl:"نماذج الإجازات"}].map(t=>(
+                      <button key={t.k} onClick={()=>setReqSubTab(t.k)}
+                        className={`px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 transition-colors ${reqSubTab===t.k?"border-blue-500 text-blue-600":"border-transparent text-secondary hover:text-primary"}`}>
+                        {t.lbl}
+                      </button>
+                    ))}
+                  </div>
+                  {reqSubTab==="requests" ? <LazyRequestsPage emp={emp}/> : <LazyLeaveFormsPage emp={emp}/>}
                 </div>
-                {reqSubTab==="requests" ? <LazyRequestsPage emp={emp}/> : <LazyLeaveFormsPage emp={emp}/>}
-              </div>
-            </React.Suspense>
+              </React.Suspense>
+            </ReqErrorBoundary>
           )}
           {view==="attendance" && (
             <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>

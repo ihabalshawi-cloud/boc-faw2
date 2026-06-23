@@ -187,13 +187,6 @@ function LoginScreen({ onLogin, dark }) {
           if (isConnected) await FirebaseAPI.savePassword(account.id, inputHash);
         }
       }
-      if (!isValid && defaultPass && pass.trim() === defaultPass) {
-        isValid = true;
-        if (inputHash) {
-          passStore.set(`pass_${account.id}`, inputHash);
-          if (isConnected) await FirebaseAPI.savePassword(account.id, inputHash);
-        }
-      }
     } else if (isConnected) {
       const fp = await FirebaseAPI.getPassword(account.id);
       if (fp) {
@@ -202,13 +195,6 @@ function LoginScreen({ onLogin, dark }) {
           const toStore = isHash(fp) ? fp : (inputHash || null);
           if (toStore) passStore.set(`pass_${account.id}`, toStore);
           if (!isHash(fp) && inputHash) await FirebaseAPI.savePassword(account.id, inputHash);
-        }
-        if (!isValid && defaultPass && pass.trim() === defaultPass) {
-          isValid = true;
-          if (inputHash) {
-            passStore.set(`pass_${account.id}`, inputHash);
-            await FirebaseAPI.savePassword(account.id, inputHash);
-          }
         }
       } else {
         const initH = await FirebaseAPI.fetchInitHash(user.trim());

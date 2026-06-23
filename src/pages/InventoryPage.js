@@ -223,7 +223,11 @@ function FurnitureInventory({ emp, isAdmin }) {
 
   useEffect(() => {
     FirebaseAPI.loadFurniture().then(list => {
-      if (list) { setItemsState(list); storage.set("furniture_items", list); }
+      if (list && list.length > 0) { setItemsState(list); storage.set("furniture_items", list); }
+      else {
+        const localData = storage.get("furniture_items", null);
+        if (localData && localData.length > 0) FirebaseAPI.saveFurniture(localData);
+      }
     });
   }, []);
 
