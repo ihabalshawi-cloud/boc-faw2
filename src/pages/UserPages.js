@@ -168,7 +168,7 @@ function RequestsPage({ emp }) {
     <tr><th>عدد الأيام</th><td>${req.days}</td><th>الغرض</th><td>${req.purpose}</td></tr>
     <tr><th>تاريخ الطلب</th><td>${new Date(req.submittedAt).toLocaleDateString("ar-IQ")}</td><th>تاريخ الموافقة</th><td>${req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</td></tr>
     <tr><th>وافق عليها</th><td colspan="3">${req.decidedBy||""}</td></tr></table>
-    <div class="sigs"><div><p>توقيع الموظف</p>${empSig}</div><div><p>توقيع المشرف العام</p>${supSig}</div></div>
+    <div class="sigs"><div><p>توقيع الموظف</p>${empSig}<p style="font-size:11px;margin-top:4px;">${req.empName}</p></div><div><p>مسؤول الشعبة</p>${supSig}<p style="font-size:11px;margin-top:4px;">إيهاب عبد اللطيف الشاوي</p></div></div>
     </body></html>`);
     w.document.close(); w.focus(); setTimeout(()=>w.print(),400);
   };
@@ -272,8 +272,12 @@ function InlineSigPad({ onSave, onCancel }) {
 // ========== الموافقات ==========
 function ApprovalsPage({ emp }) {
   const isSupervisor = emp.username === "i.shawi";
+  const isAdmin = emp.role === "admin";
+  const canArchive = isSupervisor || isAdmin;
+  const sortDesc = (a,b) => new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt);
   const [requests, setRequests] = useState(() => storage.get("all_requests", []).filter(r => r.status === "بانتظار المراجعة"));
-  const [approved, setApproved] = useState(() => storage.get("all_requests", []).filter(r => r.status === "موافق عليها").sort((a,b)=>new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt)));
+  const [approved, setApproved] = useState(() => storage.get("all_requests", []).filter(r => r.status === "موافق عليها" && !r.archived).sort(sortDesc));
+  const [archived, setArchived] = useState(() => storage.get("all_requests", []).filter(r => r.archived).sort(sortDesc));
   const [sigReqId, setSigReqId] = useState(null);
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
@@ -281,9 +285,24 @@ function ApprovalsPage({ emp }) {
   const applyList = (list) => {
     storage.set("all_requests", list);
     setRequests(list.filter(r => r.status === "بانتظار المراجعة"));
-    setApproved(list.filter(r => r.status === "موافق عليها").sort((a,b)=>new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt)));
+    setApproved(list.filter(r => r.status === "موافق عليها" && !r.archived).sort(sortDesc));
+    setArchived(list.filter(r => r.archived).sort(sortDesc));
   };
-  const refreshApproved = () => setApproved(storage.get("all_requests",[]).filter(r=>r.status==="موافق عليها").sort((a,b)=>new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt)));
+  const refreshApproved = () => {
+    const all = storage.get("all_requests", []);
+    setApproved(all.filter(r => r.status === "موافق عليها" && !r.archived).sort(sortDesc));
+    setArchived(all.filter(r => r.archived).sort(sortDesc));
+  };
+  const archiveReq = (id) => {
+    const all = storage.get("all_requests", []).map(r => r.id === id ? {...r, archived:true} : r);
+    storage.set("all_requests", all); FirebaseAPI.saveRequests(all);
+    refreshApproved(); showToast("📁 تم أرشفة الطلب");
+  };
+  const restoreReq = (id) => {
+    const all = storage.get("all_requests", []).map(r => r.id === id ? {...r, archived:false} : r);
+    storage.set("all_requests", all); FirebaseAPI.saveRequests(all);
+    refreshApproved(); showToast("↩️ تم استرداد الطلب من الأرشيف");
+  };
 
   useEffect(() => {
     const load = () => FirebaseAPI.loadRequests().then(list => { if (list && list.length > 0) applyList(list); });
@@ -347,7 +366,7 @@ function ApprovalsPage({ emp }) {
 <tr><th>عدد الأيام</th><td>${req.days}</td><th>الغرض</th><td>${req.purpose||""}</td></tr>
 <tr><th>تاريخ الطلب</th><td>${new Date(req.submittedAt).toLocaleDateString("ar-IQ")}</td><th>تاريخ الموافقة</th><td>${req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</td></tr>
 <tr><th>وافق عليها</th><td colspan="3">${req.decidedBy||""}</td></tr></table>
-<div class="sigs"><div><p>توقيع الموظف</p>${empSig}</div><div><p>توقيع المشرف العام</p>${supSig}</div></div>
+<div class="sigs"><div><p>توقيع الموظف</p>${empSig}<p style="font-size:11px;margin-top:4px;">${req.empName}</p></div><div><p>مسؤول الشعبة</p>${supSig}<p style="font-size:11px;margin-top:4px;">إيهاب عبد اللطيف الشاوي</p></div></div>
 </body></html>`);
     w.document.close(); w.focus(); setTimeout(()=>w.print(),400);
   };
@@ -403,6 +422,27 @@ function ApprovalsPage({ emp }) {
                     <button onClick={()=>pushToAdmin(req)} className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Send size={10}/> ادفع للإداري</button>
                   )}
                   {req.pushedToAdmin && <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-1 rounded-lg">✓ أُرسل للإداري</span>}
+                  {canArchive && <button onClick={()=>archiveReq(req.id)} className="px-2.5 py-1.5 bg-gray-600 text-white rounded-lg text-[11px]">📁 أرشفة</button>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {canArchive && archived.length > 0 && (
+        <div className="mt-6 space-y-3">
+          <h3 className="font-bold text-base border-t border-color pt-4 text-gray-500">📁 الأرشيف ({archived.length})</h3>
+          {archived.map(req=>(
+            <div key={req.id} className="card rounded-2xl p-4 border-gray-200 border bg-gray-50/50 space-y-1">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-bold text-sm text-gray-600">{req.empName}</p>
+                  <p className="text-xs text-gray-500">{req.type} — {req.days} يوم | {req.purpose}</p>
+                  <p className="text-[10px] text-secondary">وافق: {req.decidedBy} — {req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</p>
+                </div>
+                <div className="flex gap-2 items-start">
+                  <button onClick={()=>printForm(req)} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Printer size={10}/> طباعة</button>
+                  <button onClick={()=>restoreReq(req.id)} className="px-2.5 py-1.5 bg-amber-500 text-white rounded-lg text-[11px]">↩️ استرداد</button>
                 </div>
               </div>
             </div>

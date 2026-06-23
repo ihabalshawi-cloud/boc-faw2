@@ -28,6 +28,11 @@ function toArr(v) {
   }));
 }
 
+function dedup(arr) {
+  const seen = new Set();
+  return arr.filter(e => { const k = e.id || e.name; if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
 function TimeSheetPage({ emp }) {
   const addToast = useToast();
   const confirm  = useConfirm();
@@ -39,9 +44,9 @@ function TimeSheetPage({ emp }) {
   const [data, setData] = useState(() => {
     const raw = storage.get(STORAGE_KEY, null);
     if (!raw || typeof raw !== "object") return INITIAL_TS;
-    const malak     = toArr(raw.malak);
-    const contracts = toArr(raw.contracts);
-    const drivers   = toArr(raw.drivers);
+    const malak     = dedup(toArr(raw.malak));
+    const contracts = dedup(toArr(raw.contracts));
+    const drivers   = dedup(toArr(raw.drivers));
     return {
       malak:     malak.length     ? malak     : INITIAL_TS.malak,
       contracts: contracts.length ? contracts : INITIAL_TS.contracts,
@@ -68,7 +73,8 @@ function TimeSheetPage({ emp }) {
   useEffect(() => {
     FirebaseAPI.loadTimesheet().then(d => {
       if (d && Array.isArray(d.malak) && d.malak.length) {
-        setData(d); storage.set(STORAGE_KEY, d);
+        const clean = { malak: dedup(d.malak), contracts: dedup(d.contracts || []), drivers: dedup(d.drivers || []) };
+        setData(clean); storage.set(STORAGE_KEY, clean);
       }
     });
   }, []);
@@ -195,7 +201,7 @@ function TimeSheetPage({ emp }) {
   }, [persistTs, addToast]);
 
   const summaryStats = useMemo(() => {
-    const list = data[activeTab] || [];
+    const list = dedup(data[activeTab] || []);
     const all = list.map(e => calcTsStats(e));
     return {
       total:  list.length,
