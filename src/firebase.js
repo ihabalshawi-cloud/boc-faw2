@@ -288,16 +288,20 @@ export const FirebaseAPI = {
       const res = await fetch(`${FIREBASE_URL}/all_requests.json`, {
         method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(list||[]),
       });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        console.warn(`[Firebase] saveRequests failed (${res.status}):`, body);
+      }
       return res.ok;
-    } catch { return false; }
+    } catch (e) { console.warn("[Firebase] saveRequests network error:", e.message); return false; }
   },
   loadRequests: async () => {
     try {
       const res = await fetch(`${FIREBASE_URL}/all_requests.json`);
-      if (!res.ok) return null;
+      if (!res.ok) { console.warn(`[Firebase] loadRequests failed (${res.status})`); return null; }
       const data = await res.json();
       return Array.isArray(data) ? data : (data && typeof data==="object" ? Object.values(data).filter(Boolean) : null);
-    } catch { return null; }
+    } catch (e) { console.warn("[Firebase] loadRequests network error:", e.message); return null; }
   },
 
   // ── Notifications ─────────────────────────────────────────────────────────
