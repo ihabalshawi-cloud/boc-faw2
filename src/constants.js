@@ -1,6 +1,6 @@
 // ── Config ────────────────────────────────────────────────────────────────────
 export const FIREBASE_URL         = "https://faop-scada-default-rtdb.asia-southeast1.firebasedatabase.app";
-export const FIREBASE_STORAGE_BUCKET = "faop-scada.appspot.com";
+export const FIREBASE_STORAGE_BUCKET = "faop-scada.firebasestorage.app";
 export const GDRIVE_PROXY         = "/api/drive-proxy";
 export const LOW_STOCK_THRESHOLD  = 3;
 export const GDRIVE_WARN_PCT      = 80;
