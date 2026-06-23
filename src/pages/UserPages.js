@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Shield, Eye, EyeOff, Save, FileText, Plus, Trash2, Download,
-  CheckCircle, Bell, ThumbsUp, ThumbsDown, X, PenTool, Printer } from "lucide-react";
+  CheckCircle, Bell, ThumbsUp, ThumbsDown, X, PenTool, Printer, Send } from "lucide-react";
 import { ACCOUNTS, LEAVE_TYPES } from "../constants";
 import { storage, passStore, exportCSV, hashPassword } from "../utils";
 import { FirebaseAPI } from "../firebase";
@@ -112,6 +112,8 @@ function RequestsPage({ emp }) {
     saveAllRequests(updated);
     setRequests([newReq, ...requests]);
     notifyAdmin(newReq);
+    const leaveKey = formData.type==="اعتيادية" ? `annual_leave_${emp.id}` : formData.type==="مرضية" ? `sick_leave_${emp.id}` : `time_leave_${emp.id}`;
+    storage.set(leaveKey, { name:emp.name, jobNum:emp.jobNum||"", jobTitle:emp.title||"", dept:emp.dept||"", fromDate:formData.dateFrom, toDate:formData.dateTo, leaveDate:formData.dateFrom, purpose:formData.purpose, sigDataUrl:empSigUrl });
     setShowForm(false);
     const blank = { type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" };
     setFormData(blank);
@@ -251,9 +253,12 @@ function ApprovalsPage({ emp }) {
   const isSupervisor = emp.username === "i.shawi";
   const { isConnected } = useConnectionStatus();
   const [requests, setRequests] = useState(() => storage.get("all_requests", []).filter(r => r.status === "بانتظار المراجعة"));
+  const [approved, setApproved] = useState(() => storage.get("all_requests", []).filter(r => r.status === "موافق عليها").sort((a,b)=>new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt)));
   const [sigReqId, setSigReqId] = useState(null);
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+
+  const refreshApproved = () => setApproved(storage.get("all_requests",[]).filter(r=>r.status==="موافق عليها").sort((a,b)=>new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt)));
 
   const updateStatus = (id, status, sigDataUrl=null) => {
     const allRequests = storage.get("all_requests", []);
@@ -268,22 +273,46 @@ function ApprovalsPage({ emp }) {
       storage.set(`notifications_${req.empId}`, [{ id:Date.now(), type:status==="موافق عليها"?"موافقة":"رفض",
         title:status==="موافق عليها"?"✅ تمت الموافقة على طلبك":"❌ تم رفض طلبك",
         body:`${req.type} — ${req.days} يوم`, timestamp:new Date().toISOString(), read:false }, ...notifEmp]);
-      if(status==="موافق عليها") {
-        const admins = ACCOUNTS.filter(a => a.role==="admin" && a.id!==emp.id);
-        admins.forEach(admin => {
-          const nk = `notifications_${admin.id}`;
-          const an = storage.get(nk, []);
-          storage.set(nk, [{ id:Date.now()+admin.id, type:"موافقة_مشرف",
-            title:`✅ وافق المشرف على إجازة ${req.empName}`,
-            body:`${req.type} — ${req.days} يوم — للتوثيق والطباعة`,
-            timestamp:new Date().toISOString(), read:false, reqId:id }, ...an]);
-        });
-      }
     }
     setRequests(requests.filter(r => r.id !== id));
     setSigReqId(null);
+    refreshApproved();
     showToast(`✅ تم ${status==="موافق عليها"?"قبول":"رفض"} الطلب`);
     playAlert("notification");
+  };
+
+  const pushToAdmin = (req) => {
+    const all = storage.get("all_requests", []);
+    const updated = all.map(r => r.id===req.id ? {...r, pushedToAdmin:true, pushedAt:new Date().toISOString()} : r);
+    storage.set("all_requests", updated);
+    if (isConnected) FirebaseAPI.saveRequests(updated);
+    ACCOUNTS.filter(a=>a.role==="admin").forEach(admin => {
+      const nk = `notifications_${admin.id}`;
+      storage.set(nk, [{ id:Date.now()+admin.id, type:"أرشفة_إجازة",
+        title:`📁 إجازة للأرشفة — ${req.empName}`,
+        body:`${req.type} — ${req.days} يوم | وافق: ${req.decidedBy}`,
+        timestamp:new Date().toISOString(), read:false, reqId:req.id }, ...storage.get(nk,[])]);
+    });
+    refreshApproved();
+    showToast("📁 تم الدفع للإداري وحفظ النسخة للأرشيف");
+  };
+
+  const printForm = (req) => {
+    const supSig = req.sigDataUrl ? `<img src="${req.sigDataUrl}" style="max-width:150px;max-height:50px;"/>` : "(غير موقّع)";
+    const empSig = req.empSigDataUrl ? `<img src="${req.empSigDataUrl}" style="max-width:150px;max-height:50px;"/>` : "(غير موقّع)";
+    const w = window.open("","_blank");
+    w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>نموذج إجازة</title>
+<style>body{font-family:Arial,sans-serif;padding:30px;direction:rtl}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:8px;text-align:right}h2,h3{text-align:center}.sigs{display:flex;justify-content:space-around;margin-top:30px;text-align:center}</style>
+</head><body><h2>شركة نفط البصرة — شعبة مستودع الفاو</h2>
+<h3>نموذج إجازة ${req.type} — موافق عليها</h3>
+<table><tr><th>الموظف</th><td>${req.empName}</td><th>نوع الإجازة</th><td>${req.type}</td></tr>
+<tr><th>من</th><td>${req.dateFrom}</td><th>إلى</th><td>${req.dateTo}</td></tr>
+<tr><th>عدد الأيام</th><td>${req.days}</td><th>الغرض</th><td>${req.purpose||""}</td></tr>
+<tr><th>تاريخ الطلب</th><td>${new Date(req.submittedAt).toLocaleDateString("ar-IQ")}</td><th>تاريخ الموافقة</th><td>${req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</td></tr>
+<tr><th>وافق عليها</th><td colspan="3">${req.decidedBy||""}</td></tr></table>
+<div class="sigs"><div><p>توقيع الموظف</p>${empSig}</div><div><p>توقيع المشرف العام</p>${supSig}</div></div>
+</body></html>`);
+    w.document.close(); w.focus(); setTimeout(()=>w.print(),400);
   };
 
   return (
@@ -319,6 +348,30 @@ function ApprovalsPage({ emp }) {
           );
         })
       }
+
+      {approved.length > 0 && (
+        <div className="mt-6 space-y-3">
+          <h3 className="font-bold text-base border-t border-color pt-4">سجل الإجازات الموافق عليها ({approved.length})</h3>
+          {approved.map(req=>(
+            <div key={req.id} className="card rounded-2xl p-4 border-emerald-200 border bg-emerald-50/30 space-y-1">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-bold text-sm">{req.empName}</p>
+                  <p className="text-xs">{req.type} — {req.days} يوم | {req.purpose}</p>
+                  <p className="text-[10px] text-secondary">وافق: {req.decidedBy} — {req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</p>
+                </div>
+                <div className="flex gap-2 items-start flex-wrap justify-end">
+                  <button onClick={()=>printForm(req)} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Printer size={10}/> طباعة النموذج</button>
+                  {isSupervisor && !req.pushedToAdmin && (
+                    <button onClick={()=>pushToAdmin(req)} className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Send size={10}/> ادفع للإداري</button>
+                  )}
+                  {req.pushedToAdmin && <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-1 rounded-lg">✓ أُرسل للإداري</span>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
