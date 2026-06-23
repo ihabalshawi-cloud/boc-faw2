@@ -197,12 +197,8 @@ function LoginScreen({ onLogin, dark }) {
           if (!isHash(fp) && inputHash) await FirebaseAPI.savePassword(account.id, inputHash);
         }
       } else {
-        const initH = await FirebaseAPI.fetchInitHash(user.trim());
-        if (initH) {
-          isValid = inputHash !== null && inputHash === initH;
-          if (isValid) passStore.set(`pass_${account.id}`, initH);
-        }
-        if (!isValid) {
+        const everChanged = await FirebaseAPI.hasPasswordChanged(account.id);
+        if (!everChanged) {
           const def = DEFAULT_PASSWORD;
           isValid = pass.trim() === def;
           if (isValid && inputHash) passStore.set(`pass_${account.id}`, inputHash);
@@ -325,7 +321,7 @@ function LoginScreen({ onLogin, dark }) {
 
           <div className={`mt-10 pt-4 border-t ${dark?"border-[#30363D]":"border-[#E4E2DC]"}`}>
             <p className="text-[10px] text-[#787774]" style={{fontFamily:"'JetBrains Mono',monospace"}}>
-              REF: <span className="text-[#C87A2E]">728004</span> &nbsp;/&nbsp; DEFAULT: <span className="text-[#C87A2E]">1001</span>
+              REF: <span className="text-[#C87A2E]">728004</span> &nbsp;/&nbsp; DEFAULT: <span className="text-[#C87A2E]">{DEFAULT_PASSWORD}</span>
             </p>
           </div>
         </div>

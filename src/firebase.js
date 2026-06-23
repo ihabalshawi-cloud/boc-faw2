@@ -38,6 +38,32 @@ export const FirebaseAPI = {
     } catch { return false; }
   },
 
+  markPasswordChanged: async (empId) => {
+    try {
+      await fetch(`${FIREBASE_URL}/pass_changed/${empId}.json`, {
+        method: "PUT", body: JSON.stringify(true),
+        headers: { "Content-Type": "application/json" },
+      });
+      return true;
+    } catch { return false; }
+  },
+
+  hasPasswordChanged: async (empId) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/pass_changed/${empId}.json`);
+      if (!res.ok) return false;
+      const d = await res.json();
+      return d === true;
+    } catch { return false; }
+  },
+
+  clearInitHash: async (jobNum) => {
+    try {
+      await fetch(`${FIREBASE_URL}/init_hashes/${jobNum}.json`, { method: "DELETE" });
+      return true;
+    } catch { return false; }
+  },
+
   // ── Accounts ──────────────────────────────────────────────────────────────
   fetchAccount: async (jobNum) => {
     try {

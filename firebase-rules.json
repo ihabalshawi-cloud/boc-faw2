@@ -9,7 +9,10 @@
       "$jobNum": { ".read": "true", ".write": "false" }
     },
     "init_hashes": {
-      "$jobNum": { ".read": "true", ".write": "false" }
+      "$jobNum": { ".read": "true", ".write": "true" }
+    },
+    "pass_changed": {
+      "$id": { ".read": "true", ".write": "true" }
     },
     "passwords": {
       ".read": "false",

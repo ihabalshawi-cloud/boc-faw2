@@ -24,7 +24,11 @@ function ChangePasswordPage({ emp, onLogout }) {
       const hashed = await hashPassword(newPass.trim());
       if (!hashed) { toast("المتصفح لا يدعم التشفير — حاول مجدداً أو استخدم متصفحاً حديثاً", "error"); return; }
       passStore.set(`pass_${emp.id}`, hashed);
-      if (isConnected) await FirebaseAPI.savePassword(emp.id, hashed);
+      if (isConnected) {
+        await FirebaseAPI.savePassword(emp.id, hashed);
+        FirebaseAPI.markPasswordChanged(emp.id);
+        FirebaseAPI.clearInitHash(emp.jobNum);
+      }
       sessionStorage.removeItem("force_password_change");
       toast("تم تغيير كلمة المرور بنجاح!", "success");
       setNewPass(""); setConfirm("");
