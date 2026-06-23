@@ -63,17 +63,18 @@ function RequestsPage({ emp }) {
   const [pageLoading, setPageLoading] = useState(true);
   const showToast = useToast();
   const confirm = useConfirm();
-  const { isConnected } = useConnectionStatus();
   useEffect(() => {
-    FirebaseAPI.loadRequests().then(list => {
+    const load = () => FirebaseAPI.loadRequests().then(list => {
       if (list && list.length > 0) {
         storage.set("all_requests", list);
         const mine = list.filter(r => Number(r.empId) === Number(emp.id));
         if (mine.length > 0) { storage.set(`requests_${emp.id}`, mine); setRequests(mine); }
       }
     });
+    load();
+    const poll = setInterval(load, 20000);
     const t = setTimeout(() => setPageLoading(false), 250);
-    return () => clearTimeout(t);
+    return () => { clearInterval(poll); clearTimeout(t); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emp.id]);
   useEffect(() => { if (showForm) storage.set(DRAFT_KEY, formData); }, [formData, showForm, DRAFT_KEY]);
@@ -86,7 +87,7 @@ function RequestsPage({ emp }) {
 
   const saveAllRequests = (list) => {
     storage.set("all_requests", list);
-    if (isConnected) FirebaseAPI.saveRequests(list);
+    FirebaseAPI.saveRequests(list);
   };
 
   const notifyAdmin = (req) => {
@@ -98,7 +99,7 @@ function RequestsPage({ emp }) {
         body:`${req.type} — ${req.days} يوم | الغرض: ${req.purpose}`,
         timestamp:new Date().toISOString(), read:false, reqId:req.id }, ...storage.get(key, [])];
       storage.set(key, notifs);
-      if (isConnected) FirebaseAPI.saveNotifications(admin.id, notifs);
+      FirebaseAPI.saveNotifications(admin.id, notifs);
     });
   };
 
@@ -260,26 +261,26 @@ function InlineSigPad({ onSave, onCancel }) {
 }
 
 // ========== الموافقات ==========
-
 function ApprovalsPage({ emp }) {
   const isSupervisor = emp.username === "i.shawi";
-  const { isConnected } = useConnectionStatus();
   const [requests, setRequests] = useState(() => storage.get("all_requests", []).filter(r => r.status === "بانتظار المراجعة"));
   const [approved, setApproved] = useState(() => storage.get("all_requests", []).filter(r => r.status === "موافق عليها").sort((a,b)=>new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt)));
   const [sigReqId, setSigReqId] = useState(null);
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
 
+  const applyList = (list) => {
+    storage.set("all_requests", list);
+    setRequests(list.filter(r => r.status === "بانتظار المراجعة"));
+    setApproved(list.filter(r => r.status === "موافق عليها").sort((a,b)=>new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt)));
+  };
   const refreshApproved = () => setApproved(storage.get("all_requests",[]).filter(r=>r.status==="موافق عليها").sort((a,b)=>new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt)));
 
   useEffect(() => {
-    FirebaseAPI.loadRequests().then(list => {
-      if (list && list.length > 0) {
-        storage.set("all_requests", list);
-        setRequests(list.filter(r => r.status === "بانتظار المراجعة"));
-        setApproved(list.filter(r => r.status === "موافق عليها").sort((a,b)=>new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt)));
-      }
-    });
+    const load = () => FirebaseAPI.loadRequests().then(list => { if (list && list.length > 0) applyList(list); });
+    load();
+    const t = setInterval(load, 15000);
+    return () => clearInterval(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -287,7 +288,7 @@ function ApprovalsPage({ emp }) {
     const allRequests = storage.get("all_requests", []);
     const updated = allRequests.map(r => r.id === id ? { ...r, status, decidedAt:new Date().toISOString(), decidedBy:emp.name, sigDataUrl } : r);
     storage.set("all_requests", updated);
-    if (isConnected) FirebaseAPI.saveRequests(updated);
+    FirebaseAPI.saveRequests(updated);
     const req = allRequests.find(r => r.id === id);
     if(req) {
       const empReqs = storage.get(`requests_${req.empId}`, []);
@@ -297,7 +298,7 @@ function ApprovalsPage({ emp }) {
         body:`${req.type} — ${req.days} يوم`, timestamp:new Date().toISOString(), read:false },
         ...storage.get(`notifications_${req.empId}`, [])];
       storage.set(`notifications_${req.empId}`, empNotifs);
-      if (isConnected) FirebaseAPI.saveNotifications(req.empId, empNotifs);
+      FirebaseAPI.saveNotifications(req.empId, empNotifs);
     }
     setRequests(requests.filter(r => r.id !== id));
     setSigReqId(null);
@@ -310,7 +311,7 @@ function ApprovalsPage({ emp }) {
     const all = storage.get("all_requests", []);
     const updated = all.map(r => r.id===req.id ? {...r, pushedToAdmin:true, pushedAt:new Date().toISOString()} : r);
     storage.set("all_requests", updated);
-    if (isConnected) FirebaseAPI.saveRequests(updated);
+    FirebaseAPI.saveRequests(updated);
     ACCOUNTS.filter(a=>a.role==="admin").forEach(admin => {
       const nk = `notifications_${admin.id}`;
       const adminNotifs = [{ id:Date.now()+admin.id, type:"أرشفة_إجازة",
@@ -318,7 +319,7 @@ function ApprovalsPage({ emp }) {
         body:`${req.type} — ${req.days} يوم | وافق: ${req.decidedBy}`,
         timestamp:new Date().toISOString(), read:false, reqId:req.id }, ...storage.get(nk,[])];
       storage.set(nk, adminNotifs);
-      if (isConnected) FirebaseAPI.saveNotifications(admin.id, adminNotifs);
+      FirebaseAPI.saveNotifications(admin.id, adminNotifs);
     });
     refreshApproved();
     showToast("📁 تم الدفع للإداري وحفظ النسخة للأرشيف");
@@ -414,7 +415,6 @@ const NOTIF_FILTERS = [
 ];
 
 function NotificationsPage({ emp }) {
-  const { isConnected } = useConnectionStatus();
   const [notifications, setNotifications] = useState(() => storage.get(`notifications_${emp.id}`, []));
   const [filter, setFilter] = useState("الكل");
 
@@ -435,7 +435,7 @@ function NotificationsPage({ emp }) {
   const saveNotifs = (list) => {
     setNotifications(list);
     storage.set(`notifications_${emp.id}`, list);
-    if (isConnected) FirebaseAPI.saveNotifications(emp.id, list);
+    FirebaseAPI.saveNotifications(emp.id, list);
   };
 
   const markAsRead = (id) => saveNotifs(notifications.map(n => n.id === id ? { ...n, read: true } : n));
