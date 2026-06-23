@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Save, Plus, Trash2, X, Download, FolderOpen, FileCheck } from "lucide-react";
-import { GDRIVE_WARN_PCT, GDRIVE_CRIT_PCT } from "../constants";
+import { GDRIVE_WARN_PCT, GDRIVE_CRIT_PCT, FIREBASE_STORAGE_BUCKET } from "../constants";
 import { useToast, useConfirm } from "../contexts";
 import { useGDrive } from "../gdrive";
 export { InspectionsTab } from "./ProjectTabs";
