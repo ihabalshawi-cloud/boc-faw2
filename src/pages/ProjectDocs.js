@@ -192,6 +192,17 @@ export function DocsTab({ proj, addDoc, delDoc, emp }) {
     if (fileRef.current) fileRef.current.value = "";
   };
 
+  const uploadViaLocal = async () => {
+    const docId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await FileStorage.saveFile(proj.id, docId, selectedFile, {
+      name: form.name || selectedFile.name, type: form.type,
+      uploadedBy: form.uploadedBy, date: form.date,
+    });
+    addDoc(proj.id, { ...form, localFileId: docId, storageType: "local" });
+    addToast("تعذّر الرفع السحابي — تم حفظ الملف محلياً على هذا الجهاز 📁", "warning");
+    await loadLocalFiles();
+  };
+
   const uploadViaFirebase = async () => {
     const path = `projects/${proj.id}/${Date.now()}_${selectedFile.name}`;
     const result = await uploadToFirebaseStorage(selectedFile, path, pct => setUploadPct(pct));
@@ -224,16 +235,16 @@ export function DocsTab({ proj, addDoc, delDoc, emp }) {
         const nearFull = fbUsage && fbUsage.pct >= GDRIVE_WARN_PCT;
         if (nearFull && gDrive.isReady) {
           addToast(`⚠️ مساحة Firebase اقتربت من الامتلاء (${fbUsage.pct}%) — يتم الرفع إلى Google Drive`, "warning");
-          await uploadViaDrive();
+          try { await uploadViaDrive(); } catch { await uploadViaLocal(); }
         } else {
           try {
             await uploadViaFirebase();
-          } catch (fbErr) {
+          } catch {
             if (gDrive.isReady) {
               addToast("تعذّر الرفع إلى Firebase، تتم المحاولة عبر Google Drive كاحتياطي...", "warning");
-              await uploadViaDrive();
+              try { await uploadViaDrive(); } catch { await uploadViaLocal(); }
             } else {
-              throw fbErr;
+              await uploadViaLocal();
             }
           }
         }
