@@ -441,9 +441,9 @@ function TimeSheetPage({ emp }) {
           <table className="text-xs border-collapse" style={{minWidth:`${200+daysInMonth*30+240}px`}} dir={activeTab==="drivers"?"ltr":"rtl"}>
             <thead>
               <tr>
-                <th className="border border-gray-200 px-2 py-2 text-center ts-header" style={{position:"sticky",[activeTab==="drivers"?"left":"right"]:0,zIndex:10,minWidth:"70px",fontSize:"11px"}}>الرقم</th>
-                <th className={`border border-gray-200 px-2 py-2 ${activeTab==="drivers"?"text-left":"text-right"} ts-header`} style={{position:"sticky",[activeTab==="drivers"?"left":"right"]:"70px",zIndex:10,minWidth:"150px"}}>الاسم</th>
-                <th className="border border-gray-200 px-1 py-2 text-center ts-header ts-mono" style={{minWidth:"34px",fontSize:"10px"}}>ح/ق</th>
+                <th className="border border-gray-200 px-2 py-2 text-center ts-header" style={{position:"sticky",[activeTab==="drivers"?"left":"right"]:0,zIndex:10,minWidth:activeTab==="drivers"?"28px":"70px",fontSize:"11px"}}>الرقم</th>
+                <th className={`border border-gray-200 px-2 py-2 ${activeTab==="drivers"?"text-left":"text-right"} ts-header`} style={{position:"sticky",[activeTab==="drivers"?"left":"right"]:activeTab==="drivers"?"28px":"70px",zIndex:10,minWidth:"150px"}}>الاسم</th>
+                <th className="border border-gray-200 px-1 py-2 text-center ts-header ts-mono" style={{minWidth:"58px",fontSize:"10px"}}>الدوام الإضافي</th>
                 {days.map(d=>{
                   const dow = new Date(tsYear, tsMonth, d).getDay();
                   const isWe = dow===5||dow===6;
