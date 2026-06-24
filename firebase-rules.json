@@ -4,17 +4,23 @@
     ".write": "false",
 
     "accounts": {
-      "$jobNum": { ".read": "true", ".write": "false" }
+      ".read": "false",
+      ".write": "false",
+      "$jobNum": { ".read": "true", ".write": "true" }
     },
     "init_hashes": {
-      "$jobNum": { ".read": "true", ".write": "false" }
+      "$jobNum": { ".read": "true", ".write": "true" }
     },
     "passwords": {
+      ".read": "false",
       "$id": {
         ".read": "true",
         ".write": "true",
         ".validate": "newData.isString() && newData.val().length == 64"
       }
+    },
+    "pass_changed": {
+      "$id": { ".read": "true", ".write": "true" }
     },
 
     "emp_statuses":    { ".read": "true", ".write": "true" },
@@ -24,22 +30,18 @@
     "equipment_list":  { ".read": "true", ".write": "true" },
     "pm_projects":     { ".read": "true", ".write": "true" },
     "timesheet_data":  { ".read": "true", ".write": "true" },
-    "requests":        { ".read": "true", ".write": "true" },
+    "all_requests":    { ".read": "true", ".write": "true" },
     "notifications":   { ".read": "true", ".write": "true" },
+    "tasks_system":    { ".read": "true", ".write": "true" },
+    "evaluations":     { ".read": "true", ".write": "true" },
     "backups":         { ".read": "true", ".write": "true" },
 
-    "login_history": {
-      ".read": "true",
-      ".write": "true",
-      "$record": {
-        ".validate": "newData.hasChildren(['loginTime', 'status', 'userName']) && newData.child('loginTime').isString() && newData.child('status').isString() && newData.child('userName').isString()"
-      }
-    },
+    "login_history": { ".read": "true", ".write": "true" },
     "chat": {
       ".read": "true",
       ".write": "true",
       "$messageId": {
-        ".validate": "newData.hasChildren(['text', 'sender', 'senderId', 'timestamp']) && newData.child('text').isString() && newData.child('text').val().length >= 1 && newData.child('text').val().length <= 1000 && newData.child('sender').isString() && newData.child('senderId').isNumber() && newData.child('timestamp').isNumber()"
+        ".validate": "newData.hasChildren(['text','sender','senderId','timestamp'])"
       }
     }
   }

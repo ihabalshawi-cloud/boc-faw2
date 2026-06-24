@@ -1,5 +1,6 @@
 // ── Config ────────────────────────────────────────────────────────────────────
 export const FIREBASE_URL         = "https://faop-scada-default-rtdb.asia-southeast1.firebasedatabase.app";
+export const FIREBASE_STORAGE_BUCKET = "faop-scada.firebasestorage.app";
 export const GDRIVE_PROXY         = "/api/drive-proxy";
 export const LOW_STOCK_THRESHOLD  = 3;
 export const GDRIVE_WARN_PCT      = 80;
@@ -202,7 +203,7 @@ export const TASK_PRIORITIES    = ["عالية","متوسطة","منخفضة"];
 export const TASK_STATUSES      = ["معلقة","قيد التنفيذ","مكتملة"];
 export const EVAL_CRITERIA      = ["الانضباط والالتزام","جودة العمل","التعاون والعمل الجماعي","المبادرة والإبداع","الالتزام بالمواعيد"];
 export const MARITAL_STATUS_LIST = ["متزوج","أعزب","مطلق","أرمل"];
-export const PROCEDURE_TYPES    = ["الامراض المستعصية","العمليات الصغرى","العمليات الوسطى","العمليات الكبرى","العمليات فوق الكبرى","معالجة اسنان","اشعة وسونار","نظارات طبية","تحاليل مختبرية","الرنين والمفراس/الايكو/تخطيط القلب","العلاجات (الادوية)","اجور الطبيب"];
+export const PROCEDURE_TYPES    = ["اجور الطبيب","العلاجات (الادوية)","الرنين والمفراس/الايكو/تخطيط القلب","تحاليل مختبرية","نظارات طبية","اشعة وسونار","معالجة اسنان","العمليات فوق الكبرى","العمليات الكبرى","العمليات الوسطى","العمليات الصغرى","الامراض المستعصية"];
 
 // ── Charts & Display ──────────────────────────────────────────────────────────
 export const PIE_COLORS  = ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6"];

@@ -284,7 +284,7 @@ const VIEW_LABELS = {
   inventory:"المخزون", furniture:"الأثاث", maint_equipment:"صيانة المعدات",
   maint_parts:"قطع الغيار", maint_reports:"تقارير الصيانة",
   chat:"الدردشة الداخلية", evaluation:"التقييم", notifications:"الإشعارات",
-  audit:"سجل التعديلات", changepass:"تغيير كلمة المرور",
+  changepass:"تغيير كلمة المرور",
   employees:"إدارة الموظفين", approvals:"الموافقات",
   health_insurance:"الضمان الصحي",
   leave_forms:"نماذج الإجازات",
@@ -848,7 +848,7 @@ function useSmartAlerts(employees) {
     const found = [];
     // مخزون منخفض
     const inv = storage.get("inventory_items", []);
-    inv.filter(i => i.qty <= LOW_STOCK_THRESHOLD).forEach(i => {
+    inv.filter(i => i.qty <= (i.minQty || LOW_STOCK_THRESHOLD)).forEach(i => {
       found.push({ id: `inv_${i.id}`, type: "warning", msg: `مخزون منخفض: ${i.name} (${i.qty} متبقي)` });
     });
     // طلبات معلقة أكثر من 3 أيام
@@ -3497,17 +3497,6 @@ function AdminDashboard({ emp, employees, setEmployees }) {
   );
 }
 
-// ========== سجل التعديلات ==========
-function AuditLogPage() {
-  const [logs] = useState(() => storage.get("audit_log", []));
-  return (<div className="space-y-3">
-    <h3 className="font-bold text-lg">سجل التعديلات</h3>
-    <div className="card rounded-2xl border-color border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="border-b border-color"><th className="px-3 py-2">العملية</th><th className="px-3 py-2">التفاصيل</th><th className="px-3 py-2">بواسطة</th><th className="px-3 py-2">التاريخ</th></tr></thead>
-      <tbody>{logs.length===0?<tr><td colSpan={4} className="text-center py-8 text-secondary">لا توجد سجلات</td></tr>:
-      logs.slice(0,100).map(l=><tr key={l.id} className="border-b border-color"><td className="px-3 py-2">{l.action}</td><td className="px-3 py-2">{l.details}</td><td className="px-3 py-2">{l.by}</td><td className="px-3 py-2 text-secondary">{new Date(l.at).toLocaleString("ar-IQ")}</td></tr>)}</tbody></table></div></div>
-  </div>);
-}
-
 // ========== استمارة الضمان الصحي ==========
 function HealthInsuranceForm({ emp }) {
   const now = new Date();
@@ -6048,7 +6037,6 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
     { id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> },
     { id:"evaluation", label:"التقييم", icon:<Star size={17}/> },
     { id:"notifications", label:"الإشعارات", icon:<Bell size={17}/>, badge:unreadNotifs },
-    { id:"audit", label:"سجل التعديلات", icon:<ClipboardList size={17}/> },
     { id:"changepass", label:"تغيير المرور", icon:<Shield size={17}/> },
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
     { id:"leave_forms", label:"نماذج الإجازات", icon:<FileText size={17}/> },
@@ -6251,7 +6239,6 @@ function Dashboard({ emp, onLogout, dark, setDark }) {
           {view==="chat" && <InternalChat emp={emp} isConnected={isConnected}/>}
           {view==="evaluation" && <EvaluationSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>}
           {view==="notifications" && <NotificationsPage emp={emp}/>}
-          {view==="audit" && <AuditLogPage/>}
           {view==="changepass" && <ChangePasswordPage emp={emp} onLogout={onLogout}/>}
           {view==="employees" && isAdmin && <EmployeeManager employees={employees} setEmployees={setEmployees}/>}
           {view==="approvals" && isAdmin && <ApprovalsPage emp={emp}/>}

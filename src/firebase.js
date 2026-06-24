@@ -38,6 +38,39 @@ export const FirebaseAPI = {
     } catch { return false; }
   },
 
+  markPasswordChanged: async (empId) => {
+    try {
+      await fetch(`${FIREBASE_URL}/pass_changed/${empId}.json`, {
+        method: "PUT", body: JSON.stringify(true),
+        headers: { "Content-Type": "application/json" },
+      });
+      return true;
+    } catch { return false; }
+  },
+
+  hasPasswordChanged: async (empId) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/pass_changed/${empId}.json`);
+      if (!res.ok) return false;
+      const d = await res.json();
+      return d === true;
+    } catch { return false; }
+  },
+
+  clearPasswordChanged: async (empId) => {
+    try {
+      await fetch(`${FIREBASE_URL}/pass_changed/${empId}.json`, { method: "DELETE" });
+      return true;
+    } catch { return false; }
+  },
+
+  clearInitHash: async (jobNum) => {
+    try {
+      await fetch(`${FIREBASE_URL}/init_hashes/${jobNum}.json`, { method: "DELETE" });
+      return true;
+    } catch { return false; }
+  },
+
   // ── Accounts ──────────────────────────────────────────────────────────────
   fetchAccount: async (jobNum) => {
     try {
@@ -165,7 +198,7 @@ export const FirebaseAPI = {
   getMessages: async (limit = 50) => {
     try {
       const res = await fetch(
-        `${FIREBASE_URL}/chat.json?orderBy="timestamp"&limitToLast=${limit}`
+        `${FIREBASE_URL}/chat.json?limitToLast=${limit}`
       );
       if (!res.ok) return [];
       const data = await res.json();
@@ -279,6 +312,84 @@ export const FirebaseAPI = {
       const data = await res.json();
       if (!data || typeof data !== "object" || Array.isArray(data)) return null;
       return Object.values(data).filter(Boolean);
+    } catch { return null; }
+  },
+
+  // ── Leave Requests ────────────────────────────────────────────────────────
+  saveRequests: async (list) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/all_requests.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(list||[]),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        console.warn(`[Firebase] saveRequests failed (${res.status}):`, body);
+      }
+      return res.ok;
+    } catch (e) { console.warn("[Firebase] saveRequests network error:", e.message); return false; }
+  },
+  loadRequests: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/all_requests.json`);
+      if (!res.ok) { console.warn(`[Firebase] loadRequests failed (${res.status})`); return null; }
+      const data = await res.json();
+      return Array.isArray(data) ? data : (data && typeof data==="object" ? Object.values(data).filter(Boolean) : null);
+    } catch (e) { console.warn("[Firebase] loadRequests network error:", e.message); return null; }
+  },
+
+  // ── Notifications ─────────────────────────────────────────────────────────
+  saveNotifications: async (empId, list) => {
+    if (!empId) return false;
+    try {
+      const res = await fetch(`${FIREBASE_URL}/notifications/${empId}.json`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(list || []),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadNotifications: async (empId) => {
+    if (!empId) return null;
+    try {
+      const res = await fetch(`${FIREBASE_URL}/notifications/${empId}.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data) ? data : (data && typeof data === "object" ? Object.values(data).filter(Boolean) : null);
+    } catch { return null; }
+  },
+
+  // ── Tasks ─────────────────────────────────────────────────────────────────
+  saveTasks: async (list) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/tasks_system.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(list||[]),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadTasks: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/tasks_system.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data) ? data : null;
+    } catch { return null; }
+  },
+
+  // ── Evaluations ───────────────────────────────────────────────────────────
+  saveEvaluations: async (list) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/evaluations.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(list||[]),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadEvaluations: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/evaluations.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data) ? data : null;
     } catch { return null; }
   },
 

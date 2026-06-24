@@ -3,7 +3,8 @@ import { Shield, CheckCircle, Wifi, Clock, Trash2, X, Users, BarChart, Search } 
 import { FIREBASE_URL } from "../constants";
 import { storage } from "../utils";
 import { useToast, useConfirm } from "../contexts";
-import { BUILT_IN_ROLES, getEmpStatus } from "../permissions";
+import { PERMISSIONS_DEF, BUILT_IN_ROLES, getEmpStatus } from "../permissions";
+import EmployeeManager from "./EmployeeManagerPage";
 
 function AdminDashboard({ emp, employees, setEmployees }) {
   const addToast = useToast();
@@ -79,6 +80,8 @@ function AdminDashboard({ emp, employees, setEmployees }) {
   const clearHistory = async () => {
     if (!await confirm("هل تريد مسح سجل الدخول بالكامل؟")) return;
     storage.set("login_history", []);
+    try { await fetch(`${FIREBASE_URL}/login_history.json`, { method: "DELETE" }); } catch {}
+    setFbHistory([]);
     setTick(n=>n+1);
     addToast("تم مسح سجل الدخول","success");
   };
@@ -154,6 +157,49 @@ function AdminDashboard({ emp, employees, setEmployees }) {
               </div>
             ))}
           </div>
+
+          {/* نشاط الدخول آخر 7 أيام */}
+          {(() => {
+            const last7 = Array.from({length:7}, (_,i) => {
+              const d = new Date(); d.setDate(d.getDate() - (6-i));
+              return d.toISOString().slice(0,10);
+            });
+            const barData = last7.map(day => ({
+              day,
+              label: new Date(day).toLocaleDateString("ar-IQ",{weekday:"short",day:"numeric"}),
+              success: loginHistory.filter(h => h.loginTime?.startsWith(day) && h.status==="success").length,
+              failed:  loginHistory.filter(h => h.loginTime?.startsWith(day) && h.status==="failed").length,
+            }));
+            const bMax = Math.max(1, ...barData.map(d => d.success + d.failed));
+            return (
+              <div className="card rounded-xl border border-color p-4">
+                <p className="font-semibold text-sm mb-3">نشاط الدخول — آخر 7 أيام</p>
+                <div className="flex items-end gap-1 h-28">
+                  {barData.map(d => {
+                    const tot = d.success + d.failed;
+                    const totalH = Math.round((tot/bMax)*96);
+                    const greenH = tot > 0 ? Math.round((d.success/tot)*totalH) : 0;
+                    const redH = totalH - greenH;
+                    return (
+                      <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
+                        <div title={`نجاح: ${d.success} | فشل: ${d.failed}`}
+                          className="w-full flex flex-col justify-end rounded-t overflow-hidden"
+                          style={{height:"96px"}}>
+                          {redH > 0 && <div className="w-full bg-red-400" style={{height:`${redH}px`}}/>}
+                          {greenH > 0 && <div className="w-full bg-emerald-500" style={{height:`${greenH}px`}}/>}
+                        </div>
+                        <p className="text-[8px] text-secondary text-center leading-tight">{d.label}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-4 mt-2 text-[10px] text-secondary">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500 inline-block"/> نجاح</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-400 inline-block"/> فشل</span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* آخر 10 محاولات دخول */}
           <div className="card rounded-xl border border-color overflow-hidden">

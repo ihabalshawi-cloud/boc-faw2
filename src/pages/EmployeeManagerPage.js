@@ -4,6 +4,7 @@ import { storage, passStore, exportCSV } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
 import { BUILT_IN_ROLES, getEmpStatus, setEmpStatus } from "../permissions";
+import { useConnectionStatus } from "../components/Shared";
 
 function EmployeeManager({ employees, setEmployees }) {
   const [search, setSearch]   = useState("");
@@ -176,34 +177,36 @@ function EmployeeManager({ employees, setEmployees }) {
 
       {/* نموذج الإضافة / التعديل */}
       {(adding||editId) && (
-        <div className="card rounded-2xl border-2 border-blue-200 p-5">
-          <div className="flex justify-between mb-4">
-            <h4 className="font-bold text-primary">{adding?"إضافة موظف جديد":"تعديل بيانات الموظف"}</h4>
-            <button onClick={()=>{setAdding(false);setEditId(null);}}><X size={16}/></button>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {[["الاسم الكامل *","name"],["الرقم الوظيفي *","jobNum"],["المسمى الوظيفي","title"],["رقم الهاتف","phone"],["البريد الإلكتروني","email"]].map(([l,k])=>(
-              <div key={k}>
-                <label className="block text-xs font-bold text-secondary mb-1">{l}</label>
-                <input value={form[k]||""} onChange={e=>setForm({...form,[k]:e.target.value})} className="input w-full rounded-xl px-3 py-2 text-sm"/>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e=>{if(e.target===e.currentTarget){setAdding(false);setEditId(null);}}}>
+          <div className="card rounded-2xl w-full max-w-lg shadow-2xl p-5">
+            <div className="flex justify-between mb-4">
+              <h4 className="font-bold text-primary">{adding?"إضافة موظف جديد":"تعديل بيانات الموظف"}</h4>
+              <button onClick={()=>{setAdding(false);setEditId(null);}}><X size={16}/></button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {[["الاسم الكامل *","name"],["الرقم الوظيفي *","jobNum"],["المسمى الوظيفي","title"],["رقم الهاتف","phone"],["البريد الإلكتروني","email"]].map(([l,k])=>(
+                <div key={k}>
+                  <label className="block text-xs font-bold text-secondary mb-1">{l}</label>
+                  <input value={form[k]||""} onChange={e=>setForm({...form,[k]:e.target.value})} className="input w-full rounded-xl px-3 py-2 text-sm"/>
+                </div>
+              ))}
+              <div>
+                <label className="block text-xs font-bold text-secondary mb-1">القسم</label>
+                <select value={form.dept} onChange={e=>setForm({...form,dept:e.target.value})} className="input w-full rounded-xl px-3 py-2 text-sm">
+                  {["قسم السيطرة والنظم","شعبة مستودع الفاو","شعبة المرافئ"].map(d=><option key={d}>{d}</option>)}
+                </select>
               </div>
-            ))}
-            <div>
-              <label className="block text-xs font-bold text-secondary mb-1">القسم</label>
-              <select value={form.dept} onChange={e=>setForm({...form,dept:e.target.value})} className="input w-full rounded-xl px-3 py-2 text-sm">
-                {["قسم السيطرة والنظم","شعبة مستودع الفاو","شعبة المرافئ"].map(d=><option key={d}>{d}</option>)}
-              </select>
+              <div>
+                <label className="block text-xs font-bold text-secondary mb-1">نوع الدوام</label>
+                <select value={form.shift} onChange={e=>setForm({...form,shift:e.target.value})} className="input w-full rounded-xl px-3 py-2 text-sm">
+                  {["صباحي","مناوبة"].map(s=><option key={s}>{s}</option>)}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-secondary mb-1">نوع الدوام</label>
-              <select value={form.shift} onChange={e=>setForm({...form,shift:e.target.value})} className="input w-full rounded-xl px-3 py-2 text-sm">
-                {["صباحي","مناوبة"].map(s=><option key={s}>{s}</option>)}
-              </select>
+            <div className="flex gap-2 mt-4 justify-end">
+              <button onClick={()=>{setAdding(false);setEditId(null);}} className="px-5 py-2 btn-secondary border border-color rounded-xl text-sm">إلغاء</button>
+              <button onClick={saveEmp} className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><Save size={13} className="inline ml-1"/>حفظ</button>
             </div>
-          </div>
-          <div className="flex gap-2 mt-4 justify-end">
-            <button onClick={()=>{setAdding(false);setEditId(null);}} className="px-5 py-2 btn-secondary border border-color rounded-xl text-sm">إلغاء</button>
-            <button onClick={saveEmp} className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><Save size={13} className="inline ml-1"/>حفظ</button>
           </div>
         </div>
       )}
