@@ -50,7 +50,7 @@ function useSmartAlerts(employees) {
   useEffect(() => {
     const found = [];
     const inv = storage.get("inventory_items", []);
-    inv.filter(i => i.qty <= LOW_STOCK_THRESHOLD).forEach(i => {
+    inv.filter(i => i.qty <= (i.minQty || LOW_STOCK_THRESHOLD)).forEach(i => {
       found.push({ id: `inv_${i.id}`, type: "warning", msg: `مخزون منخفض: ${i.name} (${i.qty} متبقي)` });
     });
     const allReq = storage.get("all_requests", []);
