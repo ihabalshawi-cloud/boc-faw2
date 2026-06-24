@@ -42,7 +42,7 @@ export const TS_CODES_ALL = {
 };
 export const TS_CODES_GENERAL = ["O","2","3","R","L","S","Y","X","N","V","I","B","G","M","T","H","D","7","J","P","4","5","K","U","8","W","A","Z","E","F"];
 export const TS_CODES_DRIVER  = ["م","ث","ف","ر","ب","ق","غ","R","Y","L","S","X","I","M","W","U"];
-export const MONTHS_AR_TS = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+export const MONTHS_AR_TS = ["كانون الثاني","شباط","آذار","نيسان","أيار","حزيران","تموز","آب","أيلول","تشرين الأول","تشرين الثاني","كانون الأول"];
 export const DAY_NAMES_AR = ['أحد','إثن','ثلا','أرب','خمي','جمع','سبت'];
 export const SHIFT_TEXT_COLORS = { 'أ':'#dc2626','ب':'#2563eb','ج':'#16a34a','د':'#7c3aed' };
 
@@ -98,8 +98,8 @@ export const INITIAL_TS = {
     {id:"689331",name:"سجاد علي راضي علي",movement:"",isMorning:true,days:{"1":"R","8":"R","15":"R","22":"R","29":"R"},hours:{},notes:""},
   ],
   drivers:[
-    {id:"محمد نعيم فاضل",name:"محمد نعيم فاضل",movement:"",days:{},hours:{},notes:""},
-    {id:"علي جاسم محمد",name:"علي جاسم محمد",movement:"",days:{},hours:{},notes:""},
+    {id:"محمد نعيم فاضل",name:"محمد نعيم فاضل",movement:"",days:{"1":"غ","3":"S","4":"Y","5":"R","6":"Y","7":"ق","8":"ف","9":"غ","10":"غ","11":"ف","12":"R","13":"Y","14":"ف","15":"غ","16":"Y","17":"غ","18":"غ","19":"R","20":"Y","21":"غ","22":"غ","23":"ف","26":"R","27":"Y"},hours:{},notes:""},
+    {id:"علي جاسم محمد",name:"علي جاسم محمد",movement:"",days:{"1":"ف","2":"ف","3":"ف","4":"Y","5":"R","6":"Y","7":"ف","8":"ف","9":"ف","10":"غ","11":"غ","12":"R","13":"Y","14":"ف","15":"غ","16":"Y","17":"ف","18":"غ","19":"R","20":"Y","21":"ف","22":"غ","23":"غ","26":"R","27":"Y"},hours:{},notes:""},
   ],
 };
 
@@ -161,18 +161,19 @@ export class TsErrorBoundary extends React.Component {
 
 export const TsEmployeeRow = React.memo(function TsEmployeeRow({
   e, idx, days, tsYear, tsMonth, activeTab, editCell, setEditCell,
-  updateCell, updateNotes, deleteEmployee, editDriverName, codes
+  updateCell, updateNotes, deleteEmployee, editDriverName, codes, isLTR
 }) {
   const stats = useMemo(() => calcTsStats(e), [e]);
   const bgBase = idx % 2 === 0 ? "#ffffff" : "#FAFAF8";
+  const stickyDir = isLTR ? "left" : "right";
   const isWeekendDay = useCallback((d) => { const dow = new Date(tsYear, tsMonth, d).getDay(); return dow === 5 || dow === 6; }, [tsYear, tsMonth]);
   const dayIsToday = useCallback((d) => d === new Date().getDate() && tsMonth === new Date().getMonth() && tsYear === new Date().getFullYear(), [tsMonth, tsYear]);
 
   return (
     <React.Fragment>
       <tr>
-        <td rowSpan={2} className="border border-gray-200 text-center text-gray-500 align-middle ts-mono" style={{position:"sticky",right:0,zIndex:5,backgroundColor:bgBase,fontSize:"10px"}}>{e.id}</td>
-        <td rowSpan={2} className="border border-gray-200 px-1 text-right font-semibold align-middle" style={{position:"sticky",right:"70px",zIndex:5,backgroundColor:bgBase,maxWidth:"150px",fontSize:"11px"}}>
+        <td rowSpan={2} className="border border-gray-200 text-center text-gray-500 align-middle ts-mono" style={{position:"sticky",[stickyDir]:0,zIndex:5,backgroundColor:bgBase,fontSize:"10px"}}>{e.id}</td>
+        <td rowSpan={2} className={`border border-gray-200 px-1 ${isLTR?"text-left":"text-right"} font-semibold align-middle`} style={{position:"sticky",[stickyDir]:"70px",zIndex:5,backgroundColor:bgBase,maxWidth:"150px",fontSize:"11px"}}>
           {e.name}{e.movement && <span className="mr-1 text-[10px] text-blue-500 font-normal">({e.movement})</span>}
         </td>
         <td className="border border-gray-200 text-center font-black ts-mono" style={{backgroundColor:bgBase,fontSize:"10px",color:"#C87A2E"}}>أ</td>

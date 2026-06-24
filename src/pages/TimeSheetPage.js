@@ -230,6 +230,24 @@ function TimeSheetPage({ emp }) {
   };
 
   const fillWeekend = async () => {
+    if (activeTab === "drivers") {
+      const ok = await confirm("ملء أيام الجمعة (R) والسبت (Y) لجميع السائقين؟");
+      if (!ok) return;
+      setData(prev => {
+        const u = {...prev, drivers: prev.drivers.map(e => {
+          const newDays = {...e.days};
+          days.forEach(d => {
+            const dow = new Date(tsYear, tsMonth, d).getDay();
+            if (dow === 5) newDays[String(d)] = "R";
+            if (dow === 6) newDays[String(d)] = "Y";
+          });
+          return {...e, days: newDays};
+        })};
+        persistTs(u); return u;
+      });
+      addToast("تم ملء أيام الجمعة والسبت لجميع السائقين", "success");
+      return;
+    }
     const morningCount = (data[activeTab]||[]).filter(e=>e.isMorning).length;
     if (morningCount === 0) { addToast("لا يوجد كادر صباحي في هذا التبويب", "warning"); return; }
     const ok = await confirm(`ملء أيام الجمعة (R) والسبت (Y) للكادر الصباحي في ${TAB_INFO[activeTab].label}؟`);
@@ -419,12 +437,12 @@ function TimeSheetPage({ emp }) {
       </div>
 
       <div className="card rounded-xl border border-color overflow-hidden">
-        <div className="overflow-x-auto" dir="rtl">
-          <table className="text-xs border-collapse" style={{minWidth:`${200+daysInMonth*30+240}px`}} dir="rtl">
+        <div className="overflow-x-auto" dir={activeTab==="drivers"?"ltr":"rtl"}>
+          <table className="text-xs border-collapse" style={{minWidth:`${200+daysInMonth*30+240}px`}} dir={activeTab==="drivers"?"ltr":"rtl"}>
             <thead>
               <tr>
-                <th className="border border-gray-200 px-2 py-2 text-center ts-header" style={{position:"sticky",right:0,zIndex:10,minWidth:"70px",fontSize:"11px"}}>الرقم</th>
-                <th className="border border-gray-200 px-2 py-2 text-right ts-header" style={{position:"sticky",right:"70px",zIndex:10,minWidth:"150px"}}>الاسم</th>
+                <th className="border border-gray-200 px-2 py-2 text-center ts-header" style={{position:"sticky",[activeTab==="drivers"?"left":"right"]:0,zIndex:10,minWidth:"70px",fontSize:"11px"}}>الرقم</th>
+                <th className={`border border-gray-200 px-2 py-2 ${activeTab==="drivers"?"text-left":"text-right"} ts-header`} style={{position:"sticky",[activeTab==="drivers"?"left":"right"]:"70px",zIndex:10,minWidth:"150px"}}>الاسم</th>
                 <th className="border border-gray-200 px-1 py-2 text-center ts-header ts-mono" style={{minWidth:"34px",fontSize:"10px"}}>ح/ق</th>
                 {days.map(d=>{
                   const dow = new Date(tsYear, tsMonth, d).getDay();
@@ -454,7 +472,7 @@ function TimeSheetPage({ emp }) {
                   activeTab={activeTab} editCell={editCell} setEditCell={setEditCell}
                   updateCell={updateCell} updateNotes={updateNotes}
                   deleteEmployee={deleteEmployee} editDriverName={editDriverName}
-                  codes={TAB_INFO[activeTab].codes}
+                  codes={TAB_INFO[activeTab].codes} isLTR={activeTab==="drivers"}
                 />
               ))}
               {employees.length === 0 && (
