@@ -532,17 +532,5 @@ function NotificationsPage({ emp }) {
   );
 }
 
-// ========== سجل التعديلات ==========
-
-function AuditLogPage() {
-  const [logs] = useState(() => storage.get("audit_log", []));
-  return (<div className="space-y-3">
-    <h3 className="font-bold text-lg">سجل التعديلات</h3>
-    <div className="card rounded-2xl border-color border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="border-b border-color"><th className="px-3 py-2">العملية</th><th className="px-3 py-2">التفاصيل</th><th className="px-3 py-2">بواسطة</th><th className="px-3 py-2">التاريخ</th></tr></thead>
-      <tbody>{logs.length===0?<tr><td colSpan={4} className="text-center py-8 text-secondary">لا توجد سجلات</td></tr>:
-      logs.slice(0,100).map(l=><tr key={l.id} className="border-b border-color"><td className="px-3 py-2">{l.action}</td><td className="px-3 py-2">{l.details}</td><td className="px-3 py-2">{l.by}</td><td className="px-3 py-2 text-secondary">{new Date(l.at).toLocaleString("ar-IQ")}</td></tr>)}</tbody></table></div></div>
-  </div>);
-}
-
 export default ChangePasswordPage;
-export { RequestsPage, ApprovalsPage, NotificationsPage, AuditLogPage };
+export { RequestsPage, ApprovalsPage, NotificationsPage };

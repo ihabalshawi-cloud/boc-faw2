@@ -37,7 +37,6 @@ const LazyChangePasswordPage = React.lazy(() => import('./UserPages'));
 const LazyRequestsPage = React.lazy(() => import('./UserPages').then(m => ({ default: m.RequestsPage })));
 const LazyApprovalsPage = React.lazy(() => import('./UserPages').then(m => ({ default: m.ApprovalsPage })));
 const LazyNotificationsPage = React.lazy(() => import('./UserPages').then(m => ({ default: m.NotificationsPage })));
-const LazyAuditLogPage = React.lazy(() => import('./UserPages').then(m => ({ default: m.AuditLogPage })));
 const LazyAdminDashboard = React.lazy(() => import('./AdminDashboardPage'));
 const LazyEquipmentPage = React.lazy(() => import('./EquipmentPage'));
 const LazyMaintenanceParts = React.lazy(() => import('./EquipmentPage').then(m => ({ default: m.MaintenanceParts })));
@@ -101,7 +100,7 @@ class ReqErrorBoundary extends React.Component {
   }
 }
 
-const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","audit","changepass","health_insurance","approvals","employees","admin_dashboard","timesheet"]);
+const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","changepass","health_insurance","approvals","employees","admin_dashboard","timesheet"]);
 const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","inventory","furniture","projects"]);
 
 export default function Dashboard({ emp, onLogout, dark, setDark }) {
@@ -187,7 +186,6 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
     ...(isTimeSheetAdmin ? [{ id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> }] : []),
     { id:"notifications", label:"الإشعارات", icon:<Bell size={17}/>, badge:unreadNotifs },
-    { id:"audit", label:"سجل التعديلات", icon:<ClipboardList size={17}/> },
     { id:"changepass", label:"تغيير المرور", icon:<Shield size={17}/> },
   ];
   const techMenuItems = [
@@ -351,11 +349,6 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
           {view==="notifications" && (
             <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
               <LazyNotificationsPage emp={emp}/>
-            </React.Suspense>
-          )}
-          {view==="audit" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
-              <LazyAuditLogPage/>
             </React.Suspense>
           )}
           {view==="changepass" && (
