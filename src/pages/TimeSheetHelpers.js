@@ -172,8 +172,8 @@ export const TsEmployeeRow = React.memo(function TsEmployeeRow({
   return (
     <React.Fragment>
       <tr>
-        <td rowSpan={2} className="border border-gray-200 text-center text-gray-500 align-middle ts-mono" style={{position:"sticky",[stickyDir]:0,zIndex:5,backgroundColor:bgBase,fontSize:"10px",minWidth:isLTR?"28px":"70px"}}>{isLTR ? idx+1 : e.id}</td>
-        <td rowSpan={2} className={`border border-gray-200 px-1 ${isLTR?"text-left":"text-right"} font-semibold align-middle`} style={{position:"sticky",[stickyDir]:isLTR?"28px":"70px",zIndex:5,backgroundColor:bgBase,maxWidth:"150px",fontSize:"11px"}}>
+        <td rowSpan={2} className="border border-gray-200 text-center text-gray-500 align-middle ts-mono" style={{position:"sticky",[stickyDir]:0,zIndex:5,backgroundColor:bgBase,fontSize:"10px",minWidth:(isLTR&&activeTab==="drivers")?"28px":"70px"}}>{(isLTR&&activeTab==="drivers") ? idx+1 : e.id}</td>
+        <td rowSpan={2} className={`border border-gray-200 px-1 ${isLTR?"text-left":"text-right"} font-semibold align-middle`} style={{position:"sticky",[stickyDir]:(isLTR&&activeTab==="drivers")?"28px":"70px",zIndex:5,backgroundColor:bgBase,maxWidth:"150px",fontSize:"11px"}}>
           {e.name}{e.movement && <span className="mr-1 text-[10px] text-blue-500 font-normal">({e.movement})</span>}
         </td>
         <td className="border border-gray-200 text-center font-black ts-mono" style={{backgroundColor:bgBase,fontSize:"10px",color:"#C87A2E"}}>A</td>
