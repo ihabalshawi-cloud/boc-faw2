@@ -175,6 +175,7 @@ function ApprovalsPage({ emp }) {
   const [archived, setArchived] = useState(() => storage.get("all_requests", []).filter(r => r.archived).sort(sortDesc));
   const [pushed, setPushed] = useState(() => storage.get("all_requests", []).filter(r => r.pushedToAdmin && !r.archived));
   const [sigReqId, setSigReqId] = useState(null);
+  const [activeTab, setActiveTab] = useState("مرحّلة");
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
 
@@ -200,6 +201,43 @@ function ApprovalsPage({ emp }) {
     const all = storage.get("all_requests", []).map(r => r.id === id ? {...r, archived:false} : r);
     storage.set("all_requests", all); FirebaseAPI.saveRequests(all);
     refreshApproved(); showToast("↩️ تم استرداد الطلب من الأرشيف");
+  };
+
+  const exportToTemplate = async (req) => {
+    const empAcct = ACCOUNTS.find(a => a.id === req.empId) || {};
+    const fmtD = d => { if (!d) return ""; const dt = new Date(d+"T00:00:00"); return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`; };
+    const addImg = async (wb, ws, dataUrl, col, row) => { if (!dataUrl?.startsWith("data:")) return; try { const imgId = wb.addImage({base64:dataUrl.split(",")[1],extension:"png"}); ws.addImage(imgId,{tl:{col,row},ext:{width:130,height:45}}); } catch {} };
+    try {
+      const mod = await import("exceljs");
+      const ExcelJS = mod.default || mod;
+      const wb = new ExcelJS.Workbook();
+      const safe = (req.empName||"موظف").replace(/\s+/g,"_");
+      const t = req.type||"";
+      let fname = "";
+      if (t.includes("اعتيادية")) {
+        await wb.xlsx.load(await (await fetch("/templates/leave-annual.xlsx")).arrayBuffer());
+        const ws = wb.worksheets[0]; const set=(r,v)=>{ws.getCell(r).value=v??null;};
+        set("C5",fmtD((req.submittedAt||"").split("T")[0])); set("I8",req.empName||""); set("I9",String(empAcct.jobNum||"")); set("I10",empAcct.title||""); set("I11",fmtD((req.submittedAt||"").split("T")[0])); set("D13",String(req.days||"")); set("G13",fmtD(req.dateFrom)); set("I14",req.purpose||"");
+        await addImg(wb,ws,req.empSigDataUrl,1,17); await addImg(wb,ws,req.sigDataUrl,7,17);
+        fname=`اجازة_اعتيادية_${safe}_${req.dateFrom||""}.xlsx`;
+      } else if (t.includes("مرضية")) {
+        await wb.xlsx.load(await (await fetch("/templates/leave-sick.xlsx")).arrayBuffer());
+        const ws = wb.worksheets[0]; const set=(r,v)=>{ws.getCell(r).value=v??null;};
+        set("C5",fmtD((req.submittedAt||"").split("T")[0])); set("I8",req.empName||""); set("I9",String(empAcct.jobNum||"")); set("I10",empAcct.title||""); set("I11",fmtD(req.dateFrom)); set("I24",fmtD(req.dateTo));
+        await addImg(wb,ws,req.empSigDataUrl,1,27); await addImg(wb,ws,req.sigDataUrl,7,27);
+        fname=`اجازة_مرضية_${safe}_${req.dateFrom||""}.xlsx`;
+      } else if (t.includes("زمنية")) {
+        await wb.xlsx.load(await (await fetch("/templates/leave-time.xlsx")).arrayBuffer());
+        const ws = wb.worksheets[0]; const set=(r,v)=>{ws.getCell(r).value=v??null;};
+        set("F2",fmtD(req.dateFrom)); set("C7",req.empName||""); set("E7",String(empAcct.jobNum||"")); set("G7",empAcct.title||""); set("D8",empAcct.dept||"");
+        await addImg(wb,ws,req.empSigDataUrl,2,11); await addImg(wb,ws,req.sigDataUrl,6,11);
+        fname=`اجازة_زمنية_${safe}_${req.dateFrom||""}.xlsx`;
+      } else { exportReqExcel(req); return; }
+      const outBuf = await wb.xlsx.writeBuffer();
+      const a = document.createElement("a"); a.href=URL.createObjectURL(new Blob([outBuf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})); a.download=fname;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+      showToast(`✅ تم تصدير نموذج ${t}`);
+    } catch { showToast("⚠️ فشل التصدير — سيتم التصدير بالتنسيق البديل"); exportReqExcel(req); }
   };
 
   useEffect(() => {
@@ -283,6 +321,44 @@ function ApprovalsPage({ emp }) {
 
   return (
     <div className="space-y-4">
+      {isAttendanceAdmin && (
+        <div className="flex gap-1 border-b border-color pb-0 -mb-2">
+          <button onClick={()=>setActiveTab("مرحّلة")} className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${activeTab==="مرحّلة"?"border-violet-600 text-violet-700":"border-transparent text-secondary hover:text-primary"}`}>
+            📋 إجازات مرحّلة إليك{pushed.length>0&&<span className="mr-1.5 bg-violet-100 text-violet-700 rounded-full px-1.5 text-[10px]">{pushed.length}</span>}
+          </button>
+          <button onClick={()=>setActiveTab("كل")} className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${activeTab==="كل"?"border-violet-600 text-violet-700":"border-transparent text-secondary hover:text-primary"}`}>
+            📄 جميع الطلبات
+          </button>
+        </div>
+      )}
+
+      {isAttendanceAdmin && activeTab==="مرحّلة" && (
+        <div className="space-y-3 pt-2">
+          <h3 className="font-bold text-base text-violet-700">📋 الإجازات المرحّلة إليك ({pushed.length})</h3>
+          {pushed.length===0
+            ? <div className="card rounded-2xl p-8 text-center border-color border"><p className="text-secondary text-sm">لا توجد إجازات مرحّلة بعد</p></div>
+            : pushed.map(req=>(
+              <div key={req.id} className="card rounded-2xl p-4 border-violet-200 border bg-violet-50/30 space-y-1">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-bold text-sm">{req.empName}</p>
+                    <p className="text-xs">{req.type} — {req.days} يوم | {req.purpose}</p>
+                    <p className="text-xs text-secondary">{req.dateFrom} ← {req.dateTo}</p>
+                    <p className="text-[10px] text-secondary">وافق: {req.decidedBy} — {req.pushedAt?new Date(req.pushedAt).toLocaleDateString("ar-IQ"):""}</p>
+                  </div>
+                  <div className="flex gap-2 items-start flex-wrap justify-end">
+                    <button onClick={()=>exportToTemplate(req)} className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Download size={10}/> تصدير Excel</button>
+                    <button onClick={()=>printForm(req)} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Printer size={10}/> طباعة</button>
+                    <button onClick={()=>archiveReq(req.id)} className="px-2.5 py-1.5 bg-gray-600 text-white rounded-lg text-[11px]">📁 أرشفة</button>
+                  </div>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      )}
+
+      {(!isAttendanceAdmin || activeTab==="كل") && <>
       <div className="flex items-center justify-between">
         <h3 className="font-bold text-lg">الطلبات المعلقة ({requests.length})</h3>
         {!isSupervisor && <span className="text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-bold">للاطلاع فقط — الموافقة من صلاحية المشرف العام</span>}
@@ -359,27 +435,7 @@ function ApprovalsPage({ emp }) {
           ))}
         </div>
       )}
-      {isAttendanceAdmin && pushed.length > 0 && (
-        <div className="mt-6 space-y-3">
-          <h3 className="font-bold text-base border-t border-color pt-4 text-violet-700">📋 الطلبات المُرحَّلة إليك ({pushed.length})</h3>
-          {pushed.map(req=>(
-            <div key={req.id} className="card rounded-2xl p-4 border-violet-200 border bg-violet-50/30 space-y-1">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-bold text-sm">{req.empName}</p>
-                  <p className="text-xs">{req.type} — {req.days} يوم | {req.purpose}</p>
-                  <p className="text-[10px] text-secondary">وافق: {req.decidedBy} — {req.pushedAt?new Date(req.pushedAt).toLocaleDateString("ar-IQ"):""}</p>
-                </div>
-                <div className="flex gap-2 items-start flex-wrap justify-end">
-                  <button onClick={()=>exportReqExcel(req)} className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Download size={10}/> تصدير إكسل</button>
-                  <button onClick={()=>printForm(req)} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Printer size={10}/> طباعة</button>
-                  <button onClick={()=>archiveReq(req.id)} className="px-2.5 py-1.5 bg-gray-600 text-white rounded-lg text-[11px]">📁 أرشفة</button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      </> }
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
