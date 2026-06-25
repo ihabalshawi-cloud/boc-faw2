@@ -381,10 +381,13 @@ function BulkEvaluationPanel({ emp, allEmployees }) {
   const exportXls = async () => {
     try {
       const mod=await import("exceljs"); const ExcelJS=mod.default||mod;
-      const wb=new ExcelJS.Workbook(); const ws=wb.addWorksheet("التقييم"); ws.views=[{rightToLeft:true}];
-      ws.addRow(["ت","الرقم الوظيفي","اسم الموظف","الشعبة","التقييم"]);
+      const wb=new ExcelJS.Workbook(); const ws=wb.addWorksheet("نموذج التقييم"); ws.views=[{rightToLeft:true}];
+      ws.getCell("A1").value="شركة نفط البصرة — "+BULK_DEPT; ws.mergeCells("A1:E1"); ws.getRow(1).font={bold:true,size:13};
+      ws.getCell("A2").value=`نموذج التقييم الشهري — ${MONTHS_IRAQI[selMonth]} ${selYear}`; ws.mergeCells("A2:E2"); ws.getRow(2).font={bold:true,size:11};
+      ws.addRow(["ت","الرقم الوظيفي","اسم الموظف","الشعبة","التقييم"]).font={bold:true};
       allEmployees.forEach((e,i)=>ws.addRow([i+1,e.jobNum,e.name,BULK_DEPT,ratings[e.id]||"—"]));
-      ws.getRow(1).font={bold:true}; ws.columns=[{width:5},{width:12},{width:30},{width:35},{width:12}];
+      ws.addRow([]); ws.addRow(["التوزيع","متوسط","جيد","جيد جدا","ممتاز"]).font={bold:true}; ws.addRow(["الفعلي",`${pct(dist.متوسط)}%`,`${pct(dist.جيد)}%`,`${pct(dist["جيد جدا"])}%`,`${pct(dist.ممتاز)}%`]); ws.addRow(["المطلوب","5%","20%","40%","35%"]);
+      ws.columns=[{width:10},{width:14},{width:32},{width:35},{width:12}];
       const buf=await wb.xlsx.writeBuffer(); const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})); a.download=`تقييم_${MONTHS_IRAQI[selMonth]}_${selYear}.xlsx`; document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);
       showToast("✅ تم التصدير");
     } catch { showToast("⚠️ فشل التصدير"); }
@@ -434,6 +437,7 @@ function EvaluationSystem({ emp, isAdmin, allEmployees }) {
     const newEval = { id:Date.now(), empId:Number(selEmp), empName:emp2?.name, month:selMonth, year:selYear, scores:{...scores}, total, notes, evaluatedBy:emp.name, createdAt:new Date().toISOString() };
     setEvals([newEval, ...evals.filter(e=>!(e.empId===Number(selEmp)&&e.month===selMonth&&e.year===selYear))]);
     setShowForm(false); showToast("✅ تم حفظ التقييم");
+    FirebaseAPI.loadBulkEval(selYear,selMonth).then(d=>{FirebaseAPI.saveBulkEval(selYear,selMonth,{...(d||{}),ratings:{...(d?.ratings||{}),[Number(selEmp)]:total>=90?"ممتاز":total>=75?"جيد جدا":total>=60?"جيد":"متوسط"},month:selMonth,year:selYear});});
   };
 
   const myEvals = isAdmin ? evals : evals.filter(e=>e.empId===emp.id);
@@ -488,10 +492,6 @@ function EvaluationSystem({ emp, isAdmin, allEmployees }) {
     </div>
   );
 }
-
-// ========== المعدات والصيانة ==========
-// ========== لوحة الإدارة المتكاملة ==========
-// ========== سجل التعديلات ==========
 
 export default AttendanceSystem;
 export { TrainingSystem, TasksSystem, InternalChat, EvaluationSystem };
