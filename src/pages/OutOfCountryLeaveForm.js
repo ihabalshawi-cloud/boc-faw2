@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Save, CheckCircle, FileText, Printer, Download, Upload, Globe, Send } from "lucide-react";
 import { storage } from "../utils";
+import { FirebaseAPI } from "../firebase";
+import { ACCOUNTS } from "../constants";
 import { useToast } from "../contexts";
 import { useGDrive } from "../gdrive";
 import SignaturePad from "./LeaveSignaturePad";
@@ -56,6 +58,17 @@ function OutOfCountryLeaveForm({ emp }) {
   const saveAndSubmit = () => {
     if (!empSigDataUrl) { toast("توقيع الموظف إلزامي للتقديم", "warning"); return; }
     storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, country, days, salaryType, purpose, reqDate, refNum, sigDataUrl, empSigDataUrl, status: "submitted" });
+    const daysNum = days ? Number(days) : 1;
+    const newReq = { id: Date.now(), type: "خارج العراق", dateFrom: reqDate, dateTo: reqDate, purpose: `${country || ""} — ${purpose || ""}`.trim(), days: daysNum, status: "بانتظار المراجعة", submittedAt: new Date().toISOString(), empId: emp.id, empName: name, empSigDataUrl };
+    const allReqs = [newReq, ...storage.get("all_requests", [])];
+    storage.set("all_requests", allReqs);
+    FirebaseAPI.saveRequests(allReqs);
+    storage.set(`requests_${emp.id}`, [newReq, ...storage.get(`requests_${emp.id}`, [])]);
+    ACCOUNTS.filter(a => a.role === "admin" || a.username === "i.shawi").forEach(admin => {
+      const key = `notifications_${admin.id}`;
+      const notifs = [{ id: Date.now() + admin.id, type: "طلب_إجازة", title: `📋 طلب إجازة خارج العراق — ${name}`, body: `${country || ""} — ${daysNum} يوم`, timestamp: new Date().toISOString(), read: false, reqId: newReq.id }, ...storage.get(key, [])];
+      storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs);
+    });
     toast("تم تقديم الطلب بنجاح", "success");
   };
 

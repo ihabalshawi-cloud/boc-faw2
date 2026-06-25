@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Save, CheckCircle, Clock, Printer, Download, Upload, Send } from "lucide-react";
 import { storage } from "../utils";
+import { FirebaseAPI } from "../firebase";
+import { ACCOUNTS } from "../constants";
 import { useToast } from "../contexts";
 import { useGDrive } from "../gdrive";
 import SignaturePad from "./LeaveSignaturePad";
@@ -60,6 +62,17 @@ function TimeLeaveForm({ emp }) {
   const saveAndSubmit = () => {
     if (!sigDataUrl) { toast("توقيع الموظف إلزامي للتقديم", "warning"); return; }
     storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, leaveDate, departureTime, returnTime, hours, reason, sigDataUrl, status: "submitted" });
+    const purpose = reason || (hours ? `${hours} ساعة` : "إجازة زمنية");
+    const newReq = { id: Date.now(), type: "زمنية", dateFrom: leaveDate, dateTo: leaveDate, purpose, days: 1, status: "بانتظار المراجعة", submittedAt: new Date().toISOString(), empId: emp.id, empName: name, empSigDataUrl: sigDataUrl };
+    const allReqs = [newReq, ...storage.get("all_requests", [])];
+    storage.set("all_requests", allReqs);
+    FirebaseAPI.saveRequests(allReqs);
+    storage.set(`requests_${emp.id}`, [newReq, ...storage.get(`requests_${emp.id}`, [])]);
+    ACCOUNTS.filter(a => a.role === "admin" || a.username === "i.shawi").forEach(admin => {
+      const key = `notifications_${admin.id}`;
+      const notifs = [{ id: Date.now() + admin.id, type: "طلب_إجازة", title: `📋 طلب إجازة زمنية — ${name}`, body: `زمنية — ${hours || "؟"} ساعة | ${reason}`, timestamp: new Date().toISOString(), read: false, reqId: newReq.id }, ...storage.get(key, [])];
+      storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs);
+    });
     toast("تم تقديم الإجازة الزمنية بنجاح", "success");
   };
 
