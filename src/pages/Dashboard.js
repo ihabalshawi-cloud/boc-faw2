@@ -134,7 +134,9 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const isAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
-  const isTimeSheetAdmin = isAdmin || emp.role === "attendance_admin";
+  const isAttendanceAdmin = emp.role === "attendance_admin";
+  const canSeeApprovals = isAdmin || isAttendanceAdmin;
+  const isTimeSheetAdmin = isAdmin || isAttendanceAdmin;
   const pendingCount = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
   const unreadNotifs = (storage.get(`notifications_${emp.id}`, [])).filter(n => !n.read).length;
 
@@ -174,7 +176,9 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
   const adminMenuItems = [
     ...(isAdmin ? [
       { id:"admin_dashboard", label:"لوحة الإدارة", icon:<Shield size={17}/> },
-      { id:"employees", label:"الموظفين", icon:<Users size={17}/> },
+      { id:"employees", label:"الموظفين والصلاحيات", icon:<Users size={17}/> },
+    ] : []),
+    ...(canSeeApprovals ? [
       { id:"approvals", label:"الموافقات", icon:<ThumbsUp size={17}/>, badge:pendingCount },
     ] : []),
     { id:"home", label:"الرئيسية", icon:<Home size={17}/> },
@@ -362,7 +366,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
               <LazyEmployeeManager employees={employees} setEmployees={setEmployees}/>
             </React.Suspense>
           )}
-          {view==="approvals" && isAdmin && (
+          {view==="approvals" && canSeeApprovals && (
             <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
               <LazyApprovalsPage emp={emp}/>
             </React.Suspense>
