@@ -12,7 +12,8 @@ import { importFromBuffer, exportToTemplate, buildHTMLTable } from "./TimeSheetE
 import { buildExcelFormattedHTML, buildOfficialFormHTML } from "./TimeSheetPrintBuilders";
 import { TsImportPanel, TsExportPanel } from "./TimeSheetPanels";
 
-const STORAGE_KEY = "boc_timesheet_v5";
+const STORAGE_KEY      = "boc_timesheet_v6";
+const STORAGE_KEY_PREV = "boc_timesheet_v5";
 
 function toArr(v) {
   let arr;
@@ -43,7 +44,20 @@ function TimeSheetPage({ emp }) {
   const [activeTab, setActiveTab] = useState("malak");
   const [data, setData] = useState(() => {
     const raw = storage.get(STORAGE_KEY, null);
-    if (!raw || typeof raw !== "object") return INITIAL_TS;
+    if (!raw || typeof raw !== "object") {
+      // Migrate from v5: keep malak/contracts edits but reset drivers to fix day-shift bug
+      const prev = storage.get(STORAGE_KEY_PREV, null);
+      if (prev && typeof prev === "object") {
+        const malak     = dedup(toArr(prev.malak));
+        const contracts = dedup(toArr(prev.contracts));
+        return {
+          malak:     malak.length     ? malak     : INITIAL_TS.malak,
+          contracts: contracts.length ? contracts : INITIAL_TS.contracts,
+          drivers:   INITIAL_TS.drivers,
+        };
+      }
+      return INITIAL_TS;
+    }
     const malak     = dedup(toArr(raw.malak));
     const contracts = dedup(toArr(raw.contracts));
     const drivers   = dedup(toArr(raw.drivers));
