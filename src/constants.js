@@ -47,6 +47,9 @@ export const ACCOUNTS = [
   {id:31, username:"ab.eissa2",  jobNum:"689766", name:"اباذر صالح عبد الحسين عيسى",               title:"عقد",           dept:"قسم السيطرة والنظم",  shift:"صباحي", role:"attendance_admin"},
   {id:32, username:"h.omran",    jobNum:"690174", name:"حسن عادل عمران يوسف",                       title:"عقد",           dept:"قسم السيطرة والنظم",  shift:"صباحي", role:"attendance_admin"},
   {id:33, username:"sj.ali",     jobNum:"689331", name:"سجاد علي راضي علي",                         title:"عقد",           dept:"قسم السيطرة والنظم",  shift:"صباحي", role:"attendance_admin"},
+  // ══ حسابات اختبار ══
+  {id:34, username:"test1",      jobNum:"728001", name:"اختبار ١",                                   title:"مدير اداري",    dept:"قسم السيطرة والنظم",  shift:"صباحي", role:"attendance_admin"},
+  {id:35, username:"test2",      jobNum:"728002", name:"اختبار ٢",                                   title:"موظف",          dept:"قسم السيطرة والنظم",  shift:"صباحي"},
 ];
 export const DEFAULT_PASSWORD = "1000";
 

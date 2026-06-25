@@ -7,7 +7,7 @@ import {
   Search, Moon, Sun, MessageSquare, X,
   CheckSquare, AlertTriangle, ChevronLeft,
   Wrench, Box, TrendingUp, Heart,
-  Briefcase
+  Briefcase, Menu
 } from "lucide-react";
 import {
   ACCOUNTS, LOW_STOCK_THRESHOLD,
@@ -132,8 +132,11 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
   const confirm = useConfirm();
   const [showSearch, setShowSearch] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const isAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
-  const isTimeSheetAdmin = isAdmin || emp.role === "attendance_admin";
+  const isAttendanceAdmin = emp.role === "attendance_admin";
+  const canSeeApprovals = isAdmin || isAttendanceAdmin;
+  const isTimeSheetAdmin = isAdmin || isAttendanceAdmin;
   const pendingCount = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
   const unreadNotifs = (storage.get(`notifications_${emp.id}`, [])).filter(n => !n.read).length;
 
@@ -173,7 +176,9 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
   const adminMenuItems = [
     ...(isAdmin ? [
       { id:"admin_dashboard", label:"لوحة الإدارة", icon:<Shield size={17}/> },
-      { id:"employees", label:"الموظفين", icon:<Users size={17}/> },
+      { id:"employees", label:"الموظفين والصلاحيات", icon:<Users size={17}/> },
+    ] : []),
+    ...(canSeeApprovals ? [
       { id:"approvals", label:"الموافقات", icon:<ThumbsUp size={17}/>, badge:pendingCount },
     ] : []),
     { id:"home", label:"الرئيسية", icon:<Home size={17}/> },
@@ -233,7 +238,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
       </div>
 
       <div className="flex flex-col md:flex-row">
-        <aside className="group/sb md:w-14 md:hover:w-60 sidebar border-l border-color min-h-screen py-3 px-1.5 md:overflow-hidden transition-[width] duration-200 ease-out">
+        <aside className="group/sb hidden md:flex md:flex-col md:w-14 md:hover:w-60 sidebar border-l border-color min-h-screen py-3 px-1.5 md:overflow-hidden transition-[width] duration-200 ease-out">
           <div className="flex gap-1 mb-2 overflow-hidden max-w-full md:max-w-0 md:group-hover/sb:max-w-full transition-[max-width] duration-150">
             {[{k:"admin",lbl:"الإداري"},{k:"tech",lbl:"الفني"}].map(s=>(
               <button key={s.k} onClick={()=>switchSection(s.k)}
@@ -361,7 +366,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
               <LazyEmployeeManager employees={employees} setEmployees={setEmployees}/>
             </React.Suspense>
           )}
-          {view==="approvals" && isAdmin && (
+          {view==="approvals" && canSeeApprovals && (
             <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
               <LazyApprovalsPage emp={emp}/>
             </React.Suspense>
@@ -409,13 +414,13 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
         </div>
       )}
 
-      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white dark:bg-gray-900 border-t border-color z-20 flex" dir="ltr">
+      {/* ── Mobile Bottom Nav ── */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white dark:bg-gray-900 border-t border-color z-20 flex" dir="ltr" style={{paddingBottom:"env(safe-area-inset-bottom)"}}>
         {[
           {id:"home",          icon:<Home size={20}/>,         label:"الرئيسية"},
           {id:"requests",      icon:<FileText size={20}/>,     label:"الطلبات"},
-          {id:"tasks",         icon:<CheckSquare size={20}/>,  label:"المهام"},
-          {id:"chat",          icon:<MessageSquare size={20}/>,label:"الدردشة"},
           {id:"notifications", icon:<Bell size={20}/>,         label:"الإشعارات", badge:unreadNotifs},
+          {id:"chat",          icon:<MessageSquare size={20}/>,label:"الدردشة"},
         ].map(item => (
           <button key={item.id}
             onClick={()=>item.id==="chat"?setChatOpen(o=>!o):switchView(item.id)}
@@ -427,7 +432,41 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
             {item.badge>0 && <span className="absolute top-1 right-2 bg-red-500 text-white text-[8px] min-w-[14px] h-3.5 rounded-full flex items-center justify-center px-0.5">{item.badge}</span>}
           </button>
         ))}
+        <button onClick={()=>setShowMobileMenu(true)}
+          className={`flex-1 flex flex-col items-center py-2 gap-0.5 text-xs ${showMobileMenu?"text-[#C87A2E]":"text-secondary"}`}>
+          <Menu size={20}/><span className="text-[9px]">المزيد</span>
+        </button>
       </nav>
+
+      {/* ── Mobile Full Menu Drawer ── */}
+      {showMobileMenu && (
+        <div className="md:hidden fixed inset-0 z-40 bg-black/50" onClick={()=>setShowMobileMenu(false)}>
+          <div className="absolute bottom-0 inset-x-0 bg-main rounded-t-2xl shadow-2xl p-4 max-h-[80vh] overflow-y-auto" dir="rtl" onClick={e=>e.stopPropagation()}>
+            <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-4"/>
+            <div className="flex gap-2 mb-3">
+              {[{k:"admin",lbl:"الإداري"},{k:"tech",lbl:"الفني"}].map(s=>(
+                <button key={s.k} onClick={()=>setSection(s.k)}
+                  className={`flex-1 py-2 text-sm font-bold rounded-xl ${section===s.k?"bg-[#C87A2E] text-white":"btn-secondary border border-color"}`}>
+                  {s.lbl}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {menuItems.map(item=>(
+                <button key={item.id} onClick={()=>{switchView(item.id);setShowMobileMenu(false);}}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-colors relative ${view===item.id?"bg-[#C87A2E] text-white border-[#C87A2E]":"border-color hover:bg-hover"}`}>
+                  {item.icon}
+                  <span className="text-[10px] font-medium text-center leading-tight">{item.label}</span>
+                  {item.badge>0 && <span className="absolute top-1 right-1 bg-red-500 text-white text-[8px] min-w-[14px] h-3.5 rounded-full flex items-center justify-center px-0.5">{item.badge}</span>}
+                </button>
+              ))}
+            </div>
+            <button onClick={onLogout} className="mt-4 w-full py-3 text-red-500 font-bold text-sm border border-red-200 rounded-xl hover:bg-red-50 flex items-center justify-center gap-2">
+              <LogOut size={16}/> تسجيل الخروج
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

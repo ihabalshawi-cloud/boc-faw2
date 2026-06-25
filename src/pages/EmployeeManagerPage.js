@@ -3,10 +3,121 @@ import { Shield, Save, Plus, Edit3, X, Download, Search } from "lucide-react";
 import { storage, passStore, exportCSV } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
-import { BUILT_IN_ROLES, getEmpStatus, setEmpStatus } from "../permissions";
+import { PERMISSIONS_DEF, BUILT_IN_ROLES, getEmpStatus, setEmpStatus } from "../permissions";
 import { useConnectionStatus } from "../components/Shared";
 
+const PERM_KEYS = Object.entries(PERMISSIONS_DEF).filter(([k]) => k !== "FULL_ACCESS");
+
+function PermissionsPanel({ employees }) {
+  const [, forceUpdate] = useState(0);
+  const addToast = useToast();
+  const { isConnected } = useConnectionStatus();
+
+  const getInfo = (emp) => {
+    const s = getEmpStatus(emp.id);
+    const roleName = s.role || (emp.role === "admin" ? "SUPER_ADMIN" : "EMPLOYEE");
+    const rolePerms = BUILT_IN_ROLES[roleName]?.permissions || [];
+    return { s, roleName, rolePerms, isFullAccess: rolePerms.includes("FULL_ACCESS"), extraPerms: s.extraPerms||[], denyPerms: s.denyPerms||[] };
+  };
+
+  const hasPerm = (emp, key) => {
+    const { isFullAccess, rolePerms, extraPerms, denyPerms } = getInfo(emp);
+    if (denyPerms.includes(key)) return false;
+    return isFullAccess || rolePerms.includes(key) || extraPerms.includes(key);
+  };
+
+  const syncAll = () => {
+    if (!isConnected) return;
+    const map = {}; employees.forEach(e => { map[e.id] = getEmpStatus(e.id); });
+    FirebaseAPI.saveRoles(map);
+  };
+
+  const toggle = (emp, key) => {
+    const { s, isFullAccess, rolePerms, extraPerms, denyPerms } = getInfo(emp);
+    if (isFullAccess) return;
+    const has = hasPerm(emp, key);
+    let newExtra = [...extraPerms], newDeny = [...denyPerms];
+    if (has) {
+      if (rolePerms.includes(key)) { if (!newDeny.includes(key)) newDeny.push(key); }
+      else newExtra = newExtra.filter(p => p !== key);
+    } else {
+      if (newDeny.includes(key)) newDeny = newDeny.filter(p => p !== key);
+      else if (!newExtra.includes(key)) newExtra.push(key);
+    }
+    setEmpStatus(emp.id, { ...s, extraPerms: newExtra, denyPerms: newDeny });
+    forceUpdate(n => n + 1);
+    syncAll();
+    addToast("تم تحديث الصلاحية", "success");
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-secondary">انقر على أي خانة لمنح أو إلغاء صلاحية فردية بغض النظر عن الدور المحدد.</p>
+      <div className="card rounded-2xl border border-color overflow-x-auto">
+        <table className="w-full text-xs" dir="rtl">
+          <thead>
+            <tr className="border-b border-color bg-gray-50/80">
+              <th className="px-3 py-2 text-right font-semibold sticky right-0 bg-gray-50 min-w-[120px]">الموظف</th>
+              <th className="px-2 py-2 text-center font-semibold min-w-[80px]">الدور</th>
+              {PERM_KEYS.map(([k, p]) => (
+                <th key={k} className="px-2 py-2 text-center font-semibold min-w-[60px]">
+                  <span className="block text-base leading-none">{p.icon}</span>
+                  <span className="block text-[9px] mt-0.5 leading-tight whitespace-nowrap">{p.label}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {employees.map(emp => {
+              const { roleName, isFullAccess } = getInfo(emp);
+              const r = BUILT_IN_ROLES[roleName] || BUILT_IN_ROLES.EMPLOYEE;
+              const shortName = emp.name.split(" ").slice(0, 2).join(" ");
+              return (
+                <tr key={emp.id} className="border-b border-color hover:bg-gray-50/60 transition-colors">
+                  <td className="px-3 py-1.5 font-medium sticky right-0 bg-white text-[11px]">{shortName}</td>
+                  <td className="px-2 py-1.5 text-center">
+                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${r.color}`}>{r.label}</span>
+                  </td>
+                  {PERM_KEYS.map(([key]) => {
+                    const has = hasPerm(emp, key);
+                    const { rolePerms, denyPerms } = getInfo(emp);
+                    const fromRole = rolePerms.includes(key);
+                    const isDenied = denyPerms.includes(key);
+                    return (
+                      <td key={key} className="px-2 py-1.5 text-center">
+                        {isFullAccess
+                          ? <span className="text-red-500 text-sm">🛡</span>
+                          : <button onClick={() => toggle(emp, key)} title={has ? "إلغاء الصلاحية" : "منح الصلاحية"}
+                              className={`w-6 h-6 rounded-md flex items-center justify-center mx-auto text-xs font-bold transition-all ${
+                                has && fromRole  ? "bg-blue-100 text-blue-700 border border-blue-300" :
+                                has && !fromRole ? "bg-emerald-100 text-emerald-700 border border-emerald-300" :
+                                isDenied         ? "bg-red-100 text-red-500 border border-red-300" :
+                                                   "bg-gray-100 text-gray-300 border border-gray-200"
+                              }`}>
+                              {has ? "✓" : isDenied ? "✕" : ""}
+                            </button>
+                        }
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap gap-4 text-[10px] text-secondary">
+        <span className="flex items-center gap-1"><span className="w-4 h-4 bg-blue-100 border border-blue-300 rounded-md inline-block"></span>من الدور</span>
+        <span className="flex items-center gap-1"><span className="w-4 h-4 bg-emerald-100 border border-emerald-300 rounded-md inline-block"></span>مُضافة يدوياً</span>
+        <span className="flex items-center gap-1"><span className="w-4 h-4 bg-red-100 border border-red-300 rounded-md inline-block"></span>محظورة صراحةً</span>
+        <span className="flex items-center gap-1"><span className="w-4 h-4 bg-gray-100 border border-gray-200 rounded-md inline-block"></span>غير ممنوحة</span>
+      </div>
+    </div>
+  );
+}
+
 function EmployeeManager({ employees, setEmployees }) {
+  const [tab, setTab] = useState("emps");
   const [search, setSearch]   = useState("");
   const [filterDept, setFilterDept] = useState("الكل");
   const [filterStatus, setFilterStatus] = useState("الكل");
@@ -17,7 +128,7 @@ function EmployeeManager({ employees, setEmployees }) {
   const [syncingRoles, setSyncingRoles] = useState(false);
   const [page, setPage]       = useState(1);
   const [perPage, setPerPage] = useState(10);
-  const [form, setForm]       = useState({name:"",jobNum:"",title:"",dept:"قسم السيطرة والنظم",shift:"صباحي",phone:"",email:""});
+  const [form, setForm]       = useState({name:"",jobNum:"",title:"",dept:"شعبة سيطرة مستودع الفاو والمرافئ",shift:"صباحي",phone:"",email:""});
   const [, forceUpdate] = useState(0);
   const addToast = useToast();
   const confirm  = useConfirm();
@@ -154,6 +265,14 @@ function EmployeeManager({ employees, setEmployees }) {
 
   return (
     <div className="space-y-4">
+      {/* التبويبات */}
+      <div className="flex gap-1 border-b border-color pb-0">
+        <button onClick={()=>setTab("emps")} className={`px-5 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${tab==="emps"?"border-blue-600 text-blue-700":"border-transparent text-secondary hover:text-primary"}`}>👥 الموظفون</button>
+        <button onClick={()=>setTab("perms")} className={`px-5 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${tab==="perms"?"border-blue-600 text-blue-700":"border-transparent text-secondary hover:text-primary"}`}>🔑 الصلاحيات</button>
+      </div>
+
+      {tab==="perms" && <PermissionsPanel employees={employees}/>}
+      {tab==="emps" && <>
       {/* شريط الأدوات */}
       <div className="flex flex-wrap gap-2 items-center">
         <div className="flex items-center gap-2 input rounded-xl px-3 py-2 flex-1 min-w-[180px]">
@@ -170,7 +289,7 @@ function EmployeeManager({ employees, setEmployees }) {
           {roleNames.map(r=><option key={r}>{r}</option>)}
         </select>
         <button onClick={()=>exportCSV(employees.map(e=>({الاسم:e.name,الرقم:e.jobNum,المسمى:e.title,القسم:e.dept,النوبة:e.shift})),"الموظفون")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/></button>
-        <button onClick={()=>{setAdding(true);setForm({name:"",jobNum:"",title:"",dept:"قسم السيطرة والنظم",shift:"صباحي",phone:"",email:""});}} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><Plus size={14}/> إضافة</button>
+        <button onClick={()=>{setAdding(true);setForm({name:"",jobNum:"",title:"",dept:"شعبة سيطرة مستودع الفاو والمرافئ",shift:"صباحي",phone:"",email:""});}} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><Plus size={14}/> إضافة</button>
         <button onClick={handleMigrate} disabled={migrating} className="px-3 py-2 bg-orange-600 text-white rounded-xl text-sm font-bold disabled:opacity-60">{migrating?"جاري النقل...":"نقل Firebase"}</button>
         <button onClick={syncRolesToFirebase} disabled={syncingRoles||!isConnected} className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 text-white rounded-xl text-sm font-bold disabled:opacity-60" title="حفظ الصلاحيات للأبد في Firebase"><Shield size={13}/>{syncingRoles?"جاري الحفظ...":"حفظ الصلاحيات"}</button>
       </div>
@@ -193,7 +312,7 @@ function EmployeeManager({ employees, setEmployees }) {
               <div>
                 <label className="block text-xs font-bold text-secondary mb-1">القسم</label>
                 <select value={form.dept} onChange={e=>setForm({...form,dept:e.target.value})} className="input w-full rounded-xl px-3 py-2 text-sm">
-                  {["قسم السيطرة والنظم","شعبة مستودع الفاو","شعبة المرافئ"].map(d=><option key={d}>{d}</option>)}
+                  {["شعبة سيطرة مستودع الفاو والمرافئ","شعبة مستودع الفاو","شعبة المرافئ"].map(d=><option key={d}>{d}</option>)}
                 </select>
               </div>
               <div>
@@ -303,6 +422,7 @@ function EmployeeManager({ employees, setEmployees }) {
           </div>
         </div>
       </div>
+      </> }
     </div>
   );
 }

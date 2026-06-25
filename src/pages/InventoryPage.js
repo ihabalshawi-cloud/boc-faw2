@@ -38,8 +38,11 @@ function InventorySystem({ emp, isAdmin }) {
       if (list && list.length > 0) {
         setItemsState(prev => {
           if (list.length < Math.min(prev.length * 0.5, 10)) return prev;
-          storage.set("inventory_items", list);
-          return list;
+          const minQtyMap = Object.fromEntries(INITIAL_INVENTORY_ITEMS.map(i => [i.id, i.minQty]));
+          const enriched = list.map(i => ({ ...i, minQty: i.minQty || minQtyMap[i.id] || LOW_STOCK_THRESHOLD }));
+          storage.set("inventory_items", enriched);
+          FirebaseAPI.saveInventory(enriched);
+          return enriched;
         });
       }
     });

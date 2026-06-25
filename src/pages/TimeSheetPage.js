@@ -12,20 +12,12 @@ import { importFromBuffer, exportToTemplate, buildHTMLTable } from "./TimeSheetE
 import { buildExcelFormattedHTML, buildOfficialFormHTML } from "./TimeSheetPrintBuilders";
 import { TsImportPanel, TsExportPanel } from "./TimeSheetPanels";
 
-const STORAGE_KEY = "boc_timesheet_v5";
+const STORAGE_KEY       = "boc_timesheet_v7";
+const STORAGE_PREV_KEYS = ["boc_timesheet_v6", "boc_timesheet_v5"];
 
 function toArr(v) {
-  let arr;
-  if (Array.isArray(v)) arr = v;
-  else if (v && typeof v === "object") {
-    const ks = Object.keys(v);
-    if (ks.length > 0 && ks.every(k => /^\d+$/.test(k)))
-      arr = ks.sort((a,b)=>Number(a)-Number(b)).map(k=>v[k]);
-    else arr = [];
-  } else arr = [];
-  return arr.filter(e => e && typeof e === "object").map(e => ({
-    ...e, days: e.days || {}, hours: e.hours || {},
-  }));
+  const arr = Array.isArray(v)?v:(v&&typeof v==="object"&&Object.keys(v).every(k=>/^\d+$/.test(k))?Object.keys(v).sort((a,b)=>+a-+b).map(k=>v[k]):[]);
+  return arr.filter(e=>e&&typeof e==="object").map(e=>({...e,days:e.days||{},hours:e.hours||{}}));
 }
 
 function dedup(arr) {
@@ -43,7 +35,22 @@ function TimeSheetPage({ emp }) {
   const [activeTab, setActiveTab] = useState("malak");
   const [data, setData] = useState(() => {
     const raw = storage.get(STORAGE_KEY, null);
-    if (!raw || typeof raw !== "object") return INITIAL_TS;
+    if (!raw || typeof raw !== "object") {
+      let malak = [], contracts = [];
+      for (const key of STORAGE_PREV_KEYS) {
+        const prev = storage.get(key, null);
+        if (prev && typeof prev === "object") {
+          malak     = dedup(toArr(prev.malak));
+          contracts = dedup(toArr(prev.contracts));
+          break;
+        }
+      }
+      return {
+        malak:     malak.length     ? malak     : INITIAL_TS.malak,
+        contracts: contracts.length ? contracts : INITIAL_TS.contracts,
+        drivers:   INITIAL_TS.drivers,
+      };
+    }
     const malak     = dedup(toArr(raw.malak));
     const contracts = dedup(toArr(raw.contracts));
     const drivers   = dedup(toArr(raw.drivers));
@@ -79,10 +86,7 @@ function TimeSheetPage({ emp }) {
     });
   }, []);
 
-  useEffect(() => {
-    if (new Date().getDate() === 25)
-      addToast("تذكير: اليوم الخامس والعشرون — يُرجى تصدير تقرير التايم شيت", "warning");
-  }, []);
+  useEffect(() => { if (new Date().getDate() === 25) addToast("تذكير: اليوم الخامس والعشرون — يُرجى تصدير تقرير التايم شيت", "warning"); }, []);
 
   const importFromFile = (e) => {
     const file = e.target.files?.[0];
@@ -130,6 +134,22 @@ function TimeSheetPage({ emp }) {
       addToast("فشل تنزيل القالب من Drive: " + e.message, "error");
       setExporting(false);
     }
+  };
+
+  const exportFromBuiltin = async () => {
+    setExporting(true);
+    const templateMap = {
+      malak:     { path: "/templates/timesheet-malak.xlsx",     dayColStart: 5 },
+      contracts: { path: "/templates/timesheet-contracts.xlsx", dayColStart: 5 },
+      drivers:   { path: "/templates/timesheet-drivers.xlsx",   dayColStart: 4 },
+    };
+    const { path, dayColStart } = templateMap[activeTab] || templateMap.malak;
+    try {
+      await exportToTemplate(
+        await (await fetch(path)).arrayBuffer(),
+        { emps: data[activeTab]||[], tabLabel: TAB_INFO[activeTab].label, tsYear, tsMonth, addToast, setExporting, setShowExport, dayColStart }
+      );
+    } catch(e) { addToast("فشل: "+e.message, "error"); setExporting(false); }
   };
 
   const daysInMonth = useMemo(() => new Date(tsYear, tsMonth + 1, 0).getDate(), [tsYear, tsMonth]);
@@ -193,10 +213,7 @@ function TimeSheetPage({ emp }) {
   const editDriverName = useCallback((tabKey, empId, currentName) => {
     const newName = prompt("تعديل اسم السائق:", currentName);
     if (!newName?.trim() || newName.trim() === currentName) return;
-    setData(prev => {
-      const u = {...prev, [tabKey]: prev[tabKey].map(e => e.id === empId ? {...e, name:newName.trim(), id:newName.trim()} : e)};
-      persistTs(u); return u;
-    });
+    setData(prev => { const u = {...prev,[tabKey]:prev[tabKey].map(e=>e.id===empId?{...e,name:newName.trim(),id:newName.trim()}:e)}; persistTs(u); return u; });
     addToast("تم تعديل اسم السائق", "success");
   }, [persistTs, addToast]);
 
@@ -235,15 +252,10 @@ function TimeSheetPage({ emp }) {
       if (!ok) return;
       setData(prev => {
         const u = {...prev, drivers: prev.drivers.map(e => {
-          const newDays = {...e.days};
-          days.forEach(d => {
-            const dow = new Date(tsYear, tsMonth, d).getDay();
-            if (dow === 5) newDays[String(d)] = "R";
-            if (dow === 6) newDays[String(d)] = "Y";
-          });
-          return {...e, days: newDays};
-        })};
-        persistTs(u); return u;
+          const nd = {...e.days};
+          days.forEach(d => { const dow = new Date(tsYear,tsMonth,d).getDay(); if(dow===5)nd[String(d)]="R"; if(dow===6)nd[String(d)]="Y"; });
+          return {...e, days: nd};
+        })}; persistTs(u); return u;
       });
       addToast("تم ملء أيام الجمعة والسبت لجميع السائقين", "success");
       return;
@@ -272,24 +284,17 @@ function TimeSheetPage({ emp }) {
   };
 
   const downloadBlob = (blob, filename) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(url);
+    const url=URL.createObjectURL(blob), a=Object.assign(document.createElement("a"),{href:url,download:filename});
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
   const exportExcel = () => {
-    const html = buildHTMLTable(data[activeTab]||[], TAB_INFO[activeTab].title, MONTHS_AR_TS[tsMonth], tsYear, tsMonth, days);
-    downloadBlob(new Blob(["﻿"+html], {type:"application/vnd.ms-excel;charset=utf-8"}),
-      `تايم_شيت_${TAB_INFO[activeTab].label}_${tsYear}_${String(tsMonth+1).padStart(2,"0")}.xls`);
+    downloadBlob(new Blob(["﻿"+buildHTMLTable(data[activeTab]||[],TAB_INFO[activeTab].title,MONTHS_AR_TS[tsMonth],tsYear,tsMonth,days)],{type:"application/vnd.ms-excel;charset=utf-8"}),`تايم_شيت_${TAB_INFO[activeTab].label}_${tsYear}_${String(tsMonth+1).padStart(2,"0")}.xls`);
     addToast("تم تصدير الملف بتنسيق Excel", "success");
   };
 
   const exportExcelFormatted = () => {
-    const html = buildExcelFormattedHTML(data[activeTab]||[], TAB_INFO[activeTab].label, tsYear, tsMonth, days);
-    downloadBlob(new Blob(["﻿"+html], {type:"application/vnd.ms-excel"}),
-      `تايم_شيت_${TAB_INFO[activeTab].label}_${tsYear}_${String(tsMonth+1).padStart(2,"0")}.xls`);
+    downloadBlob(new Blob(["﻿"+buildExcelFormattedHTML(data[activeTab]||[],TAB_INFO[activeTab].label,tsYear,tsMonth,days)],{type:"application/vnd.ms-excel"}),`تايم_شيت_${TAB_INFO[activeTab].label}_${tsYear}_${String(tsMonth+1).padStart(2,"0")}.xls`);
     addToast("تم تصدير الملف بنجاح بالتنسيق الرسمي ✅", "success");
   };
 
@@ -297,20 +302,13 @@ function TimeSheetPage({ emp }) {
     const iframe = document.createElement("iframe");
     iframe.style.cssText = `position:fixed;top:-999px;left:-999px;width:${w}px;height:${h}px;border:none;`;
     document.body.appendChild(iframe);
-    iframe.contentDocument.open();
-    iframe.contentDocument.write(html);
-    iframe.contentDocument.close();
-    setTimeout(() => {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-      setTimeout(() => document.body.removeChild(iframe), 3000);
-    }, delay);
+    iframe.contentDocument.open(); iframe.contentDocument.write(html); iframe.contentDocument.close();
+    setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print(); setTimeout(()=>document.body.removeChild(iframe),3000); }, delay);
   };
 
   const exportPDF = () => {
     const html = buildHTMLTable(data[activeTab]||[], TAB_INFO[activeTab].title, MONTHS_AR_TS[tsMonth], tsYear, tsMonth, days);
-    const printHTML = html.replace("<body>", `<body><style>@page{size:A3 landscape;margin:10mm;} @media print{body{zoom:0.7;}}</style>`);
-    printInIframe(printHTML, 1400, 900);
+    printInIframe(html.replace("<body>",`<body><style>@page{size:A3 landscape;margin:10mm;} @media print{body{zoom:0.7;}}</style>`), 1400, 900);
     addToast("جارٍ فتح نافذة الطباعة / تصدير PDF", "info");
   };
 
@@ -338,18 +336,12 @@ function TimeSheetPage({ emp }) {
             className="text-sm border border-color rounded-lg px-2 py-1.5 bg-surface text-primary">
             {[2024,2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}
           </select>
-          <button onClick={fillWeekend}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-orange-500 text-white hover:bg-orange-600">
-            <Calendar size={14}/> ج/س صباحي
-          </button>
-          <button onClick={resetTab}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-amber-500 text-white hover:bg-amber-600">
-            <X size={14}/> تصفير
-          </button>
-          <button onClick={()=>setShowLegend(v=>!v)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm btn-secondary">
-            <AlertTriangle size={14}/> دليل الرموز
-          </button>
+          <button onClick={fillWeekend} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-orange-500 text-white hover:bg-orange-600">
+            <Calendar size={14}/> ج/س صباحي</button>
+          <button onClick={resetTab} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-amber-500 text-white hover:bg-amber-600">
+            <X size={14}/> تصفير</button>
+          <button onClick={()=>setShowLegend(v=>!v)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm btn-secondary">
+            <AlertTriangle size={14}/> دليل الرموز</button>
           <button onClick={()=>{setShowExport(v=>!v);setShowImport(false);}}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-green-700 text-white hover:bg-green-800">
             <FileCheck size={14}/> تصدير بيانات اكسل
@@ -376,9 +368,10 @@ function TimeSheetPage({ emp }) {
 
       {showExport && (
         <TsExportPanel
-          gDrive={gDrive} exporting={exporting}
+          gDrive={gDrive} exporting={exporting} activeTab={activeTab}
           exportDriveId={exportDriveId} setExportDriveId={setExportDriveId}
           exportFromFile={exportFromFile} exportFromDrive={exportFromDrive}
+          exportFromBuiltin={exportFromBuiltin}
           exportFileRef={exportFileRef}
         />
       )}

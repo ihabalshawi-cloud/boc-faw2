@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Save, CheckCircle, FileText, Printer, Download, Upload } from "lucide-react";
+import { Save, CheckCircle, FileText, Printer, Download, Upload, Send } from "lucide-react";
 import { storage } from "../utils";
+import { FirebaseAPI } from "../firebase";
+import { ACCOUNTS } from "../constants";
 import { useToast } from "../contexts";
 import { useGDrive } from "../gdrive";
 import SignaturePad from "./LeaveSignaturePad";
@@ -27,6 +29,8 @@ function SickLeaveForm({ emp }) {
   const [returnDate,  setReturnDate]  = useState("");
   const [returnTime,  setReturnTime]  = useState("");
   const [sigDataUrl,  setSigDataUrl]  = useState(null);
+  const [empSigDataUrl, setEmpSigDataUrl] = useState(null);
+  const [status,       setStatus]       = useState("draft");
 
   useEffect(() => {
     const s = storage.get(STORAGE_KEY, null);
@@ -41,13 +45,31 @@ function SickLeaveForm({ emp }) {
       setReturnDate(s.returnDate || "");
       setReturnTime(s.returnTime || "");
       setSigDataUrl(s.sigDataUrl || null);
+      setEmpSigDataUrl(s.empSigDataUrl || null);
+      setStatus(s.status || "draft");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const save = () => {
-    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, leaveDate, leaveTime, clinicDT, notes, returnDate, returnTime, sigDataUrl });
-    toast("تم حفظ بيانات الإجازة المرضية", "success");
+  const saveDraft = () => {
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, leaveDate, leaveTime, clinicDT, notes, returnDate, returnTime, sigDataUrl, empSigDataUrl, status: "draft" });
+    toast("تم حفظ المسودة", "success");
+  };
+  const saveAndSubmit = () => {
+    if (!empSigDataUrl) { toast("توقيع الموظف إلزامي للتقديم", "warning"); return; }
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, leaveDate, leaveTime, clinicDT, notes, returnDate, returnTime, sigDataUrl, empSigDataUrl, status: "submitted" });
+    const daysNum = (leaveDate && returnDate) ? Math.round((new Date(returnDate) - new Date(leaveDate)) / 86400000) + 1 : 1;
+    const newReq = { id: Date.now(), type: "مرضية", dateFrom: leaveDate, dateTo: returnDate || leaveDate, purpose: notes || "علاج طبي", days: daysNum, status: "بانتظار المراجعة", submittedAt: new Date().toISOString(), empId: emp.id, empName: name, empSigDataUrl };
+    const allReqs = [newReq, ...storage.get("all_requests", [])];
+    storage.set("all_requests", allReqs);
+    FirebaseAPI.saveRequests(allReqs);
+    storage.set(`requests_${emp.id}`, [newReq, ...storage.get(`requests_${emp.id}`, [])]);
+    ACCOUNTS.filter(a => a.role === "admin" || a.username === "i.shawi").forEach(admin => {
+      const key = `notifications_${admin.id}`;
+      const notifs = [{ id: Date.now() + admin.id, type: "طلب_إجازة", title: `📋 طلب إجازة مرضية — ${name}`, body: `مرضية — ${daysNum} يوم`, timestamp: new Date().toISOString(), read: false, reqId: newReq.id }, ...storage.get(key, [])];
+      storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs);
+    });
+    toast("تم تقديم الإجازة المرضية بنجاح", "success");
   };
 
   const fmtDate = (d) => {
@@ -230,11 +252,18 @@ function SickLeaveForm({ emp }) {
         </div>
       </div>
 
+      {/* توقيع الموظف */}
+      <div>
+        <label className="block text-xs font-bold text-secondary mb-2">توقيع الموظف <span className="text-rose-500 font-medium">* إلزامي للتقديم</span></label>
+        <SignaturePad onSave={setEmpSigDataUrl} label="ارسم توقيعك ثم اضغط حفظ التوقيع"/>
+        {empSigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={empSigDataUrl} alt="توقيع الموظف" className="max-h-14"/></div>}
+      </div>
+
       {/* توقيع المسؤول */}
       <div>
         <label className="block text-xs font-bold text-secondary mb-2">توقيع المسؤول (إلكتروني)</label>
         <SignaturePad onSave={setSigDataUrl} label="ارسم التوقيع ثم اضغط حفظ التوقيع"/>
-        {sigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={sigDataUrl} alt="توقيع" className="max-h-14"/></div>}
+        {sigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={sigDataUrl} alt="توقيع المسؤول" className="max-h-14"/></div>}
       </div>
 
       {/* مراجعة المستوصف */}
@@ -259,7 +288,8 @@ function SickLeaveForm({ emp }) {
             <CheckCircle size={14}/> عرض في Drive
           </a>
         )}
-        <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ</button>
+        <button onClick={saveDraft} className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ مسودة</button>
+        <button onClick={saveAndSubmit} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm"><Send size={14}/> حفظ وتقديم</button>
         {gDrive.isReady && (
           <button onClick={uploadToDrive} disabled={uploadPct >= 0} className="flex items-center gap-2 px-4 py-2.5 bg-[#C87A2E] text-white rounded-xl font-bold text-sm disabled:opacity-60">
             <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "رفع إلى Drive"}

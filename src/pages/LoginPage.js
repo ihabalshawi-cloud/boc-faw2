@@ -164,8 +164,9 @@ function LoginScreen({ onLogin, dark }) {
     if (isConnected) {
       const fb = await FirebaseAPI.fetchAccount(user.trim());
       if (fb) {
-        account = fb;
-        storage.set(`cached_account_${fb.id}`, fb);
+        const localMatch = ACCOUNTS.find(a => a.jobNum === user.trim());
+        account = localMatch || fb;
+        if (!localMatch) storage.set(`cached_account_${fb.id}`, fb);
       }
     }
     if (!account) account = storage.get(`cached_account_${user.trim()}`)
@@ -234,7 +235,7 @@ function LoginScreen({ onLogin, dark }) {
       try { sessionStorage.setItem("boc_session", JSON.stringify({ acctId: account.id, expiry: Date.now() + 8 * 3600000 })); } catch {}
       if (pass.trim() === DEFAULT_PASSWORD && !localPass) { try { sessionStorage.setItem("force_password_change", "true"); } catch {} }
       const empSt = getEmpStatus(account.id);
-      if (!empSt.active) { setErr("هذا الحساب معطّل. تواصل مع المشرف."); recordLoginAttempt(account, "failed", "account_disabled"); return; }
+      if (!empSt.active) { setErr("هذا الحساب معطّل. تواصل مع مسؤول الشعبة."); recordLoginAttempt(account, "failed", "account_disabled"); return; }
       recordLoginAttempt(account, "success");
       onLogin(account);
     } else {

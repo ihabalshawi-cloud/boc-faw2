@@ -33,15 +33,17 @@ export const TS_CODES_ALL = {
   "E": { label:"إصابة عمل",             color:"bg-red-300 text-red-900",        type:"sick" },
   "F": { label:"مواظبة (مع متغيرات)",   color:"bg-green-200 text-green-800",    type:"work" },
   "ف": { label:"فاو",                          color:"bg-amber-100 text-amber-700",    type:"work" },
+  "ح": { label:"حضور",                         color:"bg-green-100 text-green-800",    type:"work" },
   "ر": { label:"رميلة",                        color:"bg-teal-100 text-teal-700",      type:"work" },
   "ب": { label:"باب الزبير",                   color:"bg-cyan-100 text-cyan-700",      type:"work" },
   "غ": { label:"إجازة/غياب",                  color:"bg-red-100 text-red-700",        type:"absent" },
   "م": { label:"المكينة",                      color:"bg-stone-100 text-stone-800",    type:"work" },
   "ث": { label:"المركز الثقافي النفطي",        color:"bg-lime-200 text-lime-800",      type:"work" },
   "ق": { label:"قسم",                          color:"bg-orange-50 text-orange-600",   type:"work" },
+  "س": { label:"إجازة مرضية",                 color:"bg-red-100 text-red-600",        type:"sick"  },
 };
 export const TS_CODES_GENERAL = ["O","2","3","R","L","S","Y","X","N","V","I","B","G","M","T","H","D","7","J","P","4","5","K","U","8","W","A","Z","E","F"];
-export const TS_CODES_DRIVER  = ["م","ث","ف","ر","ب","ق","غ","R","Y","L","S","X","I","M","W","U"];
+export const TS_CODES_DRIVER  = ["م","ث","ف","ح","ر","ب","ق","غ","س","R","Y","L","S","X","I","M","W","U"];
 export const MONTHS_AR_TS = ["كانون الثاني","شباط","آذار","نيسان","أيار","حزيران","تموز","آب","أيلول","تشرين الأول","تشرين الثاني","كانون الأول"];
 export const DAY_NAMES_AR = ['أحد','إثن','ثلا','أرب','خمي','جمع','سبت'];
 export const SHIFT_TEXT_COLORS = { 'أ':'#dc2626','ب':'#2563eb','ج':'#16a34a','د':'#7c3aed' };
@@ -98,8 +100,8 @@ export const INITIAL_TS = {
     {id:"689331",name:"سجاد علي راضي علي",movement:"",isMorning:true,days:{"4":"Y","5":"R","12":"R","16":"Y","19":"R","25":"Y","26":"R","27":"Y"},hours:{},notes:""},
   ],
   drivers:[
-    {id:"محمد نعيم فاضل",name:"محمد نعيم فاضل",movement:"",days:{"1":"غ","3":"S","4":"Y","5":"R","6":"Y","7":"ق","8":"ف","9":"غ","10":"غ","11":"ف","12":"R","13":"Y","14":"ف","15":"غ","16":"Y","17":"غ","18":"غ","19":"R","20":"Y","21":"غ","22":"غ","23":"ف","26":"R","27":"Y"},hours:{},notes:""},
-    {id:"علي جاسم محمد",name:"علي جاسم محمد",movement:"",days:{"1":"ف","2":"ف","3":"ف","4":"Y","5":"R","6":"Y","7":"ف","8":"ف","9":"ف","10":"غ","11":"غ","12":"R","13":"Y","14":"ف","15":"غ","16":"Y","17":"ف","18":"غ","19":"R","20":"Y","21":"ف","22":"غ","23":"غ","26":"R","27":"Y"},hours:{},notes:""},
+    {id:"محمد نعيم فاضل",name:"محمد نعيم فاضل",days:{"1":"غ","3":"س","4":"Y","5":"R","6":"Y","7":"ق","8":"ح","9":"غ","10":"غ","11":"ح","12":"R","13":"Y","14":"ح","15":"غ","16":"Y","17":"غ","18":"غ","19":"R","20":"Y","21":"غ","22":"غ","23":"ح","26":"R","27":"Y"},hours:{},notes:""},
+    {id:"علي جاسم محمد",name:"علي جاسم محمد",days:{"1":"ح","2":"ح","3":"ح","4":"Y","5":"R","6":"Y","7":"ح","8":"ح","9":"ح","10":"غ","11":"غ","12":"R","13":"Y","14":"ح","15":"غ","16":"Y","17":"ح","18":"غ","19":"R","20":"Y","21":"ح","22":"غ","23":"غ","26":"R","27":"Y"},hours:{},notes:""},
   ],
 };
 
@@ -172,7 +174,7 @@ export const TsEmployeeRow = React.memo(function TsEmployeeRow({
   return (
     <React.Fragment>
       <tr>
-        <td rowSpan={2} className="border border-gray-200 text-center text-gray-500 align-middle ts-mono" style={{position:"sticky",[stickyDir]:0,zIndex:5,backgroundColor:bgBase,fontSize:"10px",minWidth:(isLTR&&activeTab==="drivers")?"28px":"70px"}}>{(isLTR&&activeTab==="drivers") ? idx+1 : e.id}</td>
+        <td rowSpan={2} className="border border-gray-200 text-center text-gray-500 align-middle ts-mono" style={{position:"sticky",[stickyDir]:0,zIndex:5,backgroundColor:bgBase,fontSize:"10px",minWidth:(isLTR&&activeTab==="drivers")?"28px":"70px"}}>{(isLTR&&activeTab==="drivers")?idx+1:e.id}</td>
         <td rowSpan={2} className={`border border-gray-200 px-1 ${isLTR?"text-left":"text-right"} font-semibold align-middle`} style={{position:"sticky",[stickyDir]:(isLTR&&activeTab==="drivers")?"28px":"70px",zIndex:5,backgroundColor:bgBase,maxWidth:"150px",fontSize:"11px"}}>
           {e.name}{e.movement && <span className="mr-1 text-[10px] text-blue-500 font-normal">({e.movement})</span>}
         </td>
@@ -199,7 +201,7 @@ export const TsEmployeeRow = React.memo(function TsEmployeeRow({
           <input value={e.notes||""} onChange={ev=>updateNotes(activeTab,e.id,ev.target.value)} className="w-full text-xs bg-transparent outline-none text-gray-500" placeholder="ملاحظة..." style={{minWidth:"90px"}}/>
         </td>
         <td rowSpan={2} className="border border-gray-200 text-center align-middle" style={{backgroundColor:bgBase}}>
-          {activeTab==="drivers" && <button onClick={()=>editDriverName(activeTab,e.id,e.name)} className="text-blue-400 hover:text-blue-600 p-0.5 block mx-auto mb-0.5" title="تعديل الاسم"><Edit3 size={12}/></button>}
+          {activeTab==="drivers"&&<button onClick={()=>editDriverName(activeTab,e.id,e.name)} className="text-blue-400 hover:text-blue-600 p-0.5 block mx-auto mb-0.5" title="تعديل الاسم"><Edit3 size={12}/></button>}
           <button onClick={()=>deleteEmployee(activeTab,e.id,e.name)} className="text-red-400 hover:text-red-600 p-0.5 block mx-auto" title="حذف"><Trash2 size={12}/></button>
         </td>
       </tr>

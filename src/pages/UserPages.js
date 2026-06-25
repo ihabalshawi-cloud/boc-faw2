@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Shield, Eye, EyeOff, Save, FileText, Plus, Trash2, Download,
+import { Shield, Eye, EyeOff, Save, FileText, Trash2, Download,
   CheckCircle, Bell, ThumbsUp, ThumbsDown, X, PenTool, Printer, Send } from "lucide-react";
 import { ACCOUNTS, LEAVE_TYPES } from "../constants";
 import { storage, passStore, exportCSV, hashPassword } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
-import { EmpPopover, SkeletonCard, useConnectionStatus, sendDesktopNotification, playAlert } from "../components/Shared";
+import { EmpPopover, SkeletonCard, useConnectionStatus, playAlert } from "../components/Shared";
 
 function ChangePasswordPage({ emp, onLogout }) {
   const [newPass, setNewPass] = useState("");
@@ -56,22 +56,11 @@ function ChangePasswordPage({ emp, onLogout }) {
 // ========== طلبات الإجازة ==========
 
 function RequestsPage({ emp }) {
-  const DRAFT_KEY = `draft_leave_${emp.id}`;
   const [requests, setRequests] = useState(() => storage.get(`requests_${emp.id}`, []));
-  const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState(() => {
-    const saved = storage.get(DRAFT_KEY, null);
-    const blank = { type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" };
-    return (saved && typeof saved === "object" && saved.type) ? saved : blank;
-  });
-  const [errors, setErrors] = useState({});
-  const [empSigUrl, setEmpSigUrl] = useState("");
-  const sigCanvasRef = useRef(null);
-  const sigDrawing = useRef(false);
-  const sigLastPos = useRef(null);
   const [pageLoading, setPageLoading] = useState(true);
   const showToast = useToast();
   const confirm = useConfirm();
+
   useEffect(() => {
     const load = () => FirebaseAPI.loadRequests().then(list => {
       if (list && list.length > 0) {
@@ -86,74 +75,15 @@ function RequestsPage({ emp }) {
     return () => { clearInterval(poll); clearTimeout(t); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emp.id]);
-  useEffect(() => { if (showForm) storage.set(DRAFT_KEY, formData); }, [formData, showForm, DRAFT_KEY]);
-
-  const getSigPos = (e, c) => { const r=c.getBoundingClientRect(),sx=c.width/r.width,sy=c.height/r.height; return e.touches?{x:(e.touches[0].clientX-r.left)*sx,y:(e.touches[0].clientY-r.top)*sy}:{x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy}; };
-  const sigStartDraw = (e) => { e.preventDefault(); sigDrawing.current=true; sigLastPos.current=getSigPos(e,sigCanvasRef.current); };
-  const sigDraw = (e) => { e.preventDefault(); if(!sigDrawing.current)return; const c=sigCanvasRef.current,ctx=c.getContext("2d"),p=getSigPos(e,c); ctx.beginPath();ctx.moveTo(sigLastPos.current.x,sigLastPos.current.y);ctx.lineTo(p.x,p.y);ctx.strokeStyle="#1a1a1a";ctx.lineWidth=2;ctx.lineCap="round";ctx.stroke();sigLastPos.current=p; setEmpSigUrl(c.toDataURL("image/png")); };
-  const sigStop = () => { sigDrawing.current=false; };
-  const clearSig = () => { const c=sigCanvasRef.current; if(c) c.getContext("2d").clearRect(0,0,c.width,c.height); setEmpSigUrl(""); sigDrawing.current=false; sigLastPos.current=null; };
-
-  const saveAllRequests = (list) => {
-    storage.set("all_requests", list);
-    FirebaseAPI.saveRequests(list);
-  };
-
-  const notifyAdmin = (req) => {
-    const admins = ACCOUNTS.filter(a => a.role === "admin" || a.username === "i.shawi");
-    admins.forEach(admin => {
-      const key = `notifications_${admin.id}`;
-      const notifs = [{ id:Date.now()+admin.id, type:"طلب_إجازة",
-        title:`📋 طلب إجازة — ${emp.name}`,
-        body:`${req.type} — ${req.days} يوم | الغرض: ${req.purpose}`,
-        timestamp:new Date().toISOString(), read:false, reqId:req.id }, ...storage.get(key, [])];
-      storage.set(key, notifs);
-      FirebaseAPI.saveNotifications(admin.id, notifs);
-    });
-  };
-
-  const handleSaveDraft = () => {
-    storage.set(DRAFT_KEY, formData);
-    setShowForm(false);
-    setEmpSigUrl(""); clearSig();
-    showToast("تم حفظ المسودة — ستجد بياناتك محفوظة عند فتح النموذج مجدداً", "success");
-  };
-
-  const handleSubmit = () => {
-    const newErrors = {};
-    if (!formData.purpose.trim()) newErrors.purpose = "الغرض مطلوب";
-    if (!empSigUrl) newErrors.sig = "التوقيع الإلكتروني إلزامي";
-    if (new Date(formData.dateFrom) > new Date(formData.dateTo)) newErrors.date = "تاريخ البداية يجب أن يكون قبل تاريخ النهاية";
-    if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
-    const days = Math.ceil((new Date(formData.dateTo) - new Date(formData.dateFrom)) / 86400000) + 1;
-    const maxDays = LEAVE_TYPES[formData.type].max;
-    if (days > maxDays) { setErrors({days:`الحد الأقصى ${maxDays} يوم`}); return; }
-    const newReq = { id:Date.now(), ...formData, days, status:"بانتظار المراجعة", submittedAt:new Date().toISOString(), empId:emp.id, empName:emp.name, empSigDataUrl:empSigUrl };
-    const allReqs = storage.get("all_requests", []);
-    const updated = [newReq, ...allReqs];
-    saveAllRequests(updated);
-    setRequests([newReq, ...requests]);
-    notifyAdmin(newReq);
-    const leaveKey = formData.type==="اعتيادية" ? `annual_leave_${emp.id}` : formData.type==="مرضية" ? `sick_leave_${emp.id}` : `time_leave_${emp.id}`;
-    storage.set(leaveKey, { name:emp.name, jobNum:emp.jobNum||"", jobTitle:emp.title||"", dept:emp.dept||"", fromDate:formData.dateFrom, toDate:formData.dateTo, leaveDate:formData.dateFrom, purpose:formData.purpose, sigDataUrl:empSigUrl });
-    setShowForm(false);
-    const blank = { type:"اعتيادية", dateFrom:new Date().toISOString().slice(0,10), dateTo:new Date().toISOString().slice(0,10), purpose:"" };
-    setFormData(blank);
-    storage.set(DRAFT_KEY, blank);
-    setErrors({}); setEmpSigUrl(""); clearSig();
-    showToast("تم إرسال طلبك — سيصل إشعار للمشرف", "success");
-    sendDesktopNotification("طلب إجازة", "تم إرسال طلبك بنجاح وهو الآن بانتظار المراجعة");
-    playAlert("notification");
-  };
 
   const deleteRequest = async (id) => {
-    if (!await confirm("هل تريد حذف هذا الطلب؟", { danger: true, ok: "حذف", title: "حذف الطلب" })) return;
+    if (!await confirm("هل تريد إلغاء هذا الطلب؟", { danger: true, ok: "إلغاء الطلب", title: "إلغاء الطلب" })) return;
     const updated = requests.filter(r => r.id !== id);
     setRequests(updated);
     storage.set(`requests_${emp.id}`, updated);
-    const allReqs = storage.get("all_requests", []);
-    saveAllRequests(allReqs.filter(r => r.id !== id));
-    showToast("تم حذف الطلب", "success");
+    const allReqs = storage.get("all_requests", []).filter(r => r.id !== id);
+    storage.set("all_requests", allReqs); FirebaseAPI.saveRequests(allReqs);
+    showToast("تم إلغاء الطلب", "success");
   };
 
   const printApprovedReq = (req) => {
@@ -177,66 +107,30 @@ function RequestsPage({ emp }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-bold text-lg">طلبات الإجازة</h3>
-        <div className="flex gap-2">
-          <button onClick={()=>exportCSV(requests.map(r=>({الاسم:r.empName,نوع_الإجازة:r.type,من:r.dateFrom,إلى:r.dateTo,عدد_الأيام:r.days,الحالة:r.status,الغرض:r.purpose})),"طلبات_الإجازة")} className="btn-secondary flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border border-color"><Download size={13}/> CSV</button>
-          <button onClick={()=>setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><Plus size={16}/> طلب جديد</button>
-        </div>
+      <div className="flex justify-between items-center">
+        <h3 className="font-bold text-lg">حالة طلبات الإجازة</h3>
+        <button onClick={()=>exportCSV(requests.map(r=>({الاسم:r.empName,نوع_الإجازة:r.type,من:r.dateFrom,إلى:r.dateTo,عدد_الأيام:r.days,الحالة:r.status,الغرض:r.purpose})),"طلبات_الإجازة")} className="btn-secondary flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border border-color"><Download size={13}/> CSV</button>
       </div>
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e=>{if(e.target===e.currentTarget)setShowForm(false)}}>
-          <div className="card rounded-2xl w-full max-w-md shadow-2xl p-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h4 className="font-bold">طلب إجازة جديد</h4>
-              <button onClick={()=>setShowForm(false)} className="text-secondary hover:text-red-500"><X size={16}/></button>
-            </div>
-            <div className="space-y-3">
-              <select value={formData.type} onChange={e=>setFormData({...formData,type:e.target.value})} className="input w-full rounded-xl px-4 py-2">{Object.entries(LEAVE_TYPES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select>
-              <div className="grid grid-cols-2 gap-3"><input type="date" value={formData.dateFrom} onChange={e=>setFormData({...formData,dateFrom:e.target.value})} className="input rounded-xl px-4 py-2"/><input type="date" value={formData.dateTo} onChange={e=>setFormData({...formData,dateTo:e.target.value})} className="input rounded-xl px-4 py-2"/></div>
-              <input value={formData.purpose} onChange={e=>setFormData({...formData,purpose:e.target.value})} placeholder="الغرض من الإجازة" className="input w-full rounded-xl px-4 py-2"/>
-              {formData.purpose && <p className="text-[10px] text-emerald-600">✓ مسودة محفوظة تلقائياً</p>}
-              {errors.purpose && <p className="text-red-500 text-xs">{errors.purpose}</p>}
-              {errors.date && <p className="text-red-500 text-xs">{errors.date}</p>}
-              {errors.days && <p className="text-red-500 text-xs">{errors.days}</p>}
-
-              <div className="border border-dashed border-gray-300 rounded-xl p-3 space-y-2">
-                <p className="text-xs font-bold flex items-center gap-1.5"><PenTool size={12}/> توقيع الموظف <span className="text-red-500 text-[10px]">* إلزامي للتقديم</span></p>
-                <canvas ref={sigCanvasRef} width={380} height={80}
-                  className={`border-2 rounded-lg cursor-crosshair touch-none w-full bg-gray-50 ${empSigUrl?"border-emerald-400":"border-dashed border-gray-300"}`}
-                  onMouseDown={sigStartDraw} onMouseMove={sigDraw} onMouseUp={sigStop} onMouseLeave={sigStop}
-                  onTouchStart={sigStartDraw} onTouchMove={sigDraw} onTouchEnd={sigStop}/>
-                <div className="flex justify-between items-center text-xs">
-                  {empSigUrl ? <span className="text-emerald-600 font-bold">✓ تم التوقيع</span> : <span className="text-secondary">ارسم توقيعك بالماوس أو اللمس</span>}
-                  <button type="button" onClick={clearSig} className="text-secondary hover:text-red-500">مسح</button>
-                </div>
-                {errors.sig && <p className="text-red-500 text-xs">{errors.sig}</p>}
-              </div>
-
-              <div className="flex gap-2 pt-1">
-                <button onClick={()=>setShowForm(false)} className="py-2 px-3 border border-color rounded-xl text-sm text-secondary">إلغاء</button>
-                <button onClick={handleSaveDraft} className="flex-1 py-2 border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl text-sm font-bold transition-colors">حفظ مسودة</button>
-                <button onClick={handleSubmit} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${empSigUrl?"bg-blue-600 hover:bg-blue-700 text-white":"bg-blue-300 text-white cursor-not-allowed"}`}>حفظ وتقديم</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       {pageLoading
         ? <div className="space-y-3">{[...Array(3)].map((_,i)=><SkeletonCard key={i} lines={3}/>)}</div>
         : requests.length===0
-          ? <div className="card rounded-2xl p-8 text-center border-color border"><FileText size={40} className="mx-auto mb-3 text-secondary"/><p className="text-secondary">لا توجد طلبات إجازة</p></div>
+          ? <div className="card rounded-2xl p-8 text-center border-color border"><FileText size={40} className="mx-auto mb-3 text-secondary"/><p className="text-secondary">لا توجد طلبات — قدّم طلبك من تبويب نماذج الإجازة</p></div>
           : requests.map(req=>(
             <div key={req.id} className="card rounded-2xl p-4 border-color border">
               <div className="flex justify-between items-start">
                 <div>
-                  <div className="flex gap-2 mb-2"><span className={`px-2 py-1 rounded-full text-xs font-bold ${LEAVE_TYPES[req.type]?.color}`}>{LEAVE_TYPES[req.type]?.label}</span><span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusBadge(req.status)}`}>{req.status}</span></div>
+                  <div className="flex gap-2 mb-2">
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${LEAVE_TYPES[req.type]?.color||"bg-gray-100 text-gray-700"}`}>{req.type}</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusBadge(req.status)}`}>{req.status}</span>
+                  </div>
                   <p className="text-sm">من {req.dateFrom} إلى {req.dateTo} — {req.days} يوم</p>
                   <p className="text-xs text-secondary mt-1">{req.purpose}</p>
+                  <p className="text-[10px] text-secondary mt-0.5">{new Date(req.submittedAt||Date.now()).toLocaleDateString("ar-IQ")}</p>
                   {req.sigDataUrl && <p className="text-[10px] text-emerald-600 mt-1">✔ موقّع إلكترونياً بواسطة {req.decidedBy}</p>}
                 </div>
                 <div className="flex gap-2 items-start">
                   {req.status==="موافق عليها" && <button onClick={()=>printApprovedReq(req)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="طباعة"><Printer size={15}/></button>}
-                  {req.status==="بانتظار المراجعة" && <button onClick={()=>deleteRequest(req.id)} className="p-2 text-red-400"><Trash2 size={16}/></button>}
+                  {req.status==="بانتظار المراجعة" && <button onClick={()=>deleteRequest(req.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg" title="إلغاء الطلب"><Trash2 size={16}/></button>}
                 </div>
               </div>
             </div>
@@ -273,12 +167,15 @@ function InlineSigPad({ onSave, onCancel }) {
 function ApprovalsPage({ emp }) {
   const isSupervisor = emp.username === "i.shawi";
   const isAdmin = emp.role === "admin";
-  const canArchive = isSupervisor || isAdmin;
+  const isAttendanceAdmin = emp.role === "attendance_admin";
+  const canArchive = isSupervisor || isAdmin || isAttendanceAdmin;
   const sortDesc = (a,b) => new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt);
   const [requests, setRequests] = useState(() => storage.get("all_requests", []).filter(r => r.status === "بانتظار المراجعة"));
   const [approved, setApproved] = useState(() => storage.get("all_requests", []).filter(r => r.status === "موافق عليها" && !r.archived).sort(sortDesc));
   const [archived, setArchived] = useState(() => storage.get("all_requests", []).filter(r => r.archived).sort(sortDesc));
+  const [pushed, setPushed] = useState(() => storage.get("all_requests", []).filter(r => r.pushedToAdmin && !r.archived));
   const [sigReqId, setSigReqId] = useState(null);
+  const [activeTab, setActiveTab] = useState("مرحّلة");
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
 
@@ -287,11 +184,13 @@ function ApprovalsPage({ emp }) {
     setRequests(list.filter(r => r.status === "بانتظار المراجعة"));
     setApproved(list.filter(r => r.status === "موافق عليها" && !r.archived).sort(sortDesc));
     setArchived(list.filter(r => r.archived).sort(sortDesc));
+    setPushed(list.filter(r => r.pushedToAdmin && !r.archived));
   };
   const refreshApproved = () => {
     const all = storage.get("all_requests", []);
     setApproved(all.filter(r => r.status === "موافق عليها" && !r.archived).sort(sortDesc));
     setArchived(all.filter(r => r.archived).sort(sortDesc));
+    setPushed(all.filter(r => r.pushedToAdmin && !r.archived));
   };
   const archiveReq = (id) => {
     const all = storage.get("all_requests", []).map(r => r.id === id ? {...r, archived:true} : r);
@@ -302,6 +201,43 @@ function ApprovalsPage({ emp }) {
     const all = storage.get("all_requests", []).map(r => r.id === id ? {...r, archived:false} : r);
     storage.set("all_requests", all); FirebaseAPI.saveRequests(all);
     refreshApproved(); showToast("↩️ تم استرداد الطلب من الأرشيف");
+  };
+
+  const exportToTemplate = async (req) => {
+    const empAcct = ACCOUNTS.find(a => a.id === req.empId) || {};
+    const fmtD = d => { if (!d) return ""; const dt = new Date(d+"T00:00:00"); return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`; };
+    const addImg = async (wb, ws, dataUrl, col, row) => { if (!dataUrl?.startsWith("data:")) return; try { const imgId = wb.addImage({base64:dataUrl.split(",")[1],extension:"png"}); ws.addImage(imgId,{tl:{col,row},ext:{width:130,height:45}}); } catch {} };
+    try {
+      const mod = await import("exceljs");
+      const ExcelJS = mod.default || mod;
+      const wb = new ExcelJS.Workbook();
+      const safe = (req.empName||"موظف").replace(/\s+/g,"_");
+      const t = req.type||"";
+      let fname = "";
+      if (t.includes("اعتيادية")) {
+        await wb.xlsx.load(await (await fetch("/templates/leave-annual.xlsx")).arrayBuffer());
+        const ws = wb.worksheets[0]; const set=(r,v)=>{ws.getCell(r).value=v??null;};
+        set("C5",fmtD((req.submittedAt||"").split("T")[0])); set("I8",req.empName||""); set("I9",String(empAcct.jobNum||"")); set("I10",empAcct.title||""); set("I11",fmtD((req.submittedAt||"").split("T")[0])); set("D13",String(req.days||"")); set("G13",fmtD(req.dateFrom)); set("I14",req.purpose||"");
+        await addImg(wb,ws,req.empSigDataUrl,1,17); await addImg(wb,ws,req.sigDataUrl,7,17);
+        fname=`اجازة_اعتيادية_${safe}_${req.dateFrom||""}.xlsx`;
+      } else if (t.includes("مرضية")) {
+        await wb.xlsx.load(await (await fetch("/templates/leave-sick.xlsx")).arrayBuffer());
+        const ws = wb.worksheets[0]; const set=(r,v)=>{ws.getCell(r).value=v??null;};
+        set("C5",fmtD((req.submittedAt||"").split("T")[0])); set("I8",req.empName||""); set("I9",String(empAcct.jobNum||"")); set("I10",empAcct.title||""); set("I11",fmtD(req.dateFrom)); set("I24",fmtD(req.dateTo));
+        await addImg(wb,ws,req.empSigDataUrl,1,27); await addImg(wb,ws,req.sigDataUrl,7,27);
+        fname=`اجازة_مرضية_${safe}_${req.dateFrom||""}.xlsx`;
+      } else if (t.includes("زمنية")) {
+        await wb.xlsx.load(await (await fetch("/templates/leave-time.xlsx")).arrayBuffer());
+        const ws = wb.worksheets[0]; const set=(r,v)=>{ws.getCell(r).value=v??null;};
+        set("F2",fmtD(req.dateFrom)); set("C7",req.empName||""); set("E7",String(empAcct.jobNum||"")); set("G7",empAcct.title||""); set("D8",empAcct.dept||"");
+        await addImg(wb,ws,req.empSigDataUrl,2,11); await addImg(wb,ws,req.sigDataUrl,6,11);
+        fname=`اجازة_زمنية_${safe}_${req.dateFrom||""}.xlsx`;
+      } else { exportReqExcel(req); return; }
+      const outBuf = await wb.xlsx.writeBuffer();
+      const a = document.createElement("a"); a.href=URL.createObjectURL(new Blob([outBuf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})); a.download=fname;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+      showToast(`✅ تم تصدير نموذج ${t}`);
+    } catch { showToast("⚠️ فشل التصدير — سيتم التصدير بالتنسيق البديل"); exportReqExcel(req); }
   };
 
   useEffect(() => {
@@ -335,22 +271,34 @@ function ApprovalsPage({ emp }) {
     playAlert("notification");
   };
 
+  const exportReqExcel = (req) => {
+    const supSig = req.sigDataUrl ? `<img src="${req.sigDataUrl}" width="130" height="45"/>` : "(غير موقّع)";
+    const empSig = req.empSigDataUrl ? `<img src="${req.empSigDataUrl}" width="130" height="45"/>` : "(غير موقّع)";
+    const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='UTF-8'/><style>body{font-family:Arial;direction:rtl}table{border-collapse:collapse;width:600pt}td,th{border:1pt solid #000;padding:6pt 8pt;font-size:11pt}th{background:#d6e4f0;font-weight:bold}.ttl{font-size:14pt;font-weight:bold;text-align:center}.sig-td{height:60pt;vertical-align:middle;text-align:center}</style></head><body><table><tr><td colspan="4" class="ttl">شركة نفط البصرة — شعبة مستودع الفاو</td></tr><tr><td colspan="4" class="ttl">نموذج إجازة ${req.type}</td></tr><tr><th>الموظف</th><td>${req.empName||""}</td><th>نوع الإجازة</th><td>${req.type||""}</td></tr><tr><th>من</th><td>${req.dateFrom||""}</td><th>إلى</th><td>${req.dateTo||""}</td></tr><tr><th>عدد الأيام</th><td>${req.days||""}</td><th>الغرض</th><td>${req.purpose||""}</td></tr><tr><th>تاريخ الطلب</th><td>${req.submittedAt?new Date(req.submittedAt).toLocaleDateString("ar-IQ"):""}</td><th>تاريخ الموافقة</th><td>${req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</td></tr><tr><th>وافق عليها</th><td colspan="3">${req.decidedBy||""}</td></tr><tr><td class="sig-td">توقيع الموظف<br/>${empSig}<br/><small>${req.empName||""}</small></td><td colspan="3" class="sig-td">توقيع مسؤول الشعبة<br/>${supSig}<br/><small>${req.decidedBy||"إيهاب الشاوي"}</small></td></tr></table></body></html>`;
+    const blob = new Blob(["﻿"+html],{type:"application/vnd.ms-excel;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url;
+    a.download = `إجازة_${req.empName}_${req.type}_${req.dateFrom||""}`.replace(/\s/g,"_")+".xls";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
+
   const pushToAdmin = (req) => {
+    exportReqExcel(req);
     const all = storage.get("all_requests", []);
     const updated = all.map(r => r.id===req.id ? {...r, pushedToAdmin:true, pushedAt:new Date().toISOString()} : r);
     storage.set("all_requests", updated);
     FirebaseAPI.saveRequests(updated);
-    ACCOUNTS.filter(a=>a.role==="admin").forEach(admin => {
+    ACCOUNTS.filter(a=>a.role==="admin"||a.role==="attendance_admin").forEach(admin => {
       const nk = `notifications_${admin.id}`;
       const adminNotifs = [{ id:Date.now()+admin.id, type:"أرشفة_إجازة",
-        title:`📁 إجازة للأرشفة — ${req.empName}`,
+        title:`📋 إجازة مرحّلة للأرشفة — ${req.empName}`,
         body:`${req.type} — ${req.days} يوم | وافق: ${req.decidedBy}`,
         timestamp:new Date().toISOString(), read:false, reqId:req.id }, ...storage.get(nk,[])];
       storage.set(nk, adminNotifs);
       FirebaseAPI.saveNotifications(admin.id, adminNotifs);
     });
     refreshApproved();
-    showToast("📁 تم الدفع للإداري وحفظ النسخة للأرشيف");
+    showToast("📋 تم الترحيل للإداري وتحميل نموذج الإكسل");
   };
 
   const printForm = (req) => {
@@ -373,9 +321,47 @@ function ApprovalsPage({ emp }) {
 
   return (
     <div className="space-y-4">
+      {isAttendanceAdmin && (
+        <div className="flex gap-1 border-b border-color pb-0 -mb-2">
+          <button onClick={()=>setActiveTab("مرحّلة")} className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${activeTab==="مرحّلة"?"border-violet-600 text-violet-700":"border-transparent text-secondary hover:text-primary"}`}>
+            📋 إجازات مرحّلة إليك{pushed.length>0&&<span className="mr-1.5 bg-violet-100 text-violet-700 rounded-full px-1.5 text-[10px]">{pushed.length}</span>}
+          </button>
+          <button onClick={()=>setActiveTab("كل")} className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${activeTab==="كل"?"border-violet-600 text-violet-700":"border-transparent text-secondary hover:text-primary"}`}>
+            📄 جميع الطلبات
+          </button>
+        </div>
+      )}
+
+      {isAttendanceAdmin && activeTab==="مرحّلة" && (
+        <div className="space-y-3 pt-2">
+          <h3 className="font-bold text-base text-violet-700">📋 الإجازات المرحّلة إليك ({pushed.length})</h3>
+          {pushed.length===0
+            ? <div className="card rounded-2xl p-8 text-center border-color border"><p className="text-secondary text-sm">لا توجد إجازات مرحّلة بعد</p></div>
+            : pushed.map(req=>(
+              <div key={req.id} className="card rounded-2xl p-4 border-violet-200 border bg-violet-50/30 space-y-1">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-bold text-sm">{req.empName}</p>
+                    <p className="text-xs">{req.type} — {req.days} يوم | {req.purpose}</p>
+                    <p className="text-xs text-secondary">{req.dateFrom} ← {req.dateTo}</p>
+                    <p className="text-[10px] text-secondary">وافق: {req.decidedBy} — {req.pushedAt?new Date(req.pushedAt).toLocaleDateString("ar-IQ"):""}</p>
+                  </div>
+                  <div className="flex gap-2 items-start flex-wrap justify-end">
+                    <button onClick={()=>exportToTemplate(req)} className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Download size={10}/> تصدير Excel</button>
+                    <button onClick={()=>printForm(req)} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Printer size={10}/> طباعة</button>
+                    <button onClick={()=>archiveReq(req.id)} className="px-2.5 py-1.5 bg-gray-600 text-white rounded-lg text-[11px]">📁 أرشفة</button>
+                  </div>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      )}
+
+      {(!isAttendanceAdmin || activeTab==="كل") && <>
       <div className="flex items-center justify-between">
         <h3 className="font-bold text-lg">الطلبات المعلقة ({requests.length})</h3>
-        {!isSupervisor && <span className="text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-bold">للاطلاع فقط — الموافقة من صلاحية المشرف العام</span>}
+        {!isSupervisor && <span className="text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-bold">للاطلاع فقط — الموافقة من صلاحية مسؤول الشعبة</span>}
       </div>
       {requests.length===0
         ? <div className="card rounded-2xl p-8 text-center border-color border"><CheckCircle size={40} className="mx-auto text-secondary"/><p className="text-secondary">لا توجد طلبات معلقة</p></div>
@@ -449,6 +435,7 @@ function ApprovalsPage({ emp }) {
           ))}
         </div>
       )}
+      </> }
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );

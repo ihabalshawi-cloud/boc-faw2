@@ -7,8 +7,7 @@ export async function importFromBuffer(buffer, { data, persistTs, setData, setSh
     const wb = read(buffer, { type: "array" });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = utils.sheet_to_json(ws, { header: 1, defval: "" });
-    const DAY_COL_START = 4;
-    const buildUpdate = (tabKey) => {
+    const buildUpdate = (tabKey, dayColStart) => {
       const tabEmps = data[tabKey] || [];
       return tabEmps.map(emp => {
         const codeRowIdx = rows.findIndex(r => String(r[0]).trim() === String(emp.id).trim());
@@ -18,7 +17,7 @@ export async function importFromBuffer(buffer, { data, persistTs, setData, setSh
         const newDays  = { ...emp.days };
         const newHours = { ...emp.hours };
         for (let d = 1; d <= 31; d++) {
-          const col  = DAY_COL_START + (d - 1);
+          const col  = dayColStart + (d - 1);
           const code = String(codeRow[col] || "").trim();
           const h    = String(hoursRow[col] || "").trim();
           if (code) newDays[String(d)] = code;
@@ -31,9 +30,9 @@ export async function importFromBuffer(buffer, { data, persistTs, setData, setSh
       });
     };
     const updated = {
-      malak:     buildUpdate("malak"),
-      contracts: buildUpdate("contracts"),
-      drivers:   buildUpdate("drivers"),
+      malak:     buildUpdate("malak",     4), // col E (0-indexed=4) = day1
+      contracts: buildUpdate("contracts", 4),
+      drivers:   buildUpdate("drivers",   3), // col D (0-indexed=3) = day1
     };
     persistTs(updated);
     setData(updated);
@@ -46,7 +45,7 @@ export async function importFromBuffer(buffer, { data, persistTs, setData, setSh
   }
 }
 
-export async function exportToTemplate(buffer, { emps, tabLabel, tsYear, tsMonth, addToast, setExporting, setShowExport }) {
+export async function exportToTemplate(buffer, { emps, tabLabel, tsYear, tsMonth, addToast, setExporting, setShowExport, dayColStart = 5 }) {
   setExporting(true);
   try {
     const mod = await import("exceljs");
@@ -54,7 +53,7 @@ export async function exportToTemplate(buffer, { emps, tabLabel, tsYear, tsMonth
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
     const ws = workbook.worksheets[0];
-    const DAY_COL_START = 5;
+    const DAY_COL_START = dayColStart;
     const colAVals = ws.getColumn(1).values;
     emps.forEach(emp => {
       const codeRowIdx = colAVals.findIndex(

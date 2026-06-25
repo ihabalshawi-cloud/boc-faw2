@@ -393,6 +393,13 @@ export const FirebaseAPI = {
     } catch { return null; }
   },
 
+  saveBulkEval: async (year, month, data) => {
+    try { await fetch(`${FIREBASE_URL}/bulk_evals/${year}_${month}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); return true; } catch { return false; }
+  },
+  loadBulkEval: async (year, month) => {
+    try { const res=await fetch(`${FIREBASE_URL}/bulk_evals/${year}_${month}.json`); if(!res.ok)return null; return await res.json(); } catch { return null; }
+  },
+
   // ── Timesheet ─────────────────────────────────────────────────────────────
   saveTimesheet: async (tsData) => {
     if (!tsData || typeof tsData !== "object") return false;

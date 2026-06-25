@@ -34,18 +34,21 @@ export function TsImportPanel({ gDrive, importing, importDriveId, setImportDrive
   );
 }
 
-export function TsExportPanel({ gDrive, exporting, exportDriveId, setExportDriveId, exportFromFile, exportFromDrive, exportFileRef }) {
+const BUILTIN_LABELS = { malak: "نموذج الملاك", contracts: "نموذج العقود", drivers: "نموذج السائقين" };
+
+export function TsExportPanel({ gDrive, exporting, activeTab, exportDriveId, setExportDriveId, exportFromFile, exportFromDrive, exportFromBuiltin, exportFileRef }) {
+  const builtinLabel = BUILTIN_LABELS[activeTab] || "النموذج المدمج";
   return (
     <div className="card rounded-xl p-4 border border-green-200 bg-green-50 space-y-3" dir="rtl">
       <h3 className="font-bold text-sm text-green-800">تصدير بيانات التايم شيت إلى قالب Excel</h3>
-      <p className="text-xs text-green-700">اختر ملف Excel القالب الموجود على جهازك أو Drive — سيتم ملء بيانات الحضور فيه مع الحفاظ على تنسيقه الأصلي</p>
+      <p className="text-xs text-green-700">سيتم ملء بيانات الحضور في النموذج المدمج مع الحفاظ على تنسيقه الأصلي</p>
       <div className="flex flex-wrap gap-3">
         <div className="flex-1 min-w-[200px]">
-          <p className="text-xs font-semibold text-green-700 mb-1">من جهازك:</p>
+          <p className="text-xs font-semibold text-green-700 mb-1">تصدير إلى النموذج:</p>
           <input ref={exportFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={exportFromFile}/>
-          <button onClick={()=>exportFileRef.current?.click()} disabled={exporting}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm bg-green-700 text-white hover:bg-green-800 disabled:opacity-50">
-            <FileCheck size={14}/> {exporting ? "جارٍ التصدير..." : "اختر قالب Excel"}
+          <button onClick={exportFromBuiltin} disabled={exporting}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50">
+            <FileCheck size={14}/> {exporting ? "جارٍ التصدير..." : `تصدير ${builtinLabel}`}
           </button>
         </div>
         {gDrive?.isReady && (
