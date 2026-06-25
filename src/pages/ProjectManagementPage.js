@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Save, FileText, Clock, Calendar, Plus, Trash2, Edit3, X, Users,
-  Briefcase, Layers, Activity, Flag, FolderOpen, FileCheck, DollarSign, Target } from "lucide-react";
+  Briefcase, Layers, Activity, Flag, FolderOpen, FileCheck, DollarSign, Target, Lock } from "lucide-react";
 import { storage } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
@@ -94,6 +94,11 @@ const INITIAL_PROJECTS = [
       {id:"I002",date:"2025-03-31",inspector:"م. عمر العبيدي",section:"منظومة الصمامات",result:"ناجح",notes:"الصمامات تعمل ضمن المواصفات"},
     ],
   },
+  {id:"P004",name:"UPGRADING THE CONTROL SYSTEM FOR Al Basra Oil Terminal Control System",
+    status:"قيد التخطيط",priority:"عالي",progress:0,budget:0,spent:0,startDate:"2026-06-25",endDate:"2026-12-31",
+    manager:"م. إيهاب عبد اللطيف الشاوي",desc:"تحديث منظومة السيطرة في ميناء البصرة النفطي",
+    restricted:true,members:[{jobNum:"728004",name:"إيهاب عبد اللطيف الشاوي"},{jobNum:"690174",name:"حسن عادل عمران يوسف"}],
+    team:["م. إيهاب عبد اللطيف الشاوي","حسن عادل عمران يوسف"],phases:[],reports:[],docs:[],inspections:[]},
 ];
 
 // ========== مكوّن حلقة التقدم ==========
@@ -113,8 +118,14 @@ function ProgressRing({ pct, size=90, stroke=9, color="#3b82f6" }) {
 
 // ========== صفحة إدارة المشاريع ==========
 function ProjectManagementPage({ emp }) {
-  const [projects, setProjects] = useState(() => storage.get("pm_projects", INITIAL_PROJECTS));
-  const [selId, setSelId] = useState(() => storage.get("pm_projects", INITIAL_PROJECTS)[0]?.id || null);
+  const isMember = (p) => !p.restricted || emp?.role==="admin" || (p.members||[]).some(m=>m.jobNum===emp?.jobNum);
+  const mergeRestricted = (list) => {
+    const extra = INITIAL_PROJECTS.filter(p => p.restricted && !list.some(x=>x.id===p.id));
+    return extra.length ? [...list, ...extra] : list;
+  };
+  const [projects, setProjects] = useState(() => mergeRestricted(storage.get("pm_projects", INITIAL_PROJECTS)));
+  const [selId, setSelId] = useState(() =>
+    mergeRestricted(storage.get("pm_projects", INITIAL_PROJECTS)).find(p=>isMember(p))?.id || null);
   const [tab, setTab] = useState("dashboard");
   const [showAddProj, setShowAddProj] = useState(false);
   const addToast = useToast();
@@ -129,12 +140,14 @@ function ProjectManagementPage({ emp }) {
   useEffect(() => {
     FirebaseAPI.loadProjects().then(list => {
       if (list) {
-        setProjects(list);
-        storage.set("pm_projects", list);
-        setSelId(prev => list.some(p => p.id === prev) ? prev : (list[0]?.id || null));
+        const merged = mergeRestricted(list);
+        if (merged.length > list.length) FirebaseAPI.saveProjects(merged);
+        setProjects(merged);
+        storage.set("pm_projects", merged);
+        setSelId(prev => merged.some(p => p.id === prev) ? prev : (merged.find(p=>isMember(p))?.id || null));
       }
     });
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const proj = projects.find(p => p.id === selId);
 
@@ -186,11 +199,11 @@ function ProjectManagementPage({ emp }) {
           <button onClick={()=>setShowAddProj(true)} className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition-colors" title="مشروع جديد"><Plus size={14}/></button>
         </div>
         <div className="divide-y divide-color">
-          {projects.map(p => (
+          {projects.filter(isMember).map(p => (
             <button key={p.id} onClick={()=>{ setSelId(p.id); setTab("dashboard"); }}
               className={`w-full text-right px-3 py-3 transition-colors ${selId===p.id?"bg-blue-600 text-white":"hover:bg-hover text-primary"}`}>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold truncate max-w-[130px]">{p.name}</span>
+                <span className="text-xs font-bold truncate max-w-[120px] flex items-center gap-1">{p.restricted&&<Lock size={9} className="shrink-0"/>}{p.name}</span>
                 <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${selId===p.id?"bg-white/20 text-white":PROJ_STATUS_COLORS[p.status]}`}>{p.status}</span>
               </div>
               <div className="flex items-center gap-2 mt-1.5">
@@ -232,7 +245,7 @@ function ProjectManagementPage({ emp }) {
                     <span className="flex items-center gap-1"><Flag size={12}/> {proj.id}</span>
                   </div>
                 </div>
-                <button onClick={()=>deleteProj(proj.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors" title="حذف المشروع"><Trash2 size={16}/></button>
+                {isMember(proj) && <button onClick={()=>deleteProj(proj.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors" title="حذف المشروع"><Trash2 size={16}/></button>}
               </div>
             </div>
 
@@ -317,6 +330,9 @@ function ProjectManagementPage({ emp }) {
                     <div className="mt-4">
                       <ProjTeamAdd proj={proj} updateProj={updateProj}/>
                     </div>
+                    {proj.restricted && emp?.role==="admin" && (
+                      <ProjMembersManager proj={proj} updateProj={updateProj}/>
+                    )}
                   </div>
                 </div>
 
@@ -447,6 +463,35 @@ function ProjTeamAdd({ proj, updateProj }) {
       <input value={val} onChange={e=>setVal(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()}
         placeholder="اسم العضو الجديد" className="input flex-1 rounded-lg px-3 py-1.5 text-sm"/>
       <button onClick={add} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"><Plus size={14}/></button>
+    </div>
+  );
+}
+
+// ── إدارة أعضاء المشروع المقيّد ──
+function ProjMembersManager({ proj, updateProj }) {
+  const [jn, setJn] = useState(""); const [nm, setNm] = useState("");
+  const addToast = useToast();
+  const members = proj.members || [];
+  const add = () => {
+    if (!jn.trim()||!nm.trim()) return;
+    if (members.some(m=>m.jobNum===jn.trim())) return addToast("العضو مضاف مسبقاً","error");
+    updateProj(proj.id,{members:[...members,{jobNum:jn.trim(),name:nm.trim()}]});
+    setJn(""); setNm(""); addToast("تمت إضافة العضو","success");
+  };
+  return (
+    <div className="mt-3 border-t border-color pt-3">
+      <p className="text-[10px] font-bold text-secondary mb-2 flex items-center gap-1"><Lock size={10}/> أعضاء المشروع المقيّد</p>
+      <div className="space-y-1 mb-2">{members.map(m=>(
+        <div key={m.jobNum} className="flex items-center gap-2 text-xs">
+          <span className="flex-1">{m.name} <span className="text-secondary">({m.jobNum})</span></span>
+          <button onClick={()=>updateProj(proj.id,{members:members.filter(x=>x.jobNum!==m.jobNum)})} className="text-red-400 hover:text-red-600"><X size={12}/></button>
+        </div>
+      ))}</div>
+      <div className="flex gap-1">
+        <input value={jn} onChange={e=>setJn(e.target.value)} placeholder="رقم الوظيفة" className="input rounded-lg px-2 py-1 text-xs w-24"/>
+        <input value={nm} onChange={e=>setNm(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="الاسم" className="input rounded-lg px-2 py-1 text-xs flex-1"/>
+        <button onClick={add} className="px-2 py-1 bg-blue-600 text-white rounded-lg text-xs"><Plus size={12}/></button>
+      </div>
     </div>
   );
 }
