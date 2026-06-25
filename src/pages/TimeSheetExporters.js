@@ -46,7 +46,7 @@ export async function importFromBuffer(buffer, { data, persistTs, setData, setSh
   }
 }
 
-export async function exportToTemplate(buffer, { emps, tabLabel, tsYear, tsMonth, addToast, setExporting, setShowExport }) {
+export async function exportToTemplate(buffer, { emps, tabLabel, tsYear, tsMonth, addToast, setExporting, setShowExport, dayColStart = 5 }) {
   setExporting(true);
   try {
     const mod = await import("exceljs");
@@ -54,7 +54,7 @@ export async function exportToTemplate(buffer, { emps, tabLabel, tsYear, tsMonth
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
     const ws = workbook.worksheets[0];
-    const DAY_COL_START = 5;
+    const DAY_COL_START = dayColStart;
     const colAVals = ws.getColumn(1).values;
     emps.forEach(emp => {
       const codeRowIdx = colAVals.findIndex(

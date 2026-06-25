@@ -132,7 +132,21 @@ function TimeSheetPage({ emp }) {
     }
   };
 
-  const exportFromBuiltin = async () => { setExporting(true); try { await exportToTemplate(await(await fetch("/templates/timesheet-malak.xlsx")).arrayBuffer(),{emps:data[activeTab]||[],tabLabel:TAB_INFO[activeTab].label,tsYear,tsMonth,addToast,setExporting,setShowExport}); } catch(e){addToast("فشل: "+e.message,"error");setExporting(false);} };
+  const exportFromBuiltin = async () => {
+    setExporting(true);
+    const templateMap = {
+      malak:     { path: "/templates/timesheet-malak.xlsx",     dayColStart: 5 },
+      contracts: { path: "/templates/timesheet-contracts.xlsx", dayColStart: 5 },
+      drivers:   { path: "/templates/timesheet-drivers.xlsx",   dayColStart: 4 },
+    };
+    const { path, dayColStart } = templateMap[activeTab] || templateMap.malak;
+    try {
+      await exportToTemplate(
+        await (await fetch(path)).arrayBuffer(),
+        { emps: data[activeTab]||[], tabLabel: TAB_INFO[activeTab].label, tsYear, tsMonth, addToast, setExporting, setShowExport, dayColStart }
+      );
+    } catch(e) { addToast("فشل: "+e.message, "error"); setExporting(false); }
+  };
 
   const daysInMonth = useMemo(() => new Date(tsYear, tsMonth + 1, 0).getDate(), [tsYear, tsMonth]);
   const days = useMemo(() => Array.from({length: daysInMonth}, (_, i) => i + 1), [daysInMonth]);
@@ -378,7 +392,7 @@ function TimeSheetPage({ emp }) {
 
       {showExport && (
         <TsExportPanel
-          gDrive={gDrive} exporting={exporting}
+          gDrive={gDrive} exporting={exporting} activeTab={activeTab}
           exportDriveId={exportDriveId} setExportDriveId={setExportDriveId}
           exportFromFile={exportFromFile} exportFromDrive={exportFromDrive}
           exportFromBuiltin={exportFromBuiltin}
