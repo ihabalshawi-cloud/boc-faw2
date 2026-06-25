@@ -34,7 +34,7 @@ export function TsImportPanel({ gDrive, importing, importDriveId, setImportDrive
   );
 }
 
-const BUILTIN_LABELS = { malak: "نموذج الملاك", contracts: "نموذج العقود" };
+const BUILTIN_LABELS = { malak: "نموذج الملاك", contracts: "نموذج العقود", drivers: "نموذج السائقين" };
 
 export function TsExportPanel({ gDrive, exporting, activeTab, exportDriveId, setExportDriveId, exportFromFile, exportFromDrive, exportFromBuiltin, exportFileRef }) {
   const builtinLabel = BUILTIN_LABELS[activeTab] || "النموذج المدمج";
