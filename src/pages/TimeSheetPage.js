@@ -132,6 +132,8 @@ function TimeSheetPage({ emp }) {
     }
   };
 
+  const exportFromBuiltin = async () => { setExporting(true); try { await exportToTemplate(await(await fetch("/templates/timesheet-malak.xlsx")).arrayBuffer(),{emps:data[activeTab]||[],tabLabel:TAB_INFO[activeTab].label,tsYear,tsMonth,addToast,setExporting,setShowExport}); } catch(e){addToast("فشل: "+e.message,"error");setExporting(false);} };
+
   const daysInMonth = useMemo(() => new Date(tsYear, tsMonth + 1, 0).getDate(), [tsYear, tsMonth]);
   const days = useMemo(() => Array.from({length: daysInMonth}, (_, i) => i + 1), [daysInMonth]);
   const employees = useMemo(() => {
@@ -379,6 +381,7 @@ function TimeSheetPage({ emp }) {
           gDrive={gDrive} exporting={exporting}
           exportDriveId={exportDriveId} setExportDriveId={setExportDriveId}
           exportFromFile={exportFromFile} exportFromDrive={exportFromDrive}
+          exportFromBuiltin={exportFromBuiltin}
           exportFileRef={exportFileRef}
         />
       )}
