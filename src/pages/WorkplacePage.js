@@ -381,13 +381,10 @@ function BulkEvaluationPanel({ emp, allEmployees }) {
   const exportXls = async () => {
     try {
       const mod=await import("exceljs"); const ExcelJS=mod.default||mod;
-      const wb=new ExcelJS.Workbook(); const ws=wb.addWorksheet("نموذج التقييم"); ws.views=[{rightToLeft:true}];
-      ws.getCell("A1").value="شركة نفط البصرة — "+BULK_DEPT; ws.mergeCells("A1:E1"); ws.getRow(1).font={bold:true,size:13};
-      ws.getCell("A2").value=`نموذج التقييم الشهري — ${MONTHS_IRAQI[selMonth]} ${selYear}`; ws.mergeCells("A2:E2"); ws.getRow(2).font={bold:true,size:11};
-      ws.addRow(["ت","الرقم الوظيفي","اسم الموظف","الشعبة","التقييم"]).font={bold:true};
-      allEmployees.forEach((e,i)=>ws.addRow([i+1,e.jobNum,e.name,BULK_DEPT,ratings[e.id]||"—"]));
-      ws.addRow([]); ws.addRow(["التوزيع","متوسط","جيد","جيد جدا","ممتاز"]).font={bold:true}; ws.addRow(["الفعلي",`${pct(dist.متوسط)}%`,`${pct(dist.جيد)}%`,`${pct(dist["جيد جدا"])}%`,`${pct(dist.ممتاز)}%`]); ws.addRow(["المطلوب","5%","20%","40%","35%"]);
-      ws.columns=[{width:10},{width:14},{width:32},{width:35},{width:12}];
+      const wb=new ExcelJS.Workbook(); await wb.xlsx.load(await(await fetch("/templates/eval-monthly.xlsx")).arrayBuffer());
+      const ws=wb.worksheets[0];
+      ws.getCell("B2").value=" "+MONTHS_IRAQI[selMonth]+" "+selYear;
+      ws.eachRow((row,rn)=>{if(rn<4)return;const jn=String(row.getCell(2).value||"").trim();if(!jn)return;const e=allEmployees.find(x=>String(x.jobNum)===jn);if(e&&ratings[e.id])row.getCell(4).value=ratings[e.id];});
       const buf=await wb.xlsx.writeBuffer(); const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})); a.download=`تقييم_${MONTHS_IRAQI[selMonth]}_${selYear}.xlsx`; document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);
       showToast("✅ تم التصدير");
     } catch { showToast("⚠️ فشل التصدير"); }
