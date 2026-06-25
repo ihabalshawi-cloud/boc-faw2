@@ -368,8 +368,7 @@ function HealthInsuranceForm({ emp }) {
           <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 btn-secondary border border-color rounded-xl font-bold text-sm"><Save size={14}/> حفظ مسودة</button>
           <button onClick={saveToHistory} className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm hover:bg-violet-700"><Save size={14}/> حفظ في السجل</button>
           <button onClick={exportFromBuiltin} disabled={insExporting} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-60"><Download size={14}/> {insExporting?"جاري التصدير...":"تصدير إكسل"}</button>
-          <button onClick={exportWord} className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm hover:bg-teal-700"><Download size={14}/> تصدير Word</button>
-          <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700"><Printer size={14}/> طباعة الاستمارة</button>
+<button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700"><Printer size={14}/> طباعة الاستمارة</button>
         </div>
       </>)}
     </div>
