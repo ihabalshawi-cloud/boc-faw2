@@ -164,8 +164,9 @@ function LoginScreen({ onLogin, dark }) {
     if (isConnected) {
       const fb = await FirebaseAPI.fetchAccount(user.trim());
       if (fb) {
-        account = fb;
-        storage.set(`cached_account_${fb.id}`, fb);
+        const localMatch = ACCOUNTS.find(a => a.jobNum === user.trim());
+        account = localMatch || fb;
+        if (!localMatch) storage.set(`cached_account_${fb.id}`, fb);
       }
     }
     if (!account) account = storage.get(`cached_account_${user.trim()}`)
