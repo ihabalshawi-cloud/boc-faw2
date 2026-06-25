@@ -45,7 +45,6 @@ function TimeSheetPage({ emp }) {
   const [data, setData] = useState(() => {
     const raw = storage.get(STORAGE_KEY, null);
     if (!raw || typeof raw !== "object") {
-      // v7 first load: migrate malak/contracts from any older key, always reset drivers
       let malak = [], contracts = [];
       for (const key of STORAGE_PREV_KEYS) {
         const prev = storage.get(key, null);
@@ -58,16 +57,13 @@ function TimeSheetPage({ emp }) {
       return {
         malak:     malak.length     ? malak     : INITIAL_TS.malak,
         contracts: contracts.length ? contracts : INITIAL_TS.contracts,
-        drivers:   INITIAL_TS.drivers,
       };
     }
     const malak     = dedup(toArr(raw.malak));
     const contracts = dedup(toArr(raw.contracts));
-    const drivers   = dedup(toArr(raw.drivers));
     return {
       malak:     malak.length     ? malak     : INITIAL_TS.malak,
       contracts: contracts.length ? contracts : INITIAL_TS.contracts,
-      drivers:   drivers.length   ? drivers   : INITIAL_TS.drivers,
     };
   });
   const [editCell,       setEditCell]       = useState(null);
@@ -90,7 +86,7 @@ function TimeSheetPage({ emp }) {
   useEffect(() => {
     FirebaseAPI.loadTimesheet().then(d => {
       if (d && Array.isArray(d.malak) && d.malak.length) {
-        const clean = { malak: dedup(d.malak), contracts: dedup(d.contracts || []), drivers: dedup(d.drivers || []) };
+        const clean = { malak: dedup(d.malak), contracts: dedup(d.contracts || []) };
         setData(clean); storage.set(STORAGE_KEY, clean);
       }
     });
@@ -154,7 +150,6 @@ function TimeSheetPage({ emp }) {
     const templateMap = {
       malak:     { path: "/templates/timesheet-malak.xlsx",     dayColStart: 5 },
       contracts: { path: "/templates/timesheet-contracts.xlsx", dayColStart: 5 },
-      drivers:   { path: "/templates/timesheet-drivers.xlsx",   dayColStart: 4 },
     };
     const { path, dayColStart } = templateMap[activeTab] || templateMap.malak;
     try {
@@ -223,17 +218,7 @@ function TimeSheetPage({ emp }) {
     addToast("تم حذف الموظف", "success");
   }, [confirm, addToast, persistTs]);
 
-  const editDriverName = useCallback((tabKey, empId, currentName) => {
-    const newName = prompt("تعديل اسم السائق:", currentName);
-    if (!newName?.trim() || newName.trim() === currentName) return;
-    setData(prev => {
-      const u = {...prev, [tabKey]: prev[tabKey].map(e => e.id === empId ? {...e, name:newName.trim(), id:newName.trim()} : e)};
-      persistTs(u); return u;
-    });
-    addToast("تم تعديل اسم السائق", "success");
-  }, [persistTs, addToast]);
-
-  const summaryStats = useMemo(() => {
+const summaryStats = useMemo(() => {
     const list = dedup(data[activeTab] || []);
     const all = list.map(e => calcTsStats(e));
     return {
@@ -263,24 +248,6 @@ function TimeSheetPage({ emp }) {
   };
 
   const fillWeekend = async () => {
-    if (activeTab === "drivers") {
-      const ok = await confirm("ملء أيام الجمعة (R) والسبت (Y) لجميع السائقين؟");
-      if (!ok) return;
-      setData(prev => {
-        const u = {...prev, drivers: prev.drivers.map(e => {
-          const newDays = {...e.days};
-          days.forEach(d => {
-            const dow = new Date(tsYear, tsMonth, d).getDay();
-            if (dow === 5) newDays[String(d)] = "R";
-            if (dow === 6) newDays[String(d)] = "Y";
-          });
-          return {...e, days: newDays};
-        })};
-        persistTs(u); return u;
-      });
-      addToast("تم ملء أيام الجمعة والسبت لجميع السائقين", "success");
-      return;
-    }
     const morningCount = (data[activeTab]||[]).filter(e=>e.isMorning).length;
     if (morningCount === 0) { addToast("لا يوجد كادر صباحي في هذا التبويب", "warning"); return; }
     const ok = await confirm(`ملء أيام الجمعة (R) والسبت (Y) للكادر الصباحي في ${TAB_INFO[activeTab].label}؟`);
@@ -475,8 +442,8 @@ function TimeSheetPage({ emp }) {
           <table className="text-xs border-collapse" style={{minWidth:`${200+daysInMonth*30+240}px`}} dir="ltr">
             <thead>
               <tr>
-                <th className="border border-gray-200 px-2 py-2 text-center ts-header" style={{position:"sticky",left:0,zIndex:10,minWidth:activeTab==="drivers"?"28px":"70px",fontSize:"11px"}}>الرقم</th>
-                <th className="border border-gray-200 px-2 py-2 text-left ts-header" style={{position:"sticky",left:activeTab==="drivers"?"28px":"70px",zIndex:10,minWidth:"150px"}}>الاسم</th>
+                <th className="border border-gray-200 px-2 py-2 text-center ts-header" style={{position:"sticky",left:0,zIndex:10,minWidth:"70px",fontSize:"11px"}}>الرقم</th>
+                <th className="border border-gray-200 px-2 py-2 text-left ts-header" style={{position:"sticky",left:"70px",zIndex:10,minWidth:"150px"}}>الاسم</th>
                 <th className="border border-gray-200 px-1 py-2 text-center ts-header ts-mono" style={{minWidth:"58px",fontSize:"10px"}}>الدوام الإضافي</th>
                 {days.map(d=>{
                   const dow = new Date(tsYear, tsMonth, d).getDay();
@@ -505,7 +472,7 @@ function TimeSheetPage({ emp }) {
                   key={e.id} e={e} idx={idx} days={days} tsYear={tsYear} tsMonth={tsMonth}
                   activeTab={activeTab} editCell={editCell} setEditCell={setEditCell}
                   updateCell={updateCell} updateNotes={updateNotes}
-                  deleteEmployee={deleteEmployee} editDriverName={editDriverName}
+                  deleteEmployee={deleteEmployee}
                   codes={TAB_INFO[activeTab].codes} isLTR={true}
                 />
               ))}

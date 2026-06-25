@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useMemo, useCallback } from "react";
-import { Edit3, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 export const TS_CODES_ALL = {
   "O": { label:"المقيم الصباحي",          color:"bg-orange-100 text-orange-700",  type:"work" },
@@ -43,7 +43,6 @@ export const TS_CODES_ALL = {
   "س": { label:"إجازة مرضية",                 color:"bg-red-100 text-red-600",        type:"sick"  },
 };
 export const TS_CODES_GENERAL = ["O","2","3","R","L","S","Y","X","N","V","I","B","G","M","T","H","D","7","J","P","4","5","K","U","8","W","A","Z","E","F"];
-export const TS_CODES_DRIVER  = ["م","ث","ف","ح","ر","ب","ق","غ","س","R","Y","L","S","X","I","M","W","U"];
 export const MONTHS_AR_TS = ["كانون الثاني","شباط","آذار","نيسان","أيار","حزيران","تموز","آب","أيلول","تشرين الأول","تشرين الثاني","كانون الأول"];
 export const DAY_NAMES_AR = ['أحد','إثن','ثلا','أرب','خمي','جمع','سبت'];
 export const SHIFT_TEXT_COLORS = { 'أ':'#dc2626','ب':'#2563eb','ج':'#16a34a','د':'#7c3aed' };
@@ -56,9 +55,8 @@ export const getShiftForDay = (year, month, day) => {
 };
 
 export const TAB_INFO = {
-  malak:     { label:"الملاك",    title:"استمارة ضبط وقت العمال المؤقتين (بعقد)", codes:TS_CODES_GENERAL },
-  contracts: { label:"العقود",   title:"استمارة تفاصيل الدوام",                   codes:TS_CODES_GENERAL },
-  drivers:   { label:"السائقين", title:"استمارة ضبط الوقت للسيارات المؤجرة",       codes:TS_CODES_DRIVER  },
+  malak:     { label:"الملاك",  title:"استمارة ضبط وقت العمال المؤقتين (بعقد)", codes:TS_CODES_GENERAL },
+  contracts: { label:"العقود", title:"استمارة تفاصيل الدوام",                   codes:TS_CODES_GENERAL },
 };
 
 export const INITIAL_TS = {
@@ -98,10 +96,6 @@ export const INITIAL_TS = {
     {id:"689766",name:"اباذر صالح عبد الحسين عيسى",movement:"",isMorning:true,days:{"4":"Y","5":"R","6":"Y","9":"L","12":"R","13":"Y","16":"Y","19":"R","20":"Y","25":"Y","26":"R","27":"Y"},hours:{},notes:""},
     {id:"690174",name:"حسن عادل عمران",movement:"",isMorning:true,days:{"4":"Y","5":"R","12":"R","16":"Y","19":"R","25":"Y","26":"R","27":"Y"},hours:{},notes:""},
     {id:"689331",name:"سجاد علي راضي علي",movement:"",isMorning:true,days:{"4":"Y","5":"R","12":"R","16":"Y","19":"R","25":"Y","26":"R","27":"Y"},hours:{},notes:""},
-  ],
-  drivers:[
-    {id:"محمد نعيم فاضل",name:"محمد نعيم فاضل",movement:"",days:{"1":"غ","3":"س","4":"Y","5":"R","6":"Y","7":"ق","8":"ح","9":"غ","10":"غ","11":"ح","12":"R","13":"Y","14":"ح","15":"غ","16":"Y","17":"غ","18":"غ","19":"R","20":"Y","21":"غ","22":"غ","23":"ح","26":"R","27":"Y"},hours:{},notes:""},
-    {id:"علي جاسم محمد",name:"علي جاسم محمد",movement:"",days:{"1":"ح","2":"ح","3":"ح","4":"Y","5":"R","6":"Y","7":"ح","8":"ح","9":"ح","10":"غ","11":"غ","12":"R","13":"Y","14":"ح","15":"غ","16":"Y","17":"ح","18":"غ","19":"R","20":"Y","21":"ح","22":"غ","23":"غ","26":"R","27":"Y"},hours:{},notes:""},
   ],
 };
 
@@ -163,7 +157,7 @@ export class TsErrorBoundary extends React.Component {
 
 export const TsEmployeeRow = React.memo(function TsEmployeeRow({
   e, idx, days, tsYear, tsMonth, activeTab, editCell, setEditCell,
-  updateCell, updateNotes, deleteEmployee, editDriverName, codes, isLTR
+  updateCell, updateNotes, deleteEmployee, codes, isLTR
 }) {
   const stats = useMemo(() => calcTsStats(e), [e]);
   const bgBase = idx % 2 === 0 ? "#ffffff" : "#FAFAF8";
@@ -174,8 +168,8 @@ export const TsEmployeeRow = React.memo(function TsEmployeeRow({
   return (
     <React.Fragment>
       <tr>
-        <td rowSpan={2} className="border border-gray-200 text-center text-gray-500 align-middle ts-mono" style={{position:"sticky",[stickyDir]:0,zIndex:5,backgroundColor:bgBase,fontSize:"10px",minWidth:(isLTR&&activeTab==="drivers")?"28px":"70px"}}>{(isLTR&&activeTab==="drivers") ? idx+1 : e.id}</td>
-        <td rowSpan={2} className={`border border-gray-200 px-1 ${isLTR?"text-left":"text-right"} font-semibold align-middle`} style={{position:"sticky",[stickyDir]:(isLTR&&activeTab==="drivers")?"28px":"70px",zIndex:5,backgroundColor:bgBase,maxWidth:"150px",fontSize:"11px"}}>
+        <td rowSpan={2} className="border border-gray-200 text-center text-gray-500 align-middle ts-mono" style={{position:"sticky",[stickyDir]:0,zIndex:5,backgroundColor:bgBase,fontSize:"10px",minWidth:"70px"}}>{e.id}</td>
+        <td rowSpan={2} className={`border border-gray-200 px-1 ${isLTR?"text-left":"text-right"} font-semibold align-middle`} style={{position:"sticky",[stickyDir]:"70px",zIndex:5,backgroundColor:bgBase,maxWidth:"150px",fontSize:"11px"}}>
           {e.name}{e.movement && <span className="mr-1 text-[10px] text-blue-500 font-normal">({e.movement})</span>}
         </td>
         <td className="border border-gray-200 text-center font-black ts-mono" style={{backgroundColor:bgBase,fontSize:"10px",color:"#C87A2E"}}>A</td>
@@ -201,7 +195,6 @@ export const TsEmployeeRow = React.memo(function TsEmployeeRow({
           <input value={e.notes||""} onChange={ev=>updateNotes(activeTab,e.id,ev.target.value)} className="w-full text-xs bg-transparent outline-none text-gray-500" placeholder="ملاحظة..." style={{minWidth:"90px"}}/>
         </td>
         <td rowSpan={2} className="border border-gray-200 text-center align-middle" style={{backgroundColor:bgBase}}>
-          {activeTab==="drivers" && <button onClick={()=>editDriverName(activeTab,e.id,e.name)} className="text-blue-400 hover:text-blue-600 p-0.5 block mx-auto mb-0.5" title="تعديل الاسم"><Edit3 size={12}/></button>}
           <button onClick={()=>deleteEmployee(activeTab,e.id,e.name)} className="text-red-400 hover:text-red-600 p-0.5 block mx-auto" title="حذف"><Trash2 size={12}/></button>
         </td>
       </tr>
