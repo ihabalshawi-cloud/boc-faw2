@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Save, FileText, Clock, Plus, Trash2, X, Printer, Download, Heart, UserPlus } from "lucide-react";
 import { MARITAL_STATUS_LIST, PROCEDURE_TYPES, MONTHS_IRAQI } from "../constants";
 import { buildHealthInsurancePrintHTML } from "./HealthInsurancePrintBuilder";
@@ -27,8 +27,6 @@ function HealthInsuranceForm({ emp }) {
   const [activeView,   setActiveView]   = useState("form"); // "form" | "history" | "preview"
   const [savedForms,   setSavedForms]   = useState(() => storage.get(HISTORY_KEY, []));
   const [insExporting, setInsExporting] = useState(false);
-  const [showInsExport,setShowInsExport]= useState(false);
-  const insFileRef = useRef(null);
 
   useEffect(() => {
     const d = storage.get(STORAGE_KEY);
@@ -188,18 +186,15 @@ function HealthInsuranceForm({ emp }) {
       addToast("فشل تصدير الإكسل: " + e.message, "error");
     } finally {
       setInsExporting(false);
-      setShowInsExport(false);
     }
   };
 
-  const exportFromInsFile = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const exportFromBuiltin = async () => {
     setInsExporting(true);
-    const reader = new FileReader();
-    reader.onload = (ev) => exportToInsuranceTemplate(ev.target.result);
-    reader.readAsArrayBuffer(file);
-    e.target.value = "";
+    try {
+      const buf = await (await fetch("/templates/health-insurance.xlsx")).arrayBuffer();
+      await exportToInsuranceTemplate(buf);
+    } catch(e) { addToast("فشل تحميل القالب: "+e.message,"error"); setInsExporting(false); }
   };
 
   return (
@@ -368,32 +363,11 @@ function HealthInsuranceForm({ emp }) {
           </div>
         </div>
 
-        {/* لوحة تصدير قالب الإكسل */}
-        {showInsExport && (
-          <div className="card rounded-2xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-bold text-sm text-emerald-800 flex items-center gap-2">
-                <Download size={15}/> تصدير إلى قالب إكسل
-              </h4>
-              <button onClick={()=>setShowInsExport(false)} className="text-gray-400 hover:text-gray-600"><X size={16}/></button>
-            </div>
-            <p className="text-xs text-emerald-700">اختر ملف قالب الإكسل الخاص باستمارة الضمان الصحي — سيتم ملء البيانات مع الحفاظ على التنسيق الأصلي.</p>
-            <input ref={insFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={exportFromInsFile}/>
-            <button
-              onClick={()=>insFileRef.current?.click()}
-              disabled={insExporting}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 disabled:opacity-60">
-              {insExporting ? <span className="animate-spin">⏳</span> : <Download size={14}/>}
-              {insExporting ? "جاري التصدير..." : "اختيار ملف القالب"}
-            </button>
-          </div>
-        )}
-
         {/* Actions */}
         <div className="flex flex-wrap gap-3 justify-end pb-4">
           <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 btn-secondary border border-color rounded-xl font-bold text-sm"><Save size={14}/> حفظ مسودة</button>
           <button onClick={saveToHistory} className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm hover:bg-violet-700"><Save size={14}/> حفظ في السجل</button>
-          <button onClick={()=>setShowInsExport(v=>!v)} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700"><Download size={14}/> تصدير إكسل</button>
+          <button onClick={exportFromBuiltin} disabled={insExporting} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-60"><Download size={14}/> {insExporting?"جاري التصدير...":"تصدير إكسل"}</button>
           <button onClick={exportWord} className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm hover:bg-teal-700"><Download size={14}/> تصدير Word</button>
           <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700"><Printer size={14}/> طباعة الاستمارة</button>
         </div>
