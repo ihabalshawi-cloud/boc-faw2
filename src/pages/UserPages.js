@@ -167,11 +167,13 @@ function InlineSigPad({ onSave, onCancel }) {
 function ApprovalsPage({ emp }) {
   const isSupervisor = emp.username === "i.shawi";
   const isAdmin = emp.role === "admin";
-  const canArchive = isSupervisor || isAdmin;
+  const isAttendanceAdmin = emp.role === "attendance_admin";
+  const canArchive = isSupervisor || isAdmin || isAttendanceAdmin;
   const sortDesc = (a,b) => new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt);
   const [requests, setRequests] = useState(() => storage.get("all_requests", []).filter(r => r.status === "بانتظار المراجعة"));
   const [approved, setApproved] = useState(() => storage.get("all_requests", []).filter(r => r.status === "موافق عليها" && !r.archived).sort(sortDesc));
   const [archived, setArchived] = useState(() => storage.get("all_requests", []).filter(r => r.archived).sort(sortDesc));
+  const [pushed, setPushed] = useState(() => storage.get("all_requests", []).filter(r => r.pushedToAdmin && !r.archived));
   const [sigReqId, setSigReqId] = useState(null);
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
@@ -181,11 +183,13 @@ function ApprovalsPage({ emp }) {
     setRequests(list.filter(r => r.status === "بانتظار المراجعة"));
     setApproved(list.filter(r => r.status === "موافق عليها" && !r.archived).sort(sortDesc));
     setArchived(list.filter(r => r.archived).sort(sortDesc));
+    setPushed(list.filter(r => r.pushedToAdmin && !r.archived));
   };
   const refreshApproved = () => {
     const all = storage.get("all_requests", []);
     setApproved(all.filter(r => r.status === "موافق عليها" && !r.archived).sort(sortDesc));
     setArchived(all.filter(r => r.archived).sort(sortDesc));
+    setPushed(all.filter(r => r.pushedToAdmin && !r.archived));
   };
   const archiveReq = (id) => {
     const all = storage.get("all_requests", []).map(r => r.id === id ? {...r, archived:true} : r);
@@ -229,22 +233,34 @@ function ApprovalsPage({ emp }) {
     playAlert("notification");
   };
 
+  const exportReqExcel = (req) => {
+    const supSig = req.sigDataUrl ? `<img src="${req.sigDataUrl}" width="130" height="45"/>` : "(غير موقّع)";
+    const empSig = req.empSigDataUrl ? `<img src="${req.empSigDataUrl}" width="130" height="45"/>` : "(غير موقّع)";
+    const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='UTF-8'/><style>body{font-family:Arial;direction:rtl}table{border-collapse:collapse;width:600pt}td,th{border:1pt solid #000;padding:6pt 8pt;font-size:11pt}th{background:#d6e4f0;font-weight:bold}.ttl{font-size:14pt;font-weight:bold;text-align:center}.sig-td{height:60pt;vertical-align:middle;text-align:center}</style></head><body><table><tr><td colspan="4" class="ttl">شركة نفط البصرة — شعبة مستودع الفاو</td></tr><tr><td colspan="4" class="ttl">نموذج إجازة ${req.type}</td></tr><tr><th>الموظف</th><td>${req.empName||""}</td><th>نوع الإجازة</th><td>${req.type||""}</td></tr><tr><th>من</th><td>${req.dateFrom||""}</td><th>إلى</th><td>${req.dateTo||""}</td></tr><tr><th>عدد الأيام</th><td>${req.days||""}</td><th>الغرض</th><td>${req.purpose||""}</td></tr><tr><th>تاريخ الطلب</th><td>${req.submittedAt?new Date(req.submittedAt).toLocaleDateString("ar-IQ"):""}</td><th>تاريخ الموافقة</th><td>${req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</td></tr><tr><th>وافق عليها</th><td colspan="3">${req.decidedBy||""}</td></tr><tr><td class="sig-td">توقيع الموظف<br/>${empSig}<br/><small>${req.empName||""}</small></td><td colspan="3" class="sig-td">توقيع مسؤول الشعبة<br/>${supSig}<br/><small>${req.decidedBy||"إيهاب الشاوي"}</small></td></tr></table></body></html>`;
+    const blob = new Blob(["﻿"+html],{type:"application/vnd.ms-excel;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url;
+    a.download = `إجازة_${req.empName}_${req.type}_${req.dateFrom||""}`.replace(/\s/g,"_")+".xls";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
+
   const pushToAdmin = (req) => {
+    exportReqExcel(req);
     const all = storage.get("all_requests", []);
     const updated = all.map(r => r.id===req.id ? {...r, pushedToAdmin:true, pushedAt:new Date().toISOString()} : r);
     storage.set("all_requests", updated);
     FirebaseAPI.saveRequests(updated);
-    ACCOUNTS.filter(a=>a.role==="admin").forEach(admin => {
+    ACCOUNTS.filter(a=>a.role==="admin"||a.role==="attendance_admin").forEach(admin => {
       const nk = `notifications_${admin.id}`;
       const adminNotifs = [{ id:Date.now()+admin.id, type:"أرشفة_إجازة",
-        title:`📁 إجازة للأرشفة — ${req.empName}`,
+        title:`📋 إجازة مرحّلة للأرشفة — ${req.empName}`,
         body:`${req.type} — ${req.days} يوم | وافق: ${req.decidedBy}`,
         timestamp:new Date().toISOString(), read:false, reqId:req.id }, ...storage.get(nk,[])];
       storage.set(nk, adminNotifs);
       FirebaseAPI.saveNotifications(admin.id, adminNotifs);
     });
     refreshApproved();
-    showToast("📁 تم الدفع للإداري وحفظ النسخة للأرشيف");
+    showToast("📋 تم الترحيل للإداري وتحميل نموذج الإكسل");
   };
 
   const printForm = (req) => {
@@ -337,6 +353,27 @@ function ApprovalsPage({ emp }) {
                 <div className="flex gap-2 items-start">
                   <button onClick={()=>printForm(req)} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Printer size={10}/> طباعة</button>
                   <button onClick={()=>restoreReq(req.id)} className="px-2.5 py-1.5 bg-amber-500 text-white rounded-lg text-[11px]">↩️ استرداد</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {isAttendanceAdmin && pushed.length > 0 && (
+        <div className="mt-6 space-y-3">
+          <h3 className="font-bold text-base border-t border-color pt-4 text-violet-700">📋 الطلبات المُرحَّلة إليك ({pushed.length})</h3>
+          {pushed.map(req=>(
+            <div key={req.id} className="card rounded-2xl p-4 border-violet-200 border bg-violet-50/30 space-y-1">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-bold text-sm">{req.empName}</p>
+                  <p className="text-xs">{req.type} — {req.days} يوم | {req.purpose}</p>
+                  <p className="text-[10px] text-secondary">وافق: {req.decidedBy} — {req.pushedAt?new Date(req.pushedAt).toLocaleDateString("ar-IQ"):""}</p>
+                </div>
+                <div className="flex gap-2 items-start flex-wrap justify-end">
+                  <button onClick={()=>exportReqExcel(req)} className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Download size={10}/> تصدير إكسل</button>
+                  <button onClick={()=>printForm(req)} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Printer size={10}/> طباعة</button>
+                  <button onClick={()=>archiveReq(req.id)} className="px-2.5 py-1.5 bg-gray-600 text-white rounded-lg text-[11px]">📁 أرشفة</button>
                 </div>
               </div>
             </div>
