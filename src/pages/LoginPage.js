@@ -235,7 +235,7 @@ function LoginScreen({ onLogin, dark }) {
       try { sessionStorage.setItem("boc_session", JSON.stringify({ acctId: account.id, expiry: Date.now() + 8 * 3600000 })); } catch {}
       if (pass.trim() === DEFAULT_PASSWORD && !localPass) { try { sessionStorage.setItem("force_password_change", "true"); } catch {} }
       const empSt = getEmpStatus(account.id);
-      if (!empSt.active) { setErr("هذا الحساب معطّل. تواصل مع المشرف."); recordLoginAttempt(account, "failed", "account_disabled"); return; }
+      if (!empSt.active) { setErr("هذا الحساب معطّل. تواصل مع مسؤول الشعبة."); recordLoginAttempt(account, "failed", "account_disabled"); return; }
       recordLoginAttempt(account, "success");
       onLogin(account);
     } else {

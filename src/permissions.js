@@ -14,7 +14,7 @@ const PERMISSIONS_DEF = {
   VIEW_AUDIT:        { label:"سجل التعديلات",        icon:"📊" },
 };
 const BUILT_IN_ROLES = {
-  SUPER_ADMIN:       { label:"مشرف عام",      color:"bg-red-100 text-red-800",      permissions:["FULL_ACCESS"] },
+  SUPER_ADMIN:       { label:"مسؤول الشعبة", color:"bg-red-100 text-red-800",      permissions:["FULL_ACCESS"] },
   ADMIN:             { label:"مدير إداري",    color:"bg-blue-100 text-blue-800",    permissions:["VIEW_LOGIN_HIST","VIEW_AUDIT","KILL_SESSIONS"] },
   MAINTENANCE:       { label:"مدير صيانة",   color:"bg-orange-100 text-orange-800", permissions:["MANAGE_EQUIPMENT","MANAGE_SPAREPARTS"] },
   WAREHOUSE_MANAGER: { label:"مسؤول المخزن", color:"bg-teal-100 text-teal-800",     permissions:["MANAGE_INVENTORY"] },

@@ -361,7 +361,7 @@ function ApprovalsPage({ emp }) {
       {(!isAttendanceAdmin || activeTab==="كل") && <>
       <div className="flex items-center justify-between">
         <h3 className="font-bold text-lg">الطلبات المعلقة ({requests.length})</h3>
-        {!isSupervisor && <span className="text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-bold">للاطلاع فقط — الموافقة من صلاحية المشرف العام</span>}
+        {!isSupervisor && <span className="text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-bold">للاطلاع فقط — الموافقة من صلاحية مسؤول الشعبة</span>}
       </div>
       {requests.length===0
         ? <div className="card rounded-2xl p-8 text-center border-color border"><CheckCircle size={40} className="mx-auto text-secondary"/><p className="text-secondary">لا توجد طلبات معلقة</p></div>

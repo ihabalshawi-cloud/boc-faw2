@@ -128,7 +128,7 @@ function EmployeeManager({ employees, setEmployees }) {
   const [syncingRoles, setSyncingRoles] = useState(false);
   const [page, setPage]       = useState(1);
   const [perPage, setPerPage] = useState(10);
-  const [form, setForm]       = useState({name:"",jobNum:"",title:"",dept:"قسم السيطرة والنظم",shift:"صباحي",phone:"",email:""});
+  const [form, setForm]       = useState({name:"",jobNum:"",title:"",dept:"شعبة سيطرة مستودع الفاو والمرافئ",shift:"صباحي",phone:"",email:""});
   const [, forceUpdate] = useState(0);
   const addToast = useToast();
   const confirm  = useConfirm();
@@ -289,7 +289,7 @@ function EmployeeManager({ employees, setEmployees }) {
           {roleNames.map(r=><option key={r}>{r}</option>)}
         </select>
         <button onClick={()=>exportCSV(employees.map(e=>({الاسم:e.name,الرقم:e.jobNum,المسمى:e.title,القسم:e.dept,النوبة:e.shift})),"الموظفون")} className="btn-secondary flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl border"><Download size={13}/></button>
-        <button onClick={()=>{setAdding(true);setForm({name:"",jobNum:"",title:"",dept:"قسم السيطرة والنظم",shift:"صباحي",phone:"",email:""});}} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><Plus size={14}/> إضافة</button>
+        <button onClick={()=>{setAdding(true);setForm({name:"",jobNum:"",title:"",dept:"شعبة سيطرة مستودع الفاو والمرافئ",shift:"صباحي",phone:"",email:""});}} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold"><Plus size={14}/> إضافة</button>
         <button onClick={handleMigrate} disabled={migrating} className="px-3 py-2 bg-orange-600 text-white rounded-xl text-sm font-bold disabled:opacity-60">{migrating?"جاري النقل...":"نقل Firebase"}</button>
         <button onClick={syncRolesToFirebase} disabled={syncingRoles||!isConnected} className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 text-white rounded-xl text-sm font-bold disabled:opacity-60" title="حفظ الصلاحيات للأبد في Firebase"><Shield size={13}/>{syncingRoles?"جاري الحفظ...":"حفظ الصلاحيات"}</button>
       </div>
@@ -312,7 +312,7 @@ function EmployeeManager({ employees, setEmployees }) {
               <div>
                 <label className="block text-xs font-bold text-secondary mb-1">القسم</label>
                 <select value={form.dept} onChange={e=>setForm({...form,dept:e.target.value})} className="input w-full rounded-xl px-3 py-2 text-sm">
-                  {["قسم السيطرة والنظم","شعبة مستودع الفاو","شعبة المرافئ"].map(d=><option key={d}>{d}</option>)}
+                  {["شعبة سيطرة مستودع الفاو والمرافئ","شعبة مستودع الفاو","شعبة المرافئ"].map(d=><option key={d}>{d}</option>)}
                 </select>
               </div>
               <div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { LogIn, LogOut, Save, CheckCircle, Plus, Trash2, Download, CheckSquare, AlertTriangle,
   GraduationCap, Star, MessageSquare, Send, Wifi, WifiOff } from "lucide-react";
-import { MONTHS_AR, TRAINING_TYPES, TASK_PRIORITIES, TASK_STATUSES, EVAL_CRITERIA } from "../constants";
+import { MONTHS_AR, MONTHS_IRAQI, TRAINING_TYPES, TASK_PRIORITIES, TASK_STATUSES, EVAL_CRITERIA } from "../constants";
 import { storage, exportCSV } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
@@ -42,7 +42,7 @@ function AttendanceSystem({ emp, isAdmin, allEmployees }) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div className="flex gap-2 flex-wrap">
-          <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))} className="input rounded-xl px-3 py-2 text-sm">{MONTHS_AR.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
+          <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))} className="input rounded-xl px-3 py-2 text-sm">{MONTHS_IRAQI.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
           <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))} className="input rounded-xl px-3 py-2 text-sm">{[2024,2025,2026].map(y=><option key={y}>{y}</option>)}</select>
           {isAdmin && <select value={selEmpId||""} onChange={e=>setSelEmpId(Number(e.target.value)||null)} className="input rounded-xl px-3 py-2 text-sm min-w-[180px]"><option value="">-- اختر موظفاً --</option>{allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,2).join(" ")}</option>)}</select>}
         </div>
@@ -217,7 +217,7 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
 
 // ========== الدردشة الداخلية الموجّهة ==========
 
-const CHAT_ADMINS = [{ id:1, name:"ايهاب الشاوي", title:"المشرف العام" }];
+const CHAT_ADMINS = [{ id:1, name:"ايهاب الشاوي", title:"مسؤول الشعبة" }];
 
 function ChatWindow({ emp, partnerId, partnerName, messages, isConnected, onBack, loadMessages }) {
   const [text, setText] = useState("");
@@ -294,7 +294,7 @@ function InternalChat({ emp, isConnected }) {
 
   const openChat = (id, name, busy) => {
     if (busy) {
-      const wait = { text:"سيتم الرد عليك قريباً، المشرف مشغول حالياً بمحادثة أخرى.", sender:"النظام", senderId:-1, toId:emp.id, fromId:id, timestamp:Date.now(), system:true, _key:`sys_${Date.now()}` };
+      const wait = { text:"سيتم الرد عليك قريباً، مسؤول الشعبة مشغول حالياً بمحادثة أخرى.", sender:"النظام", senderId:-1, toId:emp.id, fromId:id, timestamp:Date.now(), system:true, _key:`sys_${Date.now()}` };
       setMessages(prev => [...prev, wait]);
     }
     setPartnerId(id); setPartnerName(name);
@@ -359,9 +359,59 @@ function InternalChat({ emp, isConnected }) {
   );
 }
 
-// ========== التقييم الشهري (جديد) ==========
+// ========== التقييم الشهري الجماعي ==========
+
+const BULK_RATINGS = ["متوسط","جيد","جيد جدا","ممتاز"];
+const BULK_REQ = {متوسط:5,جيد:20,"جيد جدا":40,ممتاز:35};
+const BULK_RCOLOR = {متوسط:"bg-red-100 text-red-700",جيد:"bg-amber-100 text-amber-700","جيد جدا":"bg-blue-100 text-blue-700",ممتاز:"bg-emerald-100 text-emerald-700"};
+const BULK_DEPT = "شعبة سيطرة مستودع الفاو والمرافئ";
+
+function BulkEvaluationPanel({ emp, allEmployees }) {
+  const now = new Date();
+  const [selMonth, setSelMonth] = useState(now.getMonth());
+  const [selYear, setSelYear] = useState(now.getFullYear());
+  const [ratings, setRatings] = useState({});
+  const [toast, setToast] = useState("");
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  useEffect(() => { FirebaseAPI.loadBulkEval(selYear,selMonth).then(d=>{ setRatings(d?.ratings||{}); }); }, [selYear,selMonth]);
+  const setR = (id,r) => setRatings(prev=>({...prev,[id]:r}));
+  const dist = BULK_RATINGS.reduce((a,r)=>({...a,[r]:Object.values(ratings).filter(x=>x===r).length}),{});
+  const pct = (n) => allEmployees.length>0?Math.round(n/allEmployees.length*100):0;
+  const save = async () => { const ok=await FirebaseAPI.saveBulkEval(selYear,selMonth,{ratings,savedBy:emp.name,month:selMonth,year:selYear}); showToast(ok?"✅ تم الحفظ":"⚠️ فشل الحفظ"); };
+  const exportXls = async () => {
+    try {
+      const mod=await import("exceljs"); const ExcelJS=mod.default||mod;
+      const wb=new ExcelJS.Workbook(); const ws=wb.addWorksheet("التقييم"); ws.views=[{rightToLeft:true}];
+      ws.addRow(["ت","الرقم الوظيفي","اسم الموظف","الشعبة","التقييم"]);
+      allEmployees.forEach((e,i)=>ws.addRow([i+1,e.jobNum,e.name,BULK_DEPT,ratings[e.id]||"—"]));
+      ws.getRow(1).font={bold:true}; ws.columns=[{width:5},{width:12},{width:30},{width:35},{width:12}];
+      const buf=await wb.xlsx.writeBuffer(); const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})); a.download=`تقييم_${MONTHS_IRAQI[selMonth]}_${selYear}.xlsx`; document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);
+      showToast("✅ تم التصدير");
+    } catch { showToast("⚠️ فشل التصدير"); }
+  };
+  const printPDF = () => {
+    const rows=allEmployees.map((e,i)=>`<tr><td>${i+1}</td><td>${e.jobNum}</td><td>${e.name}</td><td>${BULK_DEPT}</td><td>${ratings[e.id]||"—"}</td></tr>`).join("");
+    const w=window.open("","_blank"); w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"/><title>تقييم</title><style>body{font-family:Arial;padding:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:6px;text-align:right}h2,h3{text-align:center}th{background:#e8e8e8}</style></head><body><h2>شركة نفط البصرة</h2><h3>التقييم الشهري — ${MONTHS_IRAQI[selMonth]} ${selYear}</h3><table><thead><tr><th>ت</th><th>الرقم الوظيفي</th><th>اسم الموظف</th><th>الشعبة</th><th>التقييم</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+    w.document.close();w.focus();setTimeout(()=>w.print(),400);
+  };
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3 items-center justify-between">
+        <div className="flex gap-2"><select value={selMonth} onChange={e=>setSelMonth(+e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{MONTHS_IRAQI.map((m,i)=><option key={i} value={i}>{m}</option>)}</select><select value={selYear} onChange={e=>setSelYear(+e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{[2024,2025,2026].map(y=><option key={y}>{y}</option>)}</select></div>
+        <div className="flex gap-2"><button onClick={save} className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 px-3 py-2 rounded-xl"><Save size={13}/>حفظ</button><button onClick={exportXls} className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 px-3 py-2 rounded-xl"><Download size={13}/>Excel</button><button onClick={printPDF} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Star size={13}/>PDF</button></div>
+      </div>
+      <div className="grid grid-cols-4 gap-2">{BULK_RATINGS.map(r=><div key={r} className={`rounded-xl p-2 text-center text-xs ${BULK_RCOLOR[r]}`}><p className="font-bold text-lg">{dist[r]}</p><p className="font-bold">{r}</p><p className="text-[10px]">{pct(dist[r])}% / مطلوب {BULK_REQ[r]}%</p></div>)}</div>
+      <div className="card rounded-2xl border border-color overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm" dir="rtl"><thead><tr className="bg-gray-50 border-b border-color"><th className="px-3 py-2 text-right font-semibold">ت</th><th className="px-3 py-2 text-right font-semibold">الرقم</th><th className="px-3 py-2 text-right font-semibold">الموظف</th><th className="px-3 py-2 text-center font-semibold">التقييم</th></tr></thead>
+        <tbody>{allEmployees.map((e,i)=>(<tr key={e.id} className="border-b border-color"><td className="px-3 py-2 text-secondary text-xs">{i+1}</td><td className="px-3 py-2 font-mono text-secondary text-xs">{e.jobNum}</td><td className="px-3 py-2 font-medium">{e.name}</td><td className="px-3 py-2 text-center"><select value={ratings[e.id]||""} onChange={ev=>setR(e.id,ev.target.value)} className="input text-xs rounded-lg px-2 py-1"><option value="">—</option>{BULK_RATINGS.map(r=><option key={r}>{r}</option>)}</select></td></tr>))}</tbody></table></div></div>
+      {toast&&<div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+    </div>
+  );
+}
+
+// ========== التقييم الشهري الفردي ==========
 
 function EvaluationSystem({ emp, isAdmin, allEmployees }) {
+  const [evalTab, setEvalTab] = useState(isAdmin ? "bulk" : "individual");
   const [evals, setEvals] = useState(() => storage.get("evaluations", []));
   const [showForm, setShowForm] = useState(false);
   const [selEmp, setSelEmp] = useState("");
@@ -387,12 +437,21 @@ function EvaluationSystem({ emp, isAdmin, allEmployees }) {
   };
 
   const myEvals = isAdmin ? evals : evals.filter(e=>e.empId===emp.id);
-
   const gradeLabel = (s) => s>=90?"ممتاز":s>=75?"جيد جداً":s>=60?"جيد":s>=50?"مقبول":"ضعيف";
   const gradeColor = (s) => s>=90?"text-emerald-600":s>=75?"text-blue-600":s>=60?"text-amber-600":"text-red-600";
 
   return (
     <div className="space-y-4">
+      {isAdmin && (
+        <div className="flex gap-1 border-b border-color pb-0 -mb-2">
+          <button onClick={()=>setEvalTab("bulk")} className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${evalTab==="bulk"?"border-indigo-600 text-indigo-700":"border-transparent text-secondary hover:text-primary"}`}>📊 التقييم الجماعي</button>
+          <button onClick={()=>setEvalTab("individual")} className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${evalTab==="individual"?"border-indigo-600 text-indigo-700":"border-transparent text-secondary hover:text-primary"}`}>⭐ التقييمات الفردية</button>
+        </div>
+      )}
+
+      {isAdmin && evalTab==="bulk" && <BulkEvaluationPanel emp={emp} allEmployees={allEmployees}/>}
+
+      {(!isAdmin || evalTab==="individual") && (<>
       <div className="flex justify-between items-center"><h3 className="font-bold text-lg">التقييم الشهري</h3>
         {isAdmin && <button onClick={()=>setShowForm(!showForm)} className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 px-3 py-2 rounded-xl"><Plus size={13}/> تقييم جديد</button>}
       </div>
@@ -401,7 +460,7 @@ function EvaluationSystem({ emp, isAdmin, allEmployees }) {
         <div className="card rounded-2xl border-2 border-indigo-200 p-5 space-y-4">
           <div className="grid grid-cols-3 gap-3">
             <select value={selEmp} onChange={e=>setSelEmp(e.target.value)} className="input rounded-xl px-3 py-2 text-sm"><option value="">-- اختر موظفاً --</option>{allEmployees.map(e=><option key={e.id} value={e.id}>{e.name.split(" ").slice(0,2).join(" ")}</option>)}</select>
-            <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))} className="input rounded-xl px-3 py-2 text-sm">{MONTHS_AR.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
+            <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))} className="input rounded-xl px-3 py-2 text-sm">{MONTHS_IRAQI.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
             <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))} className="input rounded-xl px-3 py-2 text-sm">{[2024,2025,2026].map(y=><option key={y}>{y}</option>)}</select>
           </div>
           <div className="space-y-3">
@@ -418,13 +477,14 @@ function EvaluationSystem({ emp, isAdmin, allEmployees }) {
       <div className="space-y-3">{myEvals.length===0?<div className="card rounded-2xl p-8 text-center border-color border"><Star size={40} className="mx-auto text-secondary"/><p className="text-secondary">لا توجد تقييمات</p></div>:
         myEvals.map(ev=>(<div key={ev.id} className="card rounded-2xl border-color border p-4">
           <div className="flex justify-between items-start">
-            <div><p className="font-bold">{ev.empName}</p><p className="text-xs text-secondary">{MONTHS_AR[ev.month]} {ev.year} — بواسطة {ev.evaluatedBy}</p>
+            <div><p className="font-bold">{ev.empName}</p><p className="text-xs text-secondary">{MONTHS_IRAQI[ev.month]} {ev.year} — بواسطة {ev.evaluatedBy}</p>
               {ev.notes && <p className="text-xs text-secondary mt-1 italic">{ev.notes}</p>}
               <div className="flex flex-wrap gap-2 mt-2">{EVAL_CRITERIA.map(c=><span key={c} className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{c}: {ev.scores[c]}/5</span>)}</div>
             </div>
             <div className="text-center"><p className={`text-3xl font-bold ${gradeColor(ev.total)}`}>{ev.total}%</p><p className={`text-xs font-bold ${gradeColor(ev.total)}`}>{gradeLabel(ev.total)}</p></div>
           </div></div>))}</div>
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
+      </>)}
     </div>
   );
 }
