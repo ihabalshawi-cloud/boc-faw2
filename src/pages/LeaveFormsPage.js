@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Save, CheckCircle, FileText, Printer, Download, Upload } from "lucide-react";
+import { Save, CheckCircle, FileText, Printer, Download, Upload, Send } from "lucide-react";
 import { storage } from "../utils";
 import { useToast } from "../contexts";
 import { useGDrive } from "../gdrive";
@@ -27,6 +27,8 @@ function SickLeaveForm({ emp }) {
   const [returnDate,  setReturnDate]  = useState("");
   const [returnTime,  setReturnTime]  = useState("");
   const [sigDataUrl,  setSigDataUrl]  = useState(null);
+  const [empSigDataUrl, setEmpSigDataUrl] = useState(null);
+  const [status,       setStatus]       = useState("draft");
 
   useEffect(() => {
     const s = storage.get(STORAGE_KEY, null);
@@ -41,13 +43,20 @@ function SickLeaveForm({ emp }) {
       setReturnDate(s.returnDate || "");
       setReturnTime(s.returnTime || "");
       setSigDataUrl(s.sigDataUrl || null);
+      setEmpSigDataUrl(s.empSigDataUrl || null);
+      setStatus(s.status || "draft");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const save = () => {
-    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, leaveDate, leaveTime, clinicDT, notes, returnDate, returnTime, sigDataUrl });
-    toast("تم حفظ بيانات الإجازة المرضية", "success");
+  const saveDraft = () => {
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, leaveDate, leaveTime, clinicDT, notes, returnDate, returnTime, sigDataUrl, empSigDataUrl, status: "draft" });
+    toast("تم حفظ المسودة", "success");
+  };
+  const saveAndSubmit = () => {
+    if (!empSigDataUrl) { toast("توقيع الموظف إلزامي للتقديم", "warning"); return; }
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, leaveDate, leaveTime, clinicDT, notes, returnDate, returnTime, sigDataUrl, empSigDataUrl, status: "submitted" });
+    toast("تم تقديم الإجازة المرضية بنجاح", "success");
   };
 
   const fmtDate = (d) => {
@@ -230,11 +239,18 @@ function SickLeaveForm({ emp }) {
         </div>
       </div>
 
+      {/* توقيع الموظف */}
+      <div>
+        <label className="block text-xs font-bold text-secondary mb-2">توقيع الموظف <span className="text-rose-500 font-medium">* إلزامي للتقديم</span></label>
+        <SignaturePad onSave={setEmpSigDataUrl} label="ارسم توقيعك ثم اضغط حفظ التوقيع"/>
+        {empSigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={empSigDataUrl} alt="توقيع الموظف" className="max-h-14"/></div>}
+      </div>
+
       {/* توقيع المسؤول */}
       <div>
         <label className="block text-xs font-bold text-secondary mb-2">توقيع المسؤول (إلكتروني)</label>
         <SignaturePad onSave={setSigDataUrl} label="ارسم التوقيع ثم اضغط حفظ التوقيع"/>
-        {sigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={sigDataUrl} alt="توقيع" className="max-h-14"/></div>}
+        {sigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={sigDataUrl} alt="توقيع المسؤول" className="max-h-14"/></div>}
       </div>
 
       {/* مراجعة المستوصف */}
@@ -259,7 +275,8 @@ function SickLeaveForm({ emp }) {
             <CheckCircle size={14}/> عرض في Drive
           </a>
         )}
-        <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ</button>
+        <button onClick={saveDraft} className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ مسودة</button>
+        <button onClick={saveAndSubmit} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm"><Send size={14}/> حفظ وتقديم</button>
         {gDrive.isReady && (
           <button onClick={uploadToDrive} disabled={uploadPct >= 0} className="flex items-center gap-2 px-4 py-2.5 bg-[#C87A2E] text-white rounded-xl font-bold text-sm disabled:opacity-60">
             <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "رفع إلى Drive"}

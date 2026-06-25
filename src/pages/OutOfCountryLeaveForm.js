@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Save, CheckCircle, FileText, Printer, Download, Upload, Globe } from "lucide-react";
+import { Save, CheckCircle, FileText, Printer, Download, Upload, Globe, Send } from "lucide-react";
 import { storage } from "../utils";
 import { useToast } from "../contexts";
 import { useGDrive } from "../gdrive";
@@ -23,6 +23,8 @@ function OutOfCountryLeaveForm({ emp }) {
   const [reqDate, setReqDate] = useState(now.toISOString().split("T")[0]);
   const [refNum, setRefNum] = useState("");
   const [sigDataUrl, setSigDataUrl] = useState(null);
+  const [empSigDataUrl, setEmpSigDataUrl] = useState(null);
+  const [status, setStatus] = useState("draft");
   const [uploadPct, setUploadPct] = useState(-1);
   const [driveLink, setDriveLink] = useState(null);
   const [templateId, setTemplateId] = useState(() => storage.get("template_id_ooc", ""));
@@ -41,13 +43,20 @@ function OutOfCountryLeaveForm({ emp }) {
       setReqDate(saved.reqDate || now.toISOString().split("T")[0]);
       setRefNum(saved.refNum || "");
       setSigDataUrl(saved.sigDataUrl || null);
+      setEmpSigDataUrl(saved.empSigDataUrl || null);
+      setStatus(saved.status || "draft");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const save = () => {
-    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, country, days, salaryType, purpose, reqDate, refNum, sigDataUrl });
-    toast("تم حفظ بيانات إجازة خارج القطر", "success");
+  const saveDraft = () => {
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, country, days, salaryType, purpose, reqDate, refNum, sigDataUrl, empSigDataUrl, status: "draft" });
+    toast("تم حفظ المسودة", "success");
+  };
+  const saveAndSubmit = () => {
+    if (!empSigDataUrl) { toast("توقيع الموظف إلزامي للتقديم", "warning"); return; }
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, country, days, salaryType, purpose, reqDate, refNum, sigDataUrl, empSigDataUrl, status: "submitted" });
+    toast("تم تقديم الطلب بنجاح", "success");
   };
 
   const fmtDate = (d) => {
@@ -297,9 +306,15 @@ function OutOfCountryLeaveForm({ emp }) {
       <div><label className="block text-xs font-bold text-secondary mb-1">الغرض من الإجازة</label><input value={purpose} onChange={e=>setPurpose(e.target.value)} placeholder="مثال: مرافقة علاج مريض" className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
 
       <div>
+        <label className="block text-xs font-bold text-secondary mb-2">توقيع الموظف <span className="text-violet-600 font-medium">* إلزامي للتقديم</span></label>
+        <SignaturePad onSave={setEmpSigDataUrl} label="ارسم توقيعك ثم اضغط حفظ التوقيع"/>
+        {empSigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={empSigDataUrl} alt="توقيع الموظف" className="max-h-14"/></div>}
+      </div>
+
+      <div>
         <label className="block text-xs font-bold text-secondary mb-2">توقيع مسؤول الشعبة (إلكتروني)</label>
         <SignaturePad onSave={setSigDataUrl} label="ارسم التوقيع ثم اضغط حفظ التوقيع"/>
-        {sigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={sigDataUrl} alt="توقيع" className="max-h-14"/></div>}
+        {sigDataUrl && <div className="mt-2 p-2 border border-color rounded-lg inline-block"><img src={sigDataUrl} alt="توقيع المسؤول" className="max-h-14"/></div>}
       </div>
 
       <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-800 leading-relaxed">
@@ -338,7 +353,8 @@ function OutOfCountryLeaveForm({ emp }) {
             <CheckCircle size={14}/> عرض في Drive
           </a>
         )}
-        <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ</button>
+        <button onClick={saveDraft} className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ مسودة</button>
+        <button onClick={saveAndSubmit} className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm"><Send size={14}/> حفظ وتقديم</button>
         {gDrive.isReady && (
           <button onClick={uploadAsWord} disabled={uploadPct >= 0} className="flex items-center gap-2 px-4 py-2.5 bg-[#C87A2E] text-white rounded-xl font-bold text-sm disabled:opacity-60">
             <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "Word في Drive"}

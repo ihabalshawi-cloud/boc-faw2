@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Save, CheckCircle, FileText, Printer, Download, Upload } from "lucide-react";
+import { Save, CheckCircle, FileText, Printer, Download, Upload, Send } from "lucide-react";
 import { storage } from "../utils";
 import { useToast } from "../contexts";
 import { useGDrive } from "../gdrive";
@@ -24,6 +24,7 @@ function AnnualLeaveForm({ emp }) {
   const [purpose, setPurpose] = useState("");
   const [reqDate, setReqDate] = useState(now.toISOString().split("T")[0]);
   const [sigDataUrl, setSigDataUrl] = useState(null);
+  const [status, setStatus] = useState("draft");
 
   useEffect(() => {
     const saved = storage.get(STORAGE_KEY, null);
@@ -38,6 +39,7 @@ function AnnualLeaveForm({ emp }) {
       setPurpose(saved.purpose || "");
       setReqDate(saved.reqDate || now.toISOString().split("T")[0]);
       setSigDataUrl(saved.sigDataUrl || null);
+      setStatus(saved.status || "draft");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -49,9 +51,14 @@ function AnnualLeaveForm({ emp }) {
     }
   }, [fromDate, toDate]);
 
-  const save = () => {
-    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, fromDate, toDate, days, purpose, reqDate, sigDataUrl });
-    toast("✅ تم حفظ بيانات الإجازة الاعتيادية", "success");
+  const saveDraft = () => {
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, fromDate, toDate, days, purpose, reqDate, sigDataUrl, status: "draft" });
+    toast("تم حفظ المسودة", "success");
+  };
+  const saveAndSubmit = () => {
+    if (!sigDataUrl) { toast("توقيع طالب الإجازة إلزامي للتقديم", "warning"); return; }
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, fromDate, toDate, days, purpose, reqDate, sigDataUrl, status: "submitted" });
+    toast("تم تقديم الإجازة الاعتيادية بنجاح", "success");
   };
 
   const fmtDateParts = (d) => {
@@ -247,7 +254,8 @@ function AnnualLeaveForm({ emp }) {
             <CheckCircle size={14}/> عرض في Drive
           </a>
         )}
-        <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ</button>
+        <button onClick={saveDraft} className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ مسودة</button>
+        <button onClick={saveAndSubmit} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm"><Send size={14}/> حفظ وتقديم</button>
         {gDrive.isReady && (
           <button onClick={uploadToDrive} disabled={uploadPct >= 0} className="flex items-center gap-2 px-4 py-2.5 bg-[#C87A2E] text-white rounded-xl font-bold text-sm disabled:opacity-60">
             <Upload size={14}/> {uploadPct >= 0 ? `جاري الرفع ${uploadPct}%` : "رفع إلى Drive"}
