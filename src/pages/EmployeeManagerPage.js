@@ -119,6 +119,7 @@ function PermissionsPanel({ employees }) {
 function EmployeeManager({ employees, setEmployees }) {
   const [tab, setTab] = useState("emps");
   const [search, setSearch]   = useState("");
+  const [filterDept, setFilterDept] = useState("الكل");
   const [filterStatus, setFilterStatus] = useState("الكل");
   const [filterRole, setFilterRole] = useState("الكل");
   const [editId, setEditId]   = useState(null);
