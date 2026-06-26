@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   LogOut, Shield, Home, User,
   CheckCircle, Wifi, WifiOff, FileText, Clock, Calendar,
@@ -131,6 +131,9 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   }, []);
   const { isConnected } = useConnectionStatus();
   const smartAlerts = useSmartAlerts(employees);
+  const [dismissed, setDismissed] = useState(() => new Set());
+  const visibleAlerts = smartAlerts.filter(a => !dismissed.has(a.id));
+  const dismissAlert = id => setDismissed(s => new Set([...s, id]));
   const confirm = useConfirm();
   const [showSearch, setShowSearch] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -162,6 +165,16 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   }, [unreadNotifs, pendingCount, canSeeApprovals]);
 
   useEffect(() => { setAllRequests(storage.get("all_requests", [])); }, [view]);
+
+  const prevReqRef = useRef(null);
+  useEffect(() => {
+    if (prevReqRef.current) allRequests.forEach(r => { const p = prevReqRef.current.find(x=>x.id===r.id); if(p&&p.status!==r.status&&r.empId===emp.id) sendDesktopNotification(`طلبك: ${r.type}`,`الحالة الجديدة: ${r.status}`); });
+    prevReqRef.current = allRequests;
+  }, [allRequests, emp.id]);
+  useEffect(() => {
+    const t = setInterval(() => { FirebaseAPI.loadRequests().then(list => { if(list?.length){storage.set("all_requests",list);setAllRequests(list);} }); }, 60000);
+    return () => clearInterval(t);
+  }, []);
 
   const switchSection = (s) => { setSection(s); storage.set("dash_section", s); };
   const switchView = (id) => {
@@ -234,7 +247,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
           <button onClick={()=>setChatOpen(o=>!o)} className={`relative p-2 rounded-xl border transition-colors ${chatOpen?"bg-blue-50 border-blue-200 text-blue-600":"btn-secondary border-color text-secondary hover:text-primary"}`}>
             <MessageSquare size={16}/>
           </button>
-          {smartAlerts.length > 0 && <div className="relative"><AlertTriangle size={20} className="text-amber-500"/><span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center">{smartAlerts.length}</span></div>}
+          {visibleAlerts.length > 0 && <div className="relative"><AlertTriangle size={20} className="text-amber-500"/><span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center">{visibleAlerts.length}</span></div>}
           <div className="flex items-center gap-1">{isConnected?<Wifi size={14} className="text-emerald-500"/>:<WifiOff size={14} className="text-amber-500"/>}</div>
           <button onClick={()=>setLargeFont(v=>!v)} title="وضع القراءة السريعة (خط أكبر)" className={`p-2 rounded-xl border transition-colors ${largeFont?"bg-blue-500 text-white border-blue-400":"btn-secondary border-color"}`}><Type size={16}/></button>
           <button onClick={()=>setFieldMode(v=>!v)} title="وضع البيئة الميدانية (تباين عالٍ)" className={`p-2 rounded-xl border transition-colors ${fieldMode?"bg-amber-500 text-white border-amber-400":"btn-secondary border-color"}`}><Glasses size={16}/></button>
@@ -273,10 +286,10 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
               </div>
             ))}
           </nav>
-          {smartAlerts.length > 0 && (
+          {visibleAlerts.length > 0 && (
             <div className="mt-4 mx-0.5 p-3 bg-amber-50 rounded-md border border-amber-200 overflow-hidden max-h-[120px] md:max-h-0 md:group-hover/sb:max-h-[120px] transition-[max-height] duration-200">
               <p className="text-[10px] font-bold text-amber-800 mb-1 whitespace-nowrap">تنبيهات ذكية</p>
-              {smartAlerts.slice(0,3).map(a=><p key={a.id} className="text-[10px] text-amber-700 mt-1 truncate">{a.msg}</p>)}
+              {visibleAlerts.slice(0,3).map(a=><div key={a.id} className="flex items-center gap-1 mt-1"><p className="text-[10px] text-amber-700 flex-1 truncate">{a.msg}</p><button onClick={()=>dismissAlert(a.id)} className="text-amber-400 hover:text-amber-700 shrink-0"><X size={10}/></button></div>)}
             </div>
           )}
           <div className="mt-3 mx-0.5 p-3 bg-hover rounded-md text-[10px] overflow-hidden max-h-16 md:max-h-0 md:group-hover/sb:max-h-16 transition-[max-height] duration-200">
