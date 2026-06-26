@@ -18,7 +18,7 @@ import { storage } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useGDrive } from "../gdrive";
 import { useConfirm } from "../contexts";
-import { playAlert, useConnectionStatus, PageSkeleton } from "../components/Shared";
+import { playAlert, useConnectionStatus, PageSkeleton, sendDesktopNotification, useStorageSync } from "../components/Shared";
 import { GDriveSettingsModal, GDriveQuotaBar } from "../components/GDriveComponents";
 import GlobalSearch from "../components/GlobalSearch";
 import HomeWidgets from "../components/HomeWidgets";
@@ -118,6 +118,8 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
       if (list && list.length > 0) {
         storage.set("all_requests", list);
         setAllRequests(list);
+        const pc = list.filter(r => r.status === "بانتظار المراجعة").length;
+        if (canSeeApprovals && pc > 0) sendDesktopNotification("BOC — طلبات معلّقة", `لديك ${pc} طلب بانتظار الموافقة`);
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -139,6 +141,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const isTimeSheetAdmin = isAdmin || isAttendanceAdmin;
   const pendingCount = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
   const unreadNotifs = (storage.get(`notifications_${emp.id}`, [])).filter(n => !n.read).length;
+  useStorageSync("all_requests", setAllRequests);
 
   useEffect(() => {
     const nc = sessionStorage.getItem("force_password_change");
@@ -154,8 +157,9 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   }, []);
 
   useEffect(() => {
-    document.title = unreadNotifs > 0 ? `(${unreadNotifs}) شركة نفط البصرة` : "شركة نفط البصرة";
-  }, [unreadNotifs]);
+    const total = unreadNotifs + (canSeeApprovals ? pendingCount : 0);
+    document.title = total > 0 ? `(${total}) شركة نفط البصرة` : "شركة نفط البصرة";
+  }, [unreadNotifs, pendingCount, canSeeApprovals]);
 
   useEffect(() => { setAllRequests(storage.get("all_requests", [])); }, [view]);
 
