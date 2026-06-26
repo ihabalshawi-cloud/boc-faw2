@@ -4,7 +4,7 @@ import { storage, passStore, exportCSV } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
 import { PERMISSIONS_DEF, BUILT_IN_ROLES, getEmpStatus, setEmpStatus } from "../permissions";
-import { useConnectionStatus } from "../components/Shared";
+import { useConnectionStatus, useDebounce } from "../components/Shared";
 
 const PERM_KEYS = Object.entries(PERMISSIONS_DEF).filter(([k]) => k !== "FULL_ACCESS");
 
@@ -119,6 +119,7 @@ function PermissionsPanel({ employees }) {
 function EmployeeManager({ employees, setEmployees }) {
   const [tab, setTab] = useState("emps");
   const [search, setSearch]   = useState("");
+  const dSearch = useDebounce(search, 300);
   const [filterDept, setFilterDept] = useState("الكل");
   const [filterStatus, setFilterStatus] = useState("الكل");
   const [filterRole, setFilterRole] = useState("الكل");
@@ -158,7 +159,7 @@ function EmployeeManager({ employees, setEmployees }) {
 
   const filtered = employees.filter(e => {
     const st = getStatus(e);
-    const q = search.trim();
+    const q = dSearch.trim();
     if (q && !e.name.includes(q) && !e.jobNum.includes(q) && !(e.dept||"").includes(q)) return false;
     if (filterDept !== "الكل" && e.dept !== filterDept) return false;
     if (filterStatus === "نشط" && !st.active) return false;

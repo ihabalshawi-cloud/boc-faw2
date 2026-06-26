@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { FixedSizeList } from "react-window";
 import { Save, CheckCircle, Plus, Trash2, Edit3, X, Download, Search, AlertTriangle, ChevronUp, ChevronDown } from "lucide-react";
 import { ITEM_CONDITIONS, INVENTORY_CATS, FURNITURE_CATS, LOW_STOCK_THRESHOLD, INITIAL_INVENTORY_ITEMS } from "../constants";
 import { storage, exportCSV } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
 import { hasPermission } from "../permissions";
-import { PrintButton } from "../components/Shared";
+import { PrintButton, useDebounce } from "../components/Shared";
 
 function InventorySystem({ emp, isAdmin }) {
   const canEdit = isAdmin || hasPermission(emp, "MANAGE_INVENTORY");
   const [items, setItemsState] = useState(() => storage.get("inventory_items", INITIAL_INVENTORY_ITEMS));
   const [search, setSearch] = useState("");
+  const dSearch = useDebounce(search, 300);
   const [filterCat, setFilterCat] = useState("الكل");
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({ code:"", name:"", category:"أجهزة قياس", qty:1, condition:"جيد", location:"", minQty:3, serialNo:"" });
@@ -49,10 +51,10 @@ function InventorySystem({ emp, isAdmin }) {
   }, []);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setPage(1); }, [search, filterCat]);
+  useEffect(() => { setPage(1); }, [dSearch, filterCat]);
 
   const categories = ["الكل", ...INVENTORY_CATS];
-  const filtered = items.filter(i => (i.name.includes(search)||i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
+  const filtered = items.filter(i => (i.name.includes(dSearch)||i.code.includes(dSearch)) && (filterCat==="الكل"||i.category===filterCat));
   const sorted = sortBy ? [...filtered].sort((a,b) => { const va=a[sortBy],vb=b[sortBy]; const c=typeof va==="number"?va-vb:String(va||"").localeCompare(String(vb||""),"ar"); return sortDir==="asc"?c:-c; }) : filtered;
   const paged = sorted.slice((page-1)*PER_PAGE, page*PER_PAGE);
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
@@ -205,6 +207,7 @@ function FurnitureInventory({ emp, isAdmin }) {
     {id:65, code:"1402134055",   name:"منضدة كتابة",                   category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
   ]));
   const [search, setSearch] = useState("");
+  const dSearch = useDebounce(search, 300);
   const [filterCat, setFilterCat] = useState("الكل");
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({ code:"", name:"", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"" });
@@ -212,8 +215,6 @@ function FurnitureInventory({ emp, isAdmin }) {
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
   const confirm = useConfirm();
-  const [page, setPage] = useState(1);
-  const PER_PAGE = 20;
 
   const setItems = useCallback((updater) => {
     setItemsState(prev => {
@@ -240,13 +241,8 @@ function FurnitureInventory({ emp, isAdmin }) {
       setItems(prev => prev.filter(i => i.id !== id));
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setPage(1); }, [search, filterCat]);
-
   const categories = ["الكل", ...FURNITURE_CATS];
-  const filtered = items.filter(i => (i.name.includes(search)||i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
-  const paged = filtered.slice((page-1)*PER_PAGE, page*PER_PAGE);
-  const totalPages = Math.ceil(filtered.length / PER_PAGE);
+  const filtered = items.filter(i => (i.name.includes(dSearch)||i.code.includes(dSearch)) && (filterCat==="الكل"||i.category===filterCat));
 
   const saveItem = () => {
     if (!canEdit) return;
@@ -278,12 +274,18 @@ function FurnitureInventory({ emp, isAdmin }) {
           </div>
         </div>
       )}
-      <div id="print-furniture" className="card rounded-2xl border-color border overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="border-b border-color"><th className="px-3 py-2">الرمز</th><th className="px-3 py-2">الاسم</th><th className="px-3 py-2">الفئة</th><th className="px-3 py-2">الكمية</th><th className="px-3 py-2">الحالة</th><th className="px-3 py-2">الموقع</th><th className="px-3 py-2 no-print">إجراءات</th></tr></thead>
-        <tbody>{paged.map(it=>(<tr key={it.id} className="border-b border-color"><td className="px-3 py-2 font-mono">{it.code}</td><td className="px-3 py-2">{it.name}</td><td className="px-3 py-2">{it.category}</td><td className="px-3 py-2 font-bold">{it.qty}</td>
-          <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${it.condition==="جيد"?"bg-emerald-100 text-emerald-800":"bg-amber-100 text-amber-800"}`}>{it.condition}</span></td>
-          <td className="px-3 py-2">{it.location}</td><td className="px-3 py-2 no-print">{canEdit && <div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div>}</td></tr>))}</tbody></table></div>
-        {totalPages > 1 && (<div className="flex items-center justify-between px-4 py-3 border-t border-color"><span className="text-xs text-secondary">{filtered.length} قطعة — صفحة {page}/{totalPages}</span><div className="flex gap-1"><button disabled={page<=1} onClick={()=>setPage(p=>p-1)} className="px-3 py-1 text-xs border border-color rounded-lg disabled:opacity-40">السابق</button><button disabled={page>=totalPages} onClick={()=>setPage(p=>p+1)} className="px-3 py-1 text-xs border border-color rounded-lg disabled:opacity-40">التالي</button></div></div>)}
-        </div>
+      <div id="print-furniture" className="card rounded-2xl border-color border overflow-hidden">
+        <div className="grid grid-cols-[80px_1fr_90px_50px_90px_1fr_56px] text-[10px] font-bold text-secondary px-3 py-2 border-b border-color"><span>الرمز</span><span>الاسم</span><span>الفئة</span><span>الكمية</span><span>الحالة</span><span>الموقع</span><span className="no-print">إجراءات</span></div>
+        {filtered.length===0?<p className="text-center text-secondary py-8 text-sm">لا توجد نتائج</p>:
+        <FixedSizeList height={Math.min(filtered.length*36,400)} itemCount={filtered.length} itemSize={36} width="100%">
+          {({index,style})=>{const it=filtered[index];return(<div style={style} className="grid grid-cols-[80px_1fr_90px_50px_90px_1fr_56px] items-center text-xs border-b border-color px-3">
+            <span className="font-mono text-[10px] truncate">{it.code}</span><span className="truncate">{it.name}</span><span className="truncate">{it.category}</span><span className="font-bold">{it.qty}</span>
+            <span className={`text-[10px] font-bold ${it.condition==="جيد"?"text-emerald-700":"text-amber-700"}`}>{it.condition}</span>
+            <span className="truncate text-[10px]">{it.location}</span>
+            <span className="no-print">{canEdit&&<div className="flex gap-1"><button onClick={()=>{setEditId(it.id);setForm({...it});}} className="p-1 text-blue-500"><Edit3 size={12}/></button><button onClick={()=>deleteItem(it.id)} className="p-1 text-red-400"><Trash2 size={12}/></button></div>}</span>
+          </div>);}}
+        </FixedSizeList>}
+      </div>
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );

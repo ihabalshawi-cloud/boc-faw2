@@ -3,36 +3,49 @@ import { Search, X } from "lucide-react";
 import { ACCOUNTS } from "../constants";
 import { storage } from "../utils";
 
-export default function GlobalSearch({ setView, onClose }) {
+const fuzzy = (t, q) => { if (!t) return false; let i = 0; for (const c of String(t)) { if (c === q[i]) i++; if (i === q.length) return true; } return false; };
+
+export default function GlobalSearch({ setView, onClose, employees = [] }) {
   const [q, setQ] = useState("");
+  const [sel, setSel] = useState(-1);
   const inputRef = useRef(null);
   useEffect(() => { inputRef.current?.focus(); }, []);
-  useEffect(() => {
-    const h = (e) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
+  useEffect(() => { setSel(-1); }, [q]);
 
   const results = useMemo(() => {
     const ql = q.trim();
     if (ql.length < 2) return [];
     const out = [];
-    ACCOUNTS.filter(e => e.name.includes(ql) || e.jobNum.includes(ql)).slice(0,4)
+    const empList = employees.length > 0 ? employees : ACCOUNTS;
+    empList.filter(e => fuzzy(e.name,ql) || fuzzy(e.jobNum,ql)).slice(0,4)
       .forEach(e => out.push({ type:"موظف", label:e.name, sub:e.dept, view:"employees", icon:"👤" }));
-    storage.get("all_requests",[]).filter(r => r.empName?.includes(ql)||r.purpose?.includes(ql)).slice(0,3)
+    storage.get("all_requests",[]).filter(r => fuzzy(r.empName,ql)||fuzzy(r.purpose,ql)).slice(0,3)
       .forEach(r => out.push({ type:"إجازة", label:r.empName, sub:`${r.type} — ${r.status}`, view:"requests", icon:"📋" }));
-    storage.get("tasks_system",[]).filter(t => t.title?.includes(ql)||t.desc?.includes(ql)).slice(0,3)
+    storage.get("tasks_system",[]).filter(t => fuzzy(t.title,ql)||fuzzy(t.desc,ql)).slice(0,3)
       .forEach(t => out.push({ type:"مهمة", label:t.title, sub:t.status, view:"tasks", icon:"✅" }));
-    storage.get("inventory_items",[]).filter(i => i.name.includes(ql)||i.code.includes(ql)).slice(0,3)
+    storage.get("inventory_items",[]).filter(i => fuzzy(i.name,ql)||fuzzy(i.code,ql)).slice(0,3)
       .forEach(i => out.push({ type:"مخزون", label:i.name, sub:i.code, view:"inventory", icon:"📦" }));
-    storage.get("maint_spare_parts",[]).filter(p => p.name.includes(ql)||p.code?.includes(ql)).slice(0,3)
+    storage.get("maint_spare_parts",[]).filter(p => fuzzy(p.name,ql)||fuzzy(p.code,ql)).slice(0,3)
       .forEach(p => out.push({ type:"قطعة غيار", label:p.name, sub:p.category, view:"maint_parts", icon:"🔧" }));
-    storage.get("pm_projects",[]).filter(p => p.name?.includes(ql)||p.manager?.includes(ql)).slice(0,3)
+    storage.get("pm_projects",[]).filter(p => fuzzy(p.name,ql)||fuzzy(p.manager,ql)).slice(0,3)
       .forEach(p => out.push({ type:"مشروع", label:p.name, sub:`${p.status} — ${p.manager||""}`, view:"projects", icon:"🏗" }));
-    storage.get("equipment",[]).filter(e => e.name?.includes(ql)||e.id?.toString().includes(ql)).slice(0,3)
+    storage.get("equipment",[]).filter(e => fuzzy(e.name,ql)||fuzzy(e.id?.toString(),ql)).slice(0,3)
       .forEach(e => out.push({ type:"معدة", label:e.name, sub:e.status, view:"maint_equipment", icon:"⚙" }));
     return out.slice(0,12);
-  }, [q]);
+  }, [q, employees]);
+
+  useEffect(() => {
+    const h = (e) => {
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "ArrowDown") { e.preventDefault(); setSel(s => Math.min(s+1, results.length-1)); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); setSel(s => Math.max(s-1, -1)); return; }
+      if (e.key === "Enter" && sel >= 0 && results[sel]) { setView(results[sel].view); onClose(); }
+    };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose, setView, sel, results]);
+
+  const SHORTCUTS = [["Ctrl K","فتح البحث"],["↑↓","التنقل"],["Enter","الانتقال"],["Esc","إغلاق"],["?","الاختصارات"]];
 
   return (
     <div className="fixed inset-0 bg-black/60 z-[400] flex items-start justify-center pt-16 px-4" dir="rtl"
@@ -49,8 +62,9 @@ export default function GlobalSearch({ setView, onClose }) {
             {results.length === 0
               ? <p className="text-center text-secondary text-sm py-8">لا توجد نتائج لـ «{q}»</p>
               : results.map((r,i) => (
-                <button key={i} onClick={() => { setView(r.view); onClose(); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-hover text-right border-b border-color last:border-0 transition-colors">
+                <button key={i} ref={el => el && i===sel && el.scrollIntoView({block:"nearest"})}
+                  onClick={() => { setView(r.view); onClose(); }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-right border-b border-color last:border-0 transition-colors ${i===sel?"bg-hover":"hover:bg-hover"}`}>
                   <span className="text-lg shrink-0">{r.icon}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{r.label}</p>
@@ -62,9 +76,17 @@ export default function GlobalSearch({ setView, onClose }) {
             }
           </div>
         ) : (
-          <p className="p-4 text-center text-secondary text-xs">
-            اكتب حرفين للبدء &nbsp;•&nbsp; <kbd className="px-1.5 py-0.5 bg-hover rounded text-[10px] font-mono">Esc</kbd> للإغلاق
-          </p>
+          <div className="p-4 space-y-3">
+            <p className="text-xs text-secondary text-center">اكتب حرفين للبدء — البحث التقريبي مدعوم</p>
+            <div className="border-t border-color pt-3 grid grid-cols-2 gap-x-6 gap-y-2">
+              {SHORTCUTS.map(([k,v]) => (
+                <div key={k} className="flex items-center gap-2 text-xs">
+                  <kbd className="px-1.5 py-0.5 bg-hover rounded text-[10px] font-mono shrink-0">{k}</kbd>
+                  <span className="text-secondary">{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>

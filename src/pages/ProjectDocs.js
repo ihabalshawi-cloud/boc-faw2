@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Save, Plus, Trash2, X, Download, FolderOpen, FileCheck } from "lucide-react";
+import { Save, Plus, Trash2, X, Download, FolderOpen, FileCheck, FileImage, FileText, FileSpreadsheet, File } from "lucide-react";
 import { GDRIVE_WARN_PCT, GDRIVE_CRIT_PCT, FIREBASE_STORAGE_BUCKET } from "../constants";
 import { useToast, useConfirm } from "../contexts";
 import { useGDrive } from "../gdrive";
@@ -289,8 +289,14 @@ export function DocsTab({ proj, addDoc, delDoc, emp }) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
-  const docIcons = { "وثيقة هندسية": "🗂️", "عقد": "📋", "تقرير": "📊", "خطة": "📅", "رسم": "📐", "أخرى": "📄" };
   const isImage = (mime) => mime && mime.startsWith("image/");
+  const fileIcon = (mime, type, sz=22) => {
+    if (mime?.startsWith("image/")) return <FileImage size={sz} className="text-violet-500 shrink-0"/>;
+    if (mime==="application/pdf") return <FileText size={sz} className="text-red-500 shrink-0"/>;
+    if (mime?.includes("spreadsheet")||mime?.includes("excel")) return <FileSpreadsheet size={sz} className="text-emerald-600 shrink-0"/>;
+    if (mime?.includes("word")) return <FileText size={sz} className="text-blue-600 shrink-0"/>;
+    return {"وثيقة هندسية":<File size={sz} className="text-slate-500 shrink-0"/>,"عقد":<FileCheck size={sz} className="text-amber-600 shrink-0"/>,"تقرير":<FileText size={sz} className="text-blue-500 shrink-0"/>}[type]||<File size={sz} className="text-slate-400 shrink-0"/>;
+  };
 
   const allDocs = useMemo(() => {
     const projectDocs = proj.docs || [];
@@ -346,7 +352,7 @@ export function DocsTab({ proj, addDoc, delDoc, emp }) {
             {isImage(previewDoc.fileMime) && (previewDoc.fileData || previewDoc.fileUrl)
               ? <img src={previewDoc.fileData || previewDoc.fileUrl} alt={previewDoc.name} className="max-w-full rounded-xl" />
               : <div className="text-center py-8 text-secondary">
-                  <p className="text-5xl mb-3">{previewDoc.storageType === "firebase" ? "🔥" : previewDoc.driveFileId ? "☁️" : "📄"}</p>
+                  <div className="flex justify-center mb-3">{fileIcon(previewDoc.fileMime, previewDoc.type, 52)}</div>
                   <p>{previewDoc.name}</p>
                 </div>
             }
@@ -395,7 +401,7 @@ export function DocsTab({ proj, addDoc, delDoc, emp }) {
                 {selectedFile && <button onClick={() => { setFileData(null); setFileMime(""); setSelectedFile(null); if (fileRef.current) fileRef.current.value = ""; }} className="text-red-400 hover:text-red-600"><X size={16} /></button>}
               </div>
               {fileData && isImage(fileMime) && <img src={fileData} alt="معاينة" className="mt-2 max-h-32 rounded-lg border border-color object-contain" />}
-              {selectedFile && !isImage(fileMime) && <p className="mt-1 text-xs text-emerald-600 font-medium">✓ تم اختيار: {selectedFile.name} ({form.size})</p>}
+              {selectedFile && !isImage(fileMime) && <div className="mt-2 flex items-center gap-2 text-xs text-emerald-600 font-medium">{fileIcon(fileMime,"")}<span>✓ {selectedFile.name} ({form.size})</span></div>}
             </div>
           </div>
           <div className="flex gap-2 justify-end mt-3 pt-3 border-t border-color">
@@ -423,8 +429,8 @@ export function DocsTab({ proj, addDoc, delDoc, emp }) {
               </div>
             )}
             <div className="flex items-start gap-3">
-              <div className="text-2xl cursor-pointer" onClick={() => (d.fileData || d.fileUrl) && setPreviewDoc(d)}>
-                {isImage(d.fileMime) ? "🖼️" : (d.fileData || d.fileUrl) ? "📎" : (docIcons[d.type] || "📄")}
+              <div className="cursor-pointer pt-0.5" onClick={() => (d.fileData || d.fileUrl) && setPreviewDoc(d)}>
+                {fileIcon(d.fileMime, d.type)}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-sm truncate">{d.name}</p>

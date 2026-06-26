@@ -4,6 +4,24 @@ import { GDriveProvider } from "./gdrive";
 import { ToastProvider, ConfirmProvider } from "./contexts";
 import LoginScreen, { recordLogoutFn } from "./pages/LoginPage";
 import Dashboard from "./pages/Dashboard";
+import { useStorageSync } from "./components/Shared";
+
+class ErrorBoundary extends React.Component {
+  constructor(p) { super(p); this.state = { err: null }; }
+  static getDerivedStateFromError(e) { return { err: e }; }
+  componentDidCatch(err) { console.error("App crash:", err); }
+  render() {
+    if (this.state.err) return (
+      <div dir="rtl" style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:"16px",fontFamily:"system-ui",background:"#F4F4F0",padding:"24px",textAlign:"center"}}>
+        <p style={{fontSize:"3rem"}}>⚠️</p>
+        <p style={{fontWeight:"bold",fontSize:"1.25rem",color:"#1C1C1C"}}>حدث خطأ غير متوقع</p>
+        <p style={{color:"#787774",fontSize:"0.875rem",maxWidth:"380px"}}>{this.state.err?.message}</p>
+        <button onClick={()=>window.location.reload()} style={{padding:"10px 24px",background:"#C87A2E",color:"white",border:"none",borderRadius:"8px",cursor:"pointer",fontWeight:"bold"}}>إعادة تحميل الصفحة</button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
 
 function useDarkMode() {
   const [dark, setDark] = useState(() => storage.get("dark_mode", false));
@@ -14,9 +32,32 @@ function useDarkMode() {
   return [dark, setDark];
 }
 
+function useFieldMode() {
+  const [field, setField] = useState(() => storage.get("field_mode", false));
+  useEffect(() => {
+    storage.set("field_mode", field);
+    document.documentElement.classList.toggle("field", field);
+  }, [field]);
+  return [field, setField];
+}
+
+function useLargeFont() {
+  const [large, setLarge] = useState(() => storage.get("large_font", false));
+  useEffect(() => {
+    storage.set("large_font", large);
+    document.documentElement.classList.toggle("large-font", large);
+  }, [large]);
+  return [large, setLarge];
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [dark, setDark] = useDarkMode();
+  const [fieldMode, setFieldMode] = useFieldMode();
+  const [largeFont, setLargeFont] = useLargeFont();
+  useStorageSync("dark_mode", setDark);
+  useStorageSync("field_mode", setFieldMode);
+  useStorageSync("large_font", setLargeFont);
 
   const style = `
     :root { color-scheme: light; }
@@ -60,19 +101,43 @@ export default function App() {
     button[class*="rounded-xl"] { border-radius: 6px !important; }
     button[class*="rounded-2xl"] { border-radius: 8px !important; }
     button:active:not(:disabled) { transform: scale(0.98); transition: transform 0.1s; }
+    /* ── Field mode: high contrast for outdoor / glove use ── */
+    .field .bg-main { background: #0A0A0A !important; }
+    .field .card { background: #181818 !important; color: #FFFFFF !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.1) !important; }
+    .field .header-bar { background: #000000 !important; border-color: #404040 !important; }
+    .field .sidebar { background: #000000 !important; }
+    .field .btn-secondary { background: #222222 !important; color: #E8E8E8 !important; border-color: #444 !important; }
+    .field .bg-hover { background: #2A2A2A !important; }
+    .field .text-secondary { color: #C8C8C8 !important; }
+    .field .text-primary { color: #FFFFFF !important; }
+    .field .border-color { border-color: #404040 !important; }
+    .field .bg-surface { background: #181818 !important; }
+    .field .input { background: #181818 !important; color: #FFFFFF !important; border-color: #505050 !important; }
+    .field button { min-height: 44px; }
+    .field nav button { min-height: 52px; }
+    .field .text-xs { font-size: 0.82rem !important; line-height: 1.4 !important; }
+    .field .text-sm { font-size: 0.95rem !important; }
+    /* ── Quick Read: larger font for long reports / low-light reading ── */
+    .large-font .text-xs  { font-size: 0.875rem !important; line-height: 1.6 !important; }
+    .large-font .text-sm  { font-size: 1rem     !important; line-height: 1.6 !important; }
+    .large-font .text-base{ font-size: 1.125rem !important; }
+    .large-font .text-lg  { font-size: 1.3rem   !important; }
+    .large-font p, .large-font td, .large-font li { line-height: 1.8 !important; }
   `;
 
   return (
+    <ErrorBoundary>
     <ToastProvider>
       <ConfirmProvider>
         <GDriveProvider>
           <style>{style}</style>
           {user
-            ? <Dashboard emp={user} onLogout={()=>{recordLogoutFn(user?.id);sessionStorage.clear();setUser(null);}} dark={dark} setDark={setDark}/>
+            ? <Dashboard emp={user} onLogout={()=>{recordLogoutFn(user?.id);sessionStorage.clear();setUser(null);}} dark={dark} setDark={setDark} fieldMode={fieldMode} setFieldMode={setFieldMode} largeFont={largeFont} setLargeFont={setLargeFont}/>
             : <LoginScreen onLogin={setUser} dark={dark}/>
           }
         </GDriveProvider>
       </ConfirmProvider>
     </ToastProvider>
+    </ErrorBoundary>
   );
 }
