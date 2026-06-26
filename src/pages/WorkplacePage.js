@@ -239,7 +239,7 @@ function ChatWindow({ emp, partnerId, partnerName, messages, isConnected, onBack
     storage.set(`chat_active_${partnerId}`, { empId:emp.id, timestamp:Date.now() });
     setText(""); FirebaseAPI.setTyping(emp.id, -1);
     if (isConnected) { await FirebaseAPI.sendMessage(msg); await loadMessages(); setSentMsgs([]); }
-    else { const off=storage.get("chat_offline",[]); storage.set("chat_offline",[...off,msg]); }
+    else { const q=storage.get("chat_pending",[]); storage.set("chat_pending",[...q,msg]); }
     playAlert("message");
   };
 
@@ -280,8 +280,7 @@ function InternalChat({ emp, isConnected }) {
   const isAdmin = emp.role === "admin" || emp.username === "i.shawi";
   const [messages, setMessages] = useState([]);
   const [chatLoading, setChatLoading] = useState(true);
-  const [partnerId, setPartnerId] = useState(null);
-  const [partnerName, setPartnerName] = useState("");
+  const [partnerId, setPartnerId] = useState(null); const [partnerName, setPartnerName] = useState("");
 
   const loadMessages = useCallback(async () => {
     if (!isConnected) { setMessages(storage.get("chat_offline",[])); setChatLoading(false); return; }
@@ -290,6 +289,8 @@ function InternalChat({ emp, isConnected }) {
   }, [isConnected]);
 
   useEffect(() => { loadMessages(); const t = setInterval(loadMessages, 5000); return () => clearInterval(t); }, [loadMessages]);
+  const prevConn = useRef(null);
+  useEffect(() => { if(isConnected&&prevConn.current===false){const q=storage.get("chat_pending",[]);if(q.length){storage.set("chat_pending",[]);Promise.all(q.map(m=>FirebaseAPI.sendMessage(m))).then(()=>loadMessages());}} prevConn.current=isConnected; }, [isConnected,loadMessages]);
 
   const isBusy = (adminId) => {
     const act = storage.get(`chat_active_${adminId}`, null);
