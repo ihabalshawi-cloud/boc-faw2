@@ -4,6 +4,24 @@ import { GDriveProvider } from "./gdrive";
 import { ToastProvider, ConfirmProvider } from "./contexts";
 import LoginScreen, { recordLogoutFn } from "./pages/LoginPage";
 import Dashboard from "./pages/Dashboard";
+import { useStorageSync } from "./components/Shared";
+
+class ErrorBoundary extends React.Component {
+  constructor(p) { super(p); this.state = { err: null }; }
+  static getDerivedStateFromError(e) { return { err: e }; }
+  componentDidCatch(err) { console.error("App crash:", err); }
+  render() {
+    if (this.state.err) return (
+      <div dir="rtl" style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:"16px",fontFamily:"system-ui",background:"#F4F4F0",padding:"24px",textAlign:"center"}}>
+        <p style={{fontSize:"3rem"}}>⚠️</p>
+        <p style={{fontWeight:"bold",fontSize:"1.25rem",color:"#1C1C1C"}}>حدث خطأ غير متوقع</p>
+        <p style={{color:"#787774",fontSize:"0.875rem",maxWidth:"380px"}}>{this.state.err?.message}</p>
+        <button onClick={()=>window.location.reload()} style={{padding:"10px 24px",background:"#C87A2E",color:"white",border:"none",borderRadius:"8px",cursor:"pointer",fontWeight:"bold"}}>إعادة تحميل الصفحة</button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
 
 function useDarkMode() {
   const [dark, setDark] = useState(() => storage.get("dark_mode", false));
@@ -37,6 +55,9 @@ export default function App() {
   const [dark, setDark] = useDarkMode();
   const [fieldMode, setFieldMode] = useFieldMode();
   const [largeFont, setLargeFont] = useLargeFont();
+  useStorageSync("dark_mode", setDark);
+  useStorageSync("field_mode", setFieldMode);
+  useStorageSync("large_font", setLargeFont);
 
   const style = `
     :root { color-scheme: light; }
@@ -105,6 +126,7 @@ export default function App() {
   `;
 
   return (
+    <ErrorBoundary>
     <ToastProvider>
       <ConfirmProvider>
         <GDriveProvider>
@@ -116,5 +138,6 @@ export default function App() {
         </GDriveProvider>
       </ConfirmProvider>
     </ToastProvider>
+    </ErrorBoundary>
   );
 }

@@ -404,7 +404,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
           )}
         </main>
       </div>
-      {showSearch && <GlobalSearch setView={switchView} onClose={()=>setShowSearch(false)}/>}
+      {showSearch && <GlobalSearch setView={switchView} onClose={()=>setShowSearch(false)} employees={employees}/>}
 
       {chatOpen && (
         <div className="fixed inset-0 z-[300] bg-black/30" onClick={e=>e.target===e.currentTarget&&setChatOpen(false)}>

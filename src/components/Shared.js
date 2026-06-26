@@ -119,4 +119,12 @@ function useDebounce(value, delay = 300) {
   return debounced;
 }
 
-export { EmpPopover, PrintButton, SkeletonCard, SkeletonMsg, PageSkeleton, useDebounce, playAlert, sendDesktopNotification, useConnectionStatus };
+function useStorageSync(key, setState) {
+  useEffect(() => {
+    const h = e => { if(e.key===key && e.newValue!==null) try{setState(JSON.parse(e.newValue));}catch{} };
+    window.addEventListener("storage", h);
+    return () => window.removeEventListener("storage", h);
+  }, [key, setState]);
+}
+
+export { EmpPopover, PrintButton, SkeletonCard, SkeletonMsg, PageSkeleton, useDebounce, useStorageSync, playAlert, sendDesktopNotification, useConnectionStatus };

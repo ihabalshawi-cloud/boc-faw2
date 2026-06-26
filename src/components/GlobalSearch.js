@@ -3,7 +3,7 @@ import { Search, X } from "lucide-react";
 import { ACCOUNTS } from "../constants";
 import { storage } from "../utils";
 
-export default function GlobalSearch({ setView, onClose }) {
+export default function GlobalSearch({ setView, onClose, employees = [] }) {
   const [q, setQ] = useState("");
   const inputRef = useRef(null);
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -17,7 +17,8 @@ export default function GlobalSearch({ setView, onClose }) {
     const ql = q.trim();
     if (ql.length < 2) return [];
     const out = [];
-    ACCOUNTS.filter(e => e.name.includes(ql) || e.jobNum.includes(ql)).slice(0,4)
+    const empList = employees.length > 0 ? employees : ACCOUNTS;
+    empList.filter(e => e.name.includes(ql) || e.jobNum.includes(ql)).slice(0,4)
       .forEach(e => out.push({ type:"موظف", label:e.name, sub:e.dept, view:"employees", icon:"👤" }));
     storage.get("all_requests",[]).filter(r => r.empName?.includes(ql)||r.purpose?.includes(ql)).slice(0,3)
       .forEach(r => out.push({ type:"إجازة", label:r.empName, sub:`${r.type} — ${r.status}`, view:"requests", icon:"📋" }));
