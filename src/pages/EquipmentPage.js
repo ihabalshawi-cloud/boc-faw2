@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { AlertCircle, Save, CheckCircle, Clock, Calendar, Plus, Trash2, Edit3, X,
   BarChart, Download, Search, AlertTriangle, Send, Wrench, Box, TrendingUp, TrendingDown } from "lucide-react";
 import { EQ_TYPES, EQ_STATUS_COLORS, INITIAL_EQUIPMENT, INITIAL_MAINT_SPARE_PARTS } from "../constants";
@@ -7,7 +7,7 @@ import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
 import { SVGPieChart } from "../components/Charts";
 import { EqDetailPanel, EqMaintenanceTab, EqFormModal, EqRequestModal } from "./EquipmentPanels";
-import { useDebounce } from "../components/Shared";
+import { useDebounce, sendDesktopNotification, playAlert } from "../components/Shared";
 
 function EquipmentMaintenance({ emp, isAdmin }) {
   // إضافة/حذف/تعديل مواصفات المعدات من قبل المشرف العام فقط
@@ -52,6 +52,15 @@ function EquipmentMaintenance({ emp, isAdmin }) {
     return diff >= 0 && diff <= 45 && e.status === "جيد";
   }).sort((a,b) => new Date(a.nextMaintenance)-new Date(b.nextMaintenance));
   const overdue   = equipment.filter(e => e.nextMaintenance && new Date(e.nextMaintenance) < today && e.status !== "معطل" && e.status !== "تحت صيانة");
+
+  const notifiedRef = useRef(false);
+  useEffect(() => {
+    if (!notifiedRef.current && overdue.length > 0) {
+      notifiedRef.current = true;
+      playAlert("warning");
+      sendDesktopNotification("BOC — صيانة متأخرة", `${overdue.length} معدة تجاوزت موعد الصيانة الدوري`);
+    }
+  }, [overdue.length]);
 
   // ── filtered list ──
   const filtered = equipment.filter(e =>
