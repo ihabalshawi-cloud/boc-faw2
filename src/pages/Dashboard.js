@@ -104,7 +104,7 @@ const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","e
 const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","inventory","furniture","projects"]);
 
 export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode, largeFont, setLargeFont }) {
-  const [view, setView] = useState("home");
+  const [view, setView] = useState(() => storage.get("last_view", "home"));
   const [reqSubTab, setReqSubTab] = useState("requests");
   const [section, setSection] = useState(() => storage.get("dash_section","admin"));
   const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []));
@@ -173,6 +173,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     if (id === "chat") { setChatOpen(true); return; }
     if (id === "requests") setReqSubTab("requests");
     setView(id);
+    storage.set("last_view", id);
     if (ADMIN_VIEWS.has(id) && section !== "admin") switchSection("admin");
     if (TECH_VIEWS.has(id)  && section !== "tech")  switchSection("tech");
   };
@@ -445,8 +446,9 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
           </button>
         ))}
         <button onClick={()=>setShowMobileMenu(true)}
-          className={`flex-1 flex flex-col items-center py-2 gap-0.5 text-xs ${showMobileMenu?"text-[#C87A2E]":"text-secondary"}`}>
+          className={`flex-1 flex flex-col items-center py-2 gap-0.5 text-xs relative ${showMobileMenu?"text-[#C87A2E]":"text-secondary"}`}>
           <Menu size={20}/><span className="text-[9px]">المزيد</span>
+          {canSeeApprovals && pendingCount > 0 && <span className="absolute top-1 right-2 bg-red-500 text-white text-[8px] min-w-[14px] h-3.5 rounded-full flex items-center justify-center px-0.5">{pendingCount}</span>}
         </button>
       </nav>
 
