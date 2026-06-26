@@ -14,9 +14,19 @@ function useDarkMode() {
   return [dark, setDark];
 }
 
+function useFieldMode() {
+  const [field, setField] = useState(() => storage.get("field_mode", false));
+  useEffect(() => {
+    storage.set("field_mode", field);
+    document.documentElement.classList.toggle("field", field);
+  }, [field]);
+  return [field, setField];
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [dark, setDark] = useDarkMode();
+  const [fieldMode, setFieldMode] = useFieldMode();
 
   const style = `
     :root { color-scheme: light; }
@@ -60,6 +70,22 @@ export default function App() {
     button[class*="rounded-xl"] { border-radius: 6px !important; }
     button[class*="rounded-2xl"] { border-radius: 8px !important; }
     button:active:not(:disabled) { transform: scale(0.98); transition: transform 0.1s; }
+    /* ── Field mode: high contrast for outdoor / glove use ── */
+    .field .bg-main { background: #0A0A0A !important; }
+    .field .card { background: #181818 !important; color: #FFFFFF !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.1) !important; }
+    .field .header-bar { background: #000000 !important; border-color: #404040 !important; }
+    .field .sidebar { background: #000000 !important; }
+    .field .btn-secondary { background: #222222 !important; color: #E8E8E8 !important; border-color: #444 !important; }
+    .field .bg-hover { background: #2A2A2A !important; }
+    .field .text-secondary { color: #C8C8C8 !important; }
+    .field .text-primary { color: #FFFFFF !important; }
+    .field .border-color { border-color: #404040 !important; }
+    .field .bg-surface { background: #181818 !important; }
+    .field .input { background: #181818 !important; color: #FFFFFF !important; border-color: #505050 !important; }
+    .field button { min-height: 44px; }
+    .field nav button { min-height: 52px; }
+    .field .text-xs { font-size: 0.82rem !important; line-height: 1.4 !important; }
+    .field .text-sm { font-size: 0.95rem !important; }
   `;
 
   return (
@@ -68,7 +94,7 @@ export default function App() {
         <GDriveProvider>
           <style>{style}</style>
           {user
-            ? <Dashboard emp={user} onLogout={()=>{recordLogoutFn(user?.id);sessionStorage.clear();setUser(null);}} dark={dark} setDark={setDark}/>
+            ? <Dashboard emp={user} onLogout={()=>{recordLogoutFn(user?.id);sessionStorage.clear();setUser(null);}} dark={dark} setDark={setDark} fieldMode={fieldMode} setFieldMode={setFieldMode}/>
             : <LoginScreen onLogin={setUser} dark={dark}/>
           }
         </GDriveProvider>

@@ -7,7 +7,7 @@ import {
   Search, Moon, Sun, MessageSquare, X,
   CheckSquare, AlertTriangle, ChevronLeft,
   Wrench, Box, TrendingUp, Heart,
-  Briefcase, Menu
+  Briefcase, Menu, Glasses
 } from "lucide-react";
 import {
   ACCOUNTS, LOW_STOCK_THRESHOLD,
@@ -18,7 +18,7 @@ import { storage } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useGDrive } from "../gdrive";
 import { useConfirm } from "../contexts";
-import { playAlert, useConnectionStatus } from "../components/Shared";
+import { playAlert, useConnectionStatus, PageSkeleton } from "../components/Shared";
 import { GDriveSettingsModal, GDriveQuotaBar } from "../components/GDriveComponents";
 import GlobalSearch from "../components/GlobalSearch";
 import HomeWidgets from "../components/HomeWidgets";
@@ -103,7 +103,7 @@ class ReqErrorBoundary extends React.Component {
 const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","changepass","health_insurance","approvals","employees","admin_dashboard","timesheet"]);
 const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","inventory","furniture","projects"]);
 
-export default function Dashboard({ emp, onLogout, dark, setDark }) {
+export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode }) {
   const [view, setView] = useState("home");
   const [reqSubTab, setReqSubTab] = useState("requests");
   const [section, setSection] = useState(() => storage.get("dash_section","admin"));
@@ -231,11 +231,18 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
           </button>
           {smartAlerts.length > 0 && <div className="relative"><AlertTriangle size={20} className="text-amber-500"/><span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center">{smartAlerts.length}</span></div>}
           <div className="flex items-center gap-1">{isConnected?<Wifi size={14} className="text-emerald-500"/>:<WifiOff size={14} className="text-amber-500"/>}</div>
+          <button onClick={()=>setFieldMode(v=>!v)} title="وضع البيئة الميدانية (تباين عالٍ)" className={`p-2 rounded-xl border transition-colors ${fieldMode?"bg-amber-500 text-white border-amber-400":"btn-secondary border-color"}`}><Glasses size={16}/></button>
           <button onClick={()=>setDark(!dark)} className="p-2 rounded-xl btn-secondary border border-color">{dark?<Sun size={16}/>:<Moon size={16}/>}</button>
           <div className="text-left"><p className="text-sm font-bold">{emp.name.split(" ").slice(0,2).join(" ")}</p><p className="text-xs text-secondary">{emp.title}</p></div>
           <button onClick={onLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><LogOut size={18}/></button>
         </div>
       </div>
+
+      {isConnected === false && (
+        <div className="bg-amber-500 text-white text-xs font-bold py-2 px-4 flex items-center justify-center gap-2 sticky top-14 z-10">
+          <WifiOff size={13}/> وضع غير متصل — التغييرات محفوظة محلياً وستُرسل تلقائياً عند عودة الاتصال
+        </div>
+      )}
 
       <div className="flex flex-col md:flex-row">
         <aside className="group/sb hidden md:flex md:flex-col md:w-14 md:hover:w-60 sidebar border-l border-color min-h-screen py-3 px-1.5 md:overflow-hidden transition-[width] duration-200 ease-out">
@@ -285,13 +292,13 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
             <HomeWidgets emp={emp} employees={employees} allRequests={allRequests} isAdmin={isAdmin} switchView={switchView}/>
           )}
           {view==="analytics" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyAnalyticsDashboard employees={employees} allRequests={allRequests}/>
             </React.Suspense>
           )}
           {view==="requests" && (
             <ReqErrorBoundary>
-              <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+              <React.Suspense fallback={<PageSkeleton/>}>
                 <div>
                   <div className="flex gap-1 mb-4 border-b border-color">
                     {[{k:"requests",lbl:"طلبات الإجازة"},{k:"leave_forms",lbl:"نماذج الإجازات"}].map(t=>(
@@ -307,90 +314,90 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
             </ReqErrorBoundary>
           )}
           {view==="attendance" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyAttendanceSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
             </React.Suspense>
           )}
           {view==="training" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyTrainingSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
             </React.Suspense>
           )}
           {view==="tasks" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyTasksSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
             </React.Suspense>
           )}
           {view==="inventory" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyInventoryPage emp={emp} isAdmin={isAdmin}/>
             </React.Suspense>
           )}
           {view==="furniture" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyFurnitureInventory emp={emp} isAdmin={isAdmin}/>
             </React.Suspense>
           )}
           {view==="maint_equipment" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyEquipmentPage emp={emp} isAdmin={isAdmin}/>
             </React.Suspense>
           )}
           {view==="maint_parts" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyMaintenanceParts/>
             </React.Suspense>
           )}
           {view==="maint_reports" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyMaintenanceAnalytics/>
             </React.Suspense>
           )}
           {view==="evaluation" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyEvaluationSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
             </React.Suspense>
           )}
           {view==="notifications" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyNotificationsPage emp={emp}/>
             </React.Suspense>
           )}
           {view==="changepass" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyChangePasswordPage emp={emp} onLogout={onLogout}/>
             </React.Suspense>
           )}
           {view==="employees" && isAdmin && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyEmployeeManager employees={employees} setEmployees={setEmployees}/>
             </React.Suspense>
           )}
           {view==="approvals" && canSeeApprovals && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyApprovalsPage emp={emp}/>
             </React.Suspense>
           )}
           {view==="health_insurance" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyHealthInsurancePage emp={emp}/>
             </React.Suspense>
           )}
 
           {view==="projects" && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyProjectManagementPage emp={emp}/>
             </React.Suspense>
           )}
           {view==="timesheet" && isTimeSheetAdmin && (
             <TsErrorBoundary>
-              <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ تحميل التايم شيت...</div>}>
+              <React.Suspense fallback={<PageSkeleton rows={3}/>}>
                 <LazyTimeSheetPage emp={emp}/>
               </React.Suspense>
             </TsErrorBoundary>
           )}
           {view==="admin_dashboard" && isAdmin && (
-            <React.Suspense fallback={<div className="p-8 text-center text-secondary text-sm">جارٍ التحميل...</div>}>
+            <React.Suspense fallback={<PageSkeleton/>}>
               <LazyAdminDashboard emp={emp} employees={employees} setEmployees={setEmployees}/>
             </React.Suspense>
           )}
@@ -406,7 +413,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark }) {
               <button onClick={()=>setChatOpen(false)} className="text-secondary hover:text-primary p-1 rounded-lg hover:bg-hover"><X size={16}/></button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-              <React.Suspense fallback={<div className="text-center text-secondary text-sm py-8">جارٍ التحميل...</div>}>
+              <React.Suspense fallback={<PageSkeleton rows={2}/>}>
                 <LazyInternalChat emp={emp} isConnected={isConnected}/>
               </React.Suspense>
             </div>

@@ -93,10 +93,30 @@ function sendDesktopNotification(title, body) {
 }
 
 function useConnectionStatus() {
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(null); // null = unknown (first check pending)
   const check = useCallback(async () => { setIsConnected(await FirebaseAPI.checkConnection()); }, []);
   useEffect(() => { check(); const t = setInterval(check, 30000); return () => clearInterval(t); }, [check]);
   return { isConnected };
 }
 
-export { EmpPopover, PrintButton, SkeletonCard, SkeletonMsg, playAlert, sendDesktopNotification, useConnectionStatus };
+function PageSkeleton({ rows = 4 }) {
+  return (
+    <div className="p-4 space-y-3">
+      <Skel className="h-6 w-48 mb-5"/>
+      {Array.from({length:rows},(_,i)=>(
+        <div key={i} className="card rounded-2xl p-4 border border-color space-y-3">
+          <div className="flex gap-3"><Skel className="h-10 w-10 rounded-xl shrink-0"/><div className="flex-1 space-y-2"><Skel className="h-4 w-2/3"/><Skel className="h-3 w-1/2"/></div></div>
+          <Skel className="h-3 w-full"/><Skel className="h-3 w-3/4"/>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function useDebounce(value, delay = 300) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => { const t = setTimeout(()=>setDebounced(value), delay); return ()=>clearTimeout(t); }, [value, delay]);
+  return debounced;
+}
+
+export { EmpPopover, PrintButton, SkeletonCard, SkeletonMsg, PageSkeleton, useDebounce, playAlert, sendDesktopNotification, useConnectionStatus };
