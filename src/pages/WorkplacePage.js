@@ -254,11 +254,14 @@ function ChatWindow({ emp, partnerId, partnerName, messages, isConnected, onBack
         {allMsgs.length === 0 && <div className="text-center text-secondary py-8"><MessageSquare size={40} className="mx-auto mb-2"/><p>ابدأ المحادثة</p></div>}
         {allMsgs.map((m,i) => {
           const isMine = n(m.senderId) === n(emp.id);
-          return (<div key={m._key||i} className={`flex ${isMine?"justify-start":"justify-end"}`}>
+          const prev = allMsgs[i-1], next = allMsgs[i+1];
+          const grouped = prev && n(prev.senderId)===n(m.senderId) && m.timestamp-prev.timestamp<60000;
+          const lastInGroup = !next || n(next.senderId)!==n(m.senderId) || next.timestamp-m.timestamp>=60000;
+          return (<div key={m._key||i} className={`flex ${isMine?"justify-start":"justify-end"} ${grouped?"mt-0.5":"mt-2"}`}>
             <div className={`max-w-[70%] rounded-2xl px-4 py-2 ${m.system?"bg-amber-100 text-amber-800":isMine?"bg-blue-600 text-white":"card border border-color"}`}>
-              {!isMine && !m.system && <p className="text-[10px] font-bold text-secondary mb-1">{m.sender}</p>}
+              {!isMine && !m.system && !grouped && <p className="text-[10px] font-bold text-secondary mb-1">{m.sender}</p>}
               <p className="text-sm">{m.text}</p>
-              <p className={`text-[10px] mt-1 ${isMine?"text-blue-200":"text-secondary"}`}>{new Date(m.timestamp).toLocaleTimeString("ar-IQ",{hour:"2-digit",minute:"2-digit"})}</p>
+              {lastInGroup && <p className={`text-[10px] mt-1 ${isMine?"text-blue-200":"text-secondary"}`}>{new Date(m.timestamp).toLocaleTimeString("ar-IQ",{hour:"2-digit",minute:"2-digit"})}</p>}
             </div>
           </div>);
         })}
