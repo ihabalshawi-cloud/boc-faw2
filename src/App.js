@@ -23,10 +23,20 @@ function useFieldMode() {
   return [field, setField];
 }
 
+function useLargeFont() {
+  const [large, setLarge] = useState(() => storage.get("large_font", false));
+  useEffect(() => {
+    storage.set("large_font", large);
+    document.documentElement.classList.toggle("large-font", large);
+  }, [large]);
+  return [large, setLarge];
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [dark, setDark] = useDarkMode();
   const [fieldMode, setFieldMode] = useFieldMode();
+  const [largeFont, setLargeFont] = useLargeFont();
 
   const style = `
     :root { color-scheme: light; }
@@ -86,6 +96,12 @@ export default function App() {
     .field nav button { min-height: 52px; }
     .field .text-xs { font-size: 0.82rem !important; line-height: 1.4 !important; }
     .field .text-sm { font-size: 0.95rem !important; }
+    /* ── Quick Read: larger font for long reports / low-light reading ── */
+    .large-font .text-xs  { font-size: 0.875rem !important; line-height: 1.6 !important; }
+    .large-font .text-sm  { font-size: 1rem     !important; line-height: 1.6 !important; }
+    .large-font .text-base{ font-size: 1.125rem !important; }
+    .large-font .text-lg  { font-size: 1.3rem   !important; }
+    .large-font p, .large-font td, .large-font li { line-height: 1.8 !important; }
   `;
 
   return (
@@ -94,7 +110,7 @@ export default function App() {
         <GDriveProvider>
           <style>{style}</style>
           {user
-            ? <Dashboard emp={user} onLogout={()=>{recordLogoutFn(user?.id);sessionStorage.clear();setUser(null);}} dark={dark} setDark={setDark} fieldMode={fieldMode} setFieldMode={setFieldMode}/>
+            ? <Dashboard emp={user} onLogout={()=>{recordLogoutFn(user?.id);sessionStorage.clear();setUser(null);}} dark={dark} setDark={setDark} fieldMode={fieldMode} setFieldMode={setFieldMode} largeFont={largeFont} setLargeFont={setLargeFont}/>
             : <LoginScreen onLogin={setUser} dark={dark}/>
           }
         </GDriveProvider>

@@ -7,7 +7,7 @@ import {
   Search, Moon, Sun, MessageSquare, X,
   CheckSquare, AlertTriangle, ChevronLeft,
   Wrench, Box, TrendingUp, Heart,
-  Briefcase, Menu, Glasses
+  Briefcase, Menu, Glasses, Type
 } from "lucide-react";
 import {
   ACCOUNTS, LOW_STOCK_THRESHOLD,
@@ -103,7 +103,7 @@ class ReqErrorBoundary extends React.Component {
 const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","changepass","health_insurance","approvals","employees","admin_dashboard","timesheet"]);
 const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","inventory","furniture","projects"]);
 
-export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode }) {
+export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode, largeFont, setLargeFont }) {
   const [view, setView] = useState("home");
   const [reqSubTab, setReqSubTab] = useState("requests");
   const [section, setSection] = useState(() => storage.get("dash_section","admin"));
@@ -231,6 +231,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
           </button>
           {smartAlerts.length > 0 && <div className="relative"><AlertTriangle size={20} className="text-amber-500"/><span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center">{smartAlerts.length}</span></div>}
           <div className="flex items-center gap-1">{isConnected?<Wifi size={14} className="text-emerald-500"/>:<WifiOff size={14} className="text-amber-500"/>}</div>
+          <button onClick={()=>setLargeFont(v=>!v)} title="وضع القراءة السريعة (خط أكبر)" className={`p-2 rounded-xl border transition-colors ${largeFont?"bg-blue-500 text-white border-blue-400":"btn-secondary border-color"}`}><Type size={16}/></button>
           <button onClick={()=>setFieldMode(v=>!v)} title="وضع البيئة الميدانية (تباين عالٍ)" className={`p-2 rounded-xl border transition-colors ${fieldMode?"bg-amber-500 text-white border-amber-400":"btn-secondary border-color"}`}><Glasses size={16}/></button>
           <button onClick={()=>setDark(!dark)} className="p-2 rounded-xl btn-secondary border border-color">{dark?<Sun size={16}/>:<Moon size={16}/>}</button>
           <div className="text-left"><p className="text-sm font-bold">{emp.name.split(" ").slice(0,2).join(" ")}</p><p className="text-xs text-secondary">{emp.title}</p></div>
