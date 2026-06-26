@@ -145,7 +145,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const pendingCount = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
   const unreadNotifs = (storage.get(`notifications_${emp.id}`, [])).filter(n => !n.read).length;
   useStorageSync("all_requests", setAllRequests);
-
+  const chatUnread = storage.get("chat_offline",[]).filter(m=>!m.read&&Number(m.toId)===Number(emp.id)).length;
   useEffect(() => {
     const nc = sessionStorage.getItem("force_password_change");
     if (nc) { sessionStorage.removeItem("force_password_change"); setTimeout(async () => { if(await confirm("يُنصح بتغيير كلمة المرور الافتراضية الآن لأمان حسابك.", { title: "🔐 تغيير كلمة المرور", ok: "تغيير الآن" })) setView("changepass"); }, 500); }
@@ -154,7 +154,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   }, []);
 
   useEffect(() => {
-    const h = (e) => { if ((e.ctrlKey||e.metaKey) && e.key==="k") { e.preventDefault(); setShowSearch(true); } };
+    const h = (e) => { if((e.ctrlKey||e.metaKey)&&e.key==="k"){e.preventDefault();setShowSearch(true);}else if(e.key==="?"&&!["INPUT","TEXTAREA"].includes(e.target.tagName))setShowSearch(true); };
     document.addEventListener("keydown", h);
     return () => document.removeEventListener("keydown", h);
   }, []);
@@ -245,7 +245,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
             <Search size={14}/> <span className="hidden md:inline">بحث</span> <kbd className="hidden md:inline px-1 bg-hover rounded text-[10px]">Ctrl K</kbd>
           </button>
           <button onClick={()=>setChatOpen(o=>!o)} className={`relative p-2 rounded-xl border transition-colors ${chatOpen?"bg-blue-50 border-blue-200 text-blue-600":"btn-secondary border-color text-secondary hover:text-primary"}`}>
-            <MessageSquare size={16}/>
+            <MessageSquare size={16}/>{chatUnread>0&&<span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center">{chatUnread}</span>}
           </button>
           {visibleAlerts.length > 0 && <div className="relative"><AlertTriangle size={20} className="text-amber-500"/><span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center">{visibleAlerts.length}</span></div>}
           <div className="flex items-center gap-1">{isConnected?<Wifi size={14} className="text-emerald-500"/>:<WifiOff size={14} className="text-amber-500"/>}</div>
@@ -446,7 +446,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
           {id:"home",          icon:<Home size={20}/>,         label:"الرئيسية"},
           {id:"requests",      icon:<FileText size={20}/>,     label:"الطلبات"},
           {id:"notifications", icon:<Bell size={20}/>,         label:"الإشعارات", badge:unreadNotifs},
-          {id:"chat",          icon:<MessageSquare size={20}/>,label:"الدردشة"},
+          {id:"chat",          icon:<MessageSquare size={20}/>,label:"الدردشة", badge:chatUnread},
         ].map(item => (
           <button key={item.id}
             onClick={()=>item.id==="chat"?setChatOpen(o=>!o):switchView(item.id)}
