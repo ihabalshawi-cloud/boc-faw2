@@ -215,13 +215,12 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
   );
 }
 
-// ========== الدردشة الداخلية الموجّهة ==========
-
 const CHAT_ADMINS = [{ id:1, name:"ايهاب الشاوي", title:"مسؤول الشعبة" }];
 
 function ChatWindow({ emp, partnerId, partnerName, messages, isConnected, onBack, loadMessages }) {
   const [text, setText] = useState("");
   const [sentMsgs, setSentMsgs] = useState([]);
+  const [pt, setPt] = useState(false);
   const bottomRef = useRef(null);
   const n = (v) => Number(v);
   const filtered = messages.filter(m =>
@@ -230,6 +229,7 @@ function ChatWindow({ emp, partnerId, partnerName, messages, isConnected, onBack
   );
   const allMsgs = [...filtered, ...sentMsgs.filter(s => !filtered.some(f => f._key === s._key))];
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [allMsgs.length]);
+  useEffect(() => { if(!isConnected)return; const t=setInterval(async()=>{const d=await FirebaseAPI.getTyping(partnerId);setPt(!!(d&&n(d.toId)===n(emp.id)&&Date.now()-d.ts<5000));},2500); return()=>clearInterval(t); }, [partnerId,emp.id,isConnected]);
 
   const send = async () => {
     if (!text.trim()) return;
@@ -237,7 +237,7 @@ function ChatWindow({ emp, partnerId, partnerName, messages, isConnected, onBack
     const msg = { text:text.trim(), sender:emp.name, senderId:emp.id, toId:partnerId, timestamp:Date.now(), dept:emp.dept, _key:key };
     setSentMsgs(prev => [...prev, msg]);
     storage.set(`chat_active_${partnerId}`, { empId:emp.id, timestamp:Date.now() });
-    setText("");
+    setText(""); FirebaseAPI.setTyping(emp.id, -1);
     if (isConnected) { await FirebaseAPI.sendMessage(msg); await loadMessages(); setSentMsgs([]); }
     else { const off=storage.get("chat_offline",[]); storage.set("chat_offline",[...off,msg]); }
     playAlert("message");
@@ -265,10 +265,11 @@ function ChatWindow({ emp, partnerId, partnerName, messages, isConnected, onBack
             </div>
           </div>);
         })}
+        {pt && <p className="text-xs text-secondary px-2 pb-1 animate-pulse">يكتب...</p>}
         <div ref={bottomRef}/>
       </div>
       <div className="flex gap-2 mt-3">
-        <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="اكتب رسالة..." className="input flex-1 rounded-xl px-4 py-3"/>
+        <input value={text} onChange={e=>{setText(e.target.value);if(isConnected)FirebaseAPI.setTyping(emp.id,partnerId);}} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="اكتب رسالة..." className="input flex-1 rounded-xl px-4 py-3"/>
         <button onClick={send} disabled={!text.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-xl disabled:opacity-50"><Send size={18}/></button>
       </div>
     </div>

@@ -195,6 +195,19 @@ export const FirebaseAPI = {
     } catch { return false; }
   },
 
+  setTyping: async (empId, toId) => {
+    try {
+      await fetch(`${FIREBASE_URL}/typing/${empId}.json`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(toId > 0 ? { toId, ts: Date.now() } : null),
+      });
+    } catch {}
+  },
+
+  getTyping: async (empId) => {
+    try { const res = await fetch(`${FIREBASE_URL}/typing/${empId}.json`); return res.ok ? await res.json() : null; } catch { return null; }
+  },
+
   getMessages: async (limit = 50) => {
     try {
       const res = await fetch(
