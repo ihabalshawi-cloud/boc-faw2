@@ -7,6 +7,7 @@ import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
 import { SVGPieChart } from "../components/Charts";
 import { EqDetailPanel, EqMaintenanceTab, EqFormModal, EqRequestModal } from "./EquipmentPanels";
+import { useDebounce } from "../components/Shared";
 
 function EquipmentMaintenance({ emp, isAdmin }) {
   // إضافة/حذف/تعديل مواصفات المعدات من قبل المشرف العام فقط
@@ -16,6 +17,7 @@ function EquipmentMaintenance({ emp, isAdmin }) {
   const [tab,       setTab]       = useState("dashboard");
   const [selId,     setSelId]     = useState(null);
   const [search,    setSearch]    = useState("");
+  const dSearch = useDebounce(search, 300);
   const [typeFilter,setTypeFilter]= useState("الكل");
   const [stFilter,  setStFilter]  = useState("الكل");
   const [showAdd,   setShowAdd]   = useState(false);
@@ -53,7 +55,7 @@ function EquipmentMaintenance({ emp, isAdmin }) {
 
   // ── filtered list ──
   const filtered = equipment.filter(e =>
-    (e.name.includes(search) || e.id.includes(search) || (e.location||"").includes(search)) &&
+    (e.name.includes(dSearch) || e.id.includes(dSearch) || (e.location||"").includes(dSearch)) &&
     (typeFilter === "الكل" || e.type === typeFilter) &&
     (stFilter   === "الكل" || e.status === stFilter)
   );
@@ -294,6 +296,7 @@ function EquipmentMaintenance({ emp, isAdmin }) {
 function MaintenanceParts() {
   const [parts, setParts] = useState(() => storage.get("maint_spare_parts", INITIAL_MAINT_SPARE_PARTS));
   const [search, setSearch] = useState("");
+  const dSearch = useDebounce(search, 300);
   const [filterCat, setFilterCat] = useState("الكل");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ code:"", name:"", category:"ميكانيكية", qty:0, minAlert:1, unit:"قطعة", price:0, location:"" });
@@ -308,7 +311,7 @@ function MaintenanceParts() {
   };
 
   const categories = ["الكل", ...new Set(parts.map(p => p.category))];
-  const filtered = parts.filter(p => (p.name.includes(search)||p.code.includes(search)) && (filterCat==="الكل"||p.category===filterCat));
+  const filtered = parts.filter(p => (p.name.includes(dSearch)||p.code.includes(dSearch)) && (filterCat==="الكل"||p.category===filterCat));
   const lowStock = parts.filter(p => p.qty <= p.minAlert);
 
   const addPart = () => {

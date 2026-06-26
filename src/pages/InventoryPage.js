@@ -5,12 +5,13 @@ import { storage, exportCSV } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
 import { hasPermission } from "../permissions";
-import { PrintButton } from "../components/Shared";
+import { PrintButton, useDebounce } from "../components/Shared";
 
 function InventorySystem({ emp, isAdmin }) {
   const canEdit = isAdmin || hasPermission(emp, "MANAGE_INVENTORY");
   const [items, setItemsState] = useState(() => storage.get("inventory_items", INITIAL_INVENTORY_ITEMS));
   const [search, setSearch] = useState("");
+  const dSearch = useDebounce(search, 300);
   const [filterCat, setFilterCat] = useState("الكل");
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({ code:"", name:"", category:"أجهزة قياس", qty:1, condition:"جيد", location:"", minQty:3, serialNo:"" });
@@ -49,10 +50,10 @@ function InventorySystem({ emp, isAdmin }) {
   }, []);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setPage(1); }, [search, filterCat]);
+  useEffect(() => { setPage(1); }, [dSearch, filterCat]);
 
   const categories = ["الكل", ...INVENTORY_CATS];
-  const filtered = items.filter(i => (i.name.includes(search)||i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
+  const filtered = items.filter(i => (i.name.includes(dSearch)||i.code.includes(dSearch)) && (filterCat==="الكل"||i.category===filterCat));
   const sorted = sortBy ? [...filtered].sort((a,b) => { const va=a[sortBy],vb=b[sortBy]; const c=typeof va==="number"?va-vb:String(va||"").localeCompare(String(vb||""),"ar"); return sortDir==="asc"?c:-c; }) : filtered;
   const paged = sorted.slice((page-1)*PER_PAGE, page*PER_PAGE);
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
@@ -205,6 +206,7 @@ function FurnitureInventory({ emp, isAdmin }) {
     {id:65, code:"1402134055",   name:"منضدة كتابة",                   category:"أثاث مكتبي",     qty:1, condition:"جيد",         location:"السيطرة والنظم شعبة الفاو"},
   ]));
   const [search, setSearch] = useState("");
+  const dSearch = useDebounce(search, 300);
   const [filterCat, setFilterCat] = useState("الكل");
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({ code:"", name:"", category:"أثاث مكتبي", qty:1, condition:"جيد", location:"" });
@@ -241,10 +243,10 @@ function FurnitureInventory({ emp, isAdmin }) {
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setPage(1); }, [search, filterCat]);
+  useEffect(() => { setPage(1); }, [dSearch, filterCat]);
 
   const categories = ["الكل", ...FURNITURE_CATS];
-  const filtered = items.filter(i => (i.name.includes(search)||i.code.includes(search)) && (filterCat==="الكل"||i.category===filterCat));
+  const filtered = items.filter(i => (i.name.includes(dSearch)||i.code.includes(dSearch)) && (filterCat==="الكل"||i.category===filterCat));
   const paged = filtered.slice((page-1)*PER_PAGE, page*PER_PAGE);
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
 

@@ -11,6 +11,7 @@ import {
 import { importFromBuffer, exportToTemplate, buildHTMLTable } from "./TimeSheetExporters";
 import { buildExcelFormattedHTML, buildOfficialFormHTML } from "./TimeSheetPrintBuilders";
 import { TsImportPanel, TsExportPanel } from "./TimeSheetPanels";
+import { useDebounce } from "../components/Shared";
 
 const STORAGE_KEY       = "boc_timesheet_v7";
 const STORAGE_PREV_KEYS = ["boc_timesheet_v6", "boc_timesheet_v5"];
@@ -63,6 +64,7 @@ function TimeSheetPage({ emp }) {
   const [editCell,       setEditCell]       = useState(null);
   const [showLegend,     setShowLegend]     = useState(false);
   const [searchEmp,      setSearchEmp]      = useState("");
+  const dSearchEmp = useDebounce(searchEmp, 300);
   const [importing,      setImporting]      = useState(false);
   const [showImport,     setShowImport]     = useState(false);
   const [importDriveId,  setImportDriveId]  = useState("");
@@ -156,9 +158,9 @@ function TimeSheetPage({ emp }) {
   const days = useMemo(() => Array.from({length: daysInMonth}, (_, i) => i + 1), [daysInMonth]);
   const employees = useMemo(() => {
     const list = data[activeTab] || [];
-    if (!searchEmp.trim()) return list;
-    return list.filter(e => e.name.includes(searchEmp.trim()) || e.id.includes(searchEmp.trim()));
-  }, [data, activeTab, searchEmp]);
+    if (!dSearchEmp.trim()) return list;
+    return list.filter(e => e.name.includes(dSearchEmp.trim()) || e.id.includes(dSearchEmp.trim()));
+  }, [data, activeTab, dSearchEmp]);
 
   const updateCell = useCallback((tabKey, empId, day, field, value) => {
     setData(prev => {

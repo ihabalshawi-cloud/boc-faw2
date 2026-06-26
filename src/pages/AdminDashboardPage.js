@@ -5,12 +5,14 @@ import { storage } from "../utils";
 import { useToast, useConfirm } from "../contexts";
 import { PERMISSIONS_DEF, BUILT_IN_ROLES, getEmpStatus } from "../permissions";
 import EmployeeManager from "./EmployeeManagerPage";
+import { useDebounce } from "../components/Shared";
 
 function AdminDashboard({ emp, employees, setEmployees }) {
   const addToast = useToast();
   const confirm  = useConfirm();
   const [tab, setTab] = useState("overview");
   const [histSearch, setHistSearch] = useState("");
+  const dHistSearch = useDebounce(histSearch, 300);
   const [histFilter, setHistFilter] = useState("الكل");
   const [histDate, setHistDate] = useState("");
   const [histPage, setHistPage] = useState(1);
@@ -67,7 +69,7 @@ function AdminDashboard({ emp, employees, setEmployees }) {
 
   // Filtered history
   const filteredHist = loginHistory.filter(h => {
-    const q = histSearch.trim();
+    const q = dHistSearch.trim();
     if (q && !h.userName.includes(q) && !h.userJobNum.includes(q)) return false;
     if (histFilter === "نجاح" && h.status !== "success") return false;
     if (histFilter === "فشل"  && h.status !== "failed")  return false;
