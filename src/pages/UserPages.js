@@ -232,6 +232,11 @@ function ApprovalsPage({ emp }) {
         set("F2",fmtD(req.dateFrom)); set("C7",req.empName||""); set("E7",String(empAcct.jobNum||"")); set("G7",empAcct.title||""); set("D8",empAcct.dept||"");
         await addImg(wb,ws,req.empSigDataUrl,2,11); await addImg(wb,ws,req.sigDataUrl,6,11);
         fname=`اجازة_زمنية_${safe}_${req.dateFrom||""}.xlsx`;
+      } else if (t.includes("خارج العراق")) {
+        await wb.xlsx.load(await (await fetch("/templates/leave-ooc.xlsx")).arrayBuffer());
+        const ws=wb.worksheets[0];const set=(r,v)=>{ws.getCell(r).value=v??null;};const[ooc,...oocP]=(req.purpose||"").split(" — ");
+        set("C5",fmtD((req.submittedAt||"").split("T")[0]));set("I8",req.empName||"");set("I9",String(empAcct.jobNum||""));set("I10",empAcct.title||"");set("I11",empAcct.dept||"");set("D13",ooc||"");set("G13",String(req.days||""));set("I14",oocP.join(" — ")||"");
+        await addImg(wb,ws,req.empSigDataUrl,1,17);await addImg(wb,ws,req.sigDataUrl,7,17);fname=`اجازة_خارج_العراق_${safe}_${req.dateFrom||""}.xlsx`;
       } else { exportReqExcel(req); return; }
       const outBuf = await wb.xlsx.writeBuffer();
       const a = document.createElement("a"); a.href=URL.createObjectURL(new Blob([outBuf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})); a.download=fname;
@@ -283,7 +288,7 @@ function ApprovalsPage({ emp }) {
   };
 
   const pushToAdmin = (req) => {
-    exportReqExcel(req);
+    exportToTemplate(req);
     const all = storage.get("all_requests", []);
     const updated = all.map(r => r.id===req.id ? {...r, pushedToAdmin:true, pushedAt:new Date().toISOString()} : r);
     storage.set("all_requests", updated);
