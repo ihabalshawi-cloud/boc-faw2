@@ -4,6 +4,7 @@ import { ACCOUNTS } from "../constants";
 import { storage } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { EmpPopover, playAlert } from "../components/Shared";
+import { hasPermission } from "../permissions";
 
 function InlineSigPad({ onSave, onCancel }) {
   const canvasRef = useRef(null);
@@ -32,15 +33,13 @@ function ApprovalsPage({ emp }) {
   const isSupervisor = emp.username === "i.shawi";
   const isAdmin = emp.role === "admin";
   const isAttendanceAdmin = emp.role === "attendance_admin";
-  const canSeePushed = isAttendanceAdmin || isSupervisor;
   const canArchive = isSupervisor || isAdmin || isAttendanceAdmin;
+  const canExportLeave = hasPermission(emp, "EXPORT_LEAVE_EXCEL");
   const sortDesc = (a,b) => new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt);
   const [requests, setRequests] = useState(() => storage.get("all_requests", []).filter(r => r.status === "بانتظار المراجعة"));
   const [approved, setApproved] = useState(() => storage.get("all_requests", []).filter(r => r.status === "موافق عليها" && !r.archived).sort(sortDesc));
   const [archived, setArchived] = useState(() => storage.get("all_requests", []).filter(r => r.archived).sort(sortDesc));
-  const [pushed, setPushed] = useState(() => storage.get("all_requests", []).filter(r => r.pushedToAdmin && !r.archived));
   const [sigReqId, setSigReqId] = useState(null);
-  const [activeTab, setActiveTab] = useState(isAttendanceAdmin ? "مرحّلة" : "كل");
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
 
@@ -49,13 +48,11 @@ function ApprovalsPage({ emp }) {
     setRequests(list.filter(r => r.status === "بانتظار المراجعة"));
     setApproved(list.filter(r => r.status === "موافق عليها" && !r.archived).sort(sortDesc));
     setArchived(list.filter(r => r.archived).sort(sortDesc));
-    setPushed(list.filter(r => r.pushedToAdmin && !r.archived));
   };
   const refreshApproved = () => {
     const all = storage.get("all_requests", []);
     setApproved(all.filter(r => r.status === "موافق عليها" && !r.archived).sort(sortDesc));
     setArchived(all.filter(r => r.archived).sort(sortDesc));
-    setPushed(all.filter(r => r.pushedToAdmin && !r.archived));
   };
   const archiveReq = (id) => {
     const all = storage.get("all_requests", []).map(r => r.id === id ? {...r, archived:true} : r);
@@ -194,46 +191,10 @@ function ApprovalsPage({ emp }) {
     w.document.close(); w.focus(); setTimeout(()=>w.print(),400);
   };
 
+  const pushedCount = approved.filter(r => r.pushedToAdmin).length;
+
   return (
     <div className="space-y-4">
-      {canSeePushed && (
-        <div className="flex gap-1 border-b border-color pb-0 -mb-2">
-          <button onClick={()=>setActiveTab("مرحّلة")} className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${activeTab==="مرحّلة"?"border-violet-600 text-violet-700":"border-transparent text-secondary hover:text-primary"}`}>
-            📋 إجازات مرحّلة إليك{pushed.length>0&&<span className="mr-1.5 bg-violet-100 text-violet-700 rounded-full px-1.5 text-[10px]">{pushed.length}</span>}
-          </button>
-          <button onClick={()=>setActiveTab("كل")} className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${activeTab==="كل"?"border-violet-600 text-violet-700":"border-transparent text-secondary hover:text-primary"}`}>
-            📄 جميع الطلبات
-          </button>
-        </div>
-      )}
-
-      {canSeePushed && activeTab==="مرحّلة" && (
-        <div className="space-y-3 pt-2">
-          <h3 className="font-bold text-base text-violet-700">📋 الإجازات المرحّلة إليك ({pushed.length})</h3>
-          {pushed.length===0
-            ? <div className="card rounded-2xl p-8 text-center border-color border"><p className="text-secondary text-sm">لا توجد إجازات مرحّلة بعد</p></div>
-            : pushed.map(req=>(
-              <div key={req.id} className="card rounded-2xl p-4 border-violet-200 border bg-violet-50/30 space-y-1">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-bold text-sm">{req.empName}</p>
-                    <p className="text-xs">{req.type} — {req.days} يوم | {req.purpose}</p>
-                    <p className="text-xs text-secondary">{req.dateFrom} ← {req.dateTo}</p>
-                    <p className="text-[10px] text-secondary">وافق: {req.decidedBy} — {req.pushedAt?new Date(req.pushedAt).toLocaleDateString("ar-IQ"):""}</p>
-                  </div>
-                  <div className="flex gap-2 items-start flex-wrap justify-end">
-                    <button onClick={()=>exportToTemplate(req)} className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Download size={10}/> تصدير Excel</button>
-                    <button onClick={()=>printForm(req)} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Printer size={10}/> طباعة</button>
-                    <button onClick={()=>archiveReq(req.id)} className="px-2.5 py-1.5 bg-gray-600 text-white rounded-lg text-[11px]">📁 أرشفة</button>
-                  </div>
-                </div>
-              </div>
-            ))
-          }
-        </div>
-      )}
-
-      {(!canSeePushed || activeTab==="كل") && <>
       <div className="flex items-center justify-between">
         <h3 className="font-bold text-lg">الطلبات المعلقة ({requests.length})</h3>
         {!isSupervisor && <span className="text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-bold">للاطلاع فقط — الموافقة من صلاحية مسؤول الشعبة</span>}
@@ -268,21 +229,27 @@ function ApprovalsPage({ emp }) {
 
       {approved.length > 0 && (
         <div className="mt-6 space-y-3">
-          <h3 className="font-bold text-base border-t border-color pt-4">سجل الإجازات الموافق عليها ({approved.length})</h3>
+          <h3 className="font-bold text-base border-t border-color pt-4">
+            سجل الإجازات الموافق عليها ({approved.length})
+            {pushedCount>0 && <span className="mr-2 text-[11px] bg-violet-100 text-violet-700 rounded-full px-2 py-0.5 font-bold">📋 {pushedCount} مرحّلة</span>}
+          </h3>
           {approved.map(req=>(
-            <div key={req.id} className="card rounded-2xl p-4 border-emerald-200 border bg-emerald-50/30 space-y-1">
+            <div key={req.id} className={`card rounded-2xl p-4 border space-y-1 ${req.pushedToAdmin?"border-violet-200 bg-violet-50/30":"border-emerald-200 bg-emerald-50/30"}`}>
               <div className="flex justify-between items-start">
                 <div>
+                  {req.pushedToAdmin && <span className="inline-block text-[10px] text-violet-700 font-bold bg-violet-100 px-1.5 py-0.5 rounded-full mb-1">📋 مرحّلة للإداري</span>}
                   <p className="font-bold text-sm">{req.empName}</p>
                   <p className="text-xs">{req.type} — {req.days} يوم | {req.purpose}</p>
                   <p className="text-[10px] text-secondary">وافق: {req.decidedBy} — {req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</p>
                 </div>
                 <div className="flex gap-2 items-start flex-wrap justify-end">
-                  <button onClick={()=>printForm(req)} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Printer size={10}/> طباعة النموذج</button>
-                  {isSupervisor && !req.pushedToAdmin && (
-                    <button onClick={()=>pushToAdmin(req)} className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Send size={10}/> ادفع للإداري</button>
+                  {canExportLeave && req.pushedToAdmin && (
+                    <button onClick={()=>exportToTemplate(req)} className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Download size={10}/> تصدير Excel</button>
                   )}
-                  {req.pushedToAdmin && <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-1 rounded-lg">✓ أُرسل للإداري</span>}
+                  <button onClick={()=>printForm(req)} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Printer size={10}/> طباعة</button>
+                  {isSupervisor && !req.pushedToAdmin && (
+                    <button onClick={()=>pushToAdmin(req)} className="px-2.5 py-1.5 bg-violet-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Send size={10}/> ادفع للإداري</button>
+                  )}
                   {canArchive && <button onClick={()=>archiveReq(req.id)} className="px-2.5 py-1.5 bg-gray-600 text-white rounded-lg text-[11px]">📁 أرشفة</button>}
                 </div>
               </div>
@@ -290,6 +257,7 @@ function ApprovalsPage({ emp }) {
           ))}
         </div>
       )}
+
       {canArchive && archived.length > 0 && (
         <div className="mt-6 space-y-3">
           <h3 className="font-bold text-base border-t border-color pt-4 text-gray-500">📁 الأرشيف ({archived.length})</h3>
@@ -302,6 +270,9 @@ function ApprovalsPage({ emp }) {
                   <p className="text-[10px] text-secondary">وافق: {req.decidedBy} — {req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</p>
                 </div>
                 <div className="flex gap-2 items-start">
+                  {canExportLeave && req.pushedToAdmin && (
+                    <button onClick={()=>exportToTemplate(req)} className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Download size={10}/> تصدير Excel</button>
+                  )}
                   <button onClick={()=>printForm(req)} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Printer size={10}/> طباعة</button>
                   <button onClick={()=>restoreReq(req.id)} className="px-2.5 py-1.5 bg-amber-500 text-white rounded-lg text-[11px]">↩️ استرداد</button>
                 </div>
@@ -310,7 +281,6 @@ function ApprovalsPage({ emp }) {
           ))}
         </div>
       )}
-      </> }
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
