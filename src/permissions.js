@@ -20,7 +20,7 @@ const BUILT_IN_ROLES = {
   WAREHOUSE_MANAGER: { label:"مسؤول المخزن", color:"bg-teal-100 text-teal-800",     permissions:["MANAGE_INVENTORY"] },
   EMPLOYEE:          { label:"موظف",          color:"bg-gray-100 text-gray-700",    permissions:[] },
 };
-function getEmpStatus(empId) { return storage.get(`emp_status_${empId}`, { active:true, role:"EMPLOYEE" }); }
+function getEmpStatus(empId) { return storage.get(`emp_status_${empId}`, { active:true }); }
 function setEmpStatus(empId, val) { storage.set(`emp_status_${empId}`, val); }
 function hasPermission(emp, perm) {
   if (!emp) return false;
