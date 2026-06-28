@@ -25,7 +25,7 @@ function setEmpStatus(empId, val) { storage.set(`emp_status_${empId}`, val); }
 function hasPermission(emp, perm) {
   if (!emp) return false;
   const s = getEmpStatus(emp.id);
-  const roleName = s.role || (emp.role === "admin" ? "SUPER_ADMIN" : "EMPLOYEE");
+  const roleName = s.role || (emp.role === "admin" ? "SUPER_ADMIN" : emp.role === "inventory_manager" ? "WAREHOUSE_MANAGER" : "EMPLOYEE");
   const roleDef = BUILT_IN_ROLES[roleName] || BUILT_IN_ROLES.EMPLOYEE;
   const denyPerms = s.denyPerms || [];
   if (denyPerms.includes(perm)) return false;
