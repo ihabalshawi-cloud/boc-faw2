@@ -36,7 +36,7 @@ const LazyEvaluationSystem = React.lazy(() => import('./WorkplacePage').then(m =
 const LazyAnalyticsDashboard = React.lazy(() => import('./AnalyticsPage'));
 const LazyChangePasswordPage = React.lazy(() => import('./UserPages'));
 const LazyRequestsPage = React.lazy(() => import('./UserPages').then(m => ({ default: m.RequestsPage })));
-const LazyApprovalsPage = React.lazy(() => import('./UserPages').then(m => ({ default: m.ApprovalsPage })));
+const LazyApprovalsPage = React.lazy(() => import('./ApprovalsPage'));
 const LazyNotificationsPage = React.lazy(() => import('./UserPages').then(m => ({ default: m.NotificationsPage })));
 const LazyAdminDashboard = React.lazy(() => import('./AdminDashboardPage'));
 const LazyEquipmentPage = React.lazy(() => import('./EquipmentPage'));
