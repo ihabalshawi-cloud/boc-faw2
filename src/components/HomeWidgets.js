@@ -30,11 +30,11 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
 
   const hrCards = [
     { label:"إجمالي الموظفين",  value:employees.length, icon:<Users size={22}/>, color:"from-blue-500 to-blue-600", action:()=>switchView("employees") },
-    { label:"طلبات معلقة", value:allRequests.filter(r=>r.status==="بانتظار المراجعة").length, icon:<Clock size={22}/>, color:"from-amber-500 to-amber-600", action:()=>switchView(isAdmin?"approvals":"requests") },
-    { label:"طلبات مقبولة", value:allRequests.filter(r=>r.status==="موافق عليها").length, icon:<CheckCircle size={22}/>, color:"from-emerald-500 to-emerald-600", action:()=>switchView("requests") },
+    { label:"طلبات معلقة", value:allRequests.filter(r=>r&&r.status==="بانتظار المراجعة").length, icon:<Clock size={22}/>, color:"from-amber-500 to-amber-600", action:()=>switchView(isAdmin?"approvals":"requests") },
+    { label:"طلبات مقبولة", value:allRequests.filter(r=>r&&r.status==="موافق عليها").length, icon:<CheckCircle size={22}/>, color:"from-emerald-500 to-emerald-600", action:()=>switchView("requests") },
     { label:"مخزون الآلات", value:storage.get("inventory_items",[]).length, icon:<Package size={22}/>, color:"from-violet-500 to-violet-600", action:()=>switchView("inventory") },
-    { label:"مخزون منخفض", value:storage.get("inventory_items",[]).filter(i=>i.qty<=(i.minQty||3)).length, icon:<AlertTriangle size={22}/>, color:"from-red-500 to-red-600", action:()=>switchView("inventory") },
-    { label:"مهام نشطة", value:storage.get("tasks_system",[]).filter(t=>t.status!=="مكتملة").length, icon:<CheckSquare size={22}/>, color:"from-indigo-500 to-indigo-600", action:()=>switchView("tasks") },
+    { label:"مخزون منخفض", value:storage.get("inventory_items",[]).filter(i=>i&&i.qty<=(i.minQty||3)).length, icon:<AlertTriangle size={22}/>, color:"from-red-500 to-red-600", action:()=>switchView("inventory") },
+    { label:"مهام نشطة", value:storage.get("tasks_system",[]).filter(t=>t&&t.status!=="مكتملة").length, icon:<CheckSquare size={22}/>, color:"from-indigo-500 to-indigo-600", action:()=>switchView("tasks") },
   ];
 
   const maintCards = [
@@ -95,7 +95,7 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
               <button onClick={()=>switchView(isAdmin?"approvals":"requests")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
             </div>
             {allRequests.length===0 ? <p className="text-secondary text-xs text-center py-4">لا توجد طلبات</p> :
-            allRequests.slice(0,4).map(r=>(
+            allRequests.filter(Boolean).slice(0,4).map(r=>(
               <div key={r.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 text-xs">
                 <span className="font-medium">{r.empName?.split(" ").slice(0,2).join(" ")}</span>
                 <span className="text-secondary">{r.type} — {r.days} يوم</span>

@@ -16,6 +16,7 @@ function AnalyticsDashboard({ employees, allRequests }) {
 
     const monthlyData = MONTHS_AR.slice(0, currentMonth+1).map((month, i) => {
       const monthReqs = allRequests.filter(r => {
+        if (!r) return false;
         const d = new Date(r.submittedAt);
         return d.getMonth() === i && d.getFullYear() === currentYear;
       });
@@ -36,8 +37,8 @@ function AnalyticsDashboard({ employees, allRequests }) {
       name: s, value: equipment.filter(e => e.status === s).length
     })).filter(d => d.value > 0);
 
-    const pendingReqs  = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
-    const approvedReqs = allRequests.filter(r => r.status === "موافق عليها").length;
+    const pendingReqs  = allRequests.filter(r => r && r.status === "بانتظار المراجعة").length;
+    const approvedReqs = allRequests.filter(r => r && r.status === "موافق عليها").length;
     const totalInv     = invItems.reduce((s, i) => s + Number(i.qty), 0);
     const lowStockCount = invItems.filter(i => i.qty <= (i.minQty || LOW_STOCK_THRESHOLD)).length;
     const overdueEq    = equipment.filter(e => e.nextMaintenance && new Date(e.nextMaintenance) < now).length;

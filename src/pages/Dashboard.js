@@ -56,7 +56,7 @@ function useSmartAlerts(employees) {
     });
     const allReq = storage.get("all_requests", []);
     const threeDaysAgo = Date.now() - 3 * 86400000;
-    allReq.filter(r => r.status === "بانتظار المراجعة" && new Date(r.submittedAt).getTime() < threeDaysAgo).forEach(r => {
+    allReq.filter(r => r && r.status === "بانتظار المراجعة" && new Date(r.submittedAt).getTime() < threeDaysAgo).forEach(r => {
       found.push({ id: `req_${r.id}`, type: "info", msg: `طلب ${r.empName} معلق منذ أكثر من 3 أيام` });
     });
     setAlerts(found);
@@ -117,9 +117,10 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     });
     FirebaseAPI.loadRequests().then(list => {
       if (list && list.length > 0) {
-        storage.set("all_requests", list);
-        setAllRequests(list);
-        const pc = list.filter(r => r.status === "بانتظار المراجعة").length;
+        const clean = list.filter(Boolean);
+        storage.set("all_requests", clean);
+        setAllRequests(clean);
+        const pc = list.filter(r => r && r.status === "بانتظار المراجعة").length;
         if (canSeeApprovals && pc > 0) sendDesktopNotification("BOC — طلبات معلّقة", `لديك ${pc} طلب بانتظار الموافقة`);
       }
     });
@@ -144,7 +145,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const canSeeApprovals = isAdmin || isAttendanceAdmin;
   const isTimeSheetAdmin = isAdmin || isAttendanceAdmin;
   const canSeeAnalytics = isAdmin || isAttendanceAdmin || emp.role === "inventory_manager";
-  const pendingCount = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
+  const pendingCount = allRequests.filter(r => r && r.status === "بانتظار المراجعة").length;
   const unreadNotifs = (storage.get(`notifications_${emp.id}`, [])).filter(n => !n.read).length;
   useStorageSync("all_requests", setAllRequests);
   const chatUnread = storage.get("chat_offline",[]).filter(m=>!m.read&&Number(m.toId)===Number(emp.id)).length;

@@ -36,23 +36,23 @@ function ApprovalsPage({ emp }) {
   const canArchive = isSupervisor || isAdmin || isAttendanceAdmin;
   const canExportLeave = hasPermission(emp, "EXPORT_LEAVE_EXCEL");
   const sortDesc = (a,b) => new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt);
-  const [requests, setRequests] = useState(() => storage.get("all_requests", []).filter(r => r.status === "بانتظار المراجعة"));
-  const [approved, setApproved] = useState(() => storage.get("all_requests", []).filter(r => r.status === "موافق عليها" && !r.archived).sort(sortDesc));
-  const [archived, setArchived] = useState(() => storage.get("all_requests", []).filter(r => r.archived).sort(sortDesc));
+  const [requests, setRequests] = useState(() => storage.get("all_requests", []).filter(r => r && r.status === "بانتظار المراجعة"));
+  const [approved, setApproved] = useState(() => storage.get("all_requests", []).filter(r => r && r.status === "موافق عليها" && !r.archived).sort(sortDesc));
+  const [archived, setArchived] = useState(() => storage.get("all_requests", []).filter(r => r && r.archived).sort(sortDesc));
   const [sigReqId, setSigReqId] = useState(null);
   const [toast, setToast] = useState("");
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
 
   const applyList = (list) => {
     storage.set("all_requests", list);
-    setRequests(list.filter(r => r.status === "بانتظار المراجعة"));
-    setApproved(list.filter(r => r.status === "موافق عليها" && !r.archived).sort(sortDesc));
-    setArchived(list.filter(r => r.archived).sort(sortDesc));
+    setRequests(list.filter(r => r && r.status === "بانتظار المراجعة"));
+    setApproved(list.filter(r => r && r.status === "موافق عليها" && !r.archived).sort(sortDesc));
+    setArchived(list.filter(r => r && r.archived).sort(sortDesc));
   };
   const refreshApproved = () => {
     const all = storage.get("all_requests", []);
-    setApproved(all.filter(r => r.status === "موافق عليها" && !r.archived).sort(sortDesc));
-    setArchived(all.filter(r => r.archived).sort(sortDesc));
+    setApproved(all.filter(r => r && r.status === "موافق عليها" && !r.archived).sort(sortDesc));
+    setArchived(all.filter(r => r && r.archived).sort(sortDesc));
   };
   const archiveReq = (id) => {
     const all = storage.get("all_requests", []).map(r => r.id === id ? {...r, archived:true} : r);
