@@ -16,28 +16,29 @@ function AnalyticsDashboard({ employees, allRequests }) {
 
     const monthlyData = MONTHS_AR.slice(0, currentMonth+1).map((month, i) => {
       const monthReqs = allRequests.filter(r => {
+        if (!r) return false;
         const d = new Date(r.submittedAt);
         return d.getMonth() === i && d.getFullYear() === currentYear;
       });
-      return { name: month.slice(0,3), "موافق": monthReqs.filter(r=>r.status==="موافق عليها").length, "مرفوض": monthReqs.filter(r=>r.status==="مرفوضة").length, "معلق": monthReqs.filter(r=>r.status==="بانتظار المراجعة").length };
+      return { name: month.slice(0,3), "موافق": monthReqs.filter(r=>r&&r.status==="موافق عليها").length, "مرفوض": monthReqs.filter(r=>r&&r.status==="مرفوضة").length, "معلق": monthReqs.filter(r=>r&&r.status==="بانتظار المراجعة").length };
     });
 
     const typeData = Object.entries(LEAVE_TYPES).map(([k, v]) => ({
-      name: v.label.replace("إجازة ",""), value: allRequests.filter(r => r.type === k).length
+      name: v.label.replace("إجازة ",""), value: allRequests.filter(r => r&&r.type === k).length
     })).filter(d => d.value > 0);
 
-    const condData = ITEM_CONDITIONS.map(c => ({ name: c, value: invItems.filter(i => i.condition === c).length })).filter(d => d.value > 0);
+    const condData = ITEM_CONDITIONS.map(c => ({ name: c, value: invItems.filter(i => i&&i.condition === c).length })).filter(d => d.value > 0);
 
-    const deptData = [...new Set(employees.map(e=>e.dept))].map(d => ({
-      name: d.replace("قسم ","").replace("شعبة ",""), value: employees.filter(e=>e.dept===d).length
+    const deptData = [...new Set(employees.filter(Boolean).map(e=>e.dept||"غير محدد"))].filter(Boolean).map(d => ({
+      name: (d||"").replace("قسم ","").replace("شعبة ",""), value: employees.filter(e=>e&&e.dept===d).length
     }));
 
     const eqStatusData = ["جيد","تحتاج صيانة","تحت صيانة","معطل"].map(s => ({
       name: s, value: equipment.filter(e => e.status === s).length
     })).filter(d => d.value > 0);
 
-    const pendingReqs  = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
-    const approvedReqs = allRequests.filter(r => r.status === "موافق عليها").length;
+    const pendingReqs  = allRequests.filter(r => r && r.status === "بانتظار المراجعة").length;
+    const approvedReqs = allRequests.filter(r => r && r.status === "موافق عليها").length;
     const totalInv     = invItems.reduce((s, i) => s + Number(i.qty), 0);
     const lowStockCount = invItems.filter(i => i.qty <= (i.minQty || LOW_STOCK_THRESHOLD)).length;
     const overdueEq    = equipment.filter(e => e.nextMaintenance && new Date(e.nextMaintenance) < now).length;

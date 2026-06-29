@@ -217,8 +217,9 @@ export const FirebaseAPI = {
       const data = await res.json();
       if (!data) return [];
       return Object.entries(data)
-        .map(([k, v]) => ({ ...v, _key: k }))
-        .sort((a, b) => a.timestamp - b.timestamp);
+        .map(([k, v]) => v ? ({ ...v, _key: k }) : null)
+        .filter(Boolean)
+        .sort((a, b) => (a.timestamp||0) - (b.timestamp||0));
     } catch { return []; }
   },
 
@@ -243,7 +244,7 @@ export const FirebaseAPI = {
       if (!res.ok) return null;
       const data = await res.json();
       if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-      return Object.values(data).filter(Boolean).sort((a, b) => a.id - b.id);
+      return Object.values(data).filter(Boolean).sort((a, b) => (a?.id||0) - (b?.id||0));
     } catch { return null; }
   },
 
@@ -268,7 +269,7 @@ export const FirebaseAPI = {
       if (!res.ok) return null;
       const data = await res.json();
       if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-      return Object.values(data).filter(Boolean).sort((a, b) => a.id - b.id);
+      return Object.values(data).filter(Boolean).sort((a, b) => (a?.id||0) - (b?.id||0));
     } catch { return null; }
   },
 

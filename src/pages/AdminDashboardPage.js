@@ -35,7 +35,7 @@ function AdminDashboard({ emp, employees, setEmployees }) {
         if (cancelled || !data || typeof data !== "object") return;
         const records = Object.values(data)
           .filter(r => r && r.loginTime)
-          .sort((a, b) => (b.loginTime > a.loginTime ? 1 : -1));
+          .sort((a, b) => ((b?.loginTime||"") > (a?.loginTime||"") ? 1 : -1));
         if (!cancelled) setFbHistory(records);
       })
       .catch(() => { if (!cancelled) setFbHistory([]); });
@@ -57,14 +57,14 @@ function AdminDashboard({ emp, employees, setEmployees }) {
   const todaySuccess = todayHist.filter(h => h.status === "success").length;
   const todayFailed  = todayHist.filter(h => h.status === "failed").length;
   const deviceCounts = loginHistory.reduce((acc, h) => { acc[h.device] = (acc[h.device]||0)+1; return acc; }, {});
-  const topDevice = Object.entries(deviceCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] || "—";
+  const topDevice = Object.entries(deviceCounts).sort((a,b)=>(b?.[1]||0)-(a?.[1]||0))[0]?.[0] || "—";
 
   // Peak hour
   const hourCounts = todayHist.reduce((acc, h) => {
     const hr = new Date(h.loginTime).getHours();
     acc[hr] = (acc[hr]||0)+1; return acc;
   }, {});
-  const peakHour = Object.entries(hourCounts).sort((a,b)=>b[1]-a[1])[0];
+  const peakHour = Object.entries(hourCounts).sort((a,b)=>(b?.[1]||0)-(a?.[1]||0))[0];
   const peakHourLabel = peakHour ? `${peakHour[0]}:00` : "—";
 
   // Filtered history
@@ -241,7 +241,7 @@ function AdminDashboard({ emp, employees, setEmployees }) {
             <p className="font-semibold text-sm mb-3">توزيع الأدوار</p>
             <div className="flex flex-wrap gap-2">
               {Object.entries(BUILT_IN_ROLES).map(([key,r])=>{
-                const cnt = employees.filter(e=>{const s=getEmpStatus(e.id);return (s.role||"EMPLOYEE")===key || (key==="SUPER_ADMIN" && e.role==="admin" && !s.role);}).length;
+                const cnt = employees.filter(e=>{if(!e)return false;const s=getEmpStatus(e.id);return (s.role||"EMPLOYEE")===key || (key==="SUPER_ADMIN" && e.role==="admin" && !s.role);}).length;
                 return <div key={key} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm ${r.color}`}>
                   <span className="font-black text-base">{cnt}</span>
                   <span>{r.label}</span>
@@ -399,7 +399,7 @@ function AdminDashboard({ emp, employees, setEmployees }) {
                 <div className="mt-3 pt-3 border-t border-color">
                   <p className="text-xs text-secondary">
                     الموظفون: <span className="font-bold text-primary">
-                      {employees.filter(e=>{const s=getEmpStatus(e.id);return (s.role||"EMPLOYEE")===key||(key==="SUPER_ADMIN"&&e.role==="admin"&&!s.role);}).length}
+                      {employees.filter(e=>{if(!e)return false;const s=getEmpStatus(e.id);return (s.role||"EMPLOYEE")===key||(key==="SUPER_ADMIN"&&e.role==="admin"&&!s.role);}).length}
                     </span>
                   </p>
                 </div>

@@ -15,37 +15,37 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
 
   const activityFeed = useMemo(() => {
     const items = [];
-    storage.get("all_requests",[]).slice(0,4).forEach(r => r.submittedAt && items.push({
+    storage.get("all_requests",[]).filter(Boolean).slice(0,4).forEach(r => r.submittedAt && items.push({
       time:new Date(r.submittedAt), icon:"📋", text:`${(r.empName||"").split(" ")[0]} — طلب ${r.type}`, view:"requests"
     }));
-    storage.get("tasks_system",[]).filter(t=>t.createdAt).slice(0,4).forEach(t => items.push({
+    storage.get("tasks_system",[]).filter(t=>t&&t.createdAt).slice(0,4).forEach(t => items.push({
       time:new Date(t.createdAt), icon:"✅", text:`مهمة: ${t.title}`, view:"tasks"
     }));
-    recs.filter(r=>r.requestedAt).slice(0,3).forEach(r => items.push({
+    recs.filter(r=>r&&r.requestedAt).slice(0,3).forEach(r => items.push({
       time:new Date(r.requestedAt), icon:"🔧", text:`صيانة: ${r.equipmentName}`, view:"maint_equipment"
     }));
-    return items.sort((a,b)=>b.time-a.time).slice(0,6);
+    return items.filter(Boolean).sort((a,b)=>(b?.time||0)-(a?.time||0)).slice(0,6);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const hrCards = [
     { label:"إجمالي الموظفين",  value:employees.length, icon:<Users size={22}/>, color:"from-blue-500 to-blue-600", action:()=>switchView("employees") },
-    { label:"طلبات معلقة", value:allRequests.filter(r=>r.status==="بانتظار المراجعة").length, icon:<Clock size={22}/>, color:"from-amber-500 to-amber-600", action:()=>switchView(isAdmin?"approvals":"requests") },
-    { label:"طلبات مقبولة", value:allRequests.filter(r=>r.status==="موافق عليها").length, icon:<CheckCircle size={22}/>, color:"from-emerald-500 to-emerald-600", action:()=>switchView("requests") },
+    { label:"طلبات معلقة", value:allRequests.filter(r=>r&&r.status==="بانتظار المراجعة").length, icon:<Clock size={22}/>, color:"from-amber-500 to-amber-600", action:()=>switchView(isAdmin?"approvals":"requests") },
+    { label:"طلبات مقبولة", value:allRequests.filter(r=>r&&r.status==="موافق عليها").length, icon:<CheckCircle size={22}/>, color:"from-emerald-500 to-emerald-600", action:()=>switchView("requests") },
     { label:"مخزون الآلات", value:storage.get("inventory_items",[]).length, icon:<Package size={22}/>, color:"from-violet-500 to-violet-600", action:()=>switchView("inventory") },
-    { label:"مخزون منخفض", value:storage.get("inventory_items",[]).filter(i=>i.qty<=(i.minQty||3)).length, icon:<AlertTriangle size={22}/>, color:"from-red-500 to-red-600", action:()=>switchView("inventory") },
-    { label:"مهام نشطة", value:storage.get("tasks_system",[]).filter(t=>t.status!=="مكتملة").length, icon:<CheckSquare size={22}/>, color:"from-indigo-500 to-indigo-600", action:()=>switchView("tasks") },
+    { label:"مخزون منخفض", value:storage.get("inventory_items",[]).filter(i=>i&&i.qty<=(i.minQty||3)).length, icon:<AlertTriangle size={22}/>, color:"from-red-500 to-red-600", action:()=>switchView("inventory") },
+    { label:"مهام نشطة", value:storage.get("tasks_system",[]).filter(t=>t&&t.status!=="مكتملة").length, icon:<CheckSquare size={22}/>, color:"from-indigo-500 to-indigo-600", action:()=>switchView("tasks") },
   ];
 
   const maintCards = [
     { label:"إجمالي المعدات",    value:eq.length,                                                     icon:<Wrench size={22}/>,       color:"from-blue-600 to-blue-700",     action:()=>switchView("maint_equipment") },
-    { label:"معدات حرجة",         value:eq.filter(e=>e.critical).length,                              icon:<AlertTriangle size={22}/>, color:"from-red-600 to-red-700",        action:()=>switchView("maint_equipment") },
-    { label:"صيانة مستحقة",       value:eq.filter(e=>new Date(e.nextMaintenance)<=new Date()).length,  icon:<Clock size={22}/>,         color:"from-amber-600 to-amber-700",    action:()=>switchView("maint_equipment") },
-    { label:"طلبات قيد التنفيذ",  value:recs.filter(r=>r.status!=="مكتملة").length,                   icon:<CheckCircle size={22}/>,   color:"from-orange-500 to-orange-600",  action:()=>switchView("maint_equipment") },
-    { label:"قطع الغيار",         value:prts.length,                                                   icon:<Box size={22}/>,           color:"from-emerald-600 to-emerald-700",action:()=>switchView("maint_parts") },
-    { label:"مخزون قطع منخفض",   value:prts.filter(p=>p.qty<=p.minAlert).length,                     icon:<AlertTriangle size={22}/>, color:"from-rose-500 to-rose-600",      action:()=>switchView("maint_parts") },
-    { label:"صيانة مكتملة",       value:recs.filter(r=>r.status==="مكتملة").length,                   icon:<CheckCircle size={22}/>,   color:"from-teal-500 to-teal-600",      action:()=>switchView("maint_reports") },
-    { label:"معدات جيدة",         value:eq.filter(e=>e.status==="جيد").length,                        icon:<Wrench size={22}/>,        color:"from-cyan-500 to-cyan-600",      action:()=>switchView("maint_equipment") },
+    { label:"معدات حرجة",         value:eq.filter(e=>e&&e.critical).length,                              icon:<AlertTriangle size={22}/>, color:"from-red-600 to-red-700",        action:()=>switchView("maint_equipment") },
+    { label:"صيانة مستحقة",       value:eq.filter(e=>e&&new Date(e.nextMaintenance)<=new Date()).length,  icon:<Clock size={22}/>,         color:"from-amber-600 to-amber-700",    action:()=>switchView("maint_equipment") },
+    { label:"طلبات قيد التنفيذ",  value:recs.filter(r=>r&&r.status!=="مكتملة").length,                   icon:<CheckCircle size={22}/>,   color:"from-orange-500 to-orange-600",  action:()=>switchView("maint_equipment") },
+    { label:"قطع الغيار",         value:prts.length,                                                      icon:<Box size={22}/>,           color:"from-emerald-600 to-emerald-700",action:()=>switchView("maint_parts") },
+    { label:"مخزون قطع منخفض",   value:prts.filter(p=>p&&p.qty<=p.minAlert).length,                     icon:<AlertTriangle size={22}/>, color:"from-rose-500 to-rose-600",      action:()=>switchView("maint_parts") },
+    { label:"صيانة مكتملة",       value:recs.filter(r=>r&&r.status==="مكتملة").length,                   icon:<CheckCircle size={22}/>,   color:"from-teal-500 to-teal-600",      action:()=>switchView("maint_reports") },
+    { label:"معدات جيدة",         value:eq.filter(e=>e&&e.status==="جيد").length,                        icon:<Wrench size={22}/>,        color:"from-cyan-500 to-cyan-600",      action:()=>switchView("maint_equipment") },
   ];
 
   const fmtTime = (d) => { try { return d.toLocaleDateString("ar-IQ",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); } catch { return ""; } };
@@ -95,7 +95,7 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
               <button onClick={()=>switchView(isAdmin?"approvals":"requests")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
             </div>
             {allRequests.length===0 ? <p className="text-secondary text-xs text-center py-4">لا توجد طلبات</p> :
-            allRequests.slice(0,4).map(r=>(
+            allRequests.filter(Boolean).slice(0,4).map(r=>(
               <div key={r.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 text-xs">
                 <span className="font-medium">{r.empName?.split(" ").slice(0,2).join(" ")}</span>
                 <span className="text-secondary">{r.type} — {r.days} يوم</span>
@@ -111,7 +111,7 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
             <button onClick={()=>switchView("maint_equipment")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
           </div>
           {recs.length===0 ? <p className="text-secondary text-xs text-center py-4">لا توجد طلبات صيانة</p> :
-          recs.slice(0,4).map(r=>(
+          recs.filter(Boolean).slice(0,4).map(r=>(
             <div key={r.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 text-xs">
               <span className="font-medium truncate max-w-[120px]">{r.equipmentName}</span>
               <span className="text-secondary">{new Date(r.requestedAt).toLocaleDateString("ar-IQ")}</span>

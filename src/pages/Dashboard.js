@@ -56,7 +56,7 @@ function useSmartAlerts(employees) {
     });
     const allReq = storage.get("all_requests", []);
     const threeDaysAgo = Date.now() - 3 * 86400000;
-    allReq.filter(r => r.status === "بانتظار المراجعة" && new Date(r.submittedAt).getTime() < threeDaysAgo).forEach(r => {
+    allReq.filter(r => r && r.status === "بانتظار المراجعة" && new Date(r.submittedAt).getTime() < threeDaysAgo).forEach(r => {
       found.push({ id: `req_${r.id}`, type: "info", msg: `طلب ${r.empName} معلق منذ أكثر من 3 أيام` });
     });
     setAlerts(found);
@@ -108,18 +108,19 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const [view, setView] = useState(() => storage.get("last_view", "home"));
   const [reqSubTab, setReqSubTab] = useState("requests");
   const [section, setSection] = useState(() => storage.get("dash_section","admin"));
-  const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []));
+  const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []).filter(Boolean));
   const [employees, setEmployeesRaw] = useState(ACCOUNTS);
 
   useEffect(() => {
     FirebaseAPI.loadAccounts().then(list => {
-      if (list && list.length > 0) setEmployeesRaw(list);
+      if (list && list.length > 0) setEmployeesRaw(list.filter(Boolean));
     });
     FirebaseAPI.loadRequests().then(list => {
       if (list && list.length > 0) {
-        storage.set("all_requests", list);
-        setAllRequests(list);
-        const pc = list.filter(r => r.status === "بانتظار المراجعة").length;
+        const clean = list.filter(Boolean);
+        storage.set("all_requests", clean);
+        setAllRequests(clean);
+        const pc = list.filter(r => r && r.status === "بانتظار المراجعة").length;
         if (canSeeApprovals && pc > 0) sendDesktopNotification("BOC — طلبات معلّقة", `لديك ${pc} طلب بانتظار الموافقة`);
       }
     });
@@ -144,7 +145,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const canSeeApprovals = isAdmin || isAttendanceAdmin;
   const isTimeSheetAdmin = isAdmin || isAttendanceAdmin;
   const canSeeAnalytics = isAdmin || isAttendanceAdmin || emp.role === "inventory_manager";
-  const pendingCount = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
+  const pendingCount = allRequests.filter(r => r && r.status === "بانتظار المراجعة").length;
   const unreadNotifs = (storage.get(`notifications_${emp.id}`, [])).filter(n => !n.read).length;
   useStorageSync("all_requests", setAllRequests);
   const chatUnread = storage.get("chat_offline",[]).filter(m=>!m.read&&Number(m.toId)===Number(emp.id)).length;
@@ -166,15 +167,15 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     document.title = total > 0 ? `(${total}) شركة نفط البصرة` : "شركة نفط البصرة";
   }, [unreadNotifs, pendingCount, canSeeApprovals]);
 
-  useEffect(() => { setAllRequests(storage.get("all_requests", [])); }, [view]);
+  useEffect(() => { setAllRequests(storage.get("all_requests", []).filter(Boolean)); }, [view]);
 
   const prevReqRef = useRef(null);
   useEffect(() => {
-    if (prevReqRef.current) allRequests.forEach(r => { const p = prevReqRef.current.find(x=>x.id===r.id); if(p&&p.status!==r.status&&r.empId===emp.id) sendDesktopNotification(`طلبك: ${r.type}`,`الحالة الجديدة: ${r.status}`); });
+    if (prevReqRef.current) allRequests.filter(Boolean).forEach(r => { const p = prevReqRef.current.filter(Boolean).find(x=>x&&x.id===r.id); if(p&&p.status!==r.status&&r.empId===emp.id) sendDesktopNotification(`طلبك: ${r.type}`,`الحالة الجديدة: ${r.status}`); });
     prevReqRef.current = allRequests;
   }, [allRequests, emp.id]);
   useEffect(() => {
-    const t = setInterval(() => { FirebaseAPI.loadRequests().then(list => { if(list?.length){storage.set("all_requests",list);setAllRequests(list);} }); }, 60000);
+    const t = setInterval(() => { FirebaseAPI.loadRequests().then(list => { if(list?.length){const clean=list.filter(Boolean);storage.set("all_requests",clean);setAllRequests(clean);} }); }, 60000);
     return () => clearInterval(t);
   }, []);
 
