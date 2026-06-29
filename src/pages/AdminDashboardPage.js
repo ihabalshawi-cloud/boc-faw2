@@ -241,7 +241,7 @@ function AdminDashboard({ emp, employees, setEmployees }) {
             <p className="font-semibold text-sm mb-3">توزيع الأدوار</p>
             <div className="flex flex-wrap gap-2">
               {Object.entries(BUILT_IN_ROLES).map(([key,r])=>{
-                const cnt = employees.filter(e=>{const s=getEmpStatus(e.id);return (s.role||"EMPLOYEE")===key || (key==="SUPER_ADMIN" && e.role==="admin" && !s.role);}).length;
+                const cnt = employees.filter(e=>{if(!e)return false;const s=getEmpStatus(e.id);return (s.role||"EMPLOYEE")===key || (key==="SUPER_ADMIN" && e.role==="admin" && !s.role);}).length;
                 return <div key={key} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm ${r.color}`}>
                   <span className="font-black text-base">{cnt}</span>
                   <span>{r.label}</span>
@@ -399,7 +399,7 @@ function AdminDashboard({ emp, employees, setEmployees }) {
                 <div className="mt-3 pt-3 border-t border-color">
                   <p className="text-xs text-secondary">
                     الموظفون: <span className="font-bold text-primary">
-                      {employees.filter(e=>{const s=getEmpStatus(e.id);return (s.role||"EMPLOYEE")===key||(key==="SUPER_ADMIN"&&e.role==="admin"&&!s.role);}).length}
+                      {employees.filter(e=>{if(!e)return false;const s=getEmpStatus(e.id);return (s.role||"EMPLOYEE")===key||(key==="SUPER_ADMIN"&&e.role==="admin"&&!s.role);}).length}
                     </span>
                   </p>
                 </div>

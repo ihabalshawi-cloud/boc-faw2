@@ -15,13 +15,13 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
 
   const activityFeed = useMemo(() => {
     const items = [];
-    storage.get("all_requests",[]).slice(0,4).forEach(r => r.submittedAt && items.push({
+    storage.get("all_requests",[]).filter(Boolean).slice(0,4).forEach(r => r.submittedAt && items.push({
       time:new Date(r.submittedAt), icon:"📋", text:`${(r.empName||"").split(" ")[0]} — طلب ${r.type}`, view:"requests"
     }));
-    storage.get("tasks_system",[]).filter(t=>t.createdAt).slice(0,4).forEach(t => items.push({
+    storage.get("tasks_system",[]).filter(t=>t&&t.createdAt).slice(0,4).forEach(t => items.push({
       time:new Date(t.createdAt), icon:"✅", text:`مهمة: ${t.title}`, view:"tasks"
     }));
-    recs.filter(r=>r.requestedAt).slice(0,3).forEach(r => items.push({
+    recs.filter(r=>r&&r.requestedAt).slice(0,3).forEach(r => items.push({
       time:new Date(r.requestedAt), icon:"🔧", text:`صيانة: ${r.equipmentName}`, view:"maint_equipment"
     }));
     return items.sort((a,b)=>b.time-a.time).slice(0,6);
@@ -39,13 +39,13 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
 
   const maintCards = [
     { label:"إجمالي المعدات",    value:eq.length,                                                     icon:<Wrench size={22}/>,       color:"from-blue-600 to-blue-700",     action:()=>switchView("maint_equipment") },
-    { label:"معدات حرجة",         value:eq.filter(e=>e.critical).length,                              icon:<AlertTriangle size={22}/>, color:"from-red-600 to-red-700",        action:()=>switchView("maint_equipment") },
-    { label:"صيانة مستحقة",       value:eq.filter(e=>new Date(e.nextMaintenance)<=new Date()).length,  icon:<Clock size={22}/>,         color:"from-amber-600 to-amber-700",    action:()=>switchView("maint_equipment") },
-    { label:"طلبات قيد التنفيذ",  value:recs.filter(r=>r.status!=="مكتملة").length,                   icon:<CheckCircle size={22}/>,   color:"from-orange-500 to-orange-600",  action:()=>switchView("maint_equipment") },
-    { label:"قطع الغيار",         value:prts.length,                                                   icon:<Box size={22}/>,           color:"from-emerald-600 to-emerald-700",action:()=>switchView("maint_parts") },
-    { label:"مخزون قطع منخفض",   value:prts.filter(p=>p.qty<=p.minAlert).length,                     icon:<AlertTriangle size={22}/>, color:"from-rose-500 to-rose-600",      action:()=>switchView("maint_parts") },
-    { label:"صيانة مكتملة",       value:recs.filter(r=>r.status==="مكتملة").length,                   icon:<CheckCircle size={22}/>,   color:"from-teal-500 to-teal-600",      action:()=>switchView("maint_reports") },
-    { label:"معدات جيدة",         value:eq.filter(e=>e.status==="جيد").length,                        icon:<Wrench size={22}/>,        color:"from-cyan-500 to-cyan-600",      action:()=>switchView("maint_equipment") },
+    { label:"معدات حرجة",         value:eq.filter(e=>e&&e.critical).length,                              icon:<AlertTriangle size={22}/>, color:"from-red-600 to-red-700",        action:()=>switchView("maint_equipment") },
+    { label:"صيانة مستحقة",       value:eq.filter(e=>e&&new Date(e.nextMaintenance)<=new Date()).length,  icon:<Clock size={22}/>,         color:"from-amber-600 to-amber-700",    action:()=>switchView("maint_equipment") },
+    { label:"طلبات قيد التنفيذ",  value:recs.filter(r=>r&&r.status!=="مكتملة").length,                   icon:<CheckCircle size={22}/>,   color:"from-orange-500 to-orange-600",  action:()=>switchView("maint_equipment") },
+    { label:"قطع الغيار",         value:prts.length,                                                      icon:<Box size={22}/>,           color:"from-emerald-600 to-emerald-700",action:()=>switchView("maint_parts") },
+    { label:"مخزون قطع منخفض",   value:prts.filter(p=>p&&p.qty<=p.minAlert).length,                     icon:<AlertTriangle size={22}/>, color:"from-rose-500 to-rose-600",      action:()=>switchView("maint_parts") },
+    { label:"صيانة مكتملة",       value:recs.filter(r=>r&&r.status==="مكتملة").length,                   icon:<CheckCircle size={22}/>,   color:"from-teal-500 to-teal-600",      action:()=>switchView("maint_reports") },
+    { label:"معدات جيدة",         value:eq.filter(e=>e&&e.status==="جيد").length,                        icon:<Wrench size={22}/>,        color:"from-cyan-500 to-cyan-600",      action:()=>switchView("maint_equipment") },
   ];
 
   const fmtTime = (d) => { try { return d.toLocaleDateString("ar-IQ",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); } catch { return ""; } };

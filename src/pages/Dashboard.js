@@ -113,7 +113,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
 
   useEffect(() => {
     FirebaseAPI.loadAccounts().then(list => {
-      if (list && list.length > 0) setEmployeesRaw(list);
+      if (list && list.length > 0) setEmployeesRaw(list.filter(Boolean));
     });
     FirebaseAPI.loadRequests().then(list => {
       if (list && list.length > 0) {

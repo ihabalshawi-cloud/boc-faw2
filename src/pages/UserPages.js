@@ -64,7 +64,7 @@ function RequestsPage({ emp }) {
     const load = () => FirebaseAPI.loadRequests().then(list => {
       if (list && list.length > 0) {
         storage.set("all_requests", list);
-        const mine = list.filter(r => Number(r.empId) === Number(emp.id));
+        const mine = list.filter(r => r && Number(r.empId) === Number(emp.id));
         if (mine.length > 0) { storage.set(`requests_${emp.id}`, mine); setRequests(mine); }
       }
     });
