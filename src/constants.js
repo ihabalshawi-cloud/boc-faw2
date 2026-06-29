@@ -267,6 +267,6 @@ export const VIEW_LABELS = {
   audit:"سجل التعديلات", changepass:"تغيير كلمة المرور",
   employees:"إدارة الموظفين", approvals:"الموافقات",
   health_insurance:"الضمان الصحي", leave_forms:"نماذج الإجازات",
-  projects:"إدارة المشاريع", timesheet:"التايم شيت", surveys:"الاستبيانات",
+  projects:"إدارة المشاريع", timesheet:"التايم شيت",
   admin_dashboard:"لوحة الإدارة",
 };
