@@ -11,6 +11,7 @@ function TimeLeaveForm({ emp }) {
   const now = new Date();
   const toast = useToast();
   const gDrive = useGDrive();
+  const isRegularEmp = !["admin","inventory_manager","attendance_admin"].includes(emp.role) && emp.username !== "i.shawi";
   const STORAGE_KEY = `time_leave_${emp.id}`;
 
   const [name, setName] = useState(emp.name);
@@ -268,7 +269,7 @@ function TimeLeaveForm({ emp }) {
             <CheckCircle size={14}/> عرض في Drive
           </a>
         )}
-        <button onClick={saveDraft} className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ مسودة</button>
+        {!isRegularEmp && <button onClick={saveDraft} className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ مسودة</button>}
         <button onClick={saveAndSubmit} className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm"><Send size={14}/> حفظ وتقديم</button>
         {gDrive.isReady && (
           <button onClick={uploadToDrive} disabled={uploadPct >= 0} className="flex items-center gap-2 px-4 py-2.5 bg-[#C87A2E] text-white rounded-xl font-bold text-sm disabled:opacity-60">
@@ -276,7 +277,7 @@ function TimeLeaveForm({ emp }) {
           </button>
         )}
         <button onClick={exportToExcel} disabled={xlExporting} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-60"><Download size={14}/> {xlExporting ? "جاري التصدير..." : "تصدير إكسل"}</button>
-        <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
+        {!isRegularEmp && <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>}
       </div>
     </div>
   );
