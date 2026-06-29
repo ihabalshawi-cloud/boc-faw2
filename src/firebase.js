@@ -5,8 +5,9 @@ export const FirebaseAPI = {
   checkConnection: async () => {
     try {
       const ctrl = new AbortController();
-      const tid  = setTimeout(() => ctrl.abort(), 5000);
-      const res  = await fetch(`${FIREBASE_URL}/chat.json?limitToLast=1`, { signal: ctrl.signal });
+      const tid  = setTimeout(() => ctrl.abort(), 9000);
+      // shallow=true returns only top-level keys — fastest possible Firebase ping
+      const res  = await fetch(`${FIREBASE_URL}/.json?shallow=true`, { signal: ctrl.signal });
       clearTimeout(tid);
       return res.status < 500;
     } catch { return false; }
