@@ -5,9 +5,8 @@ export const FirebaseAPI = {
   checkConnection: async () => {
     try {
       const ctrl = new AbortController();
-      const tid  = setTimeout(() => ctrl.abort(), 9000);
-      // shallow=true returns only top-level keys — fastest possible Firebase ping
-      const res  = await fetch(`${FIREBASE_URL}/.json?shallow=true`, { signal: ctrl.signal });
+      const tid  = setTimeout(() => ctrl.abort(), 5000);
+      const res  = await fetch(`${FIREBASE_URL}/chat.json?limitToLast=1`, { signal: ctrl.signal });
       clearTimeout(tid);
       return res.status < 500;
     } catch { return false; }
@@ -411,47 +410,6 @@ export const FirebaseAPI = {
   },
   loadBulkEval: async (year, month) => {
     try { const res=await fetch(`${FIREBASE_URL}/bulk_evals/${year}_${month}.json`); if(!res.ok)return null; return await res.json(); } catch { return null; }
-  },
-
-  // ── Surveys ───────────────────────────────────────────────────────────────
-  loadSurveys: async () => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/surveys.json`);
-      if (!res.ok) return [];
-      const d = await res.json();
-      return d ? Object.entries(d).map(([k, v]) => ({ ...v, _key: k })) : [];
-    } catch { return []; }
-  },
-  createSurvey: async (s) => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/surveys.json`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s),
-      });
-      const d = await res.json();
-      return d?.name || null;
-    } catch { return null; }
-  },
-  deleteSurvey: async (key) => {
-    try {
-      await fetch(`${FIREBASE_URL}/surveys/${key}.json`, { method: "DELETE" });
-      return true;
-    } catch { return false; }
-  },
-  loadSurveyResponses: async (key) => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/survey_responses/${key}.json`);
-      if (!res.ok) return [];
-      const d = await res.json();
-      return d ? Object.values(d).filter(Boolean) : [];
-    } catch { return []; }
-  },
-  submitSurveyResponse: async (key, response) => {
-    try {
-      await fetch(`${FIREBASE_URL}/survey_responses/${key}.json`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(response),
-      });
-      return true;
-    } catch { return false; }
   },
 
   // ── Timesheet ─────────────────────────────────────────────────────────────

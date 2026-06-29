@@ -102,19 +102,8 @@ function sendDesktopNotification(title, body) {
 }
 
 function useConnectionStatus() {
-  const [isConnected, setIsConnected] = useState(null);
-  const failCount = useRef(0);
-  const check = useCallback(async () => {
-    const ok = await FirebaseAPI.checkConnection();
-    if (ok) {
-      failCount.current = 0;
-      setIsConnected(true);
-    } else {
-      failCount.current += 1;
-      // only declare offline after 2 consecutive failures to avoid transient blips
-      if (failCount.current >= 2) setIsConnected(false);
-    }
-  }, []);
+  const [isConnected, setIsConnected] = useState(null); // null = unknown (first check pending)
+  const check = useCallback(async () => { setIsConnected(await FirebaseAPI.checkConnection()); }, []);
   useEffect(() => { check(); const t = setInterval(check, 30000); return () => clearInterval(t); }, [check]);
   return { isConnected };
 }

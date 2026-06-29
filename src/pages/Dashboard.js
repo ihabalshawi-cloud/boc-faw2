@@ -233,11 +233,18 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     { id:"home", label:"الرئيسية", icon:<Home size={17}/> },
     ...(canSeeAnalytics ? [{ id:"analytics", label:"لوحة التحليلات", icon:<BarChart size={17}/> }] : []),
     { id:"requests", label:"طلبات ونماذج الإجازات", icon:<FileText size={17}/> },
+<<<<<<< HEAD
     ...(canSeeRestricted("training") ? [{ id:"training", label:"التدريب", icon:<GraduationCap size={17}/> }] : []),
     ...(canSeeRestricted("tasks") ? [{ id:"tasks", label:"المهام", icon:<CheckSquare size={17}/> }] : []),
     ...(canSeeRestricted("evaluation") ? [{ id:"evaluation", label:"التقييم", icon:<Star size={17}/> }] : []),
     { id:"surveys", label:"الاستبيانات", icon:<ClipboardList size={17}/> },
     ...(canSeeRestricted("chat") ? [{ id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> }] : []),
+=======
+    { id:"training", label:"التدريب", icon:<GraduationCap size={17}/> },
+    { id:"tasks", label:"المهام", icon:<CheckSquare size={17}/> },
+    { id:"evaluation", label:"التقييم", icon:<Star size={17}/> },
+    { id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> },
+>>>>>>> bb616ad (Revert "Claude/survey page tfzdf3")
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
     { id:"incentive", label:"نظام المكافآت", icon:<Star size={17}/>, badge: (() => { const c=storage.get("boc_incentive_v1",[]).filter(f=>f.status==="بانتظار المراجعة").length; return (isAdmin&&c>0)?c:0; })() },
     ...(canSeeRestricted("timesheet") ? [{ id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> }] : []),
@@ -417,11 +424,6 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
           {view==="evaluation" && (
             <React.Suspense fallback={<PageSkeleton/>}>
               <LazyEvaluationSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
-            </React.Suspense>
-          )}
-          {view==="surveys" && (
-            <React.Suspense fallback={<PageSkeleton/>}>
-              <LazySurveysPage emp={emp} isAdmin={isAdmin}/>
             </React.Suspense>
           )}
           {view==="notifications" && (
