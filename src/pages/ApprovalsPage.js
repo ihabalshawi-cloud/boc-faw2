@@ -89,9 +89,9 @@ function ApprovalsPage({ emp }) {
       let fname = "";
       if (t.includes("اعتيادية")) {
         await wb.xlsx.load(await (await fetch("/templates/leave-annual.xlsx")).arrayBuffer());
-        const ws = wb.worksheets[0]; const set=(r,v)=>{ws.getCell(r).value=v??null;};
-        set("C5",fmtD((req.submittedAt||"").split("T")[0])); set("I8",req.empName||""); set("I9",String(empAcct.jobNum||"")); set("I10",empAcct.title||""); set("I11",fmtD((req.submittedAt||"").split("T")[0])); set("D13",String(req.days||"")); set("G13",fmtD(req.dateFrom)); set("I14",req.purpose||"");
-        await addImg(wb,ws,req.empSigDataUrl,1,17); await addImg(wb,ws,req.sigDataUrl,7,17);
+        const ws = wb.worksheets[0]; const set=(r,v,sz=13)=>{const c=ws.getCell(r);c.value=v??null;if(v!=null&&v!=='')c.font={...(c.font||{}),size:sz};};
+        set("C5",fmtD((req.submittedAt||"").split("T")[0])); set("I8",req.empName||""); set("I9",String(empAcct.jobNum||"")); set("I10",empAcct.title||""); set("I11",fmtD((req.submittedAt||"").split("T")[0])); set("D13",fmtD(req.dateFrom)); set("G13",String(req.days||"")); set("I14",req.purpose||"");
+        await addImg(wb,ws,req.sigDataUrl,1,17); await addImg(wb,ws,req.empSigDataUrl,8,17);
         fname=`اجازة_اعتيادية_${safe}_${req.dateFrom||""}.xlsx`;
       } else if (t.includes("مرضية")) {
         await wb.xlsx.load(await (await fetch("/templates/leave-sick.xlsx")).arrayBuffer());
