@@ -243,7 +243,7 @@ function ApprovalsPage({ emp }) {
                   <p className="text-[10px] text-secondary">وافق: {req.decidedBy} — {req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</p>
                 </div>
                 <div className="flex gap-2 items-start flex-wrap justify-end">
-                  {canExportLeave && req.pushedToAdmin && (
+                  {canExportLeave && (req.pushedToAdmin || isAdmin || isAttendanceAdmin) && (
                     <button onClick={()=>exportToTemplate(req)} className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Download size={10}/> تصدير Excel</button>
                   )}
                   <button onClick={()=>printForm(req)} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Printer size={10}/> طباعة</button>
@@ -270,7 +270,7 @@ function ApprovalsPage({ emp }) {
                   <p className="text-[10px] text-secondary">وافق: {req.decidedBy} — {req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</p>
                 </div>
                 <div className="flex gap-2 items-start">
-                  {canExportLeave && req.pushedToAdmin && (
+                  {canExportLeave && (req.pushedToAdmin || isAdmin || isAttendanceAdmin) && (
                     <button onClick={()=>exportToTemplate(req)} className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Download size={10}/> تصدير Excel</button>
                   )}
                   <button onClick={()=>printForm(req)} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Printer size={10}/> طباعة</button>
