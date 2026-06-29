@@ -1,8 +1,9 @@
 import React, { useMemo } from "react";
 import { Users, Clock, CheckCircle, Package, AlertTriangle, CheckSquare,
   Wrench, Box, FileText, User, Calendar } from "lucide-react";
-import { INITIAL_EQUIPMENT, INITIAL_MAINT_SPARE_PARTS } from "../constants";
+import { INITIAL_EQUIPMENT, INITIAL_MAINT_SPARE_PARTS, PIE_COLORS } from "../constants";
 import { storage } from "../utils";
+import { SVGPieChart } from "./Charts";
 
 export default function HomeWidgets({ emp, employees, allRequests, isAdmin, switchView }) {
   const hour = new Date().getHours();
@@ -58,20 +59,81 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
     { label:"معدات جيدة",         value:eq.filter(e=>e&&e.status==="جيد").length,                        icon:<Wrench size={22}/>,        color:"from-cyan-500 to-cyan-600",      action:()=>switchView("maint_equipment") },
   ];
 
+  const eqStatusData = useMemo(() =>
+    ["جيد","تحتاج صيانة","تحت صيانة","معطل"]
+      .map(s => ({ name: s, value: eq.filter(e => e.status === s).length }))
+      .filter(d => d.value > 0),
+  [eq]);
+
   const fmtTime = (d) => { try { return d.toLocaleDateString("ar-IQ",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); } catch { return ""; } };
 
-  return (
-    <div className="space-y-6">
-      <div className="card rounded-2xl p-6 border-color border">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center"><User size={28} className="text-white"/></div>
-          <div>
-            <h2 className="text-xl font-bold">{greeting}، {emp.name.split(" ")[0]}</h2>
-            <p className="text-secondary text-sm">{emp.title} — {emp.dept}</p>
-            <p className="text-secondary text-xs">{new Date().toLocaleDateString("ar-IQ",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p>
+  // The 6 equipment/maintenance cards shown to all employees
+  const empMaintCards = [
+    maintCards[0], // إجمالي المعدات
+    maintCards[1], // معدات حرجة
+    maintCards[2], // صيانة مستحقة
+    maintCards[3], // طلبات قيد التنفيذ
+    maintCards[6], // صيانة مكتملة
+    maintCards[7], // معدات جيدة
+  ];
+
+  const WelcomeCard = (
+    <div className="card rounded-2xl p-6 border-color border">
+      <div className="flex items-center gap-4">
+        <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center"><User size={28} className="text-white"/></div>
+        <div>
+          <h2 className="text-xl font-bold">{greeting}، {emp.name.split(" ")[0]}</h2>
+          <p className="text-secondary text-sm">{emp.title} — {emp.dept}</p>
+          <p className="text-secondary text-xs">{new Date().toLocaleDateString("ar-IQ",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Regular employee view ────────────────────────────────────────────────────
+  if (!isPrivileged) {
+    return (
+      <div className="space-y-6">
+        {WelcomeCard}
+
+        <div>
+          <div className="flex items-center gap-2 mb-3"><div className="h-5 w-1 bg-orange-500 rounded-full"/><h3 className="font-bold text-base">إدارة الصيانة والمعدات</h3></div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {empMaintCards.map((k,i) => (
+              <button key={i} onClick={k.action} className={`bg-gradient-to-r ${k.color} rounded-2xl p-4 text-white text-right hover:opacity-90 transition-opacity`}>
+                <div className="flex items-center justify-between">{k.icon}<p className="text-3xl font-bold">{k.value}</p></div>
+                <p className="text-sm mt-2 text-white/80">{k.label}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="card rounded-2xl border-color border p-4">
+            <h4 className="font-bold mb-3 text-sm flex items-center gap-1.5"><Wrench size={15}/> آخر طلبات الصيانة</h4>
+            {recs.length===0 ? <p className="text-secondary text-xs text-center py-6">لا توجد طلبات صيانة</p> :
+            recs.slice(0,5).map(r=>(
+              <div key={r.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 text-xs">
+                <span className="font-medium truncate max-w-[140px]">{r.equipmentName}</span>
+                <span className="text-secondary">{new Date(r.requestedAt).toLocaleDateString("ar-IQ")}</span>
+                <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] ${r.status==="مكتملة"?"bg-emerald-100 text-emerald-700":"bg-amber-100 text-amber-700"}`}>{r.status}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="card rounded-2xl border-color border p-4">
+            <h4 className="font-bold mb-3 text-sm">حالة المعدات</h4>
+            <SVGPieChart data={eqStatusData} colors={["#10b981","#f59e0b","#3b82f6","#ef4444"]} height={200} donut={true}/>
           </div>
         </div>
       </div>
+    );
+  }
+
+  // ── Admin / privileged view (unchanged) ─────────────────────────────────────
+  return (
+    <div className="space-y-6">
+      {WelcomeCard}
 
       <div>
         <div className="flex items-center gap-2 mb-3">
@@ -161,23 +223,21 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
         </div>
       </div>}
 
-      {isAdmin && <div className={`grid grid-cols-1 gap-6 ${isPrivileged ? "md:grid-cols-3" : "md:grid-cols-1 max-w-lg"}`}>
-        {isPrivileged && (
-          <div className="card rounded-2xl border-color border p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="font-bold text-sm flex items-center gap-1.5"><FileText size={15}/> آخر طلبات الإجازة</h4>
-              <button onClick={()=>switchView(isAdmin?"approvals":"requests")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
-            </div>
-            {allRequests.length===0 ? <p className="text-secondary text-xs text-center py-4">لا توجد طلبات</p> :
-            allRequests.filter(Boolean).slice(0,4).map(r=>(
-              <div key={r.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 text-xs">
-                <span className="font-medium">{r.empName?.split(" ").slice(0,2).join(" ")}</span>
-                <span className="text-secondary">{r.type} — {r.days} يوم</span>
-                <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] ${r.status==="موافق عليها"?"bg-emerald-100 text-emerald-700":r.status==="مرفوضة"?"bg-red-100 text-red-700":"bg-amber-100 text-amber-700"}`}>{r.status}</span>
-              </div>
-            ))}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="card rounded-2xl border-color border p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-bold text-sm flex items-center gap-1.5"><FileText size={15}/> آخر طلبات الإجازة</h4>
+            <button onClick={()=>switchView(isAdmin?"approvals":"requests")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
           </div>
-        )}
+          {allRequests.length===0 ? <p className="text-secondary text-xs text-center py-4">لا توجد طلبات</p> :
+          allRequests.filter(Boolean).slice(0,4).map(r=>(
+            <div key={r.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 text-xs">
+              <span className="font-medium">{r.empName?.split(" ").slice(0,2).join(" ")}</span>
+              <span className="text-secondary">{r.type} — {r.days} يوم</span>
+              <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] ${r.status==="موافق عليها"?"bg-emerald-100 text-emerald-700":r.status==="مرفوضة"?"bg-red-100 text-red-700":"bg-amber-100 text-amber-700"}`}>{r.status}</span>
+            </div>
+          ))}
+        </div>
 
         <div className="card rounded-2xl border-color border p-4">
           <div className="flex items-center justify-between mb-3">
@@ -194,25 +254,23 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
           ))}
         </div>
 
-        {isPrivileged && (
-          <div className="card rounded-2xl border-color border p-4">
-            <h4 className="font-bold text-sm mb-3">⚡ آخر النشاطات</h4>
-            {activityFeed.length === 0
-              ? <p className="text-secondary text-xs text-center py-4">لا توجد نشاطات حديثة</p>
-              : activityFeed.map((a,i) => (
-                <button key={i} onClick={()=>switchView(a.view)}
-                  className="w-full flex items-start gap-2 py-2 border-b border-color last:border-0 text-right hover:bg-hover rounded px-1 transition-colors">
-                  <span className="text-base shrink-0 mt-0.5">{a.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate">{a.text}</p>
-                    <p className="text-[10px] text-secondary">{fmtTime(a.time)}</p>
-                  </div>
-                </button>
-              ))
-            }
-          </div>
-        )}
-      </div>}
+        <div className="card rounded-2xl border-color border p-4">
+          <h4 className="font-bold text-sm mb-3">⚡ آخر النشاطات</h4>
+          {activityFeed.length === 0
+            ? <p className="text-secondary text-xs text-center py-4">لا توجد نشاطات حديثة</p>
+            : activityFeed.map((a,i) => (
+              <button key={i} onClick={()=>switchView(a.view)}
+                className="w-full flex items-start gap-2 py-2 border-b border-color last:border-0 text-right hover:bg-hover rounded px-1 transition-colors">
+                <span className="text-base shrink-0 mt-0.5">{a.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate">{a.text}</p>
+                  <p className="text-[10px] text-secondary">{fmtTime(a.time)}</p>
+                </div>
+              </button>
+            ))
+          }
+        </div>
+      </div>
     </div>
   );
 }
