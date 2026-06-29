@@ -24,7 +24,7 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
     recs.filter(r=>r&&r.requestedAt).slice(0,3).forEach(r => items.push({
       time:new Date(r.requestedAt), icon:"🔧", text:`صيانة: ${r.equipmentName}`, view:"maint_equipment"
     }));
-    return items.sort((a,b)=>b.time-a.time).slice(0,6);
+    return items.filter(Boolean).sort((a,b)=>(b?.time||0)-(a?.time||0)).slice(0,6);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

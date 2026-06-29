@@ -42,7 +42,7 @@ function EquipmentMaintenance({ emp, isAdmin }) {
   const sel = equipment.find(e => e.id === selId);
 
   // ── derived stats ──
-  const byStatus = (s) => equipment.filter(e => e.status === s).length;
+  const byStatus = (s) => equipment.filter(e => e && e.status === s).length;
   const byType   = (t) => equipment.filter(e => e&&e.type === t).length;
   const openRecs  = records.filter(r => r&&r.status !== "مكتملة");
   const today     = new Date();
@@ -139,7 +139,7 @@ function EquipmentMaintenance({ emp, isAdmin }) {
               <AlertTriangle size={16} className="text-red-600 shrink-0 mt-0.5"/>
               <div>
                 <p className="text-xs font-bold text-red-800">صيانة متأخرة ({overdue.length} معدة)</p>
-                <p className="text-xs text-red-700 mt-0.5">{overdue.filter(Boolean).map(e=>e.name).join(" • ")}</p>
+                <p className="text-xs text-red-700 mt-0.5">{overdue.filter(Boolean).map(e=>e?.name||"").filter(Boolean).join(" • ")}</p>
               </div>
             </div>
           )}

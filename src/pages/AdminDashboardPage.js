@@ -35,7 +35,7 @@ function AdminDashboard({ emp, employees, setEmployees }) {
         if (cancelled || !data || typeof data !== "object") return;
         const records = Object.values(data)
           .filter(r => r && r.loginTime)
-          .sort((a, b) => (b.loginTime > a.loginTime ? 1 : -1));
+          .sort((a, b) => ((b?.loginTime||"") > (a?.loginTime||"") ? 1 : -1));
         if (!cancelled) setFbHistory(records);
       })
       .catch(() => { if (!cancelled) setFbHistory([]); });
@@ -57,14 +57,14 @@ function AdminDashboard({ emp, employees, setEmployees }) {
   const todaySuccess = todayHist.filter(h => h.status === "success").length;
   const todayFailed  = todayHist.filter(h => h.status === "failed").length;
   const deviceCounts = loginHistory.reduce((acc, h) => { acc[h.device] = (acc[h.device]||0)+1; return acc; }, {});
-  const topDevice = Object.entries(deviceCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] || "—";
+  const topDevice = Object.entries(deviceCounts).sort((a,b)=>(b?.[1]||0)-(a?.[1]||0))[0]?.[0] || "—";
 
   // Peak hour
   const hourCounts = todayHist.reduce((acc, h) => {
     const hr = new Date(h.loginTime).getHours();
     acc[hr] = (acc[hr]||0)+1; return acc;
   }, {});
-  const peakHour = Object.entries(hourCounts).sort((a,b)=>b[1]-a[1])[0];
+  const peakHour = Object.entries(hourCounts).sort((a,b)=>(b?.[1]||0)-(a?.[1]||0))[0];
   const peakHourLabel = peakHour ? `${peakHour[0]}:00` : "—";
 
   // Filtered history

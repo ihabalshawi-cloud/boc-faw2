@@ -174,7 +174,7 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
         </div>
       </div>
 
-      {overdue.length > 0 && <div className="bg-red-50 border border-red-200 rounded-2xl p-3 flex items-center gap-2"><AlertTriangle size={16} className="text-red-600 shrink-0"/><p className="text-xs font-bold text-red-800">{overdue.length} مهمة متأخرة: {overdue.filter(Boolean).map(t=>t.title).join(" • ")}</p></div>}
+      {overdue.length > 0 && <div className="bg-red-50 border border-red-200 rounded-2xl p-3 flex items-center gap-2"><AlertTriangle size={16} className="text-red-600 shrink-0"/><p className="text-xs font-bold text-red-800">{overdue.length} مهمة متأخرة: {overdue.filter(Boolean).map(t=>t?.title||"").filter(Boolean).join(" • ")}</p></div>}
 
       {showForm && isAdmin && (
         <div className="card rounded-2xl border-2 border-emerald-200 p-5">
