@@ -12,6 +12,7 @@ function OutOfCountryLeaveForm({ emp }) {
   const now = new Date();
   const toast = useToast();
   const gDrive = useGDrive();
+  const isRegularEmp = !["admin","inventory_manager","attendance_admin"].includes(emp.role) && emp.username !== "i.shawi";
   const STORAGE_KEY = `ooc_leave_${emp.id}`;
 
   const [name, setName] = useState(emp.name);
@@ -366,7 +367,7 @@ function OutOfCountryLeaveForm({ emp }) {
             <CheckCircle size={14}/> عرض في Drive
           </a>
         )}
-        <button onClick={saveDraft} className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ مسودة</button>
+        {!isRegularEmp && <button onClick={saveDraft} className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ مسودة</button>}
         <button onClick={saveAndSubmit} className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm"><Send size={14}/> حفظ وتقديم</button>
         {gDrive.isReady && (
           <button onClick={uploadAsWord} disabled={uploadPct >= 0} className="flex items-center gap-2 px-4 py-2.5 bg-[#C87A2E] text-white rounded-xl font-bold text-sm disabled:opacity-60">
@@ -374,7 +375,7 @@ function OutOfCountryLeaveForm({ emp }) {
           </button>
         )}
         <a href="/templates/leave-ooc.xlsx" download className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm border border-gray-200 hover:bg-gray-200"><Download size={14}/> تنزيل النموذج</a>
-        <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
+        {!isRegularEmp && <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>}
       </div>
     </div>
   );

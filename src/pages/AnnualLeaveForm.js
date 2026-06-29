@@ -11,6 +11,7 @@ function AnnualLeaveForm({ emp }) {
   const now = new Date();
   const toast = useToast();
   const gDrive = useGDrive();
+  const isRegularEmp = !["admin","inventory_manager","attendance_admin"].includes(emp.role) && emp.username !== "i.shawi";
   const STORAGE_KEY = `annual_leave_${emp.id}`;
   const [uploadPct, setUploadPct] = useState(-1);
   const [driveLink, setDriveLink] = useState(null);
@@ -204,20 +205,22 @@ function AnnualLeaveForm({ emp }) {
       const wb = new ExcelJS.Workbook();
       await wb.xlsx.load(buf0);
       const ws = wb.worksheets[0];
-      const set = (r, v) => { ws.getCell(r).value = v ?? null; };
+      const set = (r, v, sz=13) => { const c=ws.getCell(r); c.value=v??null; if(v!=null&&v!=='')c.font={...(c.font||{}),size:sz}; };
       const fmtD = d => {
         if (!d) return "";
         const dt = new Date(d + "T00:00:00");
         return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`;
       };
+      const addImg = async (dataUrl, col, row) => { if (!dataUrl?.startsWith("data:")) return; try { const imgId=wb.addImage({base64:dataUrl.split(",")[1],extension:"png"}); ws.addImage(imgId,{tl:{col,row},ext:{width:130,height:45}}); } catch {} };
       set("C5",  fmtD(reqDate));
       set("I8",  name);
       set("I9",  String(jobNum || ""));
       set("I10", jobTitle);
       set("I11", fmtD(reqDate));
-      set("D13", days ? String(days) : "");
-      set("G13", fmtD(fromDate));
+      set("D13", fmtD(fromDate));
+      set("G13", days ? String(days) : "");
       set("I14", purpose);
+      await addImg(sigDataUrl, 8, 17);
       const outBuf = await wb.xlsx.writeBuffer();
       const safeName = (name || "موظف").replace(/\s+/g, "_");
       const fname = `اجازة_اعتيادية_${safeName}_${reqDate || "بدون_تاريخ"}.xlsx`;
@@ -267,7 +270,7 @@ function AnnualLeaveForm({ emp }) {
             <CheckCircle size={14}/> عرض في Drive
           </a>
         )}
-        <button onClick={saveDraft} className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ مسودة</button>
+        {!isRegularEmp && <button onClick={saveDraft} className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-xl font-bold text-sm"><Save size={14}/> حفظ مسودة</button>}
         <button onClick={saveAndSubmit} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm"><Send size={14}/> حفظ وتقديم</button>
         {gDrive.isReady && (
           <button onClick={uploadToDrive} disabled={uploadPct >= 0} className="flex items-center gap-2 px-4 py-2.5 bg-[#C87A2E] text-white rounded-xl font-bold text-sm disabled:opacity-60">
@@ -275,7 +278,7 @@ function AnnualLeaveForm({ emp }) {
           </button>
         )}
         <button onClick={exportToExcel} disabled={xlExporting} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-60"><Download size={14}/> {xlExporting ? "جاري التصدير..." : "تصدير إكسل"}</button>
-        <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>
+        {!isRegularEmp && <button onClick={printForm} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm"><Printer size={14}/> طباعة الاستمارة</button>}
       </div>
     </div>
   );

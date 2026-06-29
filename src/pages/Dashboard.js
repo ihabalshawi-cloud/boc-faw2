@@ -36,7 +36,7 @@ const LazyEvaluationSystem = React.lazy(() => import('./WorkplacePage').then(m =
 const LazyAnalyticsDashboard = React.lazy(() => import('./AnalyticsPage'));
 const LazyChangePasswordPage = React.lazy(() => import('./UserPages'));
 const LazyRequestsPage = React.lazy(() => import('./UserPages').then(m => ({ default: m.RequestsPage })));
-const LazyApprovalsPage = React.lazy(() => import('./UserPages').then(m => ({ default: m.ApprovalsPage })));
+const LazyApprovalsPage = React.lazy(() => import('./ApprovalsPage'));
 const LazyNotificationsPage = React.lazy(() => import('./UserPages').then(m => ({ default: m.NotificationsPage })));
 const LazyAdminDashboard = React.lazy(() => import('./AdminDashboardPage'));
 const LazyEquipmentPage = React.lazy(() => import('./EquipmentPage'));
@@ -143,6 +143,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const isAttendanceAdmin = emp.role === "attendance_admin";
   const canSeeApprovals = isAdmin || isAttendanceAdmin;
   const isTimeSheetAdmin = isAdmin || isAttendanceAdmin;
+  const canSeeAnalytics = isAdmin || isAttendanceAdmin || emp.role === "inventory_manager";
   const pendingCount = allRequests.filter(r => r.status === "بانتظار المراجعة").length;
   const unreadNotifs = (storage.get(`notifications_${emp.id}`, [])).filter(n => !n.read).length;
   useStorageSync("all_requests", setAllRequests);
@@ -201,7 +202,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
       { id:"approvals", label:"الموافقات", icon:<ThumbsUp size={17}/>, badge:pendingCount },
     ] : []),
     { id:"home", label:"الرئيسية", icon:<Home size={17}/> },
-    { id:"analytics", label:"لوحة التحليلات", icon:<BarChart size={17}/> },
+    ...(canSeeAnalytics ? [{ id:"analytics", label:"لوحة التحليلات", icon:<BarChart size={17}/> }] : []),
     { id:"requests", label:"طلبات ونماذج الإجازات", icon:<FileText size={17}/> },
     { id:"training", label:"التدريب", icon:<GraduationCap size={17}/> },
     { id:"tasks", label:"المهام", icon:<CheckSquare size={17}/> },
@@ -311,7 +312,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
           {view==="home" && (
             <HomeWidgets emp={emp} employees={employees} allRequests={allRequests} isAdmin={isAdmin} switchView={switchView}/>
           )}
-          {view==="analytics" && (
+          {view==="analytics" && canSeeAnalytics && (
             <React.Suspense fallback={<PageSkeleton/>}>
               <LazyAnalyticsDashboard employees={employees} allRequests={allRequests}/>
             </React.Suspense>
