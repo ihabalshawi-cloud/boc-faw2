@@ -205,20 +205,22 @@ function AnnualLeaveForm({ emp }) {
       const wb = new ExcelJS.Workbook();
       await wb.xlsx.load(buf0);
       const ws = wb.worksheets[0];
-      const set = (r, v) => { ws.getCell(r).value = v ?? null; };
+      const set = (r, v, sz=13) => { const c=ws.getCell(r); c.value=v??null; if(v!=null&&v!=='')c.font={...(c.font||{}),size:sz}; };
       const fmtD = d => {
         if (!d) return "";
         const dt = new Date(d + "T00:00:00");
         return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`;
       };
+      const addImg = async (dataUrl, col, row) => { if (!dataUrl?.startsWith("data:")) return; try { const imgId=wb.addImage({base64:dataUrl.split(",")[1],extension:"png"}); ws.addImage(imgId,{tl:{col,row},ext:{width:130,height:45}}); } catch {} };
       set("C5",  fmtD(reqDate));
       set("I8",  name);
       set("I9",  String(jobNum || ""));
       set("I10", jobTitle);
       set("I11", fmtD(reqDate));
-      set("D13", days ? String(days) : "");
-      set("G13", fmtD(fromDate));
+      set("D13", fmtD(fromDate));
+      set("G13", days ? String(days) : "");
       set("I14", purpose);
+      await addImg(sigDataUrl, 8, 17);
       const outBuf = await wb.xlsx.writeBuffer();
       const safeName = (name || "موظف").replace(/\s+/g, "_");
       const fname = `اجازة_اعتيادية_${safeName}_${reqDate || "بدون_تاريخ"}.xlsx`;
