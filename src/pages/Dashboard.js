@@ -108,7 +108,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const [view, setView] = useState(() => storage.get("last_view", "home"));
   const [reqSubTab, setReqSubTab] = useState("requests");
   const [section, setSection] = useState(() => storage.get("dash_section","admin"));
-  const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []));
+  const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []).filter(Boolean));
   const [employees, setEmployeesRaw] = useState(ACCOUNTS);
 
   useEffect(() => {
@@ -167,15 +167,15 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     document.title = total > 0 ? `(${total}) شركة نفط البصرة` : "شركة نفط البصرة";
   }, [unreadNotifs, pendingCount, canSeeApprovals]);
 
-  useEffect(() => { setAllRequests(storage.get("all_requests", [])); }, [view]);
+  useEffect(() => { setAllRequests(storage.get("all_requests", []).filter(Boolean)); }, [view]);
 
   const prevReqRef = useRef(null);
   useEffect(() => {
-    if (prevReqRef.current) allRequests.forEach(r => { const p = prevReqRef.current.find(x=>x.id===r.id); if(p&&p.status!==r.status&&r.empId===emp.id) sendDesktopNotification(`طلبك: ${r.type}`,`الحالة الجديدة: ${r.status}`); });
+    if (prevReqRef.current) allRequests.filter(Boolean).forEach(r => { const p = prevReqRef.current.filter(Boolean).find(x=>x&&x.id===r.id); if(p&&p.status!==r.status&&r.empId===emp.id) sendDesktopNotification(`طلبك: ${r.type}`,`الحالة الجديدة: ${r.status}`); });
     prevReqRef.current = allRequests;
   }, [allRequests, emp.id]);
   useEffect(() => {
-    const t = setInterval(() => { FirebaseAPI.loadRequests().then(list => { if(list?.length){storage.set("all_requests",list);setAllRequests(list);} }); }, 60000);
+    const t = setInterval(() => { FirebaseAPI.loadRequests().then(list => { if(list?.length){const clean=list.filter(Boolean);storage.set("all_requests",clean);setAllRequests(clean);} }); }, 60000);
     return () => clearInterval(t);
   }, []);
 
