@@ -35,7 +35,7 @@ function ApprovalsPage({ emp }) {
   const isAttendanceAdmin = emp.role === "attendance_admin";
   const canArchive = isSupervisor || isAdmin || isAttendanceAdmin;
   const canExportLeave = hasPermission(emp, "EXPORT_LEAVE_EXCEL");
-  const sortDesc = (a,b) => new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt);
+  const sortDesc = (a,b) => { if(!a||!b) return 0; return new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt); };
   const [requests, setRequests] = useState(() => storage.get("all_requests", []).filter(r => r && r.status === "بانتظار المراجعة"));
   const [approved, setApproved] = useState(() => storage.get("all_requests", []).filter(r => r && r.status === "موافق عليها" && !r.archived).sort(sortDesc));
   const [archived, setArchived] = useState(() => storage.get("all_requests", []).filter(r => r && r.archived).sort(sortDesc));

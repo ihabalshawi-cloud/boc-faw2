@@ -162,7 +162,7 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
   const priorityColor = (p) => p==="عالية"?"bg-red-100 text-red-700":p==="متوسطة"?"bg-amber-100 text-amber-700":"bg-blue-100 text-blue-700";
   const statusColor = (s) => s==="مكتملة"?"bg-emerald-100 text-emerald-700":s==="قيد التنفيذ"?"bg-blue-100 text-blue-700":"bg-slate-100 text-slate-700";
 
-  const overdue = tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "مكتملة");
+  const overdue = tasks.filter(t => t && t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "مكتملة");
 
   return (
     <div className="space-y-4">
@@ -174,7 +174,7 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
         </div>
       </div>
 
-      {overdue.length > 0 && <div className="bg-red-50 border border-red-200 rounded-2xl p-3 flex items-center gap-2"><AlertTriangle size={16} className="text-red-600 shrink-0"/><p className="text-xs font-bold text-red-800">{overdue.length} مهمة متأخرة: {overdue.map(t=>t.title).join(" • ")}</p></div>}
+      {overdue.length > 0 && <div className="bg-red-50 border border-red-200 rounded-2xl p-3 flex items-center gap-2"><AlertTriangle size={16} className="text-red-600 shrink-0"/><p className="text-xs font-bold text-red-800">{overdue.length} مهمة متأخرة: {overdue.filter(Boolean).map(t=>t.title).join(" • ")}</p></div>}
 
       {showForm && isAdmin && (
         <div className="card rounded-2xl border-2 border-emerald-200 p-5">

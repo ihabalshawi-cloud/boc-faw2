@@ -58,7 +58,7 @@ function InventorySystem({ emp, isAdmin }) {
   const sorted = sortBy ? [...filtered].sort((a,b) => { const va=a[sortBy],vb=b[sortBy]; const c=typeof va==="number"?va-vb:String(va||"").localeCompare(String(vb||""),"ar"); return sortDir==="asc"?c:-c; }) : filtered;
   const paged = sorted.slice((page-1)*PER_PAGE, page*PER_PAGE);
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
-  const lowStock = items.filter(i => i.qty <= (i.minQty || LOW_STOCK_THRESHOLD));
+  const lowStock = items.filter(i => i && i.qty <= (i.minQty || LOW_STOCK_THRESHOLD));
   const toggleSelect = (id) => setSelected(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
   const toggleAll = () => setSelected(prev => prev.size===paged.length ? new Set() : new Set(paged.map(i=>i.id)));
   const bulkDelete = async () => { if(!canEdit)return; if(await confirm(`حذف ${selected.size} أصناف؟`,{danger:true,ok:"حذف",title:"حذف متعدد"})){setItems(prev=>prev.filter(i=>!selected.has(i.id)));setSelected(new Set());} };
@@ -88,7 +88,7 @@ function InventorySystem({ emp, isAdmin }) {
 
   return (
     <div className="space-y-4">
-      {lowStock.length > 0 && <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-2"><AlertTriangle size={16} className="text-amber-600 shrink-0"/><div><p className="text-xs font-bold text-amber-800">تنبيه مخزون منخفض ({lowStock.length} صنف)</p><p className="text-xs text-amber-700">{lowStock.map(i=>i.name).join(" • ")}</p></div></div>}
+      {lowStock.length > 0 && <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-2"><AlertTriangle size={16} className="text-amber-600 shrink-0"/><div><p className="text-xs font-bold text-amber-800">تنبيه مخزون منخفض ({lowStock.length} صنف)</p><p className="text-xs text-amber-700">{lowStock.filter(Boolean).map(i=>i.name).join(" • ")}</p></div></div>}
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div className="flex gap-2 flex-1"><div className="flex items-center gap-2 input rounded-xl px-3 py-2 flex-1"><Search size={14} className="text-secondary"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
           <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select></div>

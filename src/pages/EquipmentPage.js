@@ -43,15 +43,15 @@ function EquipmentMaintenance({ emp, isAdmin }) {
 
   // ── derived stats ──
   const byStatus = (s) => equipment.filter(e => e.status === s).length;
-  const byType   = (t) => equipment.filter(e => e.type === t).length;
-  const openRecs  = records.filter(r => r.status !== "مكتملة");
+  const byType   = (t) => equipment.filter(e => e&&e.type === t).length;
+  const openRecs  = records.filter(r => r&&r.status !== "مكتملة");
   const today     = new Date();
   const upcoming  = equipment.filter(e => {
-    if (!e.nextMaintenance) return false;
+    if (!e||!e.nextMaintenance) return false;
     const diff = (new Date(e.nextMaintenance) - today) / 86400000;
     return diff >= 0 && diff <= 45 && e.status === "جيد";
-  }).sort((a,b) => new Date(a.nextMaintenance)-new Date(b.nextMaintenance));
-  const overdue   = equipment.filter(e => e.nextMaintenance && new Date(e.nextMaintenance) < today && e.status !== "معطل" && e.status !== "تحت صيانة");
+  }).sort((a,b) => { if(!a||!b)return 0; return new Date(a.nextMaintenance)-new Date(b.nextMaintenance); });
+  const overdue   = equipment.filter(e => e&&e.nextMaintenance && new Date(e.nextMaintenance) < today && e.status !== "معطل" && e.status !== "تحت صيانة");
 
   const notifiedRef = useRef(false);
   useEffect(() => {
@@ -139,7 +139,7 @@ function EquipmentMaintenance({ emp, isAdmin }) {
               <AlertTriangle size={16} className="text-red-600 shrink-0 mt-0.5"/>
               <div>
                 <p className="text-xs font-bold text-red-800">صيانة متأخرة ({overdue.length} معدة)</p>
-                <p className="text-xs text-red-700 mt-0.5">{overdue.map(e=>e.name).join(" • ")}</p>
+                <p className="text-xs text-red-700 mt-0.5">{overdue.filter(Boolean).map(e=>e.name).join(" • ")}</p>
               </div>
             </div>
           )}
@@ -206,7 +206,7 @@ function EquipmentMaintenance({ emp, isAdmin }) {
             </div>
             <div className="card rounded-2xl border border-color p-4">
               <h3 className="font-bold text-sm mb-3 flex items-center gap-2"><AlertTriangle size={15}/> المعدات الحرجة</h3>
-              {equipment.filter(e=>e.critical).map(e => (
+              {equipment.filter(e=>e&&e.critical).map(e => (
                 <div key={e.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 cursor-pointer hover:bg-hover rounded-lg px-1" onClick={()=>{ setSelId(e.id); setTab("list"); }}>
                   <div>
                     <p className="text-xs font-bold">{e.name}</p>
@@ -321,7 +321,7 @@ function MaintenanceParts() {
 
   const categories = ["الكل", ...new Set(parts.map(p => p.category))];
   const filtered = parts.filter(p => (p.name.includes(dSearch)||p.code.includes(dSearch)) && (filterCat==="الكل"||p.category===filterCat));
-  const lowStock = parts.filter(p => p.qty <= p.minAlert);
+  const lowStock = parts.filter(p => p && p.qty <= p.minAlert);
 
   const addPart = () => {
     if (!form.name || !form.code) return showToast("الاسم والرمز مطلوبان");
@@ -334,7 +334,7 @@ function MaintenanceParts() {
 
   return (
     <div className="space-y-4">
-      {lowStock.length>0 && <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-2"><AlertTriangle size={16} className="text-amber-600 shrink-0"/><div><p className="text-xs font-bold text-amber-800">مخزون منخفض ({lowStock.length} صنف)</p><p className="text-xs text-amber-700">{lowStock.map(p=>p.name).join(" • ")}</p></div></div>}
+      {lowStock.length>0 && <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-2"><AlertTriangle size={16} className="text-amber-600 shrink-0"/><div><p className="text-xs font-bold text-amber-800">مخزون منخفض ({lowStock.length} صنف)</p><p className="text-xs text-amber-700">{lowStock.filter(Boolean).map(p=>p.name).join(" • ")}</p></div></div>}
       <div className="flex gap-3">
         <div className="flex-1 flex items-center gap-2 input rounded-xl px-3 py-2"><Search size={14} className="text-secondary"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث..." className="bg-transparent text-sm outline-none w-full"/></div>
         <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{categories.map(c=><option key={c}>{c}</option>)}</select>
@@ -394,7 +394,7 @@ function MaintenanceAnalytics() {
   const records   = storage.get("maintenance_records", []);
   const totalCost  = equipment.reduce((s, e) => s + (e.maintenanceCost || 300), 0);
   const partsValue = parts.reduce((s, p) => s + (p.price * p.qty), 0);
-  const mostFailing = [...equipment].sort((a, b) => b.totalFailures - a.totalFailures).slice(0, 3);
+  const mostFailing = [...equipment].filter(Boolean).sort((a, b) => (b.totalFailures||0) - (a.totalFailures||0)).slice(0, 3);
   const byStatus = [
     { name:"جيد",          value:equipment.filter(e=>e.status==="جيد").length },
     { name:"يحتاج صيانة",  value:equipment.filter(e=>e.status==="تحتاج صيانة").length },
@@ -406,8 +406,8 @@ function MaintenanceAnalytics() {
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-4 text-white"><div className="flex justify-between items-center"><Wrench size={20}/><span className="text-3xl font-bold">{equipment.length}</span></div><p className="text-xs mt-2 opacity-90">إجمالي المعدات</p></div>
-        <div className="bg-gradient-to-r from-red-500 to-red-600 rounded-2xl p-4 text-white"><div className="flex justify-between items-center"><AlertTriangle size={20}/><span className="text-3xl font-bold">{equipment.filter(e=>e.critical).length}</span></div><p className="text-xs mt-2 opacity-90">معدات حرجة</p></div>
-        <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-2xl p-4 text-white"><div className="flex justify-between items-center"><Clock size={20}/><span className="text-3xl font-bold">{equipment.filter(e=>new Date(e.nextMaintenance)<=new Date()).length}</span></div><p className="text-xs mt-2 opacity-90">صيانة مستحقة</p></div>
+        <div className="bg-gradient-to-r from-red-500 to-red-600 rounded-2xl p-4 text-white"><div className="flex justify-between items-center"><AlertTriangle size={20}/><span className="text-3xl font-bold">{equipment.filter(e=>e&&e.critical).length}</span></div><p className="text-xs mt-2 opacity-90">معدات حرجة</p></div>
+        <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-2xl p-4 text-white"><div className="flex justify-between items-center"><Clock size={20}/><span className="text-3xl font-bold">{equipment.filter(e=>e&&new Date(e.nextMaintenance)<=new Date()).length}</span></div><p className="text-xs mt-2 opacity-90">صيانة مستحقة</p></div>
         <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl p-4 text-white"><div className="flex justify-between items-center"><Box size={20}/><span className="text-3xl font-bold">{parts.length}</span></div><p className="text-xs mt-2 opacity-90">قطع غيار</p></div>
       </div>
 
@@ -442,10 +442,10 @@ function MaintenanceAnalytics() {
         <div className="card rounded-2xl p-5 border-color border">
           <h3 className="font-bold mb-4 flex items-center gap-2"><AlertCircle size={18}/> توصيات</h3>
           <div className="space-y-3">
-            {equipment.filter(e=>e.critical&&e.status!=="جيد").length>0 && <div className="p-3 bg-red-50 rounded-xl border border-red-100"><p className="font-bold text-red-700 text-sm">⚠️ أولوية عالية</p><p className="text-xs text-red-600 mt-1">معدات حرجة تحتاج صيانة فورية</p></div>}
-            {parts.filter(p=>p.qty<=p.minAlert).length>0 && <div className="p-3 bg-amber-50 rounded-xl border border-amber-100"><p className="font-bold text-amber-700 text-sm">📦 مخزون قطع الغيار</p><p className="text-xs text-amber-600 mt-1">يوجد {parts.filter(p=>p.qty<=p.minAlert).length} صنف بمخزون منخفض</p></div>}
-            {equipment.filter(e=>new Date(e.nextMaintenance)<=new Date()).length>0 && <div className="p-3 bg-blue-50 rounded-xl border border-blue-100"><p className="font-bold text-blue-700 text-sm">🗓️ صيانة مستحقة</p><p className="text-xs text-blue-600 mt-1">{equipment.filter(e=>new Date(e.nextMaintenance)<=new Date()).length} معدة تجاوزت موعد صيانتها</p></div>}
-            {[...Array(3)].every(()=>true) && equipment.filter(e=>e.critical&&e.status!=="جيد").length===0 && parts.filter(p=>p.qty<=p.minAlert).length===0 && equipment.filter(e=>new Date(e.nextMaintenance)<=new Date()).length===0 && <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100"><p className="font-bold text-emerald-700 text-sm">✅ الوضع جيد</p><p className="text-xs text-emerald-600 mt-1">لا توجد تنبيهات حرجة حالياً</p></div>}
+            {equipment.filter(e=>e&&e.critical&&e.status!=="جيد").length>0 && <div className="p-3 bg-red-50 rounded-xl border border-red-100"><p className="font-bold text-red-700 text-sm">⚠️ أولوية عالية</p><p className="text-xs text-red-600 mt-1">معدات حرجة تحتاج صيانة فورية</p></div>}
+            {parts.filter(p=>p&&p.qty<=p.minAlert).length>0 && <div className="p-3 bg-amber-50 rounded-xl border border-amber-100"><p className="font-bold text-amber-700 text-sm">📦 مخزون قطع الغيار</p><p className="text-xs text-amber-600 mt-1">يوجد {parts.filter(p=>p&&p.qty<=p.minAlert).length} صنف بمخزون منخفض</p></div>}
+            {equipment.filter(e=>e&&new Date(e.nextMaintenance)<=new Date()).length>0 && <div className="p-3 bg-blue-50 rounded-xl border border-blue-100"><p className="font-bold text-blue-700 text-sm">🗓️ صيانة مستحقة</p><p className="text-xs text-blue-600 mt-1">{equipment.filter(e=>e&&new Date(e.nextMaintenance)<=new Date()).length} معدة تجاوزت موعد صيانتها</p></div>}
+            {equipment.filter(e=>e&&e.critical&&e.status!=="جيد").length===0 && parts.filter(p=>p&&p.qty<=p.minAlert).length===0 && equipment.filter(e=>e&&new Date(e.nextMaintenance)<=new Date()).length===0 && <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100"><p className="font-bold text-emerald-700 text-sm">✅ الوضع جيد</p><p className="text-xs text-emerald-600 mt-1">لا توجد تنبيهات حرجة حالياً</p></div>}
           </div>
         </div>
       </div>

@@ -111,7 +111,7 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
             <button onClick={()=>switchView("maint_equipment")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
           </div>
           {recs.length===0 ? <p className="text-secondary text-xs text-center py-4">لا توجد طلبات صيانة</p> :
-          recs.slice(0,4).map(r=>(
+          recs.filter(Boolean).slice(0,4).map(r=>(
             <div key={r.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 text-xs">
               <span className="font-medium truncate max-w-[120px]">{r.equipmentName}</span>
               <span className="text-secondary">{new Date(r.requestedAt).toLocaleDateString("ar-IQ")}</span>
