@@ -212,7 +212,7 @@ function AnnualLeaveForm({ emp }) {
         return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`;
       };
       const addImg = async (dataUrl, col, row) => { if (!dataUrl?.startsWith("data:")) return; try { const imgId=wb.addImage({base64:dataUrl.split(",")[1],extension:"png"}); ws.addImage(imgId,{tl:{col,row},ext:{width:130,height:45}}); } catch {} };
-      set("C5",  fmtD(reqDate));
+      set("A5",  fmtD(reqDate));
       set("I8",  name);
       set("I9",  String(jobNum || ""));
       set("I10", jobTitle);
