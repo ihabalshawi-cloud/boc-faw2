@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Users, Clock, CheckCircle, Package, AlertTriangle, CheckSquare,
-  Wrench, Box, FileText, User } from "lucide-react";
+  Wrench, Box, FileText, User, Calendar } from "lucide-react";
 import { INITIAL_EQUIPMENT, INITIAL_MAINT_SPARE_PARTS } from "../constants";
 import { storage } from "../utils";
 
@@ -12,6 +12,16 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
   const eq   = storage.get("equipment", INITIAL_EQUIPMENT);
   const prts = storage.get("maint_spare_parts", INITIAL_MAINT_SPARE_PARTS);
   const recs = storage.get("maintenance_records", []);
+
+  const now = new Date();
+  const myReqs = allRequests.filter(r => r && String(r.empId) === String(emp.id));
+  const monthReqs = myReqs.filter(r => {
+    if (!r.submittedAt) return false;
+    const d = new Date(r.submittedAt);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  const yearReqs = myReqs.filter(r => r.submittedAt && new Date(r.submittedAt).getFullYear() === now.getFullYear());
+  const cntByStatus = (arr, s) => arr.filter(r => r.status === s).length;
 
   const activityFeed = useMemo(() => {
     const items = [];
@@ -61,6 +71,70 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
             <p className="text-secondary text-xs">{new Date().toLocaleDateString("ar-IQ",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</p>
           </div>
         </div>
+      </div>
+
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="h-5 w-1 bg-emerald-500 rounded-full"/>
+          <h3 className="font-bold text-base">ملخص إجازاتي</h3>
+          <button onClick={()=>switchView("requests")} className="mr-auto text-xs text-blue-600 hover:underline">عرض الكل</button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="card rounded-2xl border-color border p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Calendar size={15} className="text-blue-600"/>
+              <span className="font-bold text-sm">هذا الشهر</span>
+              <span className="mr-auto text-2xl font-bold text-blue-600">{monthReqs.length}</span>
+            </div>
+            <div className="flex gap-2 text-xs">
+              <span className="flex-1 text-center bg-emerald-50 text-emerald-700 rounded-lg py-2 font-bold">
+                <div className="text-base">{cntByStatus(monthReqs,"موافق عليها")}</div>
+                <div className="font-normal text-[10px] mt-0.5">موافق عليها</div>
+              </span>
+              <span className="flex-1 text-center bg-amber-50 text-amber-700 rounded-lg py-2 font-bold">
+                <div className="text-base">{cntByStatus(monthReqs,"بانتظار المراجعة")}</div>
+                <div className="font-normal text-[10px] mt-0.5">معلقة</div>
+              </span>
+              <span className="flex-1 text-center bg-red-50 text-red-700 rounded-lg py-2 font-bold">
+                <div className="text-base">{cntByStatus(monthReqs,"مرفوضة")}</div>
+                <div className="font-normal text-[10px] mt-0.5">مرفوضة</div>
+              </span>
+            </div>
+          </div>
+          <div className="card rounded-2xl border-color border p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Calendar size={15} className="text-indigo-600"/>
+              <span className="font-bold text-sm">هذه السنة {now.getFullYear()}</span>
+              <span className="mr-auto text-2xl font-bold text-indigo-600">{yearReqs.length}</span>
+            </div>
+            <div className="flex gap-2 text-xs">
+              <span className="flex-1 text-center bg-emerald-50 text-emerald-700 rounded-lg py-2 font-bold">
+                <div className="text-base">{cntByStatus(yearReqs,"موافق عليها")}</div>
+                <div className="font-normal text-[10px] mt-0.5">موافق عليها</div>
+              </span>
+              <span className="flex-1 text-center bg-amber-50 text-amber-700 rounded-lg py-2 font-bold">
+                <div className="text-base">{cntByStatus(yearReqs,"بانتظار المراجعة")}</div>
+                <div className="font-normal text-[10px] mt-0.5">معلقة</div>
+              </span>
+              <span className="flex-1 text-center bg-red-50 text-red-700 rounded-lg py-2 font-bold">
+                <div className="text-base">{cntByStatus(yearReqs,"مرفوضة")}</div>
+                <div className="font-normal text-[10px] mt-0.5">مرفوضة</div>
+              </span>
+            </div>
+          </div>
+        </div>
+        {myReqs.length > 0 && (
+          <div className="card rounded-2xl border-color border p-4 mt-3">
+            <h4 className="font-bold text-sm mb-2 flex items-center gap-1.5"><FileText size={14}/> آخر طلباتي</h4>
+            {myReqs.slice(0,4).map(r => (
+              <div key={r.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 text-xs">
+                <span className="font-medium">{r.type} — {r.days} يوم</span>
+                <span className="text-secondary">{r.submittedAt ? new Date(r.submittedAt).toLocaleDateString("ar-IQ") : ""}</span>
+                <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] ${r.status==="موافق عليها"?"bg-emerald-100 text-emerald-700":r.status==="مرفوضة"?"bg-red-100 text-red-700":"bg-amber-100 text-amber-700"}`}>{r.status}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div>
