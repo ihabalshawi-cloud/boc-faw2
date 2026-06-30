@@ -57,8 +57,10 @@ function OutOfCountryLeaveForm({ emp }) {
     toast("تم حفظ المسودة", "success");
   };
   const saveAndSubmit = () => {
+    if (status === "submitted") { toast("تم تقديم هذا الطلب مسبقاً — يرجى الانتظار حتى تتم مراجعته", "warning"); return; }
     if (!empSigDataUrl) { toast("توقيع الموظف إلزامي للتقديم", "warning"); return; }
     storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, country, days, salaryType, purpose, reqDate, refNum, sigDataUrl, empSigDataUrl, status: "submitted" });
+    setStatus("submitted");
     const daysNum = days ? Number(days) : 1;
     const newReq = { id: Date.now(), type: "خارج العراق", dateFrom: reqDate, dateTo: reqDate, purpose: `${country || ""} — ${purpose || ""}`.trim(), days: daysNum, status: "بانتظار المراجعة", submittedAt: new Date().toISOString(), empId: emp.id, empName: name, empSigDataUrl };
     const allReqs = [newReq, ...storage.get("all_requests", [])];

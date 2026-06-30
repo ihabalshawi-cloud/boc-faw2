@@ -14,8 +14,8 @@ export async function importFromBuffer(buffer, { data, persistTs, setData, setSh
         if (codeRowIdx === -1) return emp;
         const codeRow  = rows[codeRowIdx];
         const hoursRow = rows[codeRowIdx + 1] || [];
-        const newDays  = { ...emp.days };
-        const newHours = { ...emp.hours };
+        const newDays  = {};
+        const newHours = {};
         for (let d = 1; d <= 31; d++) {
           const col  = dayColStart + (d - 1);
           const code = String(codeRow[col] || "").trim();

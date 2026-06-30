@@ -5,7 +5,7 @@ import {
   Bell, ThumbsUp, Users, Package,
   ClipboardList, GraduationCap, BarChart, Star,
   Search, Moon, Sun, MessageSquare, X,
-  CheckSquare, AlertTriangle, ChevronLeft,
+  CheckSquare, AlertTriangle, ChevronLeft, ChevronRight,
   Wrench, Box, TrendingUp, Heart,
   Briefcase, Glasses, Type
 } from "lucide-react";
@@ -106,6 +106,7 @@ const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","in
 
 export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode, largeFont, setLargeFont }) {
   const [view, setView] = useState(() => storage.get("last_view", "home"));
+  const [viewHistory, setViewHistory] = useState([]);
   const [reqSubTab, setReqSubTab] = useState("requests");
   const [section, setSection] = useState(() => storage.get("dash_section","admin"));
   const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []).filter(Boolean));
@@ -181,17 +182,26 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
 
   const switchSection = (s) => { setSection(s); storage.set("dash_section", s); };
   const switchView = (id) => {
+    if (id === "chat") { setChatOpen(true); return; }
+    setViewHistory(h => [...h, view]);
     if (id === "leave_forms") {
       setView("requests"); setReqSubTab("leave_forms");
       if (section !== "admin") switchSection("admin");
       return;
     }
-    if (id === "chat") { setChatOpen(true); return; }
     if (id === "requests") setReqSubTab("requests");
     setView(id);
     storage.set("last_view", id);
     if (ADMIN_VIEWS.has(id) && section !== "admin") switchSection("admin");
     if (TECH_VIEWS.has(id)  && section !== "tech")  switchSection("tech");
+  };
+
+  const goBack = () => {
+    if (viewHistory.length === 0) return;
+    const prev = viewHistory[viewHistory.length - 1];
+    setViewHistory(h => h.slice(0, -1));
+    setView(prev);
+    storage.set("last_view", prev);
   };
 
   const adminMenuItems = [
@@ -270,7 +280,12 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
         <main className="p-5 pb-20">
           {view !== "home" && (
             <div className="flex items-center gap-1.5 text-sm text-secondary mb-4">
-              <button onClick={()=>setView("home")} className="hover:text-blue-600 transition-colors flex items-center gap-1">
+              {viewHistory.length > 0 && (
+                <button onClick={goBack} className="hover:text-blue-600 transition-colors flex items-center gap-1 ml-2 border border-current rounded px-1.5 py-0.5">
+                  <ChevronRight size={13}/> رجوع
+                </button>
+              )}
+              <button onClick={()=>switchView("home")} className="hover:text-blue-600 transition-colors flex items-center gap-1">
                 <Home size={13}/> الرئيسية
               </button>
               <ChevronLeft size={13}/>

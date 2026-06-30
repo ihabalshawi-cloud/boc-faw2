@@ -57,8 +57,10 @@ function SickLeaveForm({ emp }) {
     toast("تم حفظ المسودة", "success");
   };
   const saveAndSubmit = () => {
+    if (status === "submitted") { toast("تم تقديم هذا الطلب مسبقاً — يرجى الانتظار حتى تتم مراجعته", "warning"); return; }
     if (!empSigDataUrl) { toast("توقيع الموظف إلزامي للتقديم", "warning"); return; }
     storage.set(STORAGE_KEY, { name, jobNum, jobTitle, leaveDate, leaveTime, clinicDT, notes, returnDate, returnTime, sigDataUrl, empSigDataUrl, status: "submitted" });
+    setStatus("submitted");
     const daysNum = (leaveDate && returnDate) ? Math.round((new Date(returnDate) - new Date(leaveDate)) / 86400000) + 1 : 1;
     const newReq = { id: Date.now(), type: "مرضية", dateFrom: leaveDate, dateTo: returnDate || leaveDate, purpose: notes || "علاج طبي", days: daysNum, status: "بانتظار المراجعة", submittedAt: new Date().toISOString(), empId: emp.id, empName: name, empSigDataUrl };
     const allReqs = [newReq, ...storage.get("all_requests", [])];
