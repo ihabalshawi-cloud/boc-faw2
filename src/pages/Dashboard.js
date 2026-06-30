@@ -266,41 +266,8 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row">
-        <aside className="group/sb hidden md:flex md:flex-col md:w-14 md:hover:w-60 sidebar border-l border-color min-h-screen py-3 px-1.5 md:overflow-hidden transition-[width] duration-200 ease-out">
-          <div className="flex gap-1 mb-2 overflow-hidden max-w-full md:max-w-0 md:group-hover/sb:max-w-full transition-[max-width] duration-150">
-            {[{k:"admin",lbl:"الإداري"},{k:"tech",lbl:"الفني"}].map(s=>(
-              <button key={s.k} onClick={()=>switchSection(s.k)}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors whitespace-nowrap ${section===s.k?"bg-[#C87A2E] text-white":"btn-secondary text-secondary border border-color"}`}>
-                {s.lbl}
-              </button>
-            ))}
-          </div>
-          <nav className="space-y-0.5">
-            {menuItems.map(item => (
-              <div key={item.id} className="relative">
-                <button onClick={()=>switchView(item.id)} title={item.label}
-                  className={`w-full flex items-center py-2.5 rounded-md text-sm font-medium transition-all ${view===item.id?"bg-[#C87A2E] text-white":"text-secondary hover:bg-hover"}`}>
-                  <span className="shrink-0 w-11 flex items-center justify-center">{item.icon}</span>
-                  <span className="whitespace-nowrap overflow-hidden max-w-full md:max-w-0 md:group-hover/sb:max-w-[180px] transition-[max-width] duration-150 pr-1">{item.label}</span>
-                  {item.badge>0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full mr-auto ml-1.5 shrink-0 whitespace-nowrap overflow-hidden max-w-full md:max-w-0 md:group-hover/sb:max-w-[40px] transition-[max-width] duration-150">{item.badge}</span>}
-                </button>
-                {item.badge>0 && <span className="hidden md:block md:group-hover/sb:hidden absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full pointer-events-none"/>}
-              </div>
-            ))}
-          </nav>
-          {visibleAlerts.length > 0 && (
-            <div className="mt-4 mx-0.5 p-3 bg-amber-50 rounded-md border border-amber-200 overflow-hidden max-h-[120px] md:max-h-0 md:group-hover/sb:max-h-[120px] transition-[max-height] duration-200">
-              <p className="text-[10px] font-bold text-amber-800 mb-1 whitespace-nowrap">تنبيهات ذكية</p>
-              {visibleAlerts.slice(0,3).map(a=><div key={a.id} className="flex items-center gap-1 mt-1"><p className="text-[10px] text-amber-700 flex-1 truncate">{a.msg}</p><button onClick={()=>dismissAlert(a.id)} className="text-amber-400 hover:text-amber-700 shrink-0"><X size={10}/></button></div>)}
-            </div>
-          )}
-          <div className="mt-3 mx-0.5 p-3 bg-hover rounded-md text-[10px] overflow-hidden max-h-16 md:max-h-0 md:group-hover/sb:max-h-16 transition-[max-height] duration-200">
-            <p className="font-bold whitespace-nowrap">{isConnected?"متصل بالخادم":"وضع محلي"}</p>
-          </div>
-        </aside>
-
-        <main className="flex-1 p-5 pb-20 md:pb-5">
+      <div>
+        <main className="p-5 pb-20">
           {view !== "home" && (
             <div className="flex items-center gap-1.5 text-sm text-secondary mb-4">
               <button onClick={()=>setView("home")} className="hover:text-blue-600 transition-colors flex items-center gap-1">
@@ -311,7 +278,40 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
             </div>
           )}
           {view==="home" && (
-            <HomeWidgets emp={emp} employees={employees} allRequests={allRequests} isAdmin={isAdmin} switchView={switchView}/>
+            <div className="space-y-6">
+              <div className="space-y-5">
+                <div>
+                  <div className="flex items-center gap-2 mb-3"><div className="h-5 w-1 bg-blue-600 rounded-full"/><h3 className="font-bold text-base">الإدارة والموارد البشرية</h3></div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                    {adminMenuItems.filter(i=>i.id!=="home").map(item=>(
+                      <button key={item.id} onClick={()=>switchView(item.id)}
+                        className="relative card rounded-2xl border-color border p-3 flex flex-col items-center gap-2 hover:bg-hover transition-colors text-center group">
+                        <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                          {React.cloneElement(item.icon,{size:24})}
+                        </div>
+                        <span className="text-xs font-medium leading-tight">{item.label}</span>
+                        {(item.badge||0)>0 && <span className="absolute top-1 left-1 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{item.badge}</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-3"><div className="h-5 w-1 bg-orange-500 rounded-full"/><h3 className="font-bold text-base">الفني والمعدات</h3></div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                    {techMenuItems.map(item=>(
+                      <button key={item.id} onClick={()=>switchView(item.id)}
+                        className="relative card rounded-2xl border-color border p-3 flex flex-col items-center gap-2 hover:bg-hover transition-colors text-center group">
+                        <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center group-hover:bg-orange-600 group-hover:text-white transition-colors">
+                          {React.cloneElement(item.icon,{size:24})}
+                        </div>
+                        <span className="text-xs font-medium leading-tight">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <HomeWidgets emp={emp} employees={employees} allRequests={allRequests} isAdmin={isAdmin} switchView={switchView}/>
+            </div>
           )}
           {view==="analytics" && canSeeAnalytics && (
             <React.Suspense fallback={<PageSkeleton/>}>
