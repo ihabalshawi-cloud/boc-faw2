@@ -137,7 +137,7 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
         )}
       </div>
 
-      <div>
+      {!emp.allowedViews && <div>
         <div className="flex items-center gap-2 mb-3"><div className="h-5 w-1 bg-blue-600 rounded-full"/><h3 className="font-bold text-base">إدارة الموارد البشرية والمستودع</h3></div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {hrCards.map((k,i)=>(
@@ -147,9 +147,9 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
-      <div>
+      {!emp.allowedViews && <div>
         <div className="flex items-center gap-2 mb-3"><div className="h-5 w-1 bg-orange-500 rounded-full"/><h3 className="font-bold text-base">إدارة الصيانة والمعدات</h3></div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {maintCards.map((k,i)=>(
@@ -159,9 +159,9 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
-      <div className={`grid grid-cols-1 gap-6 ${isPrivileged ? "md:grid-cols-3" : "md:grid-cols-1 max-w-lg"}`}>
+      {!emp.allowedViews && <div className={`grid grid-cols-1 gap-6 ${isPrivileged ? "md:grid-cols-3" : "md:grid-cols-1 max-w-lg"}`}>
         {isPrivileged && (
           <div className="card rounded-2xl border-color border p-4">
             <div className="flex items-center justify-between mb-3">
@@ -212,7 +212,7 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
             }
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
