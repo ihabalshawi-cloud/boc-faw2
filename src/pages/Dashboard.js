@@ -105,7 +105,11 @@ const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","e
 const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","inventory","furniture","projects"]);
 
 export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode, largeFont, setLargeFont }) {
-  const [view, setView] = useState(() => storage.get("last_view", "home"));
+  const allowedViews = ACCOUNTS.find(a => a.id === emp.id)?.allowedViews || null;
+  const [view, setView] = useState(() => {
+    const saved = storage.get("last_view", "home");
+    return (allowedViews && !allowedViews.includes(saved)) ? "home" : saved;
+  });
   const [viewHistory, setViewHistory] = useState([]);
   const [reqSubTab, setReqSubTab] = useState("requests");
   const [section, setSection] = useState(() => storage.get("dash_section","admin"));
@@ -183,6 +187,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const switchSection = (s) => { setSection(s); storage.set("dash_section", s); };
   const switchView = (id) => {
     if (id === "chat") { setChatOpen(true); return; }
+    if (allowedViews && !allowedViews.includes(id)) return;
     setViewHistory(h => [...h, view]);
     if (id === "leave_forms") {
       setView("requests"); setReqSubTab("leave_forms");
@@ -232,7 +237,9 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     { id:"furniture", label:"جرد الأثاث 2025", icon:<ClipboardList size={17}/> },
     { id:"projects", label:"إدارة المشاريع", icon:<Briefcase size={17}/> },
   ];
-  const menuItems = section === "admin" ? adminMenuItems : techMenuItems;
+  const visibleAdminItems = allowedViews ? adminMenuItems.filter(i => allowedViews.includes(i.id)) : adminMenuItems;
+  const visibleTechItems  = allowedViews ? [] : techMenuItems;
+  const menuItems = section === "admin" ? visibleAdminItems : visibleTechItems;
 
   const [showDriveSettings, setShowDriveSettings] = useState(false);
   const gDrive = useGDrive();
@@ -298,7 +305,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
                 <div>
                   <div className="flex items-center gap-2 mb-3"><div className="h-5 w-1 bg-blue-600 rounded-full"/><h3 className="font-bold text-base">الإدارة والموارد البشرية</h3></div>
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                    {adminMenuItems.filter(i=>i.id!=="home").map(item=>(
+                    {visibleAdminItems.filter(i=>i.id!=="home").map(item=>(
                       <button key={item.id} onClick={()=>switchView(item.id)}
                         className="relative card rounded-2xl border-color border p-3 flex flex-col items-center gap-2 hover:bg-hover transition-colors text-center group">
                         <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
@@ -310,10 +317,10 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
                     ))}
                   </div>
                 </div>
-                <div>
+                {visibleTechItems.length > 0 && <div>
                   <div className="flex items-center gap-2 mb-3"><div className="h-5 w-1 bg-orange-500 rounded-full"/><h3 className="font-bold text-base">الفني والمعدات</h3></div>
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                    {techMenuItems.map(item=>(
+                    {visibleTechItems.map(item=>(
                       <button key={item.id} onClick={()=>switchView(item.id)}
                         className="relative card rounded-2xl border-color border p-3 flex flex-col items-center gap-2 hover:bg-hover transition-colors text-center group">
                         <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center group-hover:bg-orange-600 group-hover:text-white transition-colors">
@@ -323,7 +330,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
                       </button>
                     ))}
                   </div>
-                </div>
+                </div>}
               </div>
               <HomeWidgets emp={emp} employees={employees} allRequests={allRequests} isAdmin={isAdmin} switchView={switchView}/>
             </div>
