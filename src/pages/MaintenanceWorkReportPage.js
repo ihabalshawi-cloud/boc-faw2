@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Plus, ChevronRight, Printer, Trash2, Settings, Camera, X } from "lucide-react";
+import { Plus, ChevronRight, Printer, Trash2, Settings, Camera, X, Download } from "lucide-react";
 import { storage } from "../utils";
 import { ACCOUNTS, INITIAL_EQUIPMENT, MONTHS_AR } from "../constants";
 import { useToast, useConfirm } from "../contexts";
@@ -13,6 +13,14 @@ const toYMD = d => d.toISOString().slice(0,10);
 
 function readB64(file) {
   return new Promise(res => { const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file); });
+}
+
+function exportCSV(rows, filename) {
+  const BOM = "﻿";
+  const csv = BOM + rows.map(r=>r.map(c=>`"${String(c||"").replace(/"/g,'""')}"`).join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  a.download = filename; a.click();
 }
 
 // ── Print ──────────────────────────────────────────────────────────────────────
@@ -183,6 +191,11 @@ function DailyView({ entries, date, setDate, emp, isAdmin, canWrite, onDelete, o
   const totalHours = dayEntries.reduce((s,e)=>s+(Number(e.hours)||0),0);
   const del = async (id) => { if (await confirm("حذف هذا السجل؟")) onDelete(id); };
   const doPrint = () => { const d=new Date(date+"T00:00:00"); printReport(dayEntries,"تقرير العمل اليومي",`${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`); };
+  const doExport = () => {
+    const header = ["ت","التاريخ","المعدة","نوع العمل","الوصف","الساعات","الفني","الحالة"];
+    const rows = dayEntries.map((e,i)=>[i+1,e.date||"",e.equipmentName||"",e.workType||"",e.description||"",e.hours||0,e.technicianName||"",e.status||""]);
+    exportCSV([header,...rows],`تقرير-يومي-${date}.csv`);
+  };
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -191,6 +204,7 @@ function DailyView({ entries, date, setDate, emp, isAdmin, canWrite, onDelete, o
           <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full input-base rounded-lg px-3 py-2 text-sm border border-color"/></div>
         <div className="flex gap-2">
           {dayEntries.length>0&&<button onClick={doPrint} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Printer size={14}/> طباعة</button>}
+          {dayEntries.length>0&&<button onClick={doExport} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Download size={14}/> Excel</button>}
           {canWrite&&<button onClick={onAdd} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700"><Plus size={14}/> إضافة</button>}
         </div>
       </div>
@@ -261,6 +275,11 @@ function MonthlyView({ entries, isAdmin }) {
 
   const totalHours = monthEntries.reduce((s,e)=>s+(Number(e.hours)||0),0);
   const doPrint = () => printReport(monthEntries,"تقرير العمل الشهري",`${MONTHS_AR[month]} ${year}`);
+  const doExport = () => {
+    const header = ["ت","التاريخ","المعدة","نوع العمل","الوصف","الساعات","الفني","الحالة"];
+    const rows = monthEntries.map((e,i)=>[i+1,e.date||"",e.equipmentName||"",e.workType||"",e.description||"",e.hours||0,e.technicianName||"",e.status||""]);
+    exportCSV([header,...rows],`تقرير-شهري-${MONTHS_AR[month]}-${year}.csv`);
+  };
   const byDate = monthEntries.reduce((acc,e)=>{ (acc[e.date]||(acc[e.date]=[])).push(e); return acc; },{});
   const byType = WORK_TYPES.reduce((acc,t)=>{ acc[t]=monthEntries.filter(e=>e.workType===t).length; return acc; },{});
 
@@ -274,6 +293,7 @@ function MonthlyView({ entries, isAdmin }) {
           <input type="number" value={year} onChange={e=>setYear(Number(e.target.value))} className="w-24 input-base rounded-lg px-3 py-2 text-sm border border-color"/>
         </div>
         {monthEntries.length>0&&<button onClick={doPrint} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Printer size={14}/> طباعة</button>}
+        {monthEntries.length>0&&<button onClick={doExport} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Download size={14}/> Excel</button>}
       </div>
       {monthEntries.length>0&&(
         <>

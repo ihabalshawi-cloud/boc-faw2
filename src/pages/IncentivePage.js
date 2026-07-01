@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ChevronRight, Settings, Check, X, Printer, Trash2, Users } from "lucide-react";
+import { ChevronRight, Settings, Check, X, Printer, Trash2, Users, Download } from "lucide-react";
 import { storage } from "../utils";
 import { ACCOUNTS } from "../constants";
 import { useToast, useConfirm } from "../contexts";
@@ -11,6 +11,29 @@ const MONTHS_AR = ["يناير","فبراير","مارس","أبريل","مايو
 const SC = { "مسودة":"bg-gray-100 text-gray-600","بانتظار المراجعة":"bg-amber-100 text-amber-700","موافق عليها":"bg-emerald-100 text-emerald-700","مرفوضة":"bg-red-100 text-red-700" };
 const DEFAULT_CFG = { amounts:{أ:100000,ب:75000,ج:50000}, morningSupervisors:[2,3], shiftSupervisors:[] };
 const sk = e => e?.title==="عقد"?"عقود":e?.shift==="صباحي"?"صباحي":(e?.group||"؟");
+
+function exportCSV(rows, filename) {
+  const BOM = "﻿";
+  const csv = BOM + rows.map(r=>r.map(c=>`"${String(c||"").replace(/"/g,'""')}"`).join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  a.download = filename; a.click();
+}
+
+function printEntriesList(entries, cfg, title) {
+  const amounts = cfg?.amounts||DEFAULT_CFG.amounts;
+  const rows = entries.map((e,i)=>`<tr><td>${i+1}</td><td style="text-align:right">${e.empName}</td><td>${e.jobNum}</td><td>${sk(e)}</td><td style="font-weight:bold">${e.category}</td><td style="font-weight:bold;color:#16a34a">${(amounts[e.category]||0).toLocaleString()}</td></tr>`).join("");
+  const total = entries.reduce((s,e)=>s+(amounts[e.category]||0),0);
+  const html = `<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>${title}</title>
+  <style>body{font-family:Arial,sans-serif;padding:20px;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #000;padding:6px 8px;text-align:center}th{background:#f0f0f0}h2{text-align:center}@media print{@page{margin:1.5cm}}</style>
+  </head><body>
+  <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px"><p style="margin:2px;font-weight:bold">شركة نفط البصرة</p><p style="margin:2px">هيأة الصيانة الهندسية | القسم: السيطرة والنظم</p></div>
+  <h2>${title}</h2>
+  <table><thead><tr><th>ت</th><th>الاسم الثلاثي</th><th>الرقم الوظيفي</th><th>النوبة/المجموعة</th><th>الفئة</th><th>المبلغ (د.ع)</th></tr></thead><tbody>${rows}</tbody>
+  <tfoot><tr><td colspan="5" style="text-align:left;font-weight:bold">الإجمالي</td><td style="font-weight:bold;color:#16a34a">${total.toLocaleString()}</td></tr></tfoot></table>
+  <script>window.onload=()=>window.print()</script></body></html>`;
+  const w = window.open("","_blank"); w.document.write(html); w.document.close();
+}
 
 function printWork(work, entries, cfg) {
   const amounts = cfg?.amounts||DEFAULT_CFG.amounts;
@@ -393,6 +416,12 @@ export default function IncentivePage({ emp }) {
               <div><label className="text-xs text-secondary block mb-1">السنة</label>
                 <input type="number" value={aYear} onChange={e=>setAYear(Number(e.target.value))} className="w-full input-base rounded-lg px-3 py-2 text-sm border border-color"/></div>
             </div>
+            {allForMonth.length>0&&(
+              <div className="flex gap-2 justify-end">
+                <button onClick={()=>printEntriesList(allForMonth,cfg,`المسجلون — ${MONTHS_AR[aMonth-1]} ${aYear}`)} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Printer size={14}/> طباعة</button>
+                <button onClick={()=>{const h=["ت","الاسم","الرقم الوظيفي","النوبة","الفئة","المبلغ"];const r=allForMonth.map((e,i)=>[i+1,e.empName,e.jobNum,sk(e),e.category,(cfg?.amounts||DEFAULT_CFG.amounts)[e.category]||0]);exportCSV([h,...r],`مسجلون-${MONTHS_AR[aMonth-1]}-${aYear}.csv`);}} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Download size={14}/> Excel</button>
+              </div>
+            )}
             <EntriesTable entries={allForMonth} cfg={cfg} label="جميع المسجلين"/>
           </div>
         )}
@@ -427,6 +456,12 @@ export default function IncentivePage({ emp }) {
               <div><label className="text-xs text-secondary block mb-1">السنة</label>
                 <input type="number" value={aYear} onChange={e=>setAYear(Number(e.target.value))} className="w-full input-base rounded-lg px-3 py-2 text-sm border border-color"/></div>
             </div>
+            {contractsForMonth.length>0&&(
+              <div className="flex gap-2 justify-end">
+                <button onClick={()=>printEntriesList(contractsForMonth,cfg,`العقود — ${MONTHS_AR[aMonth-1]} ${aYear}`)} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Printer size={14}/> طباعة</button>
+                <button onClick={()=>{const h=["ت","الاسم","الرقم الوظيفي","النوبة","الفئة","المبلغ"];const r=contractsForMonth.map((e,i)=>[i+1,e.empName,e.jobNum,sk(e),e.category,(cfg?.amounts||DEFAULT_CFG.amounts)[e.category]||0]);exportCSV([h,...r],`عقود-${MONTHS_AR[aMonth-1]}-${aYear}.csv`);}} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Download size={14}/> Excel</button>
+              </div>
+            )}
             <EntriesTable entries={contractsForMonth} cfg={cfg} label="العقود"/>
           </div>
         )}
