@@ -372,13 +372,32 @@ export default function IncentivePage({ emp }) {
   );
 
   // Admin
+  const now2 = new Date();
+  const [aMonth, setAMonth] = useState(now2.getMonth()+1);
+  const [aYear,  setAYear]  = useState(now2.getFullYear());
+
   if (isAdmin) {
     const pending = works.filter(w=>w.status==="بانتظار المراجعة");
+    const allForMonth = entries.filter(e=>e.month===aMonth&&e.year===aYear&&!e.isContract);
+    const contractsForMonth = entries.filter(e=>e.month===aMonth&&e.year===aYear&&e.isContract);
     return (
       <div className="space-y-4" dir="rtl">
         {header}
-        <Tabs items={[["reg","تسجيلي"],["works",`الأعمال${pending.length?` (${pending.length})`:"" }`],["contracts","العقود"]]}/>
+        <Tabs items={[["reg","تسجيلي"],["all",`المسجلون${allForMonth.length?` (${allForMonth.length})`:"" }`],["works",`الأعمال${pending.length?` (${pending.length})`:"" }`],["contracts","العقود"]]}/>
         {tab==="reg" && <MyRegistration emp={emp} entries={entries} setEntries={setEntries}/>}
+        {tab==="all" && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-xs text-secondary block mb-1">الشهر</label>
+                <select value={aMonth} onChange={e=>setAMonth(Number(e.target.value))} className="w-full input-base rounded-lg px-3 py-2 text-sm border border-color">
+                  {MONTHS_AR.map((m,i)=><option key={i} value={i+1}>{m}</option>)}
+                </select></div>
+              <div><label className="text-xs text-secondary block mb-1">السنة</label>
+                <input type="number" value={aYear} onChange={e=>setAYear(Number(e.target.value))} className="w-full input-base rounded-lg px-3 py-2 text-sm border border-color"/></div>
+            </div>
+            <EntriesTable entries={allForMonth} cfg={cfg} label="جميع المسجلين"/>
+          </div>
+        )}
         {tab==="works" && (works.length===0 ? (
           <div className="text-center py-12 text-secondary"><p className="text-4xl mb-2">📋</p><p>لا توجد أعمال مدخلة</p></div>
         ) : (
@@ -400,7 +419,19 @@ export default function IncentivePage({ emp }) {
             ))}
           </div>
         ))}
-        {tab==="contracts" && <EntriesTable entries={entries.filter(e=>e.isContract)} cfg={cfg} label="العقود"/>}
+        {tab==="contracts" && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-xs text-secondary block mb-1">الشهر</label>
+                <select value={aMonth} onChange={e=>setAMonth(Number(e.target.value))} className="w-full input-base rounded-lg px-3 py-2 text-sm border border-color">
+                  {MONTHS_AR.map((m,i)=><option key={i} value={i+1}>{m}</option>)}
+                </select></div>
+              <div><label className="text-xs text-secondary block mb-1">السنة</label>
+                <input type="number" value={aYear} onChange={e=>setAYear(Number(e.target.value))} className="w-full input-base rounded-lg px-3 py-2 text-sm border border-color"/></div>
+            </div>
+            <EntriesTable entries={contractsForMonth} cfg={cfg} label="العقود"/>
+          </div>
+        )}
       </div>
     );
   }
