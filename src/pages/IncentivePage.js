@@ -340,6 +340,8 @@ export default function IncentivePage({ emp }) {
   const [pv,      setPv]      = useState("main");
   const [selWork, setSelWork] = useState(null);
   const [tab,     setTab]     = useState("reg");
+  const [aMonth,  setAMonth]  = useState(new Date().getMonth()+1);
+  const [aYear,   setAYear]   = useState(new Date().getFullYear());
 
   const isMorningSup = (cfg.morningSupervisors||[]).includes(emp.id);
   const isShiftSup   = (cfg.shiftSupervisors||[]).includes(emp.id);
@@ -372,10 +374,6 @@ export default function IncentivePage({ emp }) {
   );
 
   // Admin
-  const now2 = new Date();
-  const [aMonth, setAMonth] = useState(now2.getMonth()+1);
-  const [aYear,  setAYear]  = useState(now2.getFullYear());
-
   if (isAdmin) {
     const pending = works.filter(w=>w.status==="بانتظار المراجعة");
     const allForMonth = entries.filter(e=>e.month===aMonth&&e.year===aYear&&!e.isContract);
