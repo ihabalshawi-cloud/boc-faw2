@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Plus, ChevronRight, Printer, Trash2, Settings, Camera, X } from "lucide-react";
 import { storage } from "../utils";
 import { ACCOUNTS, INITIAL_EQUIPMENT, MONTHS_AR } from "../constants";
@@ -21,7 +21,7 @@ function printReport(entries, title, subtitle) {
     <tr><td>${i+1}</td><td>${e.date||""}</td><td style="text-align:right">${e.equipmentName||"—"}</td>
     <td>${e.workType||""}</td><td style="text-align:right">${e.description||""}</td>
     <td>${e.hours||0}</td><td style="text-align:right">${e.technicianName||""}</td><td>${e.status||""}</td></tr>
-    ${e.images?.length?`<tr><td colspan="8" style="padding:6px;background:#fafafa"><div style="display:flex;gap:8px;flex-wrap:wrap">${e.images.map(img=>`<img src="${img}" style="height:80px;width:80px;object-fit:cover;border-radius:6px;border:1px solid #ccc"/>`).join("")}</div></td></tr>`:""}`).join("");
+    ${(e.images?.length||e.signature)?`<tr><td colspan="8" style="padding:6px;background:#fafafa"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">${(e.images||[]).map(img=>`<img src="${img}" style="height:80px;width:80px;object-fit:cover;border-radius:6px;border:1px solid #ccc"/>`).join("")}${e.signature?`<div style="margin-right:auto;text-align:center"><img src="${e.signature}" style="height:50px;max-width:160px;object-fit:contain"/><p style="margin:2px 0;font-size:10px;color:#555">توقيع: ${e.technicianName||""}</p></div>`:""}</div></td></tr>`:""}`).join("");
   const totalHours = entries.reduce((s,e)=>s+(Number(e.hours)||0),0);
   const html = `<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>${title}</title>
   <style>body{font-family:Arial,sans-serif;padding:20px;font-size:11px}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #000;padding:5px 6px;text-align:center}th{background:#f0f0f0}h2,p.hdr{text-align:center;margin:3px 0}.sigs{display:flex;justify-content:space-between;margin-top:30px}@media print{@page{margin:1.5cm}}</style>
@@ -35,6 +35,56 @@ function printReport(entries, title, subtitle) {
   const win=window.open("","_blank"); win.document.write(html); win.document.close(); win.print();
 }
 
+// ── Signature Pad ─────────────────────────────────────────────────────────────
+function SignaturePad({ onSign }) {
+  const canvasRef  = useRef();
+  const isDrawing  = useRef(false);
+  const lastXY     = useRef([0,0]);
+
+  useEffect(() => {
+    const ctx = canvasRef.current.getContext("2d");
+    ctx.strokeStyle = "#1e293b"; ctx.lineWidth = 2;
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+  }, []);
+
+  const getXY = (e) => {
+    const r   = canvasRef.current.getBoundingClientRect();
+    const src = e.touches?.[0] || e;
+    return [src.clientX - r.left, src.clientY - r.top];
+  };
+  const start = (e) => { e.preventDefault(); isDrawing.current=true; lastXY.current=getXY(e); };
+  const move  = (e) => {
+    if (!isDrawing.current) return;
+    e.preventDefault();
+    const [x,y] = getXY(e);
+    const ctx = canvasRef.current.getContext("2d");
+    ctx.beginPath(); ctx.moveTo(lastXY.current[0],lastXY.current[1]);
+    ctx.lineTo(x,y); ctx.stroke();
+    lastXY.current = [x,y];
+  };
+  const end = () => { if (isDrawing.current) { isDrawing.current=false; onSign(canvasRef.current.toDataURL()); } };
+  const clear = () => {
+    const c = canvasRef.current;
+    c.getContext("2d").clearRect(0,0,c.width,c.height); onSign(null);
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-xs text-secondary">التوقيع الإلكتروني *</label>
+        <button type="button" onClick={clear} className="text-xs text-red-500 hover:underline">مسح</button>
+      </div>
+      <canvas ref={canvasRef} width={800} height={160}
+        className="w-full rounded-xl border border-color bg-white dark:bg-white touch-none cursor-crosshair"
+        style={{height:"120px"}}
+        onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
+        onTouchStart={start} onTouchMove={move} onTouchEnd={end}
+      />
+      <p className="text-[11px] text-secondary mt-1">وقّع بإصبعك (على الجوال) أو بالماوس</p>
+    </div>
+  );
+}
+
 // ── Entry Form ─────────────────────────────────────────────────────────────────
 function EntryForm({ emp, allEquipment, onSave, onCancel }) {
   const toast   = useToast();
@@ -46,7 +96,8 @@ function EntryForm({ emp, allEquipment, onSave, onCancel }) {
   const [desc,   setDesc]   = useState("");
   const [hours,  setHours]  = useState(1);
   const [status, setStatus] = useState("مكتمل");
-  const [images, setImages] = useState([]);
+  const [images,    setImages]    = useState([]);
+  const [signature, setSignature] = useState(null);
 
   const addImages = async (files) => {
     const rem = 4 - images.length;
@@ -56,10 +107,11 @@ function EntryForm({ emp, allEquipment, onSave, onCancel }) {
   };
 
   const save = () => {
-    if (!desc.trim()) { toast("أدخل وصف العمل","warning"); return; }
+    if (!desc.trim())  { toast("أدخل وصف العمل","warning"); return; }
+    if (!signature)    { toast("يجب التوقيع الإلكتروني قبل الحفظ","warning"); return; }
     const eq = allEquipment.find(e=>e.id===eqId);
     onSave({ id:Date.now(), date, equipmentId:eqId, equipmentName:eqId==="__other"?eqName:(eq?.name||""),
-      workType:wType, description:desc, hours:Number(hours)||1, status, images,
+      workType:wType, description:desc, hours:Number(hours)||1, status, images, signature,
       technicianId:emp.id, technicianName:emp.name,
       shift:emp.shift==="صباحي"?"صباحي":(emp.group||""), createdAt:new Date().toISOString() });
   };
@@ -116,6 +168,8 @@ function EntryForm({ emp, allEquipment, onSave, onCancel }) {
             )}
           </div>
         </div>
+        <SignaturePad onSign={setSignature}/>
+        {signature&&<p className="text-xs text-emerald-600 font-medium">✓ تم التوقيع</p>}
         <button onClick={save} className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">حفظ السجل</button>
       </div>
     </div>
@@ -166,6 +220,12 @@ function DailyView({ entries, date, setDate, emp, isAdmin, canWrite, onDelete, o
                   {e.equipmentName&&<p className="text-sm font-medium">{e.equipmentName}</p>}
                   <p className="text-sm text-secondary mt-0.5">{e.description}</p>
                   <p className="text-xs text-secondary mt-1.5">{e.technicianName}</p>
+                  {e.signature&&(
+                    <div className="mt-2 pt-2 border-t border-color">
+                      <p className="text-[10px] text-secondary mb-1">توقيع الكاتب</p>
+                      <img src={e.signature} alt="توقيع" className="h-10 max-w-[140px] object-contain opacity-80"/>
+                    </div>
+                  )}
                   {e.images?.length>0&&(
                     <div className="flex gap-2 mt-2 flex-wrap">
                       {e.images.map((img,i)=>(
