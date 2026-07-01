@@ -1,20 +1,27 @@
-import React, { useState } from "react";
-import { Plus, ChevronRight, Printer, Trash2 } from "lucide-react";
+import React, { useState, useRef } from "react";
+import { Plus, ChevronRight, Printer, Trash2, Settings, Camera, X } from "lucide-react";
 import { storage } from "../utils";
 import { ACCOUNTS, INITIAL_EQUIPMENT, MONTHS_AR } from "../constants";
 import { useToast, useConfirm } from "../contexts";
 
-const WKEY = "maint_work_log";
-const WORK_TYPES = ["صيانة دورية","صيانة طارئة","فحص","إصلاح","تنظيف","تشغيل","أخرى"];
+const WKEY    = "maint_work_log";
+const CFGKEY  = "maint_rpt_cfg";
+const DEFAULT_CFG = { maintSupervisors:[], shiftSupervisors:[] };
+const WORK_TYPES  = ["صيانة دورية","صيانة طارئة","فحص","إصلاح","تنظيف","تشغيل","أخرى"];
 const SC = { "مكتمل":"bg-emerald-100 text-emerald-700","جاري":"bg-blue-100 text-blue-700","متوقف":"bg-amber-100 text-amber-700" };
 const toYMD = d => d.toISOString().slice(0,10);
+
+function readB64(file) {
+  return new Promise(res => { const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file); });
+}
 
 // ── Print ──────────────────────────────────────────────────────────────────────
 function printReport(entries, title, subtitle) {
   const rows = entries.map((e,i)=>`
     <tr><td>${i+1}</td><td>${e.date||""}</td><td style="text-align:right">${e.equipmentName||"—"}</td>
     <td>${e.workType||""}</td><td style="text-align:right">${e.description||""}</td>
-    <td>${e.hours||0}</td><td style="text-align:right">${e.technicianName||""}</td><td>${e.status||""}</td></tr>`).join("");
+    <td>${e.hours||0}</td><td style="text-align:right">${e.technicianName||""}</td><td>${e.status||""}</td></tr>
+    ${e.images?.length?`<tr><td colspan="8" style="padding:6px;background:#fafafa"><div style="display:flex;gap:8px;flex-wrap:wrap">${e.images.map(img=>`<img src="${img}" style="height:80px;width:80px;object-fit:cover;border-radius:6px;border:1px solid #ccc"/>`).join("")}</div></td></tr>`:""}`).join("");
   const totalHours = entries.reduce((s,e)=>s+(Number(e.hours)||0),0);
   const html = `<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>${title}</title>
   <style>body{font-family:Arial,sans-serif;padding:20px;font-size:11px}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #000;padding:5px 6px;text-align:center}th{background:#f0f0f0}h2,p.hdr{text-align:center;margin:3px 0}.sigs{display:flex;justify-content:space-between;margin-top:30px}@media print{@page{margin:1.5cm}}</style>
@@ -22,15 +29,16 @@ function printReport(entries, title, subtitle) {
   <p class="hdr" style="font-weight:bold">شركة نفط البصرة — هيأة الصيانة الهندسية — القسم: السيطرة والنظم</p>
   <h2>${title}</h2><p class="hdr" style="color:#555">${subtitle}</p>
   <table><thead><tr><th>ت</th><th>التاريخ</th><th>المعدة</th><th>نوع العمل</th><th>الوصف</th><th>الساعات</th><th>الفني</th><th>الحالة</th></tr></thead>
-  <tbody>${rows}<tr><td colspan="5" style="font-weight:bold;text-align:right;padding-left:12px">الإجمالي</td><td style="font-weight:bold">${totalHours}</td><td colspan="2"></td></tr></tbody></table>
+  <tbody>${rows}<tr><td colspan="5" style="font-weight:bold;text-align:right">الإجمالي</td><td style="font-weight:bold">${totalHours}</td><td colspan="2"></td></tr></tbody></table>
   <div class="sigs"><div style="text-align:center"><p>رئيس الشعبة</p><br/><br/><p>.................................</p></div><div style="text-align:center"><p>مدير القسم</p><br/><br/><p>.................................</p></div></div>
   </body></html>`;
-  const win = window.open("","_blank"); win.document.write(html); win.document.close(); win.print();
+  const win=window.open("","_blank"); win.document.write(html); win.document.close(); win.print();
 }
 
-// ── Add Entry Form ─────────────────────────────────────────────────────────────
+// ── Entry Form ─────────────────────────────────────────────────────────────────
 function EntryForm({ emp, allEquipment, onSave, onCancel }) {
-  const toast = useToast();
+  const toast   = useToast();
+  const fileRef = useRef();
   const [date,   setDate]   = useState(toYMD(new Date()));
   const [eqId,   setEqId]   = useState("");
   const [eqName, setEqName] = useState("");
@@ -38,12 +46,20 @@ function EntryForm({ emp, allEquipment, onSave, onCancel }) {
   const [desc,   setDesc]   = useState("");
   const [hours,  setHours]  = useState(1);
   const [status, setStatus] = useState("مكتمل");
+  const [images, setImages] = useState([]);
+
+  const addImages = async (files) => {
+    const rem = 4 - images.length;
+    if (rem <= 0) { toast("الحد الأقصى 4 صور","warning"); return; }
+    const b64s = await Promise.all(Array.from(files).slice(0,rem).map(readB64));
+    setImages(p=>[...p,...b64s]);
+  };
 
   const save = () => {
     if (!desc.trim()) { toast("أدخل وصف العمل","warning"); return; }
     const eq = allEquipment.find(e=>e.id===eqId);
     onSave({ id:Date.now(), date, equipmentId:eqId, equipmentName:eqId==="__other"?eqName:(eq?.name||""),
-      workType:wType, description:desc, hours:Number(hours)||1, status,
+      workType:wType, description:desc, hours:Number(hours)||1, status, images,
       technicianId:emp.id, technicianName:emp.name,
       shift:emp.shift==="صباحي"?"صباحي":(emp.group||""), createdAt:new Date().toISOString() });
   };
@@ -83,6 +99,23 @@ function EntryForm({ emp, allEquipment, onSave, onCancel }) {
               <button key={s} onClick={()=>setStatus(s)} className={`flex-1 py-1.5 rounded-lg text-xs border transition-colors ${status===s?"bg-blue-600 text-white border-blue-600":"border-color hover:bg-hover"}`}>{s}</button>
             ))}
           </div></div>
+        <div>
+          <label className="text-xs text-secondary block mb-1">الصور ({images.length}/4)</label>
+          <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={e=>addImages(e.target.files)}/>
+          <div className="flex gap-2 flex-wrap">
+            {images.map((img,i)=>(
+              <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border border-color shrink-0">
+                <img src={img} alt="" className="w-full h-full object-cover"/>
+                <button onClick={()=>setImages(p=>p.filter((_,j)=>j!==i))} className="absolute top-0.5 right-0.5 bg-black/60 rounded-full p-0.5"><X size={10} className="text-white"/></button>
+              </div>
+            ))}
+            {images.length<4&&(
+              <button onClick={()=>fileRef.current?.click()} className="w-20 h-20 rounded-xl border-2 border-dashed border-color flex flex-col items-center justify-center hover:bg-hover transition-colors gap-1">
+                <Camera size={18} className="text-secondary"/><span className="text-[10px] text-secondary">إضافة</span>
+              </button>
+            )}
+          </div>
+        </div>
         <button onClick={save} className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">حفظ السجل</button>
       </div>
     </div>
@@ -90,8 +123,8 @@ function EntryForm({ emp, allEquipment, onSave, onCancel }) {
 }
 
 // ── Daily View ─────────────────────────────────────────────────────────────────
-function DailyView({ entries, date, setDate, emp, isAdmin, onDelete, onAdd }) {
-  const confirm = useConfirm();
+function DailyView({ entries, date, setDate, emp, isAdmin, canWrite, onDelete, onAdd }) {
+  const confirm    = useConfirm();
   const dayEntries = entries.filter(e=>e.date===date).sort((a,b)=>b.id-a.id);
   const totalHours = dayEntries.reduce((s,e)=>s+(Number(e.hours)||0),0);
   const del = async (id) => { if (await confirm("حذف هذا السجل؟")) onDelete(id); };
@@ -104,7 +137,7 @@ function DailyView({ entries, date, setDate, emp, isAdmin, onDelete, onAdd }) {
           <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full input-base rounded-lg px-3 py-2 text-sm border border-color"/></div>
         <div className="flex gap-2">
           {dayEntries.length>0&&<button onClick={doPrint} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Printer size={14}/> طباعة</button>}
-          <button onClick={onAdd} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700"><Plus size={14}/> إضافة</button>
+          {canWrite&&<button onClick={onAdd} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700"><Plus size={14}/> إضافة</button>}
         </div>
       </div>
       {dayEntries.length>0&&(
@@ -117,7 +150,7 @@ function DailyView({ entries, date, setDate, emp, isAdmin, onDelete, onAdd }) {
       {dayEntries.length===0 ? (
         <div className="text-center py-14 text-secondary">
           <p className="text-5xl mb-3">🔧</p><p className="font-medium">لا توجد سجلات لهذا اليوم</p>
-          <button onClick={onAdd} className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">+ إضافة سجل</button>
+          {canWrite&&<button onClick={onAdd} className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">+ إضافة سجل</button>}
         </div>
       ) : (
         <div className="space-y-2">
@@ -131,8 +164,16 @@ function DailyView({ entries, date, setDate, emp, isAdmin, onDelete, onAdd }) {
                     <span className="text-xs text-secondary">{e.hours} ساعة</span>
                   </div>
                   {e.equipmentName&&<p className="text-sm font-medium">{e.equipmentName}</p>}
-                  <p className="text-sm text-secondary mt-0.5 line-clamp-3">{e.description}</p>
+                  <p className="text-sm text-secondary mt-0.5">{e.description}</p>
                   <p className="text-xs text-secondary mt-1.5">{e.technicianName}</p>
+                  {e.images?.length>0&&(
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {e.images.map((img,i)=>(
+                        <img key={i} src={img} alt="" onClick={()=>window.open(img,"_blank")}
+                          className="w-16 h-16 rounded-xl object-cover border border-color cursor-pointer hover:opacity-90 transition-opacity"/>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {(isAdmin||e.technicianId===emp.id)&&(
                   <button onClick={()=>del(e.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg shrink-0"><Trash2 size={13}/></button>
@@ -147,7 +188,7 @@ function DailyView({ entries, date, setDate, emp, isAdmin, onDelete, onAdd }) {
 }
 
 // ── Monthly View ───────────────────────────────────────────────────────────────
-function MonthlyView({ entries, emp, isAdmin }) {
+function MonthlyView({ entries, isAdmin }) {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth());
   const [year,  setYear]  = useState(now.getFullYear());
@@ -160,7 +201,6 @@ function MonthlyView({ entries, emp, isAdmin }) {
 
   const totalHours = monthEntries.reduce((s,e)=>s+(Number(e.hours)||0),0);
   const doPrint = () => printReport(monthEntries,"تقرير العمل الشهري",`${MONTHS_AR[month]} ${year}`);
-
   const byDate = monthEntries.reduce((acc,e)=>{ (acc[e.date]||(acc[e.date]=[])).push(e); return acc; },{});
   const byType = WORK_TYPES.reduce((acc,t)=>{ acc[t]=monthEntries.filter(e=>e.workType===t).length; return acc; },{});
 
@@ -176,27 +216,25 @@ function MonthlyView({ entries, emp, isAdmin }) {
         {monthEntries.length>0&&<button onClick={doPrint} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Printer size={14}/> طباعة</button>}
       </div>
       {monthEntries.length>0&&(
-        <div className="grid grid-cols-3 gap-3">
-          <div className="card rounded-2xl border border-color p-3 text-center"><p className="text-xl font-bold text-blue-600">{monthEntries.length}</p><p className="text-xs text-secondary">إجمالي السجلات</p></div>
-          <div className="card rounded-2xl border border-color p-3 text-center"><p className="text-xl font-bold text-emerald-600">{totalHours}</p><p className="text-xs text-secondary">إجمالي الساعات</p></div>
-          <div className="card rounded-2xl border border-color p-3 text-center"><p className="text-xl font-bold text-amber-600">{Object.keys(byDate).length}</p><p className="text-xs text-secondary">يوم عمل</p></div>
-        </div>
-      )}
-      {monthEntries.length>0&&(
-        <div className="card rounded-2xl border border-color p-4">
-          <h4 className="font-bold text-sm mb-3">توزيع نوع الأعمال</h4>
-          <div className="space-y-1.5">
-            {WORK_TYPES.filter(t=>byType[t]>0).map(t=>(
-              <div key={t} className="flex items-center gap-2">
-                <span className="text-xs text-secondary w-28 shrink-0">{t}</span>
-                <div className="flex-1 bg-hover rounded-full h-2 overflow-hidden">
-                  <div className="h-2 bg-blue-500 rounded-full" style={{width:`${Math.round(byType[t]/monthEntries.length*100)}%`}}/>
-                </div>
-                <span className="text-xs font-bold w-5 text-right">{byType[t]}</span>
-              </div>
-            ))}
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="card rounded-2xl border border-color p-3 text-center"><p className="text-xl font-bold text-blue-600">{monthEntries.length}</p><p className="text-xs text-secondary">إجمالي السجلات</p></div>
+            <div className="card rounded-2xl border border-color p-3 text-center"><p className="text-xl font-bold text-emerald-600">{totalHours}</p><p className="text-xs text-secondary">إجمالي الساعات</p></div>
+            <div className="card rounded-2xl border border-color p-3 text-center"><p className="text-xl font-bold text-amber-600">{Object.keys(byDate).length}</p><p className="text-xs text-secondary">يوم عمل</p></div>
           </div>
-        </div>
+          <div className="card rounded-2xl border border-color p-4">
+            <h4 className="font-bold text-sm mb-3">توزيع نوع الأعمال</h4>
+            <div className="space-y-1.5">
+              {WORK_TYPES.filter(t=>byType[t]>0).map(t=>(
+                <div key={t} className="flex items-center gap-2">
+                  <span className="text-xs text-secondary w-28 shrink-0">{t}</span>
+                  <div className="flex-1 bg-hover rounded-full h-2 overflow-hidden"><div className="h-2 bg-blue-500 rounded-full" style={{width:`${Math.round(byType[t]/monthEntries.length*100)}%`}}/></div>
+                  <span className="text-xs font-bold w-5 text-right">{byType[t]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
       )}
       {monthEntries.length===0 ? (
         <div className="text-center py-14 text-secondary"><p className="text-5xl mb-3">📊</p><p className="font-medium">لا توجد سجلات لهذا الشهر</p></div>
@@ -204,12 +242,11 @@ function MonthlyView({ entries, emp, isAdmin }) {
         <div className="space-y-3">
           {Object.entries(byDate).sort(([a],[b])=>b.localeCompare(a)).map(([dt,dEntries])=>{
             const d = new Date(dt+"T00:00:00");
-            const dHrs = dEntries.reduce((s,e)=>s+(Number(e.hours)||0),0);
             return (
               <div key={dt} className="card rounded-2xl border border-color overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-2.5 bg-hover border-b border-color">
                   <span className="text-sm font-bold">{d.getDate()} {MONTHS_AR[d.getMonth()]} {d.getFullYear()}</span>
-                  <span className="text-xs text-secondary">{dEntries.length} سجل • {dHrs} ساعة</span>
+                  <span className="text-xs text-secondary">{dEntries.length} سجل • {dEntries.reduce((s,e)=>s+(Number(e.hours)||0),0)} ساعة</span>
                 </div>
                 {dEntries.map(e=>(
                   <div key={e.id} className="px-4 py-3 border-b border-color last:border-0">
@@ -218,7 +255,7 @@ function MonthlyView({ entries, emp, isAdmin }) {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-blue-600">{e.workType}{e.equipmentName?` — ${e.equipmentName}`:""}</p>
                         <p className="text-sm mt-0.5">{e.description}</p>
-                        <p className="text-xs text-secondary mt-0.5">{e.technicianName} • {e.hours} ساعة</p>
+                        <p className="text-xs text-secondary mt-0.5">{e.technicianName} • {e.hours} ساعة{e.images?.length?` • 🖼 ${e.images.length}`:""}</p>
                       </div>
                     </div>
                   </div>
@@ -232,36 +269,82 @@ function MonthlyView({ entries, emp, isAdmin }) {
   );
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────────
-export default function MaintenanceWorkReport({ emp }) {
-  const isAdmin = emp.role==="admin"||emp.username==="i.shawi";
-  const allEquipment = storage.get("equipment", INITIAL_EQUIPMENT);
-  const [entries, setEntries] = useState(()=>storage.get(WKEY,[]));
-  const [tab, setTab]   = useState("daily");
-  const [pv,  setPv]    = useState("list");
-  const [date, setDate] = useState(toYMD(new Date()));
-
-  const save = (entry) => {
-    const up = [entry,...entries]; setEntries(up); storage.set(WKEY,up); setPv("list");
-  };
-  const del = (id) => {
-    const up = entries.filter(e=>e.id!==id); setEntries(up); storage.set(WKEY,up);
-  };
-
-  const visible = isAdmin ? entries : entries.filter(e=>e.technicianId===emp.id);
-
-  if (pv==="add") return <EntryForm emp={emp} allEquipment={allEquipment} onSave={save} onCancel={()=>setPv("list")}/>;
+// ── Settings ───────────────────────────────────────────────────────────────────
+function SettingsView({ cfg, onSave, onBack }) {
+  const toast = useToast();
+  const [maintSups, setMaintSups] = useState(cfg?.maintSupervisors||[]);
+  const [shiftSups, setShiftSups] = useState(cfg?.shiftSupervisors||[]);
+  const all = ACCOUNTS.filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name,"ar"));
+  const tog = (setter,list,id) => setter(list.includes(id)?list.filter(x=>x!==id):[...list,id]);
 
   return (
     <div className="space-y-4" dir="rtl">
-      <h2 className="font-bold text-lg">تقارير العمل الصيانة</h2>
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="flex items-center gap-1 text-sm text-secondary hover:text-primary"><ChevronRight size={16}/> رجوع</button>
+        <h2 className="font-bold">صلاحيات كتابة التقرير</h2>
+      </div>
+      <div className="card rounded-2xl border border-color p-4 space-y-2">
+        <h3 className="font-bold text-sm">مسؤولو الصيانة</h3>
+        <div className="space-y-0.5 max-h-48 overflow-y-auto">
+          {all.map(e=>(
+            <label key={e.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-hover cursor-pointer">
+              <input type="checkbox" checked={maintSups.includes(e.id)} onChange={()=>tog(setMaintSups,maintSups,e.id)} className="w-4 h-4"/>
+              <span className="text-sm flex-1">{e.name.split(" ").slice(0,3).join(" ")}</span>
+              <span className="text-xs text-secondary">{e.title}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className="card rounded-2xl border border-color p-4 space-y-2">
+        <h3 className="font-bold text-sm">مسؤولو النوبات</h3>
+        <div className="space-y-0.5 max-h-48 overflow-y-auto">
+          {all.filter(e=>e.shift==="مناوبة").map(e=>(
+            <label key={e.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-hover cursor-pointer">
+              <input type="checkbox" checked={shiftSups.includes(e.id)} onChange={()=>tog(setShiftSups,shiftSups,e.id)} className="w-4 h-4"/>
+              <span className="text-sm flex-1">{e.name.split(" ").slice(0,3).join(" ")}</span>
+              <span className="text-xs text-secondary">مج {e.group||"—"}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <button onClick={()=>{onSave({maintSupervisors:maintSups,shiftSupervisors:shiftSups});toast("تم حفظ الإعدادات","success");}} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700">
+        حفظ الإعدادات
+      </button>
+    </div>
+  );
+}
+
+// ── Main ───────────────────────────────────────────────────────────────────────
+export default function MaintenanceWorkReport({ emp }) {
+  const isAdmin      = emp.role==="admin"||emp.username==="i.shawi";
+  const allEquipment = storage.get("equipment", INITIAL_EQUIPMENT);
+  const [entries, setEntries] = useState(()=>storage.get(WKEY,[]));
+  const [cfg,     setCfg]     = useState(()=>storage.get(CFGKEY,DEFAULT_CFG));
+  const [tab,  setTab]  = useState("daily");
+  const [pv,   setPv]   = useState("list");
+  const [date, setDate] = useState(toYMD(new Date()));
+
+  const canWrite = isAdmin || (cfg.maintSupervisors||[]).includes(emp.id) || (cfg.shiftSupervisors||[]).includes(emp.id);
+  const saveCfg  = c => { setCfg(c); storage.set(CFGKEY,c); };
+  const save     = entry => { const up=[entry,...entries]; setEntries(up); storage.set(WKEY,up); setPv("list"); };
+  const del      = id    => { const up=entries.filter(e=>e.id!==id); setEntries(up); storage.set(WKEY,up); };
+
+  if (pv==="add"&&canWrite) return <EntryForm emp={emp} allEquipment={allEquipment} onSave={save} onCancel={()=>setPv("list")}/>;
+  if (pv==="settings"&&isAdmin) return <SettingsView cfg={cfg} onSave={c=>{saveCfg(c);setPv("list");}} onBack={()=>setPv("list")}/>;
+
+  return (
+    <div className="space-y-4" dir="rtl">
+      <div className="flex items-center justify-between">
+        <h2 className="font-bold text-lg">تقارير العمل الصيانة</h2>
+        {isAdmin&&<button onClick={()=>setPv("settings")} className="p-2 btn-secondary rounded-xl border border-color"><Settings size={16}/></button>}
+      </div>
       <div className="flex gap-1 border-b border-color">
         {[["daily","التقرير اليومي"],["monthly","التقرير الشهري"]].map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)} className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${tab===k?"border-blue-600 text-blue-600":"border-transparent text-secondary hover:text-primary"}`}>{l}</button>
         ))}
       </div>
-      {tab==="daily"   && <DailyView   entries={visible} date={date} setDate={setDate} emp={emp} isAdmin={isAdmin} onDelete={del} onAdd={()=>setPv("add")}/>}
-      {tab==="monthly" && <MonthlyView entries={visible} emp={emp} isAdmin={isAdmin}/>}
+      {tab==="daily"   && <DailyView   entries={entries} date={date} setDate={setDate} emp={emp} isAdmin={isAdmin} canWrite={canWrite} onDelete={del} onAdd={()=>setPv("add")}/>}
+      {tab==="monthly" && <MonthlyView entries={entries} isAdmin={isAdmin}/>}
     </div>
   );
 }
