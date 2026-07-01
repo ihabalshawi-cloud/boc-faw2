@@ -194,7 +194,7 @@ function GroupView({ emp, entries, works, setWorks, shiftKey, cfg }) {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth()+1);
   const [year,  setYear]  = useState(now.getFullYear());
-  const groupEntries    = entries.filter(e=>e.shiftKey===shiftKey&&e.month===month&&e.year===year&&!e.isContract);
+  const groupEntries    = entries.filter(e=>e.month===month&&e.year===year&&!e.isContract);
   const contractEntries = entries.filter(e=>e.isContract&&e.month===month&&e.year===year);
   const existingWork    = works.find(w=>w.shiftKey===shiftKey&&w.month===month&&w.year===year&&w.status!=="مرفوضة");
 
@@ -214,7 +214,7 @@ function GroupView({ emp, entries, works, setWorks, shiftKey, cfg }) {
           <button onClick={()=>printWork(existingWork,groupEntries,cfg)} className="flex items-center gap-1 px-3 py-1.5 btn-secondary border border-color rounded-lg text-sm"><Printer size={13}/> طباعة</button>
         </div>
       )}
-      <EntriesTable entries={groupEntries} cfg={cfg} label={shiftKey}/>
+      <EntriesTable entries={groupEntries} cfg={cfg} label="جميع المسجلين"/>
       {contractEntries.length > 0 && <EntriesTable entries={contractEntries} cfg={cfg} label="العقود"/>}
     </div>
   );
