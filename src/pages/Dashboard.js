@@ -45,6 +45,7 @@ const LazyMaintenanceAnalytics = React.lazy(() => import('./EquipmentPage').then
 const LazyHealthInsurancePage = React.lazy(() => import('./HealthInsurancePage'));
 const LazyLeaveFormsPage = React.lazy(() => import('./LeaveFormsPage'));
 const LazyProjectManagementPage = React.lazy(() => import('./ProjectManagementPage'));
+const LazyIncentivePage = React.lazy(() => import('./IncentivePage'));
 
 function useSmartAlerts(employees) {
   const [alerts, setAlerts] = useState([]);
@@ -101,7 +102,7 @@ class ReqErrorBoundary extends React.Component {
   }
 }
 
-const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","changepass","health_insurance","approvals","employees","admin_dashboard","timesheet"]);
+const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","changepass","health_insurance","approvals","employees","admin_dashboard","timesheet","incentive"]);
 const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","inventory","furniture","projects"]);
 
 export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode, largeFont, setLargeFont }) {
@@ -225,6 +226,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     { id:"evaluation", label:"التقييم", icon:<Star size={17}/> },
     { id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> },
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
+    { id:"incentive", label:"نظام المكافآت", icon:<Star size={17}/>, badge: (() => { const c=storage.get("boc_incentive_v1",[]).filter(f=>f.status==="بانتظار المراجعة").length; return (isAdmin&&c>0)?c:0; })() },
     ...(isTimeSheetAdmin ? [{ id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> }] : []),
     { id:"notifications", label:"الإشعارات", icon:<Bell size={17}/>, badge:unreadNotifs },
     { id:"changepass", label:"تغيير المرور", icon:<Shield size={17}/> },
@@ -425,6 +427,12 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
           {view==="health_insurance" && (
             <React.Suspense fallback={<PageSkeleton/>}>
               <LazyHealthInsurancePage emp={emp}/>
+            </React.Suspense>
+          )}
+
+          {view==="incentive" && (
+            <React.Suspense fallback={<PageSkeleton/>}>
+              <LazyIncentivePage emp={emp} employees={employees}/>
             </React.Suspense>
           )}
 

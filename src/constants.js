@@ -269,4 +269,5 @@ export const VIEW_LABELS = {
   health_insurance:"الضمان الصحي", leave_forms:"نماذج الإجازات",
   projects:"إدارة المشاريع", timesheet:"التايم شيت",
   admin_dashboard:"لوحة الإدارة",
+  incentive:"نظام المكافآت",
 };
