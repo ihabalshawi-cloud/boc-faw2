@@ -189,6 +189,7 @@ function DailyView({ entries, date, setDate, emp, isAdmin, canWrite, onDelete, o
   const confirm    = useConfirm();
   const dayEntries = entries.filter(e=>e.date===date).sort((a,b)=>b.id-a.id);
   const totalHours = dayEntries.reduce((s,e)=>s+(Number(e.hours)||0),0);
+  const alreadyLogged = entries.some(e=>e.date===date && e.technicianId===emp.id);
   const del = async (id) => { if (await confirm("حذف هذا السجل؟")) onDelete(id); };
   const doPrint = () => { const d=new Date(date+"T00:00:00"); printReport(dayEntries,"تقرير العمل اليومي",`${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`); };
   const doExport = () => {
@@ -205,7 +206,8 @@ function DailyView({ entries, date, setDate, emp, isAdmin, canWrite, onDelete, o
         <div className="flex gap-2">
           {dayEntries.length>0&&<button onClick={doPrint} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Printer size={14}/> طباعة</button>}
           {dayEntries.length>0&&<button onClick={doExport} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Download size={14}/> Excel</button>}
-          {canWrite&&<button onClick={onAdd} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700"><Plus size={14}/> إضافة</button>}
+          {canWrite&&!alreadyLogged&&<button onClick={onAdd} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700"><Plus size={14}/> إضافة</button>}
+          {canWrite&&alreadyLogged&&<span className="px-3 py-2 text-xs text-amber-600 font-medium bg-amber-50 rounded-xl border border-amber-200">سجّلت اليوم ✓</span>}
         </div>
       </div>
       {dayEntries.length>0&&(
@@ -218,7 +220,7 @@ function DailyView({ entries, date, setDate, emp, isAdmin, canWrite, onDelete, o
       {dayEntries.length===0 ? (
         <div className="text-center py-14 text-secondary">
           <p className="text-5xl mb-3">🔧</p><p className="font-medium">لا توجد سجلات لهذا اليوم</p>
-          {canWrite&&<button onClick={onAdd} className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">+ إضافة سجل</button>}
+          {canWrite&&!alreadyLogged&&<button onClick={onAdd} className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">+ إضافة سجل</button>}
         </div>
       ) : (
         <div className="space-y-2">
@@ -404,9 +406,14 @@ export default function MaintenanceWorkReport({ emp }) {
   const [pv,   setPv]   = useState("list");
   const [date, setDate] = useState(toYMD(new Date()));
 
-  const canWrite = isAdmin || (cfg.maintSupervisors||[]).includes(emp.id) || (cfg.shiftSupervisors||[]).includes(emp.id);
-  const saveCfg  = c => { setCfg(c); storage.set(CFGKEY,c); };
-  const save     = entry => { const up=[entry,...entries]; setEntries(up); storage.set(WKEY,up); setPv("list"); };
+  const toast     = useToast();
+  const canWrite  = isAdmin || (cfg.maintSupervisors||[]).includes(emp.id) || (cfg.shiftSupervisors||[]).includes(emp.id);
+  const saveCfg   = c => { setCfg(c); storage.set(CFGKEY,c); };
+  const save      = entry => {
+    const alreadyToday = entries.some(e=>e.date===entry.date && e.technicianId===emp.id);
+    if (alreadyToday) { toast("لقد سجّلت تقريراً لهذا اليوم من قبل، يُسمح بتقرير واحد يومياً","warning"); return; }
+    const up=[entry,...entries]; setEntries(up); storage.set(WKEY,up); setPv("list");
+  };
   const del      = id    => { const up=entries.filter(e=>e.id!==id); setEntries(up); storage.set(WKEY,up); };
 
   if (pv==="add"&&canWrite) return <EntryForm emp={emp} allEquipment={allEquipment} onSave={save} onCancel={()=>setPv("list")}/>;
