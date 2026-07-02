@@ -31,71 +31,29 @@ function archiveJSON(entries, label) {
   a.download = `أرشيف-${label}.json`; a.click();
 }
 
-// ── Print ──────────────────────────────────────────────────────────────────────
 function printReport(entries, title, subtitle) {
-  const rows = entries.map((e,i)=>`
-    <tr><td>${i+1}</td><td>${e.date||""}</td><td style="text-align:right">${e.equipmentName||"—"}</td>
-    <td>${e.workType||""}</td><td style="text-align:right">${e.description||""}</td>
-    <td>${e.hours||0}</td><td style="text-align:right">${e.technicianName||""}</td><td>${e.status||""}</td></tr>
-    ${(e.images?.length||e.signature)?`<tr><td colspan="8" style="padding:6px;background:#fafafa"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">${(e.images||[]).map(img=>`<img src="${img}" style="height:80px;width:80px;object-fit:cover;border-radius:6px;border:1px solid #ccc"/>`).join("")}${e.signature?`<div style="margin-right:auto;text-align:center"><img src="${e.signature}" style="height:50px;max-width:160px;object-fit:contain"/><p style="margin:2px 0;font-size:10px;color:#555">توقيع: ${e.technicianName||""}</p></div>`:""}</div></td></tr>`:""}`).join("");
+  const rows = entries.map((e,i)=>`<tr><td>${i+1}</td><td>${e.date||""}</td><td style="text-align:right">${e.equipmentName||"—"}</td><td>${e.workType||""}</td><td style="text-align:right">${e.description||""}</td><td>${e.hours||0}</td><td>${e.status||""}</td></tr>${e.images?.length?`<tr><td colspan="7" style="padding:6px;background:#fafafa"><div style="display:flex;gap:8px;flex-wrap:wrap">${e.images.map(img=>`<img src="${img}" style="height:80px;width:80px;object-fit:cover;border-radius:6px;border:1px solid #ccc"/>`).join("")}</div></td></tr>`:""}`).join("");
   const totalHours = entries.reduce((s,e)=>s+(Number(e.hours)||0),0);
-  const html = `<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>${title}</title>
-  <style>body{font-family:Arial,sans-serif;padding:20px;font-size:11px}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #000;padding:5px 6px;text-align:center}th{background:#f0f0f0}h2,p.hdr{text-align:center;margin:3px 0}.sigs{display:flex;justify-content:space-between;margin-top:30px}@media print{@page{margin:1.5cm}}</style>
-  </head><body>
-  <p class="hdr" style="font-weight:bold">شركة نفط البصرة — هيأة الصيانة الهندسية — القسم: السيطرة والنظم</p>
-  <h2>${title}</h2><p class="hdr" style="color:#555">${subtitle}</p>
-  <table><thead><tr><th>ت</th><th>التاريخ</th><th>المعدة</th><th>نوع العمل</th><th>الوصف</th><th>الساعات</th><th>الفني</th><th>الحالة</th></tr></thead>
-  <tbody>${rows}<tr><td colspan="5" style="font-weight:bold;text-align:right">الإجمالي</td><td style="font-weight:bold">${totalHours}</td><td colspan="2"></td></tr></tbody></table>
-  <div class="sigs"><div style="text-align:center"><p>رئيس الشعبة</p><br/><br/><p>.................................</p></div><div style="text-align:center"><p>مدير القسم</p><br/><br/><p>.................................</p></div></div>
-  </body></html>`;
+  const html = `<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Arial,sans-serif;padding:20px;font-size:11px}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #000;padding:5px 6px;text-align:center}th{background:#f0f0f0}h2,p.hdr{text-align:center;margin:3px 0}.sigs{display:flex;justify-content:space-between;margin-top:30px}@media print{@page{margin:1.5cm}}</style></head><body><p class="hdr" style="font-weight:bold">شركة نفط البصرة — هيأة الصيانة الهندسية — القسم: السيطرة والنظم</p><h2>${title}</h2><p class="hdr" style="color:#555">${subtitle}</p><table><thead><tr><th>ت</th><th>التاريخ</th><th>المعدة</th><th>نوع العمل</th><th>الوصف</th><th>الساعات</th><th>الحالة</th></tr></thead><tbody>${rows}<tr><td colspan="5" style="font-weight:bold;text-align:right">الإجمالي</td><td style="font-weight:bold">${totalHours}</td><td></td></tr></tbody></table><div class="sigs"><div style="text-align:center"><p>رئيس الشعبة</p><br/><br/><p>.................................</p></div><div style="text-align:center"><p>مدير القسم</p><br/><br/><p>.................................</p></div></div></body></html>`;
   const win=window.open("","_blank"); win.document.write(html); win.document.close(); win.print();
 }
 
-// ── Signature Pad ─────────────────────────────────────────────────────────────
 function SignaturePad({ onSign }) {
-  const canvasRef  = useRef();
-  const isDrawing  = useRef(false);
-  const lastXY     = useRef([0,0]);
-
-  useEffect(() => {
-    const ctx = canvasRef.current.getContext("2d");
-    ctx.strokeStyle = "#1e293b"; ctx.lineWidth = 2;
-    ctx.lineCap = "round"; ctx.lineJoin = "round";
-  }, []);
-
-  const getXY = (e) => {
-    const r   = canvasRef.current.getBoundingClientRect();
-    const src = e.touches?.[0] || e;
-    return [src.clientX - r.left, src.clientY - r.top];
-  };
-  const start = (e) => { e.preventDefault(); isDrawing.current=true; lastXY.current=getXY(e); };
-  const move  = (e) => {
-    if (!isDrawing.current) return;
-    e.preventDefault();
-    const [x,y] = getXY(e);
-    const ctx = canvasRef.current.getContext("2d");
-    ctx.beginPath(); ctx.moveTo(lastXY.current[0],lastXY.current[1]);
-    ctx.lineTo(x,y); ctx.stroke();
-    lastXY.current = [x,y];
-  };
-  const end = () => { if (isDrawing.current) { isDrawing.current=false; onSign(canvasRef.current.toDataURL()); } };
-  const clear = () => {
-    const c = canvasRef.current;
-    c.getContext("2d").clearRect(0,0,c.width,c.height); onSign(null);
-  };
-
+  const cvs=useRef(); const drawing=useRef(false); const last=useRef([0,0]);
+  useEffect(()=>{ const c=cvs.current.getContext("2d"); c.strokeStyle="#1e293b"; c.lineWidth=2; c.lineCap=c.lineJoin="round"; },[]);
+  const xy=(e)=>{ const r=cvs.current.getBoundingClientRect(),s=e.touches?.[0]||e; return[s.clientX-r.left,s.clientY-r.top]; };
+  const start=(e)=>{ e.preventDefault(); drawing.current=true; last.current=xy(e); };
+  const move=(e)=>{ if(!drawing.current)return; e.preventDefault(); const[x,y]=xy(e),c=cvs.current.getContext("2d"); c.beginPath(); c.moveTo(last.current[0],last.current[1]); c.lineTo(x,y); c.stroke(); last.current=[x,y]; };
+  const end=()=>{ if(drawing.current){drawing.current=false; onSign(cvs.current.toDataURL());} };
+  const clear=()=>{ const c=cvs.current; c.getContext("2d").clearRect(0,0,c.width,c.height); onSign(null); };
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
         <label className="text-xs text-secondary">التوقيع الإلكتروني *</label>
         <button type="button" onClick={clear} className="text-xs text-red-500 hover:underline">مسح</button>
       </div>
-      <canvas ref={canvasRef} width={800} height={160}
-        className="w-full rounded-xl border border-color bg-white dark:bg-white touch-none cursor-crosshair"
-        style={{height:"120px"}}
-        onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
-        onTouchStart={start} onTouchMove={move} onTouchEnd={end}
-      />
+      <canvas ref={cvs} width={800} height={160} className="w-full rounded-xl border border-color bg-white dark:bg-white touch-none cursor-crosshair" style={{height:"120px"}}
+        onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end} onTouchStart={start} onTouchMove={move} onTouchEnd={end}/>
       <p className="text-[11px] text-secondary mt-1">وقّع بإصبعك (على الجوال) أو بالماوس</p>
     </div>
   );
@@ -273,10 +231,14 @@ function DailyView({ entries, date, setDate, emp, isAdmin, canWrite, onDelete, o
 }
 
 // ── Monthly View ───────────────────────────────────────────────────────────────
-function MonthlyView({ entries, isAdmin }) {
+function MonthlyView({ entries, isAdmin, onDelete, onUpdate }) {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth());
   const [year,  setYear]  = useState(now.getFullYear());
+  const [gallery, setGallery] = useState(false);
+  const confirm = useConfirm();
+  const toast   = useToast();
+  const fRefs   = useRef({});
 
   const monthEntries = entries.filter(e=>{
     if (!e.date) return false;
@@ -285,14 +247,29 @@ function MonthlyView({ entries, isAdmin }) {
   }).sort((a,b)=>a.date.localeCompare(b.date)||b.id-a.id);
 
   const totalHours = monthEntries.reduce((s,e)=>s+(Number(e.hours)||0),0);
-  const doPrint = () => printReport(monthEntries,"تقرير العمل الشهري",`${MONTHS_AR[month]} ${year}`);
-  const doExport = () => {
-    const header = ["ت","التاريخ","المعدة","نوع العمل","الوصف","الساعات","الفني","الحالة"];
-    const rows = monthEntries.map((e,i)=>[i+1,e.date||"",e.equipmentName||"",e.workType||"",e.description||"",e.hours||0,e.technicianName||"",e.status||""]);
-    exportCSV([header,...rows],`تقرير-شهري-${MONTHS_AR[month]}-${year}.csv`);
-  };
   const byDate = monthEntries.reduce((acc,e)=>{ (acc[e.date]||(acc[e.date]=[])).push(e); return acc; },{});
   const byType = WORK_TYPES.reduce((acc,t)=>{ acc[t]=monthEntries.filter(e=>e.workType===t).length; return acc; },{});
+  const allImgs = monthEntries.flatMap(e=>(e.images||[]).map(img=>({img,date:e.date,eq:e.equipmentName||""})));
+
+  const doPrint = () => printReport(monthEntries,"تقرير العمل الشهري",`${MONTHS_AR[month]} ${year}`);
+  const doExport = () => {
+    const h = ["ت","التاريخ","المعدة","نوع العمل","الوصف","الساعات","الحالة"];
+    exportCSV([h,...monthEntries.map((e,i)=>[i+1,e.date||"",e.equipmentName||"",e.workType||"",e.description||"",e.hours||0,e.status||""])],`تقرير-شهري-${MONTHS_AR[month]}-${year}.csv`);
+  };
+  const printGallery = () => {
+    if (!allImgs.length) { toast("لا توجد صور هذا الشهر","warning"); return; }
+    const html=`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>صور ${MONTHS_AR[month]} ${year}</title>
+    <style>body{font-family:Arial,sans-serif;padding:20px}h2{text-align:center}.g{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}div.c{text-align:center;page-break-inside:avoid}img{max-width:220px;max-height:180px;object-fit:contain;border:1px solid #ccc;border-radius:4px}p{font-size:10px;color:#555;margin:3px 0}@media print{@page{margin:1.5cm}}</style>
+    </head><body><h2>صور تقرير ${MONTHS_AR[month]} ${year}</h2><div class="g">${allImgs.map(x=>`<div class="c"><img src="${x.img}"/><p>${x.date}${x.eq?` — ${x.eq}`:""}</p></div>`).join("")}</div></body></html>`;
+    const w=window.open("","_blank"); w.document.write(html); w.document.close(); w.print();
+  };
+  const addImg = async (entry, files) => {
+    const cur=entry.images||[]; if(cur.length>=8){toast("الحد الأقصى 8 صور","warning");return;}
+    const b64s=await Promise.all(Array.from(files).slice(0,8-cur.length).map(readB64));
+    onUpdate({...entry,images:[...cur,...b64s]});
+  };
+  const delImg = (entry,i) => onUpdate({...entry,images:(entry.images||[]).filter((_,j)=>j!==i)});
+  const delEntry = async (id) => { if(await confirm("حذف هذا السجل من التقرير الشهري؟")) onDelete(id); };
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -303,9 +280,14 @@ function MonthlyView({ entries, isAdmin }) {
           </select>
           <input type="number" value={year} onChange={e=>setYear(Number(e.target.value))} className="w-24 input-base rounded-lg px-3 py-2 text-sm border border-color"/>
         </div>
-        {monthEntries.length>0&&<button onClick={doPrint} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Printer size={14}/> طباعة</button>}
-        {monthEntries.length>0&&<button onClick={doExport} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Download size={14}/> Excel</button>}
-        {monthEntries.length>0&&isAdmin&&<button onClick={()=>archiveJSON(monthEntries,`${MONTHS_AR[month]}-${year}`)} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Archive size={14}/> أرشفة</button>}
+        {monthEntries.length>0&&(
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={doPrint} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Printer size={14}/> طباعة</button>
+            <button onClick={doExport} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Download size={14}/> Excel</button>
+            {allImgs.length>0&&<button onClick={printGallery} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Camera size={14}/> طباعة الصور</button>}
+            {isAdmin&&<button onClick={()=>archiveJSON(monthEntries,`${MONTHS_AR[month]}-${year}`)} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Archive size={14}/> أرشفة</button>}
+          </div>
+        )}
       </div>
       {monthEntries.length>0&&(
         <>
@@ -326,6 +308,18 @@ function MonthlyView({ entries, isAdmin }) {
               ))}
             </div>
           </div>
+          {allImgs.length>0&&(
+            <div className="card rounded-2xl border border-color p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-bold text-sm">جميع صور الشهر ({allImgs.length})</h4>
+                <button onClick={()=>setGallery(g=>!g)} className="text-xs text-blue-600 hover:underline">{gallery?"إخفاء":"عرض الكل"}</button>
+              </div>
+              {gallery&&<div className="flex flex-wrap gap-2">{allImgs.map((x,i)=>(
+                <div key={i}><img src={x.img} alt="" onClick={()=>window.open(x.img,"_blank")} className="w-20 h-20 rounded-xl object-cover border border-color cursor-pointer hover:opacity-90"/>
+                <p className="text-[9px] text-secondary mt-0.5 text-center max-w-[80px] truncate">{x.date}</p></div>
+              ))}</div>}
+            </div>
+          )}
         </>
       )}
       {monthEntries.length===0 ? (
@@ -347,8 +341,25 @@ function MonthlyView({ entries, isAdmin }) {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-blue-600">{e.workType}{e.equipmentName?` — ${e.equipmentName}`:""}</p>
                         <p className="text-sm mt-0.5">{e.description}</p>
-                        <p className="text-xs text-secondary mt-0.5">{e.technicianName} • {e.hours} ساعة{e.images?.length?` • 🖼 ${e.images.length}`:""}</p>
+                        <p className="text-xs text-secondary mt-0.5">{e.hours} ساعة</p>
+                        <div className="flex gap-2 mt-2 flex-wrap items-center">
+                          {(e.images||[]).map((img,i)=>(
+                            <div key={i} className="relative">
+                              <img src={img} alt="" onClick={()=>window.open(img,"_blank")} className="w-16 h-16 rounded-xl object-cover border border-color cursor-pointer hover:opacity-90"/>
+                              {isAdmin&&<button onClick={()=>delImg(e,i)} className="absolute -top-1 -right-1 bg-red-500 rounded-full p-0.5"><X size={10} className="text-white"/></button>}
+                            </div>
+                          ))}
+                          {isAdmin&&(e.images?.length||0)<8&&(
+                            <>
+                              <input type="file" accept="image/*" multiple className="hidden" ref={el=>fRefs.current[e.id]=el} onChange={ev=>addImg(e,ev.target.files)}/>
+                              <button onClick={()=>fRefs.current[e.id]?.click()} className="w-16 h-16 rounded-xl border-2 border-dashed border-color flex flex-col items-center justify-center hover:bg-hover gap-1">
+                                <Camera size={14} className="text-secondary"/><span className="text-[9px] text-secondary">إضافة</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
+                      {isAdmin&&<button onClick={()=>delEntry(e.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg shrink-0"><Trash2 size={13}/></button>}
                     </div>
                   </div>
                 ))}
@@ -472,7 +483,7 @@ export default function MaintenanceWorkReport({ emp }) {
         ))}
       </div>
       {tab==="daily"   && <DailyView   entries={entries} date={date} setDate={setDate} emp={emp} isAdmin={isAdmin} canWrite={canWrite} onDelete={del} onAdd={()=>setPv("add")} onEdit={e=>{setEditEntry(e);setPv("edit");}}/>}
-      {tab==="monthly" && <MonthlyView entries={entries} isAdmin={isAdmin}/>}
+      {tab==="monthly" && <MonthlyView entries={entries} isAdmin={isAdmin} onDelete={del} onUpdate={update}/>}
     </div>
   );
 }
