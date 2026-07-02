@@ -492,6 +492,6 @@ export const FirebaseAPI = {
     try { return (await fetch(`${FIREBASE_URL}/emp_views/${empId}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(views||null)})).ok; } catch{return false;}
   },
   loadEmpViews: async (empId) => {
-    try { const r=await fetch(`${FIREBASE_URL}/emp_views/${empId}.json`); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d:null; } catch{return null;}
+    try { const r=await fetch(`${FIREBASE_URL}/emp_views/${empId}.json`); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d:[]; } catch{return null;}
   },
 };
