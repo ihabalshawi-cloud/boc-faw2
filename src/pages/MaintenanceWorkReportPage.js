@@ -6,7 +6,7 @@ import { useToast, useConfirm } from "../contexts";
 
 const WKEY    = "maint_work_log";
 const CFGKEY  = "maint_rpt_cfg";
-const DEFAULT_CFG = { maintSupervisors:[], shiftSupervisors:[] };
+const DEFAULT_CFG = { maintSupervisors:[], shiftSupervisors:[], viewers:[] };
 const WORK_TYPES  = ["صيانة دورية","صيانة طارئة","فحص","إصلاح","تنظيف","تشغيل","أخرى"];
 const SC = { "مكتمل":"bg-emerald-100 text-emerald-700","جاري":"bg-blue-100 text-blue-700","متوقف":"bg-amber-100 text-amber-700" };
 const toYMD = d => d.toISOString().slice(0,10);
@@ -365,6 +365,7 @@ function SettingsView({ cfg, onSave, onBack }) {
   const toast = useToast();
   const [maintSups, setMaintSups] = useState(cfg?.maintSupervisors||[]);
   const [shiftSups, setShiftSups] = useState(cfg?.shiftSupervisors||[]);
+  const [viewers,   setViewers]   = useState(cfg?.viewers||[]);
   const all = ACCOUNTS.filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name,"ar"));
   const tog = (setter,list,id) => setter(list.includes(id)?list.filter(x=>x!==id):[...list,id]);
 
@@ -372,11 +373,11 @@ function SettingsView({ cfg, onSave, onBack }) {
     <div className="space-y-4" dir="rtl">
       <div className="flex items-center gap-2">
         <button onClick={onBack} className="flex items-center gap-1 text-sm text-secondary hover:text-primary"><ChevronRight size={16}/> رجوع</button>
-        <h2 className="font-bold">صلاحيات كتابة التقرير</h2>
+        <h2 className="font-bold">صلاحيات التقرير</h2>
       </div>
       <div className="card rounded-2xl border border-color p-4 space-y-2">
-        <h3 className="font-bold text-sm">مسؤولو الصيانة</h3>
-        <div className="space-y-0.5 max-h-48 overflow-y-auto">
+        <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"/><h3 className="font-bold text-sm">تعديل وكتابة — مسؤولو الصيانة</h3></div>
+        <div className="space-y-0.5 max-h-40 overflow-y-auto">
           {all.map(e=>(
             <label key={e.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-hover cursor-pointer">
               <input type="checkbox" checked={maintSups.includes(e.id)} onChange={()=>tog(setMaintSups,maintSups,e.id)} className="w-4 h-4"/>
@@ -387,8 +388,8 @@ function SettingsView({ cfg, onSave, onBack }) {
         </div>
       </div>
       <div className="card rounded-2xl border border-color p-4 space-y-2">
-        <h3 className="font-bold text-sm">مسؤولو النوبات</h3>
-        <div className="space-y-0.5 max-h-48 overflow-y-auto">
+        <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"/><h3 className="font-bold text-sm">تعديل وكتابة — مسؤولو النوبات</h3></div>
+        <div className="space-y-0.5 max-h-40 overflow-y-auto">
           {all.filter(e=>e.shift==="مناوبة").map(e=>(
             <label key={e.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-hover cursor-pointer">
               <input type="checkbox" checked={shiftSups.includes(e.id)} onChange={()=>tog(setShiftSups,shiftSups,e.id)} className="w-4 h-4"/>
@@ -398,7 +399,20 @@ function SettingsView({ cfg, onSave, onBack }) {
           ))}
         </div>
       </div>
-      <button onClick={()=>{onSave({maintSupervisors:maintSups,shiftSupervisors:shiftSups});toast("تم حفظ الإعدادات","success");}} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700">
+      <div className="card rounded-2xl border border-color p-4 space-y-2">
+        <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"/><h3 className="font-bold text-sm">مشاهدة فقط</h3></div>
+        <p className="text-xs text-secondary">يشاهدون التقارير دون إمكانية التعديل أو الإضافة</p>
+        <div className="space-y-0.5 max-h-40 overflow-y-auto">
+          {all.map(e=>(
+            <label key={e.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-hover cursor-pointer">
+              <input type="checkbox" checked={viewers.includes(e.id)} onChange={()=>tog(setViewers,viewers,e.id)} className="w-4 h-4"/>
+              <span className="text-sm flex-1">{e.name.split(" ").slice(0,3).join(" ")}</span>
+              <span className="text-xs text-secondary">{e.title||e.group||""}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <button onClick={()=>{onSave({maintSupervisors:maintSups,shiftSupervisors:shiftSups,viewers});toast("تم حفظ الإعدادات","success");}} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700">
         حفظ الإعدادات
       </button>
     </div>
@@ -418,6 +432,7 @@ export default function MaintenanceWorkReport({ emp }) {
   const toast      = useToast();
   const [editEntry, setEditEntry] = useState(null);
   const canWrite   = isAdmin || (cfg.maintSupervisors||[]).includes(emp.id) || (cfg.shiftSupervisors||[]).includes(emp.id);
+  const canView    = isAdmin || canWrite || (cfg.viewers||[]).includes(emp.id);
   const saveCfg    = c => { setCfg(c); storage.set(CFGKEY,c); };
   const save       = entry => {
     const alreadyToday = !isAdmin && entries.some(e=>e.date===entry.date && e.technicianId===emp.id);
@@ -427,6 +442,13 @@ export default function MaintenanceWorkReport({ emp }) {
   const update     = entry => { const up=entries.map(e=>e.id===entry.id?entry:e); setEntries(up); storage.set(WKEY,up); setEditEntry(null); setPv("list"); };
   const del        = id    => { const up=entries.filter(e=>e.id!==id); setEntries(up); storage.set(WKEY,up); };
 
+  if (!canView && !isAdmin) return (
+    <div className="text-center py-20 text-secondary" dir="rtl">
+      <p className="text-5xl mb-3">🔒</p>
+      <p className="font-bold text-base text-primary">غير مصرّح بالوصول</p>
+      <p className="text-sm mt-1">تواصل مع المشرف لمنحك صلاحية مشاهدة التقارير</p>
+    </div>
+  );
   if (pv==="add"&&canWrite)  return <EntryForm emp={emp} allEquipment={allEquipment} onSave={save} onCancel={()=>setPv("list")}/>;
   if (pv==="edit"&&isAdmin)  return <EntryForm emp={emp} allEquipment={allEquipment} onSave={update} onCancel={()=>{setEditEntry(null);setPv("list");}} initial={editEntry}/>;
   if (pv==="settings"&&isAdmin) return <SettingsView cfg={cfg} onSave={c=>{saveCfg(c);setPv("list");}} onBack={()=>setPv("list")}/>;
