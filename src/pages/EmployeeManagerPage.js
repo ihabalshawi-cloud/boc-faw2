@@ -127,11 +127,13 @@ const ICON_VIEWS = [
 function ViewsPanel({ employees, setEmployees }) {
   const addToast = useToast();
 
-  const toggle = (emp, viewId) => {
+  const toggle = async (emp, viewId) => {
     const cur = emp.allowedViews || [];
     const updated = cur.includes(viewId) ? cur.filter(v=>v!==viewId) : [...cur, viewId];
-    setEmployees(employees.map(e=>e.id===emp.id?{...e,allowedViews:updated}:e));
-    addToast("تم تحديث صلاحية الأيقونة","success");
+    const updatedEmp = {...emp, allowedViews: updated};
+    setEmployees(employees.map(e=>e.id===emp.id ? updatedEmp : e));
+    const ok = await FirebaseAPI.saveEmployee(updatedEmp);
+    addToast(ok ? "تم حفظ صلاحية الأيقونة ✅" : "تم التحديث محلياً — تحقق من الاتصال ⚠️", ok?"success":"warning");
   };
 
   const nonAdmins = employees.filter(e=>e.role!=="admin"&&e.jobNum!=="728004"&&e.username!=="i.shawi");
@@ -198,8 +200,6 @@ function EmployeeManager({ employees, setEmployees }) {
   const addToast = useToast();
   const confirm  = useConfirm();
   const { isConnected } = useConnectionStatus();
-
-  // Auto-load roles from Firebase on mount
   useEffect(() => {
     if (!isConnected) return;
     FirebaseAPI.loadRoles().then(rolesMap => {

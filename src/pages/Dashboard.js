@@ -109,12 +109,13 @@ const RESTRICTED_VIEWS = new Set(["training","tasks","evaluation","timesheet","c
 
 export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode, largeFont, setLargeFont }) {
   const [employees, setEmployeesRaw] = useState(ACCOUNTS);
-  const allowedViews = employees.find(a => a.id === emp.id)?.allowedViews || null;
+  const allowedViews = employees.find(a => a.id === emp.id)?.allowedViews
+    || storage.get(`emp_allowed_views_${emp.id}`, null);
   const [view, setView] = useState(() => {
     const saved = storage.get("last_view", "home");
     const empIsAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
     if (empIsAdmin || !RESTRICTED_VIEWS.has(saved)) return saved;
-    const initViews = ACCOUNTS.find(a => a.id === emp.id)?.allowedViews || null;
+    const initViews = storage.get(`emp_allowed_views_${emp.id}`, null);
     return (initViews && initViews.includes(saved)) ? saved : "home";
   });
   const [viewHistory, setViewHistory] = useState([]);
@@ -124,7 +125,12 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
 
   useEffect(() => {
     FirebaseAPI.loadAccounts().then(list => {
-      if (list && list.length > 0) setEmployeesRaw(list.filter(Boolean));
+      if (list && list.length > 0) {
+        const clean = list.filter(Boolean);
+        setEmployeesRaw(clean);
+        const myData = clean.find(a => a.id === emp.id);
+        if (myData) storage.set(`emp_allowed_views_${emp.id}`, myData.allowedViews || null);
+      }
     });
     FirebaseAPI.loadRequests().then(list => {
       if (list && list.length > 0) {
@@ -138,10 +144,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const setEmployees = useCallback((newList) => {
-    setEmployeesRaw(newList);
-    FirebaseAPI.saveAccounts(newList);
-  }, []);
+  const setEmployees = useCallback((newList) => { setEmployeesRaw(newList); FirebaseAPI.saveAccounts(newList); }, []);
   const { isConnected } = useConnectionStatus();
   const smartAlerts = useSmartAlerts(employees);
   const [dismissed, setDismissed] = useState(() => new Set());
