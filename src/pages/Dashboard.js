@@ -108,18 +108,19 @@ const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","ma
 const RESTRICTED_VIEWS = new Set(["training","tasks","evaluation","timesheet","chat","maint_equipment","maint_parts","maint_reports","maint_work_report","inventory","furniture","projects"]);
 
 export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode, largeFont, setLargeFont }) {
-  const allowedViews = ACCOUNTS.find(a => a.id === emp.id)?.allowedViews || null;
+  const [employees, setEmployeesRaw] = useState(ACCOUNTS);
+  const allowedViews = employees.find(a => a.id === emp.id)?.allowedViews || null;
   const [view, setView] = useState(() => {
     const saved = storage.get("last_view", "home");
     const empIsAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
     if (empIsAdmin || !RESTRICTED_VIEWS.has(saved)) return saved;
-    return (allowedViews && allowedViews.includes(saved)) ? saved : "home";
+    const initViews = ACCOUNTS.find(a => a.id === emp.id)?.allowedViews || null;
+    return (initViews && initViews.includes(saved)) ? saved : "home";
   });
   const [viewHistory, setViewHistory] = useState([]);
   const [reqSubTab, setReqSubTab] = useState("requests");
   const [section, setSection] = useState(() => storage.get("dash_section","admin"));
   const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []).filter(Boolean));
-  const [employees, setEmployeesRaw] = useState(ACCOUNTS);
 
   useEffect(() => {
     FirebaseAPI.loadAccounts().then(list => {

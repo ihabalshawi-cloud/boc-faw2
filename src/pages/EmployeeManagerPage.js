@@ -116,6 +116,70 @@ function PermissionsPanel({ employees }) {
   );
 }
 
+const ICON_VIEWS = [
+  {id:"training",label:"التدريب"},{id:"tasks",label:"المهام"},{id:"evaluation",label:"التقييم"},
+  {id:"timesheet",label:"التايم شيت"},{id:"chat",label:"الدردشة"},{id:"maint_equipment",label:"المعدات"},
+  {id:"maint_parts",label:"قطع الغيار"},{id:"maint_reports",label:"تقارير الصيانة"},
+  {id:"maint_work_report",label:"تقرير العمل"},{id:"inventory",label:"الجرد"},
+  {id:"furniture",label:"الأثاث"},{id:"projects",label:"المشاريع"},
+];
+
+function ViewsPanel({ employees, setEmployees }) {
+  const addToast = useToast();
+
+  const toggle = (emp, viewId) => {
+    const cur = emp.allowedViews || [];
+    const updated = cur.includes(viewId) ? cur.filter(v=>v!==viewId) : [...cur, viewId];
+    setEmployees(employees.map(e=>e.id===emp.id?{...e,allowedViews:updated}:e));
+    addToast("تم تحديث صلاحية الأيقونة","success");
+  };
+
+  const nonAdmins = employees.filter(e=>e.role!=="admin"&&e.jobNum!=="728004"&&e.username!=="i.shawi");
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-secondary">انقر على الخانة لمنح أو إلغاء وصول الموظف لأيقونة معيّنة في الصفحة الرئيسية. الأيقونات مخفية بالافتراضي لجميع الموظفين.</p>
+      <div className="card rounded-2xl border border-color overflow-x-auto">
+        <table className="w-full text-xs" dir="rtl">
+          <thead>
+            <tr className="border-b border-color bg-gray-50/80">
+              <th className="px-3 py-2 text-right font-semibold sticky right-0 bg-gray-50 min-w-[120px]">الموظف</th>
+              {ICON_VIEWS.map(v=>(
+                <th key={v.id} className="px-2 py-2 text-center font-semibold min-w-[56px]">
+                  <span className="block text-[9px] leading-tight whitespace-nowrap">{v.label}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {nonAdmins.map(e=>{
+              const allowed = e.allowedViews||[];
+              return (
+                <tr key={e.id} className="border-b border-color hover:bg-gray-50/60 transition-colors">
+                  <td className="px-3 py-1.5 font-medium sticky right-0 bg-white text-[11px]">{e.name.split(" ").slice(0,2).join(" ")}</td>
+                  {ICON_VIEWS.map(v=>(
+                    <td key={v.id} className="px-2 py-1.5 text-center">
+                      <button onClick={()=>toggle(e,v.id)}
+                        className={`w-6 h-6 rounded-md flex items-center justify-center mx-auto text-xs font-bold transition-all ${
+                          allowed.includes(v.id)?"bg-emerald-100 text-emerald-700 border border-emerald-300":"bg-gray-100 text-gray-300 border border-gray-200"}`}>
+                        {allowed.includes(v.id)?"✓":""}
+                      </button>
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex gap-4 text-[10px] text-secondary">
+        <span className="flex items-center gap-1"><span className="w-4 h-4 bg-emerald-100 border border-emerald-300 rounded-md inline-block"/>مسموح</span>
+        <span className="flex items-center gap-1"><span className="w-4 h-4 bg-gray-100 border border-gray-200 rounded-md inline-block"/>محظور (افتراضي)</span>
+      </div>
+    </div>
+  );
+}
+
 function EmployeeManager({ employees, setEmployees }) {
   const [tab, setTab] = useState("emps");
   const [search, setSearch]   = useState("");
@@ -270,9 +334,11 @@ function EmployeeManager({ employees, setEmployees }) {
       <div className="flex gap-1 border-b border-color pb-0">
         <button onClick={()=>setTab("emps")} className={`px-5 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${tab==="emps"?"border-blue-600 text-blue-700":"border-transparent text-secondary hover:text-primary"}`}>👥 الموظفون</button>
         <button onClick={()=>setTab("perms")} className={`px-5 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${tab==="perms"?"border-blue-600 text-blue-700":"border-transparent text-secondary hover:text-primary"}`}>🔑 الصلاحيات</button>
+        <button onClick={()=>setTab("views")} className={`px-5 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${tab==="views"?"border-blue-600 text-blue-700":"border-transparent text-secondary hover:text-primary"}`}>🎯 الأيقونات</button>
       </div>
 
       {tab==="perms" && <PermissionsPanel employees={employees}/>}
+      {tab==="views" && <ViewsPanel employees={employees} setEmployees={setEmployees}/>}
       {tab==="emps" && <>
       {/* شريط الأدوات */}
       <div className="flex flex-wrap gap-2 items-center">
