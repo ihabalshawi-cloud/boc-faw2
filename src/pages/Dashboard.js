@@ -105,7 +105,7 @@ class ReqErrorBoundary extends React.Component {
 
 const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","changepass","health_insurance","approvals","employees","admin_dashboard","timesheet","incentive"]);
 const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","maint_work_report","inventory","furniture","projects"]);
-const RESTRICTED_VIEWS = new Set(["training","tasks","evaluation","timesheet","maint_equipment","maint_parts","maint_reports","inventory","furniture","projects"]);
+const RESTRICTED_VIEWS = new Set(["training","tasks","evaluation","timesheet","chat","maint_equipment","maint_parts","maint_reports","maint_work_report","inventory","furniture","projects"]);
 
 export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode, largeFont, setLargeFont }) {
   const allowedViews = ACCOUNTS.find(a => a.id === emp.id)?.allowedViews || null;
@@ -191,7 +191,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
 
   const switchSection = (s) => { setSection(s); storage.set("dash_section", s); };
   const switchView = (id) => {
-    if (id === "chat") { setChatOpen(true); return; }
+    if (id === "chat") { if (!isAdmin && !(allowedViews && allowedViews.includes("chat"))) return; setChatOpen(true); return; }
     if ((id==="admin_dashboard"||id==="employees"||id==="analytics")&&!isAdmin) return;
     if (id==="approvals"&&!canSeeApprovals) return;
     if (RESTRICTED_VIEWS.has(id) && !isAdmin && !(allowedViews && allowedViews.includes(id))) return;
@@ -231,7 +231,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     ...(canSeeRestricted("training") ? [{ id:"training", label:"التدريب", icon:<GraduationCap size={17}/> }] : []),
     ...(canSeeRestricted("tasks") ? [{ id:"tasks", label:"المهام", icon:<CheckSquare size={17}/> }] : []),
     ...(canSeeRestricted("evaluation") ? [{ id:"evaluation", label:"التقييم", icon:<Star size={17}/> }] : []),
-    { id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> },
+    ...(canSeeRestricted("chat") ? [{ id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> }] : []),
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
     { id:"incentive", label:"نظام المكافآت", icon:<Star size={17}/>, badge: (() => { const c=storage.get("boc_incentive_v1",[]).filter(f=>f.status==="بانتظار المراجعة").length; return (isAdmin&&c>0)?c:0; })() },
     ...(canSeeRestricted("timesheet") ? [{ id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> }] : []),
@@ -242,7 +242,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     ...(canSeeRestricted("maint_equipment") ? [{ id:"maint_equipment", label:"المعدات والصيانة", icon:<Wrench size={17}/> }] : []),
     ...(canSeeRestricted("maint_parts") ? [{ id:"maint_parts", label:"قطع غيار الصيانة", icon:<Box size={17}/> }] : []),
     ...(canSeeRestricted("maint_reports") ? [{ id:"maint_reports", label:"تقارير الصيانة", icon:<TrendingUp size={17}/> }] : []),
-    { id:"maint_work_report", label:"تقرير العمل اليومي والشهري", icon:<ClipboardList size={17}/> },
+    ...(canSeeRestricted("maint_work_report") ? [{ id:"maint_work_report", label:"تقرير العمل اليومي والشهري", icon:<ClipboardList size={17}/> }] : []),
     ...(canSeeRestricted("inventory") ? [{ id:"inventory", label:"جرد الآلات الدقيقة", icon:<Package size={17}/> }] : []),
     ...(canSeeRestricted("furniture") ? [{ id:"furniture", label:"جرد الأثاث 2025", icon:<ClipboardList size={17}/> }] : []),
     ...(canSeeRestricted("projects") ? [{ id:"projects", label:"إدارة المشاريع", icon:<Briefcase size={17}/> }] : []),
@@ -274,9 +274,9 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
           <button onClick={()=>setShowSearch(true)} className="flex items-center gap-2 px-3 py-1.5 rounded-xl btn-secondary border border-color text-secondary hover:text-primary text-xs">
             <Search size={14}/> <span className="hidden md:inline">بحث</span> <kbd className="hidden md:inline px-1 bg-hover rounded text-[10px]">Ctrl K</kbd>
           </button>
-          <button onClick={()=>setChatOpen(o=>!o)} className={`relative p-2 rounded-xl border transition-colors ${chatOpen?"bg-blue-50 border-blue-200 text-blue-600":"btn-secondary border-color text-secondary hover:text-primary"}`}>
+          {canSeeRestricted("chat")&&<button onClick={()=>setChatOpen(o=>!o)} className={`relative p-2 rounded-xl border transition-colors ${chatOpen?"bg-blue-50 border-blue-200 text-blue-600":"btn-secondary border-color text-secondary hover:text-primary"}`}>
             <MessageSquare size={16}/>{chatUnread>0&&<span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center">{chatUnread}</span>}
-          </button>
+          </button>}
           {visibleAlerts.length > 0 && <div className="relative"><AlertTriangle size={20} className="text-amber-500"/><span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center">{visibleAlerts.length}</span></div>}
           <div className="flex items-center gap-1">{isConnected?<Wifi size={14} className="text-emerald-500"/>:<WifiOff size={14} className="text-amber-500"/>}</div>
           <button onClick={()=>setLargeFont(v=>!v)} title="وضع القراءة السريعة (خط أكبر)" className={`p-2 rounded-xl border transition-colors ${largeFont?"bg-blue-500 text-white border-blue-400":"btn-secondary border-color"}`}><Type size={16}/></button>
