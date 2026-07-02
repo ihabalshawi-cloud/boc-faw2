@@ -109,8 +109,7 @@ const RESTRICTED_VIEWS = new Set(["training","tasks","evaluation","timesheet","c
 
 export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode, largeFont, setLargeFont }) {
   const [employees, setEmployeesRaw] = useState(ACCOUNTS);
-  const allowedViews = employees.find(a => a.id === emp.id)?.allowedViews
-    || storage.get(`emp_allowed_views_${emp.id}`, null);
+  const [allowedViews, setAllowedViews] = useState(() => storage.get(`emp_allowed_views_${emp.id}`, null));
   const [view, setView] = useState(() => {
     const saved = storage.get("last_view", "home");
     const empIsAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
@@ -128,8 +127,9 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
       if (list && list.length > 0) {
         const clean = list.filter(Boolean);
         setEmployeesRaw(clean);
-        const myData = clean.find(a => a.id === emp.id);
-        if (myData) storage.set(`emp_allowed_views_${emp.id}`, myData.allowedViews || null);
+        const myData = clean.find(a=>String(a.id)===String(emp.id)||a.jobNum===emp.jobNum);
+        const views = myData?.allowedViews||null;
+        storage.set(`emp_allowed_views_${emp.id}`, views); setAllowedViews(views);
       }
     });
     FirebaseAPI.loadRequests().then(list => {
