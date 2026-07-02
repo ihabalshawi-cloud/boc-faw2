@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Plus, ChevronRight, Printer, Trash2, Settings, Camera, X, Download } from "lucide-react";
+import { Plus, ChevronRight, Printer, Trash2, Settings, Camera, X, Download, Pencil, Archive } from "lucide-react";
 import { storage } from "../utils";
 import { ACCOUNTS, INITIAL_EQUIPMENT, MONTHS_AR } from "../constants";
 import { useToast, useConfirm } from "../contexts";
@@ -21,6 +21,13 @@ function exportCSV(rows, filename) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
   a.download = filename; a.click();
+}
+
+function archiveJSON(entries, label) {
+  const data = JSON.stringify({ label, exportedAt: new Date().toISOString(), entries }, null, 2);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([data],{type:"application/json"}));
+  a.download = `أرشيف-${label}.json`; a.click();
 }
 
 // ── Print ──────────────────────────────────────────────────────────────────────
@@ -94,18 +101,18 @@ function SignaturePad({ onSign }) {
 }
 
 // ── Entry Form ─────────────────────────────────────────────────────────────────
-function EntryForm({ emp, allEquipment, onSave, onCancel }) {
+function EntryForm({ emp, allEquipment, onSave, onCancel, initial = null }) {
   const toast   = useToast();
   const fileRef = useRef();
-  const [date,   setDate]   = useState(toYMD(new Date()));
-  const [eqId,   setEqId]   = useState("");
-  const [eqName, setEqName] = useState("");
-  const [wType,  setWType]  = useState(WORK_TYPES[0]);
-  const [desc,   setDesc]   = useState("");
-  const [hours,  setHours]  = useState(1);
-  const [status, setStatus] = useState("مكتمل");
-  const [images,    setImages]    = useState([]);
-  const [signature, setSignature] = useState(null);
+  const [date,   setDate]   = useState(initial?.date   || toYMD(new Date()));
+  const [eqId,   setEqId]   = useState(initial?.equipmentId  || "");
+  const [eqName, setEqName] = useState(initial?.equipmentId==="__other"?initial.equipmentName:"");
+  const [wType,  setWType]  = useState(initial?.workType   || WORK_TYPES[0]);
+  const [desc,   setDesc]   = useState(initial?.description || "");
+  const [hours,  setHours]  = useState(initial?.hours  || 1);
+  const [status, setStatus] = useState(initial?.status || "مكتمل");
+  const [images,    setImages]    = useState(initial?.images    || []);
+  const [signature, setSignature] = useState(initial?.signature || null);
 
   const addImages = async (files) => {
     const rem = 4 - images.length;
@@ -118,17 +125,17 @@ function EntryForm({ emp, allEquipment, onSave, onCancel }) {
     if (!desc.trim())  { toast("أدخل وصف العمل","warning"); return; }
     if (!signature)    { toast("يجب التوقيع الإلكتروني قبل الحفظ","warning"); return; }
     const eq = allEquipment.find(e=>e.id===eqId);
-    onSave({ id:Date.now(), date, equipmentId:eqId, equipmentName:eqId==="__other"?eqName:(eq?.name||""),
+    onSave({ id:initial?.id||Date.now(), date, equipmentId:eqId, equipmentName:eqId==="__other"?eqName:(eq?.name||""),
       workType:wType, description:desc, hours:Number(hours)||1, status, images, signature,
-      technicianId:emp.id, technicianName:emp.name,
-      shift:emp.shift==="صباحي"?"صباحي":(emp.group||""), createdAt:new Date().toISOString() });
+      technicianId:initial?.technicianId||emp.id, technicianName:initial?.technicianName||emp.name,
+      shift:initial?.shift||(emp.shift==="صباحي"?"صباحي":(emp.group||"")), createdAt:initial?.createdAt||new Date().toISOString() });
   };
 
   return (
     <div className="space-y-4" dir="rtl">
       <div className="flex items-center gap-2">
         <button onClick={onCancel} className="flex items-center gap-1 text-sm text-secondary hover:text-primary"><ChevronRight size={16}/> رجوع</button>
-        <h2 className="font-bold">إضافة سجل عمل</h2>
+        <h2 className="font-bold">{initial?"تعديل سجل عمل":"إضافة سجل عمل"}</h2>
       </div>
       <div className="card rounded-2xl border border-color p-4 space-y-3">
         <div className="grid grid-cols-2 gap-3">
@@ -185,7 +192,7 @@ function EntryForm({ emp, allEquipment, onSave, onCancel }) {
 }
 
 // ── Daily View ─────────────────────────────────────────────────────────────────
-function DailyView({ entries, date, setDate, emp, isAdmin, canWrite, onDelete, onAdd }) {
+function DailyView({ entries, date, setDate, emp, isAdmin, canWrite, onDelete, onAdd, onEdit }) {
   const confirm    = useConfirm();
   const dayEntries = entries.filter(e=>e.date===date).sort((a,b)=>b.id-a.id);
   const totalHours = dayEntries.reduce((s,e)=>s+(Number(e.hours)||0),0);
@@ -251,9 +258,10 @@ function DailyView({ entries, date, setDate, emp, isAdmin, canWrite, onDelete, o
                     </div>
                   )}
                 </div>
-                {(isAdmin||e.technicianId===emp.id)&&(
-                  <button onClick={()=>del(e.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg shrink-0"><Trash2 size={13}/></button>
-                )}
+                <div className="flex flex-col gap-1 shrink-0">
+                  {isAdmin&&<button onClick={()=>onEdit(e)} className="p-1.5 text-blue-400 hover:bg-blue-50 rounded-lg"><Pencil size={13}/></button>}
+                  {(isAdmin||e.technicianId===emp.id)&&<button onClick={()=>del(e.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={13}/></button>}
+                </div>
               </div>
             </div>
           ))}
@@ -296,6 +304,7 @@ function MonthlyView({ entries, isAdmin }) {
         </div>
         {monthEntries.length>0&&<button onClick={doPrint} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Printer size={14}/> طباعة</button>}
         {monthEntries.length>0&&<button onClick={doExport} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Download size={14}/> Excel</button>}
+        {monthEntries.length>0&&isAdmin&&<button onClick={()=>archiveJSON(monthEntries,`${MONTHS_AR[month]}-${year}`)} className="flex items-center gap-1 px-3 py-2 btn-secondary border border-color rounded-xl text-sm"><Archive size={14}/> أرشفة</button>}
       </div>
       {monthEntries.length>0&&(
         <>
@@ -406,17 +415,20 @@ export default function MaintenanceWorkReport({ emp }) {
   const [pv,   setPv]   = useState("list");
   const [date, setDate] = useState(toYMD(new Date()));
 
-  const toast     = useToast();
-  const canWrite  = isAdmin || (cfg.maintSupervisors||[]).includes(emp.id) || (cfg.shiftSupervisors||[]).includes(emp.id);
-  const saveCfg   = c => { setCfg(c); storage.set(CFGKEY,c); };
-  const save      = entry => {
-    const alreadyToday = entries.some(e=>e.date===entry.date && e.technicianId===emp.id);
+  const toast      = useToast();
+  const [editEntry, setEditEntry] = useState(null);
+  const canWrite   = isAdmin || (cfg.maintSupervisors||[]).includes(emp.id) || (cfg.shiftSupervisors||[]).includes(emp.id);
+  const saveCfg    = c => { setCfg(c); storage.set(CFGKEY,c); };
+  const save       = entry => {
+    const alreadyToday = !isAdmin && entries.some(e=>e.date===entry.date && e.technicianId===emp.id);
     if (alreadyToday) { toast("لقد سجّلت تقريراً لهذا اليوم من قبل، يُسمح بتقرير واحد يومياً","warning"); return; }
     const up=[entry,...entries]; setEntries(up); storage.set(WKEY,up); setPv("list");
   };
-  const del      = id    => { const up=entries.filter(e=>e.id!==id); setEntries(up); storage.set(WKEY,up); };
+  const update     = entry => { const up=entries.map(e=>e.id===entry.id?entry:e); setEntries(up); storage.set(WKEY,up); setEditEntry(null); setPv("list"); };
+  const del        = id    => { const up=entries.filter(e=>e.id!==id); setEntries(up); storage.set(WKEY,up); };
 
-  if (pv==="add"&&canWrite) return <EntryForm emp={emp} allEquipment={allEquipment} onSave={save} onCancel={()=>setPv("list")}/>;
+  if (pv==="add"&&canWrite)  return <EntryForm emp={emp} allEquipment={allEquipment} onSave={save} onCancel={()=>setPv("list")}/>;
+  if (pv==="edit"&&isAdmin)  return <EntryForm emp={emp} allEquipment={allEquipment} onSave={update} onCancel={()=>{setEditEntry(null);setPv("list");}} initial={editEntry}/>;
   if (pv==="settings"&&isAdmin) return <SettingsView cfg={cfg} onSave={c=>{saveCfg(c);setPv("list");}} onBack={()=>setPv("list")}/>;
 
   return (
@@ -430,7 +442,7 @@ export default function MaintenanceWorkReport({ emp }) {
           <button key={k} onClick={()=>setTab(k)} className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${tab===k?"border-blue-600 text-blue-600":"border-transparent text-secondary hover:text-primary"}`}>{l}</button>
         ))}
       </div>
-      {tab==="daily"   && <DailyView   entries={entries} date={date} setDate={setDate} emp={emp} isAdmin={isAdmin} canWrite={canWrite} onDelete={del} onAdd={()=>setPv("add")}/>}
+      {tab==="daily"   && <DailyView   entries={entries} date={date} setDate={setDate} emp={emp} isAdmin={isAdmin} canWrite={canWrite} onDelete={del} onAdd={()=>setPv("add")} onEdit={e=>{setEditEntry(e);setPv("edit");}}/>}
       {tab==="monthly" && <MonthlyView entries={entries} isAdmin={isAdmin}/>}
     </div>
   );
