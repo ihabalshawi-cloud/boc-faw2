@@ -313,7 +313,6 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
             <div className="space-y-6">
               <div className="space-y-5">
                 <div>
-                  <div className="flex items-center gap-2 mb-3"><div className="h-5 w-1 bg-blue-600 rounded-full"/><h3 className="font-bold text-base">الإدارة والموارد البشرية</h3></div>
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                     {visibleAdminItems.filter(i=>i.id!=="home").map(item=>(
                       <button key={item.id} onClick={()=>switchView(item.id)}
@@ -328,7 +327,6 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
                   </div>
                 </div>
                 {visibleTechItems.length > 0 && <div>
-                  <div className="flex items-center gap-2 mb-3"><div className="h-5 w-1 bg-orange-500 rounded-full"/><h3 className="font-bold text-base">الفني والمعدات</h3></div>
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
                     {visibleTechItems.map(item=>(
                       <button key={item.id} onClick={()=>switchView(item.id)}
