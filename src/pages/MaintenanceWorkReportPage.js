@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Plus, ChevronRight, Printer, Trash2, Settings, Camera, X, Download, Pencil, Archive } from "lucide-react";
 import { storage } from "../utils";
+import { FirebaseAPI } from "../firebase";
 import { ACCOUNTS, INITIAL_EQUIPMENT, MONTHS_AR } from "../constants";
 import { useToast, useConfirm } from "../contexts";
 
@@ -433,14 +434,20 @@ export default function MaintenanceWorkReport({ emp }) {
   const [editEntry, setEditEntry] = useState(null);
   const canWrite   = isAdmin || (cfg.maintSupervisors||[]).includes(emp.id) || (cfg.shiftSupervisors||[]).includes(emp.id);
   const canView    = isAdmin || canWrite || (cfg.viewers||[]).includes(emp.id);
-  const saveCfg    = c => { setCfg(c); storage.set(CFGKEY,c); };
+
+  useEffect(() => {
+    FirebaseAPI.loadMaintWorkLog().then(list => { if (list?.length) { setEntries(list); storage.set(WKEY,list); } });
+    FirebaseAPI.loadMaintCfg().then(c => { if (c) { setCfg(c); storage.set(CFGKEY,c); } });
+  }, []);
+
+  const saveCfg    = c => { setCfg(c); storage.set(CFGKEY,c); FirebaseAPI.saveMaintCfg(c); };
   const save       = entry => {
     const alreadyToday = !isAdmin && entries.some(e=>e.date===entry.date && e.technicianId===emp.id);
     if (alreadyToday) { toast("لقد سجّلت تقريراً لهذا اليوم من قبل، يُسمح بتقرير واحد يومياً","warning"); return; }
-    const up=[entry,...entries]; setEntries(up); storage.set(WKEY,up); setPv("list");
+    const up=[entry,...entries]; setEntries(up); storage.set(WKEY,up); FirebaseAPI.saveMaintWorkLog(up); setPv("list");
   };
-  const update     = entry => { const up=entries.map(e=>e.id===entry.id?entry:e); setEntries(up); storage.set(WKEY,up); setEditEntry(null); setPv("list"); };
-  const del        = id    => { const up=entries.filter(e=>e.id!==id); setEntries(up); storage.set(WKEY,up); };
+  const update     = entry => { const up=entries.map(e=>e.id===entry.id?entry:e); setEntries(up); storage.set(WKEY,up); FirebaseAPI.saveMaintWorkLog(up); setEditEntry(null); setPv("list"); };
+  const del        = id    => { const up=entries.filter(e=>e.id!==id); setEntries(up); storage.set(WKEY,up); FirebaseAPI.saveMaintWorkLog(up); };
 
   if (!canView && !isAdmin) return (
     <div className="text-center py-20 text-secondary" dir="rtl">

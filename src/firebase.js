@@ -450,4 +450,41 @@ export const FirebaseAPI = {
       return { malak: toArray(data.malak), contracts: toArray(data.contracts), drivers: toArray(data.drivers) };
     } catch { return null; }
   },
+
+  // ── Maintenance Work Log ──────────────────────────────────────────────────
+  saveMaintWorkLog: async (list) => {
+    try {
+      const data = {};
+      for (const item of list) { data[String(item.id)] = item; }
+      const res = await fetch(`${FIREBASE_URL}/maint_work_log.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadMaintWorkLog: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/maint_work_log.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+      return Object.values(data).filter(Boolean).sort((a,b)=>b.id-a.id);
+    } catch { return null; }
+  },
+  saveMaintCfg: async (cfg) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/maint_rpt_cfg.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(cfg),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadMaintCfg: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/maint_rpt_cfg.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return (data && typeof data === "object" && !Array.isArray(data)) ? data : null;
+    } catch { return null; }
+  },
 };
