@@ -31,8 +31,8 @@ function archiveJSON(entries, label) {
   a.download = `أرشيف-${label}.json`; a.click();
 }
 
-function printReport(entries, title, subtitle) {
-  const rows = entries.map((e,i)=>`<tr><td>${i+1}</td><td>${e.date||""}</td><td style="text-align:right">${e.equipmentName||"—"}</td><td>${e.workType||""}</td><td style="text-align:right">${e.description||""}</td><td>${e.hours||0}</td><td>${e.status||""}</td></tr>${e.images?.length?`<tr><td colspan="7" style="padding:6px;background:#fafafa"><div style="display:flex;gap:8px;flex-wrap:wrap">${e.images.map(img=>`<img src="${img}" style="height:80px;width:80px;object-fit:cover;border-radius:6px;border:1px solid #ccc"/>`).join("")}</div></td></tr>`:""}`).join("");
+function printReport(entries, title, subtitle, withImages = true) {
+  const rows = entries.map((e,i)=>`<tr><td>${i+1}</td><td>${e.date||""}</td><td style="text-align:right">${e.equipmentName||"—"}</td><td>${e.workType||""}</td><td style="text-align:right">${e.description||""}</td><td>${e.hours||0}</td><td>${e.status||""}</td></tr>${(withImages&&e.images?.length)?`<tr><td colspan="7" style="padding:6px;background:#fafafa"><div style="display:flex;gap:8px;flex-wrap:wrap">${e.images.map(img=>`<img src="${img}" style="height:80px;width:80px;object-fit:cover;border-radius:6px;border:1px solid #ccc"/>`).join("")}</div></td></tr>`:""}`).join("");
   const totalHours = entries.reduce((s,e)=>s+(Number(e.hours)||0),0);
   const html = `<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Arial,sans-serif;padding:20px;font-size:11px}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #000;padding:5px 6px;text-align:center}th{background:#f0f0f0}h2,p.hdr{text-align:center;margin:3px 0}.sigs{display:flex;justify-content:space-between;margin-top:30px}@media print{@page{margin:1.5cm}}</style></head><body><p class="hdr" style="font-weight:bold">شركة نفط البصرة — هيأة الصيانة الهندسية — القسم: السيطرة والنظم</p><h2>${title}</h2><p class="hdr" style="color:#555">${subtitle}</p><table><thead><tr><th>ت</th><th>التاريخ</th><th>المعدة</th><th>نوع العمل</th><th>الوصف</th><th>الساعات</th><th>الحالة</th></tr></thead><tbody>${rows}<tr><td colspan="5" style="font-weight:bold;text-align:right">الإجمالي</td><td style="font-weight:bold">${totalHours}</td><td></td></tr></tbody></table><div class="sigs"><div style="text-align:center"><p>رئيس الشعبة</p><br/><br/><p>.................................</p></div><div style="text-align:center"><p>مدير القسم</p><br/><br/><p>.................................</p></div></div></body></html>`;
   const win=window.open("","_blank"); win.document.write(html); win.document.close(); win.print();
@@ -251,7 +251,7 @@ function MonthlyView({ entries, isAdmin, onDelete, onUpdate }) {
   const byType = WORK_TYPES.reduce((acc,t)=>{ acc[t]=monthEntries.filter(e=>e.workType===t).length; return acc; },{});
   const allImgs = monthEntries.flatMap(e=>(e.images||[]).map(img=>({img,date:e.date,eq:e.equipmentName||""})));
 
-  const doPrint = () => printReport(monthEntries,"تقرير العمل الشهري",`${MONTHS_AR[month]} ${year}`);
+  const doPrint = () => printReport(monthEntries,"تقرير العمل الشهري",`${MONTHS_AR[month]} ${year}`,false);
   const doExport = () => {
     const h = ["ت","التاريخ","المعدة","نوع العمل","الوصف","الساعات","الحالة"];
     exportCSV([h,...monthEntries.map((e,i)=>[i+1,e.date||"",e.equipmentName||"",e.workType||"",e.description||"",e.hours||0,e.status||""])],`تقرير-شهري-${MONTHS_AR[month]}-${year}.csv`);
