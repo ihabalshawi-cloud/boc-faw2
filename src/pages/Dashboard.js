@@ -126,8 +126,10 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     FirebaseAPI.loadAccounts().then(list => {
       if (list && list.length > 0) setEmployeesRaw(list.filter(Boolean));
     });
-    FirebaseAPI.loadEmpViews(emp.id).then(views => {
-      if (views !== null) { setAllowedViews(views); storage.set(`emp_allowed_views_${emp.id}`, views); }
+    FirebaseAPI.fetchAccount(emp.jobNum).then(freshEmp => {
+      if (!freshEmp) return;
+      const views = freshEmp.allowedViews ?? null;
+      if (Array.isArray(views)) { setAllowedViews(views); storage.set(`emp_allowed_views_${emp.id}`, views); }
     });
     FirebaseAPI.loadRequests().then(list => {
       if (list && list.length > 0) {
