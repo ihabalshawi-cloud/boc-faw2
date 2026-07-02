@@ -243,7 +243,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     { id:"furniture", label:"جرد الأثاث 2025",   icon:<ClipboardList size={17}/> },
     { id:"projects",  label:"إدارة المشاريع",     icon:<Briefcase size={17}/> },
   ];
-  const visibleAdminItems = allowedViews ? adminMenuItems.filter(i => allowedViews.includes(i.id)) : adminMenuItems;
+  const visibleAdminItems = allowedViews ? adminMenuItems.filter(i => allowedViews.includes(i.id) || (i.id==="approvals" && canSeeApprovals)) : adminMenuItems;
   const visibleTechItems  = allowedViews ? [] : techMenuItems;
   const menuItems = section === "admin" ? visibleAdminItems : visibleTechItems;
 
