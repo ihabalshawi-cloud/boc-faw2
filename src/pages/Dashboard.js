@@ -128,8 +128,9 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     });
     FirebaseAPI.fetchAccount(emp.jobNum).then(freshEmp => {
       if (!freshEmp) return;
-      const views = freshEmp.allowedViews ?? null;
-      if (Array.isArray(views)) { setAllowedViews(views); storage.set(`emp_allowed_views_${emp.id}`, views); }
+      const views = Array.isArray(freshEmp.allowedViews) ? freshEmp.allowedViews : [];
+      setAllowedViews(views);
+      storage.set(`emp_allowed_views_${emp.id}`, views);
     });
     FirebaseAPI.loadRequests().then(list => {
       if (list && list.length > 0) {
