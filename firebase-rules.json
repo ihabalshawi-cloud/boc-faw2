@@ -35,6 +35,9 @@
     "tasks_system":    { ".read": "true", ".write": "true" },
     "evaluations":     { ".read": "true", ".write": "true" },
     "backups":         { ".read": "true", ".write": "true" },
+    "bulk_evals":      { ".read": "true", ".write": "true" },
+    "maint_work_log":  { ".read": "true", ".write": "true" },
+    "maint_rpt_cfg":   { ".read": "true", ".write": "true" },
 
     "login_history": { ".read": "true", ".write": "true" },
     "chat": {
