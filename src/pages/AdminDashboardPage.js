@@ -1,11 +1,46 @@
 import React, { useState, useEffect } from "react";
-import { Shield, CheckCircle, Wifi, Clock, Trash2, X, Users, BarChart, Search } from "lucide-react";
+import { Shield, CheckCircle, Wifi, Clock, Trash2, X, Users, BarChart, Search, Download, Database } from "lucide-react";
 import { FIREBASE_URL } from "../constants";
 import { storage } from "../utils";
 import { useToast, useConfirm } from "../contexts";
 import { PERMISSIONS_DEF, BUILT_IN_ROLES, getEmpStatus } from "../permissions";
 import EmployeeManager from "./EmployeeManagerPage";
 import { useDebounce } from "../components/Shared";
+
+function FirebaseRulesTab() {
+  const [rules, setRules] = useState(null);
+  useEffect(() => { fetch("/firebase-rules.json").then(r=>r.json()).then(setRules).catch(()=>{}); }, []);
+  const rulesText = rules ? JSON.stringify(rules, null, 2) : "...";
+  const pathCount = rules ? Object.keys(rules?.rules||{}).filter(k=>k!==".read"&&k!==".write").length : 0;
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-primary">قواعد Firebase RTDB</h3>
+          <p className="text-xs text-secondary mt-0.5">ارفع هذا الملف في Firebase Console ← Realtime Database ← Rules</p>
+        </div>
+        <a href="/firebase-rules.json" download="firebase-rules.json"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shrink-0">
+          <Download size={15}/> تحميل
+        </a>
+      </div>
+      <div className="card rounded-2xl border border-color overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2.5 bg-hover border-b border-color">
+          <span className="text-xs font-mono text-secondary">firebase-rules.json</span>
+          {pathCount>0&&<span className="text-xs text-secondary">{pathCount} مسار</span>}
+        </div>
+        <pre className="p-4 text-xs font-mono overflow-x-auto leading-relaxed text-primary whitespace-pre-wrap max-h-96 overflow-y-auto">{rulesText}</pre>
+      </div>
+      <div className="card rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800 space-y-1" dir="rtl">
+        <p className="font-bold">خطوات التطبيق:</p>
+        <p>١. اضغط <strong>تحميل</strong> لتنزيل الملف</p>
+        <p>٢. افتح <strong>Firebase Console</strong> ← Realtime Database ← Rules</p>
+        <p>٣. افتح القواعد الحالية ثم انسخ المحتوى أو استخدم تحرير مباشر</p>
+        <p>٤. اضغط <strong>Publish</strong></p>
+      </div>
+    </div>
+  );
+}
 
 function AdminDashboard({ emp, employees, setEmployees }) {
   const addToast = useToast();
@@ -118,6 +153,7 @@ function AdminDashboard({ emp, employees, setEmployees }) {
     {id:"sessions",   label:"الجلسات النشطة",icon:<Wifi size={15}/>},
     {id:"accounts",   label:"إدارة الحسابات",icon:<Users size={15}/>},
     {id:"roles",      label:"الأدوار والصلاحيات",icon:<Shield size={15}/>},
+    {id:"firebase",   label:"Firebase",           icon:<Database size={15}/>},
   ];
 
   return (
@@ -433,6 +469,9 @@ function AdminDashboard({ emp, employees, setEmployees }) {
           </div>
         </div>
       )}
+
+      {/* ── Firebase Rules ── */}
+      {tab === "firebase" && <FirebaseRulesTab/>}
     </div>
   );
 }
