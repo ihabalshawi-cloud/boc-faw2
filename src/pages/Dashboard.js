@@ -124,13 +124,10 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
 
   useEffect(() => {
     FirebaseAPI.loadAccounts().then(list => {
-      if (list && list.length > 0) {
-        const clean = list.filter(Boolean);
-        setEmployeesRaw(clean);
-        const myData = clean.find(a=>String(a.id)===String(emp.id)||a.jobNum===emp.jobNum);
-        const views = myData?.allowedViews||null;
-        storage.set(`emp_allowed_views_${emp.id}`, views); setAllowedViews(views);
-      }
+      if (list && list.length > 0) setEmployeesRaw(list.filter(Boolean));
+    });
+    FirebaseAPI.loadEmpViews(emp.id).then(views => {
+      if (views !== null) { setAllowedViews(views); storage.set(`emp_allowed_views_${emp.id}`, views); }
     });
     FirebaseAPI.loadRequests().then(list => {
       if (list && list.length > 0) {

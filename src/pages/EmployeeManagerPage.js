@@ -132,7 +132,8 @@ function ViewsPanel({ employees, setEmployees }) {
     const updated = cur.includes(viewId) ? cur.filter(v=>v!==viewId) : [...cur, viewId];
     const updatedEmp = {...emp, allowedViews: updated};
     setEmployees(employees.map(e=>e.id===emp.id ? updatedEmp : e));
-    const ok = await FirebaseAPI.saveEmployee(updatedEmp);
+    FirebaseAPI.saveEmployee(updatedEmp);
+    const ok = await FirebaseAPI.saveEmpViews(emp.id, updated);
     addToast(ok ? "تم حفظ صلاحية الأيقونة ✅" : "تم التحديث محلياً — تحقق من الاتصال ⚠️", ok?"success":"warning");
   };
 
