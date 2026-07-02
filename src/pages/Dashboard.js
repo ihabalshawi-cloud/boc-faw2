@@ -105,12 +105,15 @@ class ReqErrorBoundary extends React.Component {
 
 const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","changepass","health_insurance","approvals","employees","admin_dashboard","timesheet","incentive"]);
 const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","maint_work_report","inventory","furniture","projects"]);
+const RESTRICTED_VIEWS = new Set(["training","tasks","evaluation","timesheet","maint_equipment","maint_parts","maint_reports","inventory","furniture","projects"]);
 
 export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode, largeFont, setLargeFont }) {
   const allowedViews = ACCOUNTS.find(a => a.id === emp.id)?.allowedViews || null;
   const [view, setView] = useState(() => {
     const saved = storage.get("last_view", "home");
-    return (allowedViews && !allowedViews.includes(saved)) ? "home" : saved;
+    const empIsAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
+    if (empIsAdmin || !RESTRICTED_VIEWS.has(saved)) return saved;
+    return (allowedViews && allowedViews.includes(saved)) ? saved : "home";
   });
   const [viewHistory, setViewHistory] = useState([]);
   const [reqSubTab, setReqSubTab] = useState("requests");
@@ -191,7 +194,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     if (id === "chat") { setChatOpen(true); return; }
     if ((id==="admin_dashboard"||id==="employees"||id==="analytics")&&!isAdmin) return;
     if (id==="approvals"&&!canSeeApprovals) return;
-    if (allowedViews && !allowedViews.includes(id)) return;
+    if (RESTRICTED_VIEWS.has(id) && !isAdmin && !(allowedViews && allowedViews.includes(id))) return;
     setViewHistory(h => [...h, view]);
     if (id === "leave_forms") {
       setView("requests"); setReqSubTab("leave_forms");
@@ -213,6 +216,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     storage.set("last_view", prev);
   };
 
+  const canSeeRestricted = (id) => isAdmin || (allowedViews && allowedViews.includes(id));
   const adminMenuItems = [
     ...(isAdmin ? [
       { id:"admin_dashboard", label:"لوحة الإدارة", icon:<Shield size={17}/> },
@@ -224,27 +228,27 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     { id:"home", label:"الرئيسية", icon:<Home size={17}/> },
     ...(canSeeAnalytics ? [{ id:"analytics", label:"لوحة التحليلات", icon:<BarChart size={17}/> }] : []),
     { id:"requests", label:"طلبات ونماذج الإجازات", icon:<FileText size={17}/> },
-    { id:"training", label:"التدريب", icon:<GraduationCap size={17}/> },
-    { id:"tasks", label:"المهام", icon:<CheckSquare size={17}/> },
-    { id:"evaluation", label:"التقييم", icon:<Star size={17}/> },
+    ...(canSeeRestricted("training") ? [{ id:"training", label:"التدريب", icon:<GraduationCap size={17}/> }] : []),
+    ...(canSeeRestricted("tasks") ? [{ id:"tasks", label:"المهام", icon:<CheckSquare size={17}/> }] : []),
+    ...(canSeeRestricted("evaluation") ? [{ id:"evaluation", label:"التقييم", icon:<Star size={17}/> }] : []),
     { id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> },
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
     { id:"incentive", label:"نظام المكافآت", icon:<Star size={17}/>, badge: (() => { const c=storage.get("boc_incentive_v1",[]).filter(f=>f.status==="بانتظار المراجعة").length; return (isAdmin&&c>0)?c:0; })() },
-    { id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> },
+    ...(canSeeRestricted("timesheet") ? [{ id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> }] : []),
     { id:"notifications", label:"الإشعارات", icon:<Bell size={17}/>, badge:unreadNotifs },
     { id:"changepass", label:"تغيير المرور", icon:<Shield size={17}/> },
   ];
   const techMenuItems = [
-    { id:"maint_equipment", label:"المعدات والصيانة", icon:<Wrench size={17}/> },
-    { id:"maint_parts",    label:"قطع غيار الصيانة", icon:<Box size={17}/> },
-    { id:"maint_reports",  label:"تقارير الصيانة",   icon:<TrendingUp size={17}/> },
+    ...(canSeeRestricted("maint_equipment") ? [{ id:"maint_equipment", label:"المعدات والصيانة", icon:<Wrench size={17}/> }] : []),
+    ...(canSeeRestricted("maint_parts") ? [{ id:"maint_parts", label:"قطع غيار الصيانة", icon:<Box size={17}/> }] : []),
+    ...(canSeeRestricted("maint_reports") ? [{ id:"maint_reports", label:"تقارير الصيانة", icon:<TrendingUp size={17}/> }] : []),
     { id:"maint_work_report", label:"تقرير العمل اليومي والشهري", icon:<ClipboardList size={17}/> },
-    { id:"inventory", label:"جرد الآلات الدقيقة", icon:<Package size={17}/> },
-    { id:"furniture", label:"جرد الأثاث 2025",   icon:<ClipboardList size={17}/> },
-    { id:"projects",  label:"إدارة المشاريع",     icon:<Briefcase size={17}/> },
+    ...(canSeeRestricted("inventory") ? [{ id:"inventory", label:"جرد الآلات الدقيقة", icon:<Package size={17}/> }] : []),
+    ...(canSeeRestricted("furniture") ? [{ id:"furniture", label:"جرد الأثاث 2025", icon:<ClipboardList size={17}/> }] : []),
+    ...(canSeeRestricted("projects") ? [{ id:"projects", label:"إدارة المشاريع", icon:<Briefcase size={17}/> }] : []),
   ];
-  const visibleAdminItems = allowedViews ? adminMenuItems.filter(i => allowedViews.includes(i.id) || (i.id==="approvals" && canSeeApprovals)) : adminMenuItems;
-  const visibleTechItems  = allowedViews ? [] : techMenuItems;
+  const visibleAdminItems = adminMenuItems;
+  const visibleTechItems  = techMenuItems;
   const menuItems = section === "admin" ? visibleAdminItems : visibleTechItems;
 
   const [showDriveSettings, setShowDriveSettings] = useState(false);
