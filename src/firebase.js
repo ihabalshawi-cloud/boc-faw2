@@ -494,4 +494,5 @@ export const FirebaseAPI = {
   loadEmpViews: async (empId) => {
     try { const r=await fetch(`${FIREBASE_URL}/emp_views/${empId}.json`); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d:[]; } catch{return null;}
   },
+  loadAllEmpViews: async () => { try { const r=await fetch(`${FIREBASE_URL}/emp_views.json`); if(!r.ok)return null; const d=await r.json(); return (d&&typeof d==="object"&&!Array.isArray(d))?d:{}; } catch{return null;} },
 };

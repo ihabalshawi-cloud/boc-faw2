@@ -126,16 +126,16 @@ const ICON_VIEWS = [
 
 function ViewsPanel({ employees, setEmployees }) {
   const addToast = useToast();
-
-  const toggle = async (emp, viewId) => {
-    const cur = emp.allowedViews || [];
-    const updated = cur.includes(viewId) ? cur.filter(v=>v!==viewId) : [...cur, viewId];
-    const updatedEmp = {...emp, allowedViews: updated};
-    setEmployees(employees.map(e=>e.id===emp.id ? updatedEmp : e));
+  const [vm, setVm] = useState({});
+  useEffect(()=>{ FirebaseAPI.loadAllEmpViews().then(m=>{if(m)setVm(m);}); },[]);
+  const toggle = async (emp, vid) => {
+    const cur = Array.isArray(vm[emp.id]) ? vm[emp.id] : (emp.allowedViews||[]);
+    const updated = cur.includes(vid) ? cur.filter(v=>v!==vid) : [...cur, vid];
+    setVm(m=>({...m,[emp.id]:updated}));
+    setEmployees(employees.map(e=>e.id===emp.id ? {...e,allowedViews:updated} : e));
     const ok = await FirebaseAPI.saveEmpViews(emp.id, updated);
     addToast(ok ? "تم حفظ صلاحية الأيقونة ✅" : "تعذر الحفظ في Firebase ⚠️", ok?"success":"warning");
   };
-
   const nonAdmins = employees.filter(e=>e.role!=="admin"&&e.jobNum!=="728004"&&e.username!=="i.shawi");
 
   return (
@@ -155,7 +155,7 @@ function ViewsPanel({ employees, setEmployees }) {
           </thead>
           <tbody>
             {nonAdmins.map(e=>{
-              const allowed = e.allowedViews||[];
+              const allowed = Array.isArray(vm[e.id]) ? vm[e.id] : (e.allowedViews||[]);
               return (
                 <tr key={e.id} className="border-b border-color hover:bg-gray-50/60 transition-colors">
                   <td className="px-3 py-1.5 font-medium sticky right-0 bg-white text-[11px]">{e.name.split(" ").slice(0,2).join(" ")}</td>
