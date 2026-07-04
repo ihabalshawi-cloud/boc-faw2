@@ -27,7 +27,7 @@ function printEntriesList(entries, cfg, title) {
   const html = `<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>${title}</title>
   <style>body{font-family:Arial,sans-serif;padding:20px;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #000;padding:6px 8px;text-align:center}th{background:#f0f0f0}h2{text-align:center}@media print{@page{margin:1.5cm}}</style>
   </head><body>
-  <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px"><p style="margin:2px;font-weight:bold">شركة نفط البصرة</p><p style="margin:2px">هيأة الصيانة الهندسية | القسم: السيطرة والنظم</p></div>
+  <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px"><p style="margin:2px;font-weight:bold">هيأة الصيانة الهندسية</p><p style="margin:2px">القسم: السيطرة والنظم</p></div>
   <h2>${title}</h2>
   <table><thead><tr><th>ت</th><th>الاسم الثلاثي</th><th>الرقم الوظيفي</th><th>النوبة/المجموعة</th><th>الفئة</th><th>المبلغ (د.ع)</th></tr></thead><tbody>${rows}</tbody>
   <tfoot><tr><td colspan="5" style="text-align:left;font-weight:bold">الإجمالي</td><td style="font-weight:bold;color:#16a34a">${total.toLocaleString()}</td></tr></tfoot></table>
@@ -35,23 +35,22 @@ function printEntriesList(entries, cfg, title) {
   const w = window.open("","_blank"); w.document.write(html); w.document.close();
 }
 
-function printWork(work, entries, cfg) {
-  const amounts = cfg?.amounts||DEFAULT_CFG.amounts;
+function printWork(work, entries) {
   const d = new Date(work.createdAt);
-  const rows = entries.map((e,i)=>`<tr><td>${i+1}</td><td style="text-align:right">${e.empName}</td><td>${e.jobNum}</td><td style="font-weight:bold">${e.category}</td><td style="font-weight:bold;color:#16a34a">${(amounts[e.category]||0).toLocaleString()}</td></tr>`).join("");
-  const total = entries.reduce((s,e)=>s+(amounts[e.category]||0),0);
-  const tBoxes = ["مكافأة تشغيلية","مكافأة استثمارية"].map(t=>`<span style="margin-left:20px">${t===work.formType?"☑":"☐"} ${t}</span>`).join("");
+  const rows = entries.map((e,i)=>`<tr><td>${i+1}</td><td style="text-align:right">${e.empName}</td><td>${e.jobNum}</td><td style="font-weight:bold">${e.category}</td></tr>`).join("");
+  const tBoxes = ["مكافأة تشغيلية","مكافأة استثمارية"].map(t=>`<span style="margin-left:24px">${t===work.formType?"☑":"☐"} ${t}</span>`).join("");
+  const digs = (work.workNum||"").replace(/\s/g,"").split("").map(c=>`<span style="display:inline-block;width:22px;height:22px;border:1px solid #000;text-align:center;line-height:22px;margin:0 1px">${c}</span>`).join("");
   const html = `<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>استمارة مكافآت</title>
-  <style>body{font-family:Arial,sans-serif;padding:20px;font-size:13px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #000;padding:6px 8px;text-align:center}th{background:#f0f0f0}.sigs{display:flex;justify-content:space-between;margin-top:40px}@media print{@page{margin:1.5cm}}</style>
+  <style>body{font-family:Arial,sans-serif;padding:20px;font-size:13px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #000;padding:6px 8px;text-align:center}th{background:#f0f0f0}.sigs{display:flex;justify-content:space-between;margin-top:40px}p{margin:4px 0}@media print{@page{margin:1.5cm}}</style>
   </head><body>
-  <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px"><p style="margin:2px;font-weight:bold">شركة نفط البصرة</p><p style="margin:2px">هيأة الصيانة الهندسية | القسم: السيطرة والنظم</p></div>
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="border:1px solid #000;padding:6px 12px">${tBoxes}</div><h2 style="margin:0;font-size:15px">استمارة منح مكافآت</h2></div>
-  <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:12px"><span>إلى / السيد مدير هيأة الصيانة الهندسية</span><span>الرقم التسلسلي: ${work.seqNum||"___"} &nbsp; التاريخ: ${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}</span></div>
-  <p style="margin:4px 0">أدناه أسماء المستحقين:</p>
-  <div style="border:1px solid #000;padding:10px;min-height:60px;white-space:pre-line;margin-bottom:8px"><strong>عنوان العمل والمبررات:</strong><br/>${work.workDesc||""}</div>
-  <p style="margin:4px 0">رقم العمل: <strong>${work.workNum||"_____________"}</strong></p>
-  <table><thead><tr><th>ت</th><th>الاسم الثلاثي</th><th>الرقم الوظيفي</th><th>الفئة</th><th>المبلغ (د.ع)</th></tr></thead>
-  <tbody>${rows}<tr><td colspan="4" style="font-weight:bold;text-align:right;padding-left:20px">الإجمالي</td><td style="font-weight:bold;color:#16a34a">${total.toLocaleString()}</td></tr></tbody></table>
+  <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px"><p style="font-weight:bold">هيأة الصيانة الهندسية</p><p>القسم: السيطرة والنظم</p></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="border:1px solid #ccc;padding:5px 12px;font-size:12px">${tBoxes}</div><span style="font-size:12px">الرقم التسلسلي: ${work.seqNum||"___"}</span></div>
+  <p>إلى / السيد مدير هيأة الصيانة الهندسية &nbsp;&nbsp;&nbsp;&nbsp; التاريخ: ${d.getDate()}/ ${d.getMonth()+1} /${d.getFullYear()}</p>
+  <p style="margin-top:10px">أدناه أسماء المستحقين للمكافآت وحسب ما مبين أدناه:</p>
+  <p>عنوان العمل وموقعه والمبررات الموجبة:</p>
+  <div style="border:1px solid #ccc;padding:10px;min-height:70px;white-space:pre-line;font-size:12px;margin-bottom:8px">${work.workDesc||""}</div>
+  <p>رقم العمل &nbsp;&nbsp; ${digs||"____________________"}</p>
+  <table><thead><tr><th>ت</th><th>الاسم الثلاثي</th><th>الرقم الوظيفي</th><th>الفئة</th></tr></thead><tbody>${rows}</tbody></table>
   <div class="sigs"><div style="text-align:center"><p style="font-weight:bold">مدير القسم</p><br/><br/><p>.................................</p></div><div style="text-align:center"><p style="font-weight:bold">مدير هيأة الصيانة الهندسية</p><br/><br/><p>.................................</p></div></div>
   </body></html>`;
   const win = window.open("","_blank"); win.document.write(html); win.document.close(); win.print();
@@ -234,7 +233,7 @@ function GroupView({ emp, entries, works, setWorks, shiftKey, cfg }) {
       <WorkForm emp={emp} shiftKey={shiftKey} works={works} setWorks={setWorks} month={month} year={year}/>
       {existingWork && groupEntries.length > 0 && (
         <div className="flex justify-end">
-          <button onClick={()=>printWork(existingWork,groupEntries,cfg)} className="flex items-center gap-1 px-3 py-1.5 btn-secondary border border-color rounded-lg text-sm"><Printer size={13}/> طباعة</button>
+          <button onClick={()=>printWork(existingWork,groupEntries)} className="flex items-center gap-1 px-3 py-1.5 btn-secondary border border-color rounded-lg text-sm"><Printer size={13}/> طباعة</button>
         </div>
       )}
       <EntriesTable entries={groupEntries} cfg={cfg} label="جميع المسجلين"/>
@@ -270,7 +269,7 @@ function WorkDetail({ work, entries, emp, cfg, works, setWorks, onBack }) {
       <div className="flex items-center gap-2">
         <button onClick={onBack} className="flex items-center gap-1 text-sm text-secondary hover:text-primary"><ChevronRight size={16}/> رجوع</button>
         <h2 className="font-bold flex-1">تفاصيل العمل</h2>
-        <button onClick={()=>printWork(work,wEntries,cfg)} className="flex items-center gap-1 px-3 py-1.5 btn-secondary border border-color rounded-lg text-sm"><Printer size={14}/> طباعة</button>
+        <button onClick={()=>printWork(work,wEntries)} className="flex items-center gap-1 px-3 py-1.5 btn-secondary border border-color rounded-lg text-sm"><Printer size={14}/> طباعة</button>
         <button onClick={del} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={15}/></button>
       </div>
       <div className="card rounded-2xl border border-color p-4 space-y-2">
