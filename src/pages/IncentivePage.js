@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { ChevronRight, Settings, Check, X, Printer, Trash2, Users, Download } from "lucide-react";
 import { storage } from "../utils";
 import { ACCOUNTS } from "../constants";
+import { exportWorkExcel } from "../incentiveExcel";
 import { useToast, useConfirm } from "../contexts";
 
 const EKEY = "boc_inc_entries";
@@ -232,7 +233,8 @@ function GroupView({ emp, entries, works, setWorks, shiftKey, cfg }) {
       </div>
       <WorkForm emp={emp} shiftKey={shiftKey} works={works} setWorks={setWorks} month={month} year={year}/>
       {existingWork && groupEntries.length > 0 && (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          <button onClick={()=>exportWorkExcel(existingWork,groupEntries)} className="flex items-center gap-1 px-3 py-1.5 btn-secondary border border-color rounded-lg text-sm"><Download size={13}/> Excel</button>
           <button onClick={()=>printWork(existingWork,groupEntries)} className="flex items-center gap-1 px-3 py-1.5 btn-secondary border border-color rounded-lg text-sm"><Printer size={13}/> طباعة</button>
         </div>
       )}
@@ -269,6 +271,7 @@ function WorkDetail({ work, entries, emp, cfg, works, setWorks, onBack }) {
       <div className="flex items-center gap-2">
         <button onClick={onBack} className="flex items-center gap-1 text-sm text-secondary hover:text-primary"><ChevronRight size={16}/> رجوع</button>
         <h2 className="font-bold flex-1">تفاصيل العمل</h2>
+        <button onClick={()=>exportWorkExcel(work,wEntries)} className="flex items-center gap-1 px-3 py-1.5 btn-secondary border border-color rounded-lg text-sm"><Download size={14}/> Excel</button>
         <button onClick={()=>printWork(work,wEntries)} className="flex items-center gap-1 px-3 py-1.5 btn-secondary border border-color rounded-lg text-sm"><Printer size={14}/> طباعة</button>
         <button onClick={del} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={15}/></button>
       </div>
