@@ -125,7 +125,7 @@ export function TsCodePicker({ codesArr, current, onSelect, onClose }) {
     return () => document.removeEventListener("mousedown", h);
   }, [onClose]);
   return (
-    <div ref={ref} dir="rtl"
+    <div ref={ref} dir="rtl" onClick={e=>e.stopPropagation()}
       className="absolute z-[200] bg-white border border-gray-300 rounded-xl shadow-2xl p-2"
       style={{top:"100%", right:"-10px", minWidth:"160px"}}>
       <button onClick={() => onSelect("")}
