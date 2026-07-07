@@ -59,9 +59,14 @@ function AnnualLeaveForm({ emp }) {
     toast("تم حفظ المسودة", "success");
   };
   const saveAndSubmit = () => {
-    if (status === "submitted") { toast("تم تقديم هذا الطلب مسبقاً — يرجى الانتظار حتى تتم مراجعته", "warning"); return; }
+    if (status === "submitted") {
+      const today = new Date().toISOString().split("T")[0];
+      const saved = storage.get(STORAGE_KEY, {});
+      if (saved.submittedDate === today && saved.fromDate === fromDate && saved.toDate === toDate) { toast("تم تقديم هذا الطلب مسبقاً — يرجى الانتظار حتى تتم مراجعته", "warning"); return; }
+    }
     if (!sigDataUrl) { toast("توقيع طالب الإجازة إلزامي للتقديم", "warning"); return; }
-    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, fromDate, toDate, days, purpose, reqDate, sigDataUrl, status: "submitted" });
+    const today = new Date().toISOString().split("T")[0];
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, fromDate, toDate, days, purpose, reqDate, sigDataUrl, status: "submitted", submittedDate: today });
     setStatus("submitted");
     const daysNum = days ? Number(days) : 1;
     const newReq = { id: Date.now(), type: "اعتيادية", dateFrom: fromDate, dateTo: toDate, purpose, days: daysNum, status: "بانتظار المراجعة", submittedAt: new Date().toISOString(), empId: emp.id, empName: name, empSigDataUrl: sigDataUrl };

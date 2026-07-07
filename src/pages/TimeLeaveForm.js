@@ -61,9 +61,14 @@ function TimeLeaveForm({ emp }) {
     toast("تم حفظ المسودة", "success");
   };
   const saveAndSubmit = () => {
-    if (status === "submitted") { toast("تم تقديم هذا الطلب مسبقاً — يرجى الانتظار حتى تتم مراجعته", "warning"); return; }
+    if (status === "submitted") {
+      const today = new Date().toISOString().split("T")[0];
+      const saved = storage.get(STORAGE_KEY, {});
+      if (saved.submittedDate === today && saved.leaveDate === leaveDate) { toast("تم تقديم هذا الطلب مسبقاً — يرجى الانتظار حتى تتم مراجعته", "warning"); return; }
+    }
     if (!sigDataUrl) { toast("توقيع الموظف إلزامي للتقديم", "warning"); return; }
-    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, leaveDate, departureTime, returnTime, hours, reason, sigDataUrl, status: "submitted" });
+    const today = new Date().toISOString().split("T")[0];
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, leaveDate, departureTime, returnTime, hours, reason, sigDataUrl, status: "submitted", submittedDate: today });
     setStatus("submitted");
     const purpose = reason || (hours ? `${hours} ساعة` : "إجازة زمنية");
     const newReq = { id: Date.now(), type: "زمنية", dateFrom: leaveDate, dateTo: leaveDate, purpose, days: 1, status: "بانتظار المراجعة", submittedAt: new Date().toISOString(), empId: emp.id, empName: name, empSigDataUrl: sigDataUrl };
