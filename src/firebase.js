@@ -488,11 +488,11 @@ export const FirebaseAPI = {
     } catch { return null; }
   },
 
-  saveEmpViews: async (empId, views) => {
-    try { return (await fetch(`${FIREBASE_URL}/emp_views/${empId}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(views||null)})).ok; } catch{return false;}
-  },
-  loadEmpViews: async (empId) => {
-    try { const r=await fetch(`${FIREBASE_URL}/emp_views/${empId}.json`); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d:[]; } catch{return null;}
-  },
+  saveEmpViews: async (empId, views) => { try { return (await fetch(`${FIREBASE_URL}/emp_views/${empId}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(views||null)})).ok; } catch{return false;} },
+  loadEmpViews: async (empId) => { try { const r=await fetch(`${FIREBASE_URL}/emp_views/${empId}.json`); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d:[]; } catch{return null;} },
   loadAllEmpViews: async () => { try { const r=await fetch(`${FIREBASE_URL}/emp_views.json`); if(!r.ok)return null; const d=await r.json(); return (d&&typeof d==="object"&&!Array.isArray(d))?d:{}; } catch{return null;} },
+  saveIncentiveEntries: async (l) => { try { const r=await fetch(`${FIREBASE_URL}/incentive_entries.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(l||[])}); return r.ok; } catch{return false;} },
+  loadIncentiveEntries: async () => { try { const r=await fetch(`${FIREBASE_URL}/incentive_entries.json`); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d:(d&&typeof d==="object"?Object.values(d).filter(Boolean):null); } catch{return null;} },
+  saveIncentiveWorks: async (l) => { try { const r=await fetch(`${FIREBASE_URL}/incentive_works.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(l||[])}); return r.ok; } catch{return false;} },
+  loadIncentiveWorks: async () => { try { const r=await fetch(`${FIREBASE_URL}/incentive_works.json`); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d:(d&&typeof d==="object"?Object.values(d).filter(Boolean):null); } catch{return null;} },
 };

@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ChevronRight, Settings, Check, X, Printer, Trash2, Users, Download } from "lucide-react";
 import { storage } from "../utils";
 import { ACCOUNTS } from "../constants";
 import { exportWorkExcel } from "../incentiveExcel";
 import { useToast, useConfirm } from "../contexts";
+import { FirebaseAPI } from "../firebase";
 
 const EKEY = "boc_inc_entries";
 const WKEY = "boc_inc_works";
@@ -231,7 +232,7 @@ function GroupView({ emp, entries, works, setWorks, shiftKey, cfg }) {
         <div><label className="text-xs text-secondary block mb-1">السنة</label>
           <input type="number" value={year} onChange={e=>setYear(Number(e.target.value))} className="w-full input-base rounded-lg px-3 py-2 text-sm border border-color"/></div>
       </div>
-      <WorkForm emp={emp} shiftKey={shiftKey} works={works} setWorks={setWorks} month={month} year={year}/>
+      <WorkForm emp={emp} shiftKey={shiftKey} works={works} setWorks={saveWorks} month={month} year={year}/>
       {existingWork && groupEntries.length > 0 && (
         <div className="flex justify-end gap-2">
           <button onClick={()=>exportWorkExcel(existingWork,groupEntries)} className="flex items-center gap-1 px-3 py-1.5 btn-secondary border border-color rounded-lg text-sm"><Download size={13}/> Excel</button>
@@ -368,6 +369,9 @@ export default function IncentivePage({ emp }) {
   const [aMonth,  setAMonth]  = useState(new Date().getMonth()+1);
   const [aYear,   setAYear]   = useState(new Date().getFullYear());
 
+  useEffect(()=>{FirebaseAPI.loadIncentiveEntries().then(d=>{if(d?.length>0){setEntries(d);storage.set(EKEY,d);}});FirebaseAPI.loadIncentiveWorks().then(d=>{if(d?.length>0){setWorks(d);storage.set(WKEY,d);}});},[]);
+  const saveEntries = up => { setEntries(up); storage.set(EKEY,up); FirebaseAPI.saveIncentiveEntries(up); };
+  const saveWorks = up => { setWorks(up); storage.set(WKEY,up); FirebaseAPI.saveIncentiveWorks(up); };
   const isMorningSup = (cfg.morningSupervisors||[]).includes(emp.id);
   const isShiftSup   = (cfg.shiftSupervisors||[]).includes(emp.id);
   const isSup        = isMorningSup || isShiftSup;
@@ -377,7 +381,7 @@ export default function IncentivePage({ emp }) {
 
   if (pv==="settings"&&isAdmin) return <SettingsView cfg={cfg} onSave={c=>{saveCfg(c);setPv("main");}} onBack={()=>setPv("main")}/>;
   if (pv==="detail"&&selWork) return (
-    <WorkDetail work={selWork} entries={entries} emp={emp} cfg={cfg} works={works} setWorks={setWorks}
+    <WorkDetail work={selWork} entries={entries} emp={emp} cfg={cfg} works={works} setWorks={saveWorks}
       onBack={()=>{setSelWork(null);setPv("main");}}/>
   );
 
@@ -410,7 +414,7 @@ export default function IncentivePage({ emp }) {
       <div className="space-y-4" dir="rtl">
         {header}
         <Tabs items={[["reg","تسجيلي"],["all",`المسجلون${allForMonth.length?` (${allForMonth.length})`:"" }`],["works",`الأعمال${pending.length?` (${pending.length})`:"" }`],["contracts","العقود"]]}/>
-        {tab==="reg" && <MyRegistration emp={emp} entries={entries} setEntries={setEntries}/>}
+        {tab==="reg" && <MyRegistration emp={emp} entries={entries} setEntries={saveEntries}/>}
         {tab==="all" && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
@@ -479,8 +483,8 @@ export default function IncentivePage({ emp }) {
     <div className="space-y-4" dir="rtl">
       {header}
       <Tabs items={[["reg","تسجيلي"],["group","مجموعتي"]]}/>
-      {tab==="reg"   && <MyRegistration emp={emp} entries={entries} setEntries={setEntries}/>}
-      {tab==="group" && <GroupView emp={emp} entries={entries} works={works} setWorks={setWorks} shiftKey={myShiftKey} cfg={cfg}/>}
+      {tab==="reg"   && <MyRegistration emp={emp} entries={entries} setEntries={saveEntries}/>}
+      {tab==="group" && <GroupView emp={emp} entries={entries} works={works} setWorks={saveWorks} shiftKey={myShiftKey} cfg={cfg}/>}
     </div>
   );
 
@@ -488,7 +492,7 @@ export default function IncentivePage({ emp }) {
   return (
     <div className="space-y-4" dir="rtl">
       {header}
-      <MyRegistration emp={emp} entries={entries} setEntries={setEntries}/>
+      <MyRegistration emp={emp} entries={entries} setEntries={saveEntries}/>
     </div>
   );
 }
