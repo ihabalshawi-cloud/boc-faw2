@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Shield, Save, Plus, Edit3, X, Download, Search } from "lucide-react";
+import { Shield, Save, Plus, Edit3, X, Download, Search, Unlock } from "lucide-react";
 import { storage, passStore, exportCSV } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
@@ -213,7 +213,6 @@ function EmployeeManager({ employees, setEmployees }) {
 
   const depts = ["الكل", ...new Set(employees.map(e=>e.dept).filter(Boolean))];
   const roleNames = ["الكل", ...Object.keys(BUILT_IN_ROLES)];
-
   const getStatus = (e) => getEmpStatus(e.id);
   const getLastLogin = (e) => {
     const hist = storage.get("login_history", []);
@@ -259,7 +258,6 @@ function EmployeeManager({ employees, setEmployees }) {
     }
   };
 
-  // مزامنة فورية لخريطة الأدوار/الحالات إلى Firebase حتى لا تختفي بعد التحديث
   const autoSyncRoles = () => {
     const rolesMap = {};
     employees.forEach(emp => { rolesMap[emp.id] = getEmpStatus(emp.id); });
@@ -280,6 +278,11 @@ function EmployeeManager({ employees, setEmployees }) {
     forceUpdate(n=>n+1);
     autoSyncRoles();
     addToast("تم تغيير الدور","success");
+  };
+
+  const clearLoginLock = async (e) => {
+    storage.set(`login_lock_${e.id}`, { count: 0, lockedUntil: 0 });
+    addToast(`تم تصفير قفل الدخول لـ ${e.name}`, "success");
   };
 
   const resetPass = async (e) => {
@@ -322,12 +325,10 @@ function EmployeeManager({ employees, setEmployees }) {
     if (ok) addToast("تم حفظ الصلاحيات في Firebase بنجاح ✅", "success");
     else addToast("فشل الحفظ — تحقق من إعدادات Firebase", "error");
   };
-
   const roleBadge = (roleKey) => {
     const r = BUILT_IN_ROLES[roleKey] || BUILT_IN_ROLES.EMPLOYEE;
     return <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.color}`}>{r.label}</span>;
   };
-
   return (
     <div className="space-y-4">
       {/* التبويبات */}
@@ -465,6 +466,7 @@ function EmployeeManager({ employees, setEmployees }) {
                       <div className="flex items-center gap-1 justify-center">
                         <button onClick={()=>{setEditId(e.id);setAdding(false);setForm({...e});}} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg" title="تعديل"><Edit3 size={13}/></button>
                         <button onClick={()=>resetPass(e)} className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg" title="إعادة تعيين كلمة المرور"><Shield size={13}/></button>
+                        <button onClick={()=>clearLoginLock(e)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="تصفير قفل الدخول"><Unlock size={13}/></button>
                       </div>
                     </td>
                   </tr>
@@ -493,7 +495,5 @@ function EmployeeManager({ employees, setEmployees }) {
     </div>
   );
 }
-
-// ========== SVG Charts — بدون مكتبات خارجية ==========
 
 export default EmployeeManager;
