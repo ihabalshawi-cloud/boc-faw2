@@ -420,7 +420,7 @@ function EmployeeManager({ employees, setEmployees }) {
               <tr className="border-b border-color bg-gray-50">
                 <th className="px-3 py-2.5 text-right font-semibold">الاسم</th>
                 <th className="px-3 py-2.5 text-right font-semibold">الرقم</th>
-                <th className="px-3 py-2.5 text-right font-semibold hidden md:table-cell">المسمى</th>
+                <th className="px-3 py-2.5 text-right font-semibold hidden md:table-cell">العنوان الوظيفي</th>
                 <th className="px-3 py-2.5 text-right font-semibold hidden md:table-cell">القسم</th>
                 <th className="px-3 py-2.5 text-center font-semibold">الدور</th>
                 <th className="px-3 py-2.5 text-center font-semibold">الحالة</th>

@@ -21,7 +21,7 @@ export const ACCOUNTS = [
   {id:10, username:"m.ali",      jobNum:"813877", name:"محمد اسماعيل احمد رمضان العلي",             title:"مهندس",         dept:"قسم السيطرة والنظم",  shift:"صباحي"},
   {id:11, username:"al.miyahi",  jobNum:"439193", name:"علي طاهر خزعل سبهان المياحي",               title:"حرفي اقدم",     dept:"شعبة المرافئ",         shift:"صباحي", allowedViews:["home","requests","health_insurance","notifications","changepass"]},
   // ══ موظفو المناوبة — المجموعة A ══
-  {id:12, username:"ab.abbada",  jobNum:"701130", name:"عبدالله علي زباري",                         title:"م.مدير فني",    dept:"شعبة مستودع الفاو",   shift:"مناوبة", group:"A"},
+  {id:12, username:"ab.abbada",  jobNum:"701130", name:"عبدالله علي زباري",                         title:"م.ر مهندسين",   dept:"شعبة مستودع الفاو",   shift:"مناوبة", group:"A"},
   {id:13, username:"am.ali",     jobNum:"751480", name:"امين حميد فاضل حسين العلي",                 title:"م.مدير فني",    dept:"شعبة مستودع الفاو",   shift:"مناوبة", group:"A"},
   {id:14, username:"h.abadi",    jobNum:"719269", name:"حسين علي احمد قاسم عبادي",                  title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"A"},
   {id:15, username:"j.hussain",  jobNum:"719498", name:"جاسم مزعل حاتم ديوان الحسين",               title:"م.مدير فني",    dept:"قسم السيطرة والنظم",  shift:"مناوبة", group:"A"},
