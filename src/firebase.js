@@ -485,7 +485,6 @@ export const FirebaseAPI = {
       return (data && typeof data === "object" && !Array.isArray(data)) ? data : null;
     } catch { return null; }
   },
-
   saveEmpViews: async (empId, views) => { try { return (await fetch(`${FIREBASE_URL}/emp_views/${empId}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(views||null)})).ok; } catch{return false;} },
   loadEmpViews: async (empId) => { try { const r=await fetch(`${FIREBASE_URL}/emp_views/${empId}.json`); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d:[]; } catch{return null;} },
   loadAllEmpViews: async () => { try { const r=await fetch(`${FIREBASE_URL}/emp_views.json`); if(!r.ok)return null; const d=await r.json(); return (d&&typeof d==="object"&&!Array.isArray(d))?d:{}; } catch{return null;} },
@@ -495,4 +494,7 @@ export const FirebaseAPI = {
   loadIncentiveEntries: async () => { try { const r=await fetch(`${FIREBASE_URL}/incentive_entries.json`); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d:(d&&typeof d==="object"?Object.values(d).filter(Boolean):null); } catch{return null;} },
   saveIncentiveWorks: async (l) => { try { const r=await fetch(`${FIREBASE_URL}/incentive_works.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(l||[])}); if(!r.ok){const b=await r.text().catch(()=>"");console.warn(`[Firebase] saveIncentiveWorks failed (${r.status}):`,b);} return r.ok; } catch(e){console.warn("[Firebase] saveIncentiveWorks error:",e.message);return false;} },
   loadIncentiveWorks: async () => { try { const r=await fetch(`${FIREBASE_URL}/incentive_works.json`); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d:(d&&typeof d==="object"?Object.values(d).filter(Boolean):null); } catch{return null;} },
+  saveLockInfo: async (jobNum, data) => { try { await fetch(`${FIREBASE_URL}/login_locks/${jobNum}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); return true; } catch{return false;} },
+  loadLockInfo: async (jobNum) => { try { const r=await fetch(`${FIREBASE_URL}/login_locks/${jobNum}.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch{return null;} },
+  clearLockInfo: async (jobNum) => { try { await fetch(`${FIREBASE_URL}/login_locks/${jobNum}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({count:0,lockedUntil:0})}); return true; } catch{return false;} },
 };

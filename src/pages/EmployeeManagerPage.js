@@ -281,7 +281,8 @@ function EmployeeManager({ employees, setEmployees }) {
   };
 
   const clearLoginLock = async (e) => {
-    storage.set(`login_lock_${e.id}`, { count: 0, lockedUntil: 0 });
+    storage.set(`login_lock_${e.jobNum}`, { count: 0, lockedUntil: 0 });
+    if (isConnected) FirebaseAPI.clearLockInfo(e.jobNum);
     addToast(`تم تصفير قفل الدخول لـ ${e.name}`, "success");
   };
 
