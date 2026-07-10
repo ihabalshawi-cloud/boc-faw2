@@ -109,13 +109,7 @@ const RESTRICTED_VIEWS = new Set(["training","tasks","evaluation","timesheet","c
 export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode, largeFont, setLargeFont }) {
   const [employees, setEmployeesRaw] = useState(ACCOUNTS);
   const [allowedViews, setAllowedViews] = useState(() => storage.get(`emp_allowed_views_${emp.id}`, null));
-  const [view, setView] = useState(() => {
-    const saved = storage.get("last_view", "home");
-    const empIsAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
-    if (empIsAdmin || !RESTRICTED_VIEWS.has(saved)) return saved;
-    const initViews = storage.get(`emp_allowed_views_${emp.id}`, null);
-    return (initViews && initViews.includes(saved)) ? saved : "home";
-  });
+  const [view, setView] = useState("home");
   const [viewHistory, setViewHistory] = useState([]);
   const [viewFuture, setViewFuture] = useState([]);
   const [reqSubTab, setReqSubTab] = useState("requests");
