@@ -368,7 +368,7 @@ export default function IncentivePage({ emp }) {
   const [aMonth,  setAMonth]  = useState(new Date().getMonth()+1);
   const [aYear,   setAYear]   = useState(new Date().getFullYear());
 
-  useEffect(()=>{FirebaseAPI.loadIncentiveEntries().then(d=>{if(d?.length>0){setEntries(d);storage.set(EKEY,d);}});FirebaseAPI.loadIncentiveWorks().then(d=>{if(d?.length>0){setWorks(d);storage.set(WKEY,d);}});},[]);
+  useEffect(()=>{FirebaseAPI.loadIncentiveEntries().then(d=>{if(d?.length>0){setEntries(d);storage.set(EKEY,d);}});FirebaseAPI.loadIncentiveWorks().then(d=>{if(d?.length>0){setWorks(d);storage.set(WKEY,d);}});FirebaseAPI.loadIncentiveCfg().then(d=>{if(d){setCfg(d);storage.set(CFGKEY,d);}});},[]);
   const saveEntries = up => { setEntries(up); storage.set(EKEY,up); FirebaseAPI.saveIncentiveEntries(up); };
   const saveWorks = up => { setWorks(up); storage.set(WKEY,up); FirebaseAPI.saveIncentiveWorks(up); };
   const isMorningSup = (cfg.morningSupervisors||[]).includes(emp.id);
@@ -376,7 +376,7 @@ export default function IncentivePage({ emp }) {
   const isSup        = isMorningSup || isShiftSup;
   const myShiftKey   = sk(emp);
 
-  const saveCfg = c => { setCfg(c); storage.set(CFGKEY,c); };
+  const saveCfg = c => { setCfg(c); storage.set(CFGKEY,c); FirebaseAPI.saveIncentiveCfg(c); };
 
   if (pv==="settings"&&isAdmin) return <SettingsView cfg={cfg} onSave={c=>{saveCfg(c);setPv("main");}} onBack={()=>setPv("main")}/>;
   if (pv==="detail"&&selWork) return (
@@ -412,8 +412,9 @@ export default function IncentivePage({ emp }) {
     return (
       <div className="space-y-4" dir="rtl">
         {header}
-        <Tabs items={[["reg","تسجيلي"],["all",`المسجلون${allForMonth.length?` (${allForMonth.length})`:"" }`],["works",`الأعمال${pending.length?` (${pending.length})`:"" }`],["contracts","العقود"]]}/>
+        <Tabs items={[["reg","تسجيلي"],...(isSup?[["group","مجموعتي"]]:[ ]),["all",`المسجلون${allForMonth.length?` (${allForMonth.length})`:"" }`],["works",`الأعمال${pending.length?` (${pending.length})`:"" }`],["contracts","العقود"]]}/>
         {tab==="reg" && <MyRegistration emp={emp} entries={entries} setEntries={saveEntries}/>}
+        {tab==="group" && <GroupView emp={emp} entries={entries} works={works} setWorks={saveWorks} shiftKey={myShiftKey} cfg={cfg}/>}
         {tab==="all" && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
