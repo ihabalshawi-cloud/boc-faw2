@@ -22,7 +22,6 @@ import { playAlert, useConnectionStatus, PageSkeleton, sendDesktopNotification, 
 import { GDriveSettingsModal, GDriveQuotaBar } from "../components/GDriveComponents";
 import GlobalSearch from "../components/GlobalSearch";
 import HomeWidgets from "../components/HomeWidgets";
-import MobileNav from "../components/MobileNav";
 
 const LazyTimeSheetPage = React.lazy(() => import('./TimeSheetPage'));
 const LazyEmployeeManager = React.lazy(() => import('./EmployeeManagerPage'));
@@ -118,6 +117,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     return (initViews && initViews.includes(saved)) ? saved : "home";
   });
   const [viewHistory, setViewHistory] = useState([]);
+  const [viewFuture, setViewFuture] = useState([]);
   const [reqSubTab, setReqSubTab] = useState("requests");
   const [section, setSection] = useState(() => storage.get("dash_section","admin"));
   const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []).filter(Boolean));
@@ -150,7 +150,6 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const confirm = useConfirm();
   const [showSearch, setShowSearch] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const isAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
   const isAttendanceAdmin = emp.role === "attendance_admin";
   const canSeeApprovals = isAdmin || isAttendanceAdmin;
@@ -197,6 +196,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     if (id==="approvals"&&!canSeeApprovals) return;
     if (RESTRICTED_VIEWS.has(id) && !isAdmin && !(allowedViews && allowedViews.includes(id))) return;
     setViewHistory(h => [...h, view]);
+    setViewFuture([]);
     if (id === "leave_forms") {
       setView("requests"); setReqSubTab("leave_forms");
       if (section !== "admin") switchSection("admin");
@@ -212,9 +212,18 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const goBack = () => {
     if (viewHistory.length === 0) return;
     const prev = viewHistory[viewHistory.length - 1];
+    setViewFuture(f => [...f, view]);
     setViewHistory(h => h.slice(0, -1));
     setView(prev);
     storage.set("last_view", prev);
+  };
+  const goForward = () => {
+    if (viewFuture.length === 0) return;
+    const next = viewFuture[viewFuture.length - 1];
+    setViewHistory(h => [...h, view]);
+    setViewFuture(f => f.slice(0, -1));
+    setView(next);
+    storage.set("last_view", next);
   };
 
   const canSeeRestricted = (id) => isAdmin || (allowedViews && allowedViews.includes(id));
@@ -250,7 +259,6 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   ];
   const visibleAdminItems = adminMenuItems;
   const visibleTechItems  = techMenuItems;
-  const menuItems = section === "admin" ? visibleAdminItems : visibleTechItems;
 
   const [showDriveSettings, setShowDriveSettings] = useState(false);
   const gDrive = useGDrive();
@@ -295,21 +303,20 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
       )}
 
       <div>
-        <main className="p-5 pb-20">
-          {view !== "home" && (
-            <div className="flex items-center gap-1.5 text-sm text-secondary mb-4">
-              {viewHistory.length > 0 && (
-                <button onClick={goBack} className="hover:text-blue-600 transition-colors flex items-center gap-1 ml-2 border border-current rounded px-1.5 py-0.5">
-                  <ChevronRight size={13}/> رجوع
-                </button>
-              )}
-              <button onClick={()=>switchView("home")} className="hover:text-blue-600 transition-colors flex items-center gap-1">
-                <Home size={13}/> الرئيسية
-              </button>
-              <ChevronLeft size={13}/>
-              <span className="font-semibold text-primary">{VIEW_LABELS[view] || view}</span>
-            </div>
-          )}
+        <main className="p-5">
+          <div className="flex items-center gap-1 mb-4">
+            <button onClick={goBack} disabled={viewHistory.length === 0}
+              className={`p-2 rounded-full transition-colors ${viewHistory.length > 0 ? "text-emerald-600 hover:bg-emerald-50" : "text-gray-300 cursor-not-allowed"}`}
+              title="رجوع">
+              <ChevronRight size={22}/>
+            </button>
+            <button onClick={goForward} disabled={viewFuture.length === 0}
+              className={`p-2 rounded-full transition-colors ${viewFuture.length > 0 ? "text-emerald-600 hover:bg-emerald-50" : "text-gray-300 cursor-not-allowed"}`}
+              title="تقدم">
+              <ChevronLeft size={22}/>
+            </button>
+            {view !== "home" && <span className="text-sm font-semibold mr-2">{VIEW_LABELS[view] || view}</span>}
+          </div>
           {view==="home" && (
             <div className="space-y-6">
               <div className="space-y-5">
@@ -485,12 +492,6 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
         </div>
       )}
 
-      <MobileNav
-        view={view} chatOpen={chatOpen} setChatOpen={setChatOpen} switchView={switchView}
-        unreadNotifs={unreadNotifs} chatUnread={chatUnread} canSeeApprovals={canSeeApprovals}
-        pendingCount={pendingCount} showMobileMenu={showMobileMenu} setShowMobileMenu={setShowMobileMenu}
-        section={section} setSection={setSection} menuItems={menuItems} onLogout={onLogout}
-      />
     </div>
   );
 }
