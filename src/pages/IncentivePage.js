@@ -58,7 +58,6 @@ function printWork(work, entries) {
   const win = window.open("","_blank"); win.document.write(html); win.document.close(); win.print();
 }
 
-// ── Employee: self-register only ───────────────────────────────────────────────
 function MyRegistration({ emp, entries, setEntries }) {
   const toast = useToast();
   const confirm = useConfirm();
@@ -131,7 +130,6 @@ function MyRegistration({ emp, entries, setEntries }) {
   );
 }
 
-// ── Shared table of registrations ──────────────────────────────────────────────
 function EntriesTable({ entries, cfg, label }) {
   const amounts = cfg?.amounts||DEFAULT_CFG.amounts;
   const total   = entries.reduce((s,e)=>s+(amounts[e.category]||0),0);
@@ -161,7 +159,6 @@ function EntriesTable({ entries, cfg, label }) {
   );
 }
 
-// ── Supervisor: enter work description (one per month per group) ───────────────
 function WorkForm({ emp, shiftKey, works, setWorks, month, year }) {
   const toast = useToast();
   const existing = works.find(w=>w.shiftKey===shiftKey&&w.month===month&&w.year===year&&w.status!=="مرفوضة");
@@ -213,7 +210,6 @@ function WorkForm({ emp, shiftKey, works, setWorks, month, year }) {
   );
 }
 
-// ── Supervisor: view their group's registrations + enter work ──────────────────
 function GroupView({ emp, entries, works, setWorks, shiftKey, cfg }) {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth()+1);
@@ -245,14 +241,14 @@ function GroupView({ emp, entries, works, setWorks, shiftKey, cfg }) {
   );
 }
 
-// ── Admin: work detail + approve/reject ────────────────────────────────────────
 function WorkDetail({ work, entries, emp, cfg, works, setWorks, onBack }) {
   const toast = useToast();
   const confirm = useConfirm();
   const [comment, setComment] = useState(work.comment||"");
+  const [ed, setEd] = useState(null);
   const wEntries = entries.filter(e=>e.shiftKey===work.shiftKey&&e.month===work.month&&e.year===work.year&&!e.isContract);
   const enteredBy = ACCOUNTS.find(a=>a.id===work.enteredBy);
-
+  const saveEdit = () => { setWorks(works.map(w=>w.id===work.id?{...w,workDesc:ed}:w)); setEd(null); toast("تم حفظ التعديل","success"); };
   const approve = async (status) => {
     if (status==="مرفوضة"&&!comment.trim()) { toast("أضف سبب الرفض","warning"); return; }
     if (await confirm(`${status==="موافق عليها"?"الموافقة على":"رفض"} هذا العمل؟`)) {
@@ -282,8 +278,11 @@ function WorkDetail({ work, entries, emp, cfg, works, setWorks, onBack }) {
           <span className="text-sm font-bold">{work.formType}</span>
           <span className="text-xs text-secondary">{MONTHS_AR[(work.month||1)-1]} {work.year} — {work.shiftKey}</span>
         </div>
-        <p className="text-sm bg-hover rounded-lg p-3 whitespace-pre-line">{work.workDesc}</p>
-        <p className="text-xs text-secondary">رقم العمل: {work.workNum||"—"} | أدخله: {enteredBy?.name?.split(" ").slice(0,2).join(" ")||"—"}</p>
+        {ed!=null ? <textarea value={ed} onChange={e=>setEd(e.target.value)} rows={4} className="w-full input-base rounded-lg px-3 py-2 text-sm border border-color resize-none"/> : <p className="text-sm bg-hover rounded-lg p-3 whitespace-pre-line">{work.workDesc}</p>}
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-secondary">رقم العمل: {work.workNum||"—"} | أدخله: {enteredBy?.name?.split(" ").slice(0,2).join(" ")||"—"}</p>
+          {ed!=null ? <button onClick={saveEdit} className="shrink-0 text-xs bg-blue-600 text-white px-2 py-1 rounded-lg font-bold">حفظ النص</button> : <button onClick={()=>setEd(work.workDesc||"")} className="shrink-0 text-xs text-blue-600 hover:underline">تعديل النص</button>}
+        </div>
         {work.comment && <p className="text-xs bg-amber-50 p-2 rounded-lg border border-amber-100">{work.comment}</p>}
       </div>
       <EntriesTable entries={wEntries} cfg={cfg} label={work.shiftKey}/>
