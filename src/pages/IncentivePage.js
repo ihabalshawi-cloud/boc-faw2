@@ -232,7 +232,7 @@ function GroupView({ emp, entries, works, setWorks, shiftKey, cfg }) {
         <div><label className="text-xs text-secondary block mb-1">السنة</label>
           <input type="number" value={year} onChange={e=>setYear(Number(e.target.value))} className="w-full input-base rounded-lg px-3 py-2 text-sm border border-color"/></div>
       </div>
-      <WorkForm emp={emp} shiftKey={shiftKey} works={works} setWorks={saveWorks} month={month} year={year}/>
+      <WorkForm emp={emp} shiftKey={shiftKey} works={works} setWorks={setWorks} month={month} year={year}/>
       {existingWork && groupEntries.length > 0 && (
         <div className="flex justify-end gap-2">
           <button onClick={()=>exportWorkExcel(existingWork,groupEntries)} className="flex items-center gap-1 px-3 py-1.5 btn-secondary border border-color rounded-lg text-sm"><Download size={13}/> Excel</button>
