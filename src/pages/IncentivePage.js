@@ -390,7 +390,6 @@ export default function IncentivePage({ emp }) {
         <p className="text-xs text-secondary">أ: {(cfg?.amounts?.أ||100000).toLocaleString()} | ب: {(cfg?.amounts?.ب||75000).toLocaleString()} | ج: {(cfg?.amounts?.ج||50000).toLocaleString()} دينار</p>
       </div>
       <div className="flex items-center gap-2">
-        <a href="/templates/incentive-template.xlsx" download className="flex items-center gap-1 px-3 py-1.5 btn-secondary border border-color rounded-lg text-xs"><Download size={13}/> نموذج فارغ</a>
         {isAdmin && <button onClick={()=>setPv("settings")} className="p-2 btn-secondary rounded-xl border border-color"><Settings size={16}/></button>}
       </div>
     </div>
