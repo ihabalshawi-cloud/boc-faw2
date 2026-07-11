@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Download, CheckCircle, ThumbsUp, ThumbsDown, X, PenTool, Printer, Send } from "lucide-react";
 import { ACCOUNTS } from "../constants";
-import { storage } from "../utils";
+import { storage, fmtIraqi } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { EmpPopover, playAlert, sendBackgroundPush } from "../components/Shared";
 import { hasPermission } from "../permissions";
@@ -211,7 +211,7 @@ function ApprovalsPage({ emp }) {
                   <p className="font-bold"><EmpPopover emp={reqEmp}>{req.empName}</EmpPopover></p>
                   <p className="text-sm">{req.type} — {req.days} يوم</p>
                   <p className="text-xs text-secondary">{req.purpose}</p>
-                  <p className="text-xs text-secondary mt-1">{new Date(req.submittedAt).toLocaleDateString("ar-IQ")}</p>
+                  <p className="text-xs text-secondary mt-1">{fmtIraqi((req.submittedAt||"").slice(0,10))}</p>
                 </div>
                 {isSupervisor && sigReqId !== req.id && (
                   <div className="flex gap-2 items-start">
@@ -241,7 +241,7 @@ function ApprovalsPage({ emp }) {
                   {req.pushedToAdmin && <span className="inline-block text-[10px] text-violet-700 font-bold bg-violet-100 px-1.5 py-0.5 rounded-full mb-1">📋 مرحّلة للإداري</span>}
                   <p className="font-bold text-sm">{req.empName}</p>
                   <p className="text-xs">{req.type} — {req.days} يوم | {req.purpose}</p>
-                  <p className="text-[10px] text-secondary">وافق: {req.decidedBy} — {req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</p>
+                  <p className="text-[10px] text-secondary">وافق: {req.decidedBy} — {req.decidedAt?fmtIraqi(req.decidedAt.slice(0,10)):""}</p>
                 </div>
                 <div className="flex gap-2 items-start flex-wrap justify-end">
                   {canExportLeave && (req.pushedToAdmin || isAdmin || isAttendanceAdmin) && (
@@ -268,7 +268,7 @@ function ApprovalsPage({ emp }) {
                 <div>
                   <p className="font-bold text-sm text-gray-600">{req.empName}</p>
                   <p className="text-xs text-gray-500">{req.type} — {req.days} يوم | {req.purpose}</p>
-                  <p className="text-[10px] text-secondary">وافق: {req.decidedBy} — {req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</p>
+                  <p className="text-[10px] text-secondary">وافق: {req.decidedBy} — {req.decidedAt?fmtIraqi(req.decidedAt.slice(0,10)):""}</p>
                 </div>
                 <div className="flex gap-2 items-start">
                   {canExportLeave && (req.pushedToAdmin || isAdmin || isAttendanceAdmin) && (

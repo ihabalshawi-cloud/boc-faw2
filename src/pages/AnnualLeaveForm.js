@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Save, CheckCircle, FileText, Printer, Download, Upload, Send } from "lucide-react";
-import { storage } from "../utils";
+import { storage, fmtIraqi, todayISO } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { ACCOUNTS } from "../constants";
 import { useToast } from "../contexts";
@@ -22,8 +22,8 @@ function AnnualLeaveForm({ emp }) {
   const [jobNum, setJobNum] = useState(emp.jobNum || "");
   const [jobTitle, setJobTitle] = useState(emp.title || "");
   const [dept, setDept] = useState(emp.dept || "");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(todayISO());
+  const [toDate, setToDate] = useState(todayISO());
   const [days, setDays] = useState("");
   const [purpose, setPurpose] = useState("");
   const [reqDate, setReqDate] = useState(now.toISOString().split("T")[0]);
@@ -261,12 +261,12 @@ function AnnualLeaveForm({ emp }) {
       <div><label className="block text-xs font-bold text-secondary mb-1">الرقم الوظيفي</label><input value={jobNum} onChange={e=>setJobNum(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
       <div><label className="block text-xs font-bold text-secondary mb-1">العنوان الوظيفي</label><input value={jobTitle} onChange={e=>setJobTitle(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
       <div className="grid grid-cols-3 gap-3">
-        <div><label className="block text-xs font-bold text-secondary mb-1">من تاريخ</label><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">إلى تاريخ</label><input type="date" value={toDate} onChange={e=>setToDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">من تاريخ</label><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/>{fromDate&&<p className="text-[10px] text-blue-600 mt-0.5 text-center">{fmtIraqi(fromDate)}</p>}</div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">إلى تاريخ</label><input type="date" value={toDate} onChange={e=>setToDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/>{toDate&&<p className="text-[10px] text-blue-600 mt-0.5 text-center">{fmtIraqi(toDate)}</p>}</div>
         <div><label className="block text-xs font-bold text-secondary mb-1">عدد الأيام</label><input type="number" min="1" value={days} onChange={e=>setDays(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
       </div>
       <div><label className="block text-xs font-bold text-secondary mb-1">غرض الإجازة</label><input value={purpose} onChange={e=>setPurpose(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-      <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الطلب</label><input type="date" value={reqDate} onChange={e=>setReqDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الطلب</label><input type="date" value={reqDate} onChange={e=>setReqDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/>{reqDate&&<p className="text-[10px] text-blue-600 mt-0.5">{fmtIraqi(reqDate)}</p>}</div>
       <div>
         <label className="block text-xs font-bold text-secondary mb-2">توقيع طالب الإجازة (إلكتروني)</label>
         <SignaturePad onSave={setSigDataUrl} label="ارسم توقيعك ثم اضغط حفظ التوقيع"/>

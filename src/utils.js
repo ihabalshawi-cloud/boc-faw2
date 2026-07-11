@@ -1,3 +1,13 @@
+// ── Iraqi date formatting ─────────────────────────────────────────────────────
+const _IM = ["كانون الثاني","شباط","آذار","نيسان","أيار","حزيران","تموز","آب","أيلول","تشرين الأول","تشرين الثاني","كانون الأول"];
+export function fmtIraqi(dateStr) {
+  if (!dateStr) return "";
+  const [y, m, d] = dateStr.split("-");
+  if (!y || !m || !d) return dateStr;
+  return `${Number(d)} ${_IM[Number(m) - 1]} ${y}`;
+}
+export const todayISO = () => new Date().toISOString().slice(0, 10);
+
 // ── Password hashing ──────────────────────────────────────────────────────────
 const PASS_SALT = "BOC_FAW_SCADA_2025#";
 

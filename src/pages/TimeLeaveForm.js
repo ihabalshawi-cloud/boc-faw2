@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Save, CheckCircle, Clock, Printer, Download, Upload, Send } from "lucide-react";
-import { storage } from "../utils";
+import { storage, fmtIraqi } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { ACCOUNTS } from "../constants";
 import { useToast } from "../contexts";
@@ -249,7 +249,7 @@ function TimeLeaveForm({ emp }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className="block text-xs font-bold text-secondary mb-1">القسم / الشعبة</label><input value={dept} onChange={e=>setDept(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الإجازة</label><input type="date" value={leaveDate} onChange={e=>setLeaveDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الإجازة</label><input type="date" value={leaveDate} onChange={e=>setLeaveDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/>{leaveDate&&<p className="text-[10px] text-blue-600 mt-0.5">{fmtIraqi(leaveDate)}</p>}</div>
       </div>
       <div className="grid grid-cols-3 gap-3">
         <div>

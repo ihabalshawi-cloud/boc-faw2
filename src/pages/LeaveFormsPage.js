@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Save, CheckCircle, FileText, Printer, Download, Upload, Send } from "lucide-react";
-import { storage } from "../utils";
+import { storage, fmtIraqi, todayISO } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { ACCOUNTS } from "../constants";
 import { useToast } from "../contexts";
@@ -24,7 +24,7 @@ function SickLeaveForm({ emp }) {
   const [name,        setName]        = useState(emp.name);
   const [jobNum,      setJobNum]      = useState(emp.jobNum || "");
   const [jobTitle,    setJobTitle]    = useState(emp.title || "");
-  const [leaveDate,   setLeaveDate]   = useState("");
+  const [leaveDate,   setLeaveDate]   = useState(todayISO());
   const [leaveTime,   setLeaveTime]   = useState("");
   const [clinicDT,    setClinicDT]    = useState("");
   const [notes,       setNotes]       = useState("");
@@ -256,7 +256,7 @@ function SickLeaveForm({ emp }) {
       <div className="p-3 rounded-xl border border-rose-200 bg-rose-50 space-y-3">
         <p className="text-xs font-bold text-rose-700">بيانات ترك العمل</p>
         <div className="grid grid-cols-2 gap-3">
-          <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ ترك العمل</label><input type="date" value={leaveDate} onChange={e=>setLeaveDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+          <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ ترك العمل</label><input type="date" value={leaveDate} onChange={e=>setLeaveDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/>{leaveDate&&<p className="text-[10px] text-blue-600 mt-0.5">{fmtIraqi(leaveDate)}</p>}</div>
           <div><label className="block text-xs font-bold text-secondary mb-1">وقت ترك العمل</label><input type="time" value={leaveTime} onChange={e=>setLeaveTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
         </div>
       </div>
