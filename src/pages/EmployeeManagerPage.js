@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Shield, Save, Plus, Edit3, X, Download, Search } from "lucide-react";
+import { Shield, Save, Plus, Edit3, X, Download, Search, Unlock } from "lucide-react";
 import { storage, passStore, exportCSV } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
@@ -116,6 +116,72 @@ function PermissionsPanel({ employees }) {
   );
 }
 
+const ICON_VIEWS = [
+  {id:"training",label:"التدريب"},{id:"tasks",label:"المهام"},{id:"evaluation",label:"التقييم"},
+  {id:"timesheet",label:"التايم شيت"},{id:"chat",label:"الدردشة"},{id:"maint_equipment",label:"المعدات"},
+  {id:"maint_parts",label:"قطع الغيار"},{id:"maint_reports",label:"تقارير الصيانة"},
+  {id:"maint_work_report",label:"تقرير العمل"},{id:"inventory",label:"الجرد"},
+  {id:"furniture",label:"الأثاث"},{id:"projects",label:"المشاريع"},
+];
+
+function ViewsPanel({ employees, setEmployees }) {
+  const addToast = useToast();
+  const [vm, setVm] = useState({});
+  useEffect(()=>{ FirebaseAPI.loadAllEmpViews().then(m=>{if(m)setVm(m);}); },[]);
+  const toggle = async (emp, vid) => {
+    const cur = Array.isArray(vm[emp.id]) ? vm[emp.id] : (emp.allowedViews||[]);
+    const updated = cur.includes(vid) ? cur.filter(v=>v!==vid) : [...cur, vid];
+    setVm(m=>({...m,[emp.id]:updated}));
+    setEmployees(employees.map(e=>e.id===emp.id ? {...e,allowedViews:updated} : e));
+    const ok = await FirebaseAPI.saveEmpViews(emp.id, updated);
+    addToast(ok ? "تم حفظ صلاحية الأيقونة ✅" : "تعذر الحفظ في Firebase ⚠️", ok?"success":"warning");
+  };
+  const nonAdmins = employees.filter(e=>e.role!=="admin"&&e.jobNum!=="728004"&&e.username!=="i.shawi");
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-secondary">انقر على الخانة لمنح أو إلغاء وصول الموظف لأيقونة معيّنة في الصفحة الرئيسية. الأيقونات مخفية بالافتراضي لجميع الموظفين.</p>
+      <div className="card rounded-2xl border border-color overflow-x-auto">
+        <table className="w-full text-xs" dir="rtl">
+          <thead>
+            <tr className="border-b border-color bg-gray-50/80">
+              <th className="px-3 py-2 text-right font-semibold sticky right-0 bg-gray-50 min-w-[120px]">الموظف</th>
+              {ICON_VIEWS.map(v=>(
+                <th key={v.id} className="px-2 py-2 text-center font-semibold min-w-[56px]">
+                  <span className="block text-[9px] leading-tight whitespace-nowrap">{v.label}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {nonAdmins.map(e=>{
+              const allowed = Array.isArray(vm[e.id]) ? vm[e.id] : (e.allowedViews||[]);
+              return (
+                <tr key={e.id} className="border-b border-color hover:bg-gray-50/60 transition-colors">
+                  <td className="px-3 py-1.5 font-medium sticky right-0 bg-white text-[11px]">{e.name.split(" ").slice(0,2).join(" ")}</td>
+                  {ICON_VIEWS.map(v=>(
+                    <td key={v.id} className="px-2 py-1.5 text-center">
+                      <button onClick={()=>toggle(e,v.id)}
+                        className={`w-6 h-6 rounded-md flex items-center justify-center mx-auto text-xs font-bold transition-all ${
+                          allowed.includes(v.id)?"bg-emerald-100 text-emerald-700 border border-emerald-300":"bg-gray-100 text-gray-300 border border-gray-200"}`}>
+                        {allowed.includes(v.id)?"✓":""}
+                      </button>
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex gap-4 text-[10px] text-secondary">
+        <span className="flex items-center gap-1"><span className="w-4 h-4 bg-emerald-100 border border-emerald-300 rounded-md inline-block"/>مسموح</span>
+        <span className="flex items-center gap-1"><span className="w-4 h-4 bg-gray-100 border border-gray-200 rounded-md inline-block"/>محظور (افتراضي)</span>
+      </div>
+    </div>
+  );
+}
+
 function EmployeeManager({ employees, setEmployees }) {
   const [tab, setTab] = useState("emps");
   const [search, setSearch]   = useState("");
@@ -134,8 +200,6 @@ function EmployeeManager({ employees, setEmployees }) {
   const addToast = useToast();
   const confirm  = useConfirm();
   const { isConnected } = useConnectionStatus();
-
-  // Auto-load roles from Firebase on mount
   useEffect(() => {
     if (!isConnected) return;
     FirebaseAPI.loadRoles().then(rolesMap => {
@@ -149,7 +213,6 @@ function EmployeeManager({ employees, setEmployees }) {
 
   const depts = ["الكل", ...new Set(employees.map(e=>e.dept).filter(Boolean))];
   const roleNames = ["الكل", ...Object.keys(BUILT_IN_ROLES)];
-
   const getStatus = (e) => getEmpStatus(e.id);
   const getLastLogin = (e) => {
     const hist = storage.get("login_history", []);
@@ -195,7 +258,6 @@ function EmployeeManager({ employees, setEmployees }) {
     }
   };
 
-  // مزامنة فورية لخريطة الأدوار/الحالات إلى Firebase حتى لا تختفي بعد التحديث
   const autoSyncRoles = () => {
     const rolesMap = {};
     employees.forEach(emp => { rolesMap[emp.id] = getEmpStatus(emp.id); });
@@ -216,6 +278,12 @@ function EmployeeManager({ employees, setEmployees }) {
     forceUpdate(n=>n+1);
     autoSyncRoles();
     addToast("تم تغيير الدور","success");
+  };
+
+  const clearLoginLock = async (e) => {
+    storage.set(`login_lock_${e.jobNum}`, { count: 0, lockedUntil: 0 });
+    if (isConnected) FirebaseAPI.clearLockInfo(e.jobNum);
+    addToast(`تم تصفير قفل الدخول لـ ${e.name}`, "success");
   };
 
   const resetPass = async (e) => {
@@ -258,21 +326,21 @@ function EmployeeManager({ employees, setEmployees }) {
     if (ok) addToast("تم حفظ الصلاحيات في Firebase بنجاح ✅", "success");
     else addToast("فشل الحفظ — تحقق من إعدادات Firebase", "error");
   };
-
   const roleBadge = (roleKey) => {
     const r = BUILT_IN_ROLES[roleKey] || BUILT_IN_ROLES.EMPLOYEE;
     return <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.color}`}>{r.label}</span>;
   };
-
   return (
     <div className="space-y-4">
       {/* التبويبات */}
       <div className="flex gap-1 border-b border-color pb-0">
         <button onClick={()=>setTab("emps")} className={`px-5 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${tab==="emps"?"border-blue-600 text-blue-700":"border-transparent text-secondary hover:text-primary"}`}>👥 الموظفون</button>
         <button onClick={()=>setTab("perms")} className={`px-5 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${tab==="perms"?"border-blue-600 text-blue-700":"border-transparent text-secondary hover:text-primary"}`}>🔑 الصلاحيات</button>
+        <button onClick={()=>setTab("views")} className={`px-5 py-2 text-sm font-bold rounded-t-lg border-b-2 transition-colors ${tab==="views"?"border-blue-600 text-blue-700":"border-transparent text-secondary hover:text-primary"}`}>🎯 الأيقونات</button>
       </div>
 
       {tab==="perms" && <PermissionsPanel employees={employees}/>}
+      {tab==="views" && <ViewsPanel employees={employees} setEmployees={setEmployees}/>}
       {tab==="emps" && <>
       {/* شريط الأدوات */}
       <div className="flex flex-wrap gap-2 items-center">
@@ -354,7 +422,7 @@ function EmployeeManager({ employees, setEmployees }) {
               <tr className="border-b border-color bg-gray-50">
                 <th className="px-3 py-2.5 text-right font-semibold">الاسم</th>
                 <th className="px-3 py-2.5 text-right font-semibold">الرقم</th>
-                <th className="px-3 py-2.5 text-right font-semibold hidden md:table-cell">المسمى</th>
+                <th className="px-3 py-2.5 text-right font-semibold hidden md:table-cell">العنوان الوظيفي</th>
                 <th className="px-3 py-2.5 text-right font-semibold hidden md:table-cell">القسم</th>
                 <th className="px-3 py-2.5 text-center font-semibold">الدور</th>
                 <th className="px-3 py-2.5 text-center font-semibold">الحالة</th>
@@ -399,6 +467,7 @@ function EmployeeManager({ employees, setEmployees }) {
                       <div className="flex items-center gap-1 justify-center">
                         <button onClick={()=>{setEditId(e.id);setAdding(false);setForm({...e});}} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg" title="تعديل"><Edit3 size={13}/></button>
                         <button onClick={()=>resetPass(e)} className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg" title="إعادة تعيين كلمة المرور"><Shield size={13}/></button>
+                        <button onClick={()=>clearLoginLock(e)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="تصفير قفل الدخول"><Unlock size={13}/></button>
                       </div>
                     </td>
                   </tr>
@@ -427,7 +496,5 @@ function EmployeeManager({ employees, setEmployees }) {
     </div>
   );
 }
-
-// ========== SVG Charts — بدون مكتبات خارجية ==========
 
 export default EmployeeManager;

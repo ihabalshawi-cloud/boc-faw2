@@ -5,7 +5,7 @@ import {
   Bell, ThumbsUp, Users, Package,
   ClipboardList, GraduationCap, BarChart, Star,
   Search, Moon, Sun, MessageSquare, X,
-  CheckSquare, AlertTriangle, ChevronLeft,
+  CheckSquare, AlertTriangle, ChevronLeft, ChevronRight,
   Wrench, Box, TrendingUp, Heart,
   Briefcase, Glasses, Type
 } from "lucide-react";
@@ -22,7 +22,6 @@ import { playAlert, useConnectionStatus, PageSkeleton, sendDesktopNotification, 
 import { GDriveSettingsModal, GDriveQuotaBar } from "../components/GDriveComponents";
 import GlobalSearch from "../components/GlobalSearch";
 import HomeWidgets from "../components/HomeWidgets";
-import MobileNav from "../components/MobileNav";
 
 const LazyTimeSheetPage = React.lazy(() => import('./TimeSheetPage'));
 const LazyEmployeeManager = React.lazy(() => import('./EmployeeManagerPage'));
@@ -45,6 +44,8 @@ const LazyMaintenanceAnalytics = React.lazy(() => import('./EquipmentPage').then
 const LazyHealthInsurancePage = React.lazy(() => import('./HealthInsurancePage'));
 const LazyLeaveFormsPage = React.lazy(() => import('./LeaveFormsPage'));
 const LazyProjectManagementPage = React.lazy(() => import('./ProjectManagementPage'));
+const LazyIncentivePage = React.lazy(() => import('./IncentivePage'));
+const LazyMaintenanceWorkReport = React.lazy(() => import('./MaintenanceWorkReportPage'));
 
 function useSmartAlerts(employees) {
   const [alerts, setAlerts] = useState([]);
@@ -101,19 +102,26 @@ class ReqErrorBoundary extends React.Component {
   }
 }
 
-const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","changepass","health_insurance","approvals","employees","admin_dashboard","timesheet"]);
-const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","inventory","furniture","projects"]);
+const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","changepass","health_insurance","approvals","employees","admin_dashboard","timesheet","incentive"]);
+const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","maint_work_report","inventory","furniture","projects"]);
+const RESTRICTED_VIEWS = new Set(["training","tasks","evaluation","timesheet","chat","maint_equipment","maint_parts","maint_reports","maint_work_report","inventory","furniture","projects"]);
 
 export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode, largeFont, setLargeFont }) {
-  const [view, setView] = useState(() => storage.get("last_view", "home"));
+  const [employees, setEmployeesRaw] = useState(ACCOUNTS);
+  const [allowedViews, setAllowedViews] = useState(() => storage.get(`emp_allowed_views_${emp.id}`, null));
+  const [view, setView] = useState("home");
+  const [viewHistory, setViewHistory] = useState([]);
+  const [viewFuture, setViewFuture] = useState([]);
   const [reqSubTab, setReqSubTab] = useState("requests");
   const [section, setSection] = useState(() => storage.get("dash_section","admin"));
   const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []).filter(Boolean));
-  const [employees, setEmployeesRaw] = useState(ACCOUNTS);
 
   useEffect(() => {
     FirebaseAPI.loadAccounts().then(list => {
       if (list && list.length > 0) setEmployeesRaw(list.filter(Boolean));
+    });
+    FirebaseAPI.loadEmpViews(emp.id).then(views => {
+      if (views !== null) { setAllowedViews(views); storage.set(`emp_allowed_views_${emp.id}`, views); }
     });
     FirebaseAPI.loadRequests().then(list => {
       if (list && list.length > 0) {
@@ -127,10 +135,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const setEmployees = useCallback((newList) => {
-    setEmployeesRaw(newList);
-    FirebaseAPI.saveAccounts(newList);
-  }, []);
+  const setEmployees = useCallback((newList) => { setEmployeesRaw(newList); FirebaseAPI.saveAccounts(newList); }, []);
   const { isConnected } = useConnectionStatus();
   const smartAlerts = useSmartAlerts(employees);
   const [dismissed, setDismissed] = useState(() => new Set());
@@ -139,12 +144,11 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const confirm = useConfirm();
   const [showSearch, setShowSearch] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const isAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
   const isAttendanceAdmin = emp.role === "attendance_admin";
   const canSeeApprovals = isAdmin || isAttendanceAdmin;
   const isTimeSheetAdmin = isAdmin || isAttendanceAdmin;
-  const canSeeAnalytics = isAdmin || isAttendanceAdmin || emp.role === "inventory_manager";
+  const canSeeAnalytics = isAdmin;
   const pendingCount = allRequests.filter(r => r && r.status === "بانتظار المراجعة").length;
   const unreadNotifs = (storage.get(`notifications_${emp.id}`, [])).filter(n => !n.read).length;
   useStorageSync("all_requests", setAllRequests);
@@ -181,12 +185,17 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
 
   const switchSection = (s) => { setSection(s); storage.set("dash_section", s); };
   const switchView = (id) => {
+    if (id === "chat") { if (!isAdmin && !(allowedViews && allowedViews.includes("chat"))) return; setChatOpen(true); return; }
+    if ((id==="admin_dashboard"||id==="employees"||id==="analytics")&&!isAdmin) return;
+    if (id==="approvals"&&!canSeeApprovals) return;
+    if (RESTRICTED_VIEWS.has(id) && !isAdmin && !(allowedViews && allowedViews.includes(id))) return;
+    setViewHistory(h => [...h, view]);
+    setViewFuture([]);
     if (id === "leave_forms") {
       setView("requests"); setReqSubTab("leave_forms");
       if (section !== "admin") switchSection("admin");
       return;
     }
-    if (id === "chat") { setChatOpen(true); return; }
     if (id === "requests") setReqSubTab("requests");
     setView(id);
     storage.set("last_view", id);
@@ -194,6 +203,24 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     if (TECH_VIEWS.has(id)  && section !== "tech")  switchSection("tech");
   };
 
+  const goBack = () => {
+    if (viewHistory.length === 0) return;
+    const prev = viewHistory[viewHistory.length - 1];
+    setViewFuture(f => [...f, view]);
+    setViewHistory(h => h.slice(0, -1));
+    setView(prev);
+    storage.set("last_view", prev);
+  };
+  const goForward = () => {
+    if (viewFuture.length === 0) return;
+    const next = viewFuture[viewFuture.length - 1];
+    setViewHistory(h => [...h, view]);
+    setViewFuture(f => f.slice(0, -1));
+    setView(next);
+    storage.set("last_view", next);
+  };
+
+  const canSeeRestricted = (id) => isAdmin || (allowedViews && allowedViews.includes(id));
   const adminMenuItems = [
     ...(isAdmin ? [
       { id:"admin_dashboard", label:"لوحة الإدارة", icon:<Shield size={17}/> },
@@ -205,24 +232,27 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     { id:"home", label:"الرئيسية", icon:<Home size={17}/> },
     ...(canSeeAnalytics ? [{ id:"analytics", label:"لوحة التحليلات", icon:<BarChart size={17}/> }] : []),
     { id:"requests", label:"طلبات ونماذج الإجازات", icon:<FileText size={17}/> },
-    { id:"training", label:"التدريب", icon:<GraduationCap size={17}/> },
-    { id:"tasks", label:"المهام", icon:<CheckSquare size={17}/> },
-    { id:"evaluation", label:"التقييم", icon:<Star size={17}/> },
-    { id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> },
+    ...(canSeeRestricted("training") ? [{ id:"training", label:"التدريب", icon:<GraduationCap size={17}/> }] : []),
+    ...(canSeeRestricted("tasks") ? [{ id:"tasks", label:"المهام", icon:<CheckSquare size={17}/> }] : []),
+    ...(canSeeRestricted("evaluation") ? [{ id:"evaluation", label:"التقييم", icon:<Star size={17}/> }] : []),
+    ...(canSeeRestricted("chat") ? [{ id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> }] : []),
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
-    ...(isTimeSheetAdmin ? [{ id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> }] : []),
+    { id:"incentive", label:"نظام المكافآت", icon:<Star size={17}/>, badge: (() => { const c=storage.get("boc_incentive_v1",[]).filter(f=>f.status==="بانتظار المراجعة").length; return (isAdmin&&c>0)?c:0; })() },
+    ...(canSeeRestricted("timesheet") ? [{ id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> }] : []),
     { id:"notifications", label:"الإشعارات", icon:<Bell size={17}/>, badge:unreadNotifs },
     { id:"changepass", label:"تغيير المرور", icon:<Shield size={17}/> },
   ];
   const techMenuItems = [
-    { id:"maint_equipment", label:"المعدات والصيانة", icon:<Wrench size={17}/> },
-    { id:"maint_parts",    label:"قطع غيار الصيانة", icon:<Box size={17}/> },
-    { id:"maint_reports",  label:"تقارير الصيانة",   icon:<TrendingUp size={17}/> },
-    { id:"inventory", label:"جرد الآلات الدقيقة", icon:<Package size={17}/> },
-    { id:"furniture", label:"جرد الأثاث 2025", icon:<ClipboardList size={17}/> },
-    { id:"projects", label:"إدارة المشاريع", icon:<Briefcase size={17}/> },
+    ...(canSeeRestricted("maint_equipment") ? [{ id:"maint_equipment", label:"المعدات والصيانة", icon:<Wrench size={17}/> }] : []),
+    ...(canSeeRestricted("maint_parts") ? [{ id:"maint_parts", label:"قطع غيار الصيانة", icon:<Box size={17}/> }] : []),
+    ...(canSeeRestricted("maint_reports") ? [{ id:"maint_reports", label:"تقارير الصيانة", icon:<TrendingUp size={17}/> }] : []),
+    ...(canSeeRestricted("maint_work_report") ? [{ id:"maint_work_report", label:"تقرير العمل اليومي والشهري", icon:<ClipboardList size={17}/> }] : []),
+    ...(canSeeRestricted("inventory") ? [{ id:"inventory", label:"جرد الآلات الدقيقة", icon:<Package size={17}/> }] : []),
+    ...(canSeeRestricted("furniture") ? [{ id:"furniture", label:"جرد الأثاث 2025", icon:<ClipboardList size={17}/> }] : []),
+    ...(canSeeRestricted("projects") ? [{ id:"projects", label:"إدارة المشاريع", icon:<Briefcase size={17}/> }] : []),
   ];
-  const menuItems = section === "admin" ? adminMenuItems : techMenuItems;
+  const visibleAdminItems = adminMenuItems;
+  const visibleTechItems  = techMenuItems;
 
   const [showDriveSettings, setShowDriveSettings] = useState(false);
   const gDrive = useGDrive();
@@ -247,9 +277,9 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
           <button onClick={()=>setShowSearch(true)} className="flex items-center gap-2 px-3 py-1.5 rounded-xl btn-secondary border border-color text-secondary hover:text-primary text-xs">
             <Search size={14}/> <span className="hidden md:inline">بحث</span> <kbd className="hidden md:inline px-1 bg-hover rounded text-[10px]">Ctrl K</kbd>
           </button>
-          <button onClick={()=>setChatOpen(o=>!o)} className={`relative p-2 rounded-xl border transition-colors ${chatOpen?"bg-blue-50 border-blue-200 text-blue-600":"btn-secondary border-color text-secondary hover:text-primary"}`}>
+          {canSeeRestricted("chat")&&<button onClick={()=>setChatOpen(o=>!o)} className={`relative p-2 rounded-xl border transition-colors ${chatOpen?"bg-blue-50 border-blue-200 text-blue-600":"btn-secondary border-color text-secondary hover:text-primary"}`}>
             <MessageSquare size={16}/>{chatUnread>0&&<span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center">{chatUnread}</span>}
-          </button>
+          </button>}
           {visibleAlerts.length > 0 && <div className="relative"><AlertTriangle size={20} className="text-amber-500"/><span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center">{visibleAlerts.length}</span></div>}
           <div className="flex items-center gap-1">{isConnected?<Wifi size={14} className="text-emerald-500"/>:<WifiOff size={14} className="text-amber-500"/>}</div>
           <button onClick={()=>setLargeFont(v=>!v)} title="وضع القراءة السريعة (خط أكبر)" className={`p-2 rounded-xl border transition-colors ${largeFont?"bg-blue-500 text-white border-blue-400":"btn-secondary border-color"}`}><Type size={16}/></button>
@@ -266,52 +296,54 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row">
-        <aside className="group/sb hidden md:flex md:flex-col md:w-14 md:hover:w-60 sidebar border-l border-color min-h-screen py-3 px-1.5 md:overflow-hidden transition-[width] duration-200 ease-out">
-          <div className="flex gap-1 mb-2 overflow-hidden max-w-full md:max-w-0 md:group-hover/sb:max-w-full transition-[max-width] duration-150">
-            {[{k:"admin",lbl:"الإداري"},{k:"tech",lbl:"الفني"}].map(s=>(
-              <button key={s.k} onClick={()=>switchSection(s.k)}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors whitespace-nowrap ${section===s.k?"bg-[#C87A2E] text-white":"btn-secondary text-secondary border border-color"}`}>
-                {s.lbl}
-              </button>
-            ))}
+      <div>
+        <main className="p-5">
+          <div className="flex items-center gap-1 mb-4">
+            <button onClick={goBack} disabled={viewHistory.length === 0}
+              className={`p-2 rounded-full transition-colors ${viewHistory.length > 0 ? "text-emerald-600 hover:bg-emerald-50" : "text-gray-300 cursor-not-allowed"}`}
+              title="رجوع">
+              <ChevronRight size={22}/>
+            </button>
+            <button onClick={goForward} disabled={viewFuture.length === 0}
+              className={`p-2 rounded-full transition-colors ${viewFuture.length > 0 ? "text-emerald-600 hover:bg-emerald-50" : "text-gray-300 cursor-not-allowed"}`}
+              title="تقدم">
+              <ChevronLeft size={22}/>
+            </button>
+            {view !== "home" && <span className="text-sm font-semibold mr-2">{VIEW_LABELS[view] || view}</span>}
           </div>
-          <nav className="space-y-0.5">
-            {menuItems.map(item => (
-              <div key={item.id} className="relative">
-                <button onClick={()=>switchView(item.id)} title={item.label}
-                  className={`w-full flex items-center py-2.5 rounded-md text-sm font-medium transition-all ${view===item.id?"bg-[#C87A2E] text-white":"text-secondary hover:bg-hover"}`}>
-                  <span className="shrink-0 w-11 flex items-center justify-center">{item.icon}</span>
-                  <span className="whitespace-nowrap overflow-hidden max-w-full md:max-w-0 md:group-hover/sb:max-w-[180px] transition-[max-width] duration-150 pr-1">{item.label}</span>
-                  {item.badge>0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full mr-auto ml-1.5 shrink-0 whitespace-nowrap overflow-hidden max-w-full md:max-w-0 md:group-hover/sb:max-w-[40px] transition-[max-width] duration-150">{item.badge}</span>}
-                </button>
-                {item.badge>0 && <span className="hidden md:block md:group-hover/sb:hidden absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full pointer-events-none"/>}
-              </div>
-            ))}
-          </nav>
-          {visibleAlerts.length > 0 && (
-            <div className="mt-4 mx-0.5 p-3 bg-amber-50 rounded-md border border-amber-200 overflow-hidden max-h-[120px] md:max-h-0 md:group-hover/sb:max-h-[120px] transition-[max-height] duration-200">
-              <p className="text-[10px] font-bold text-amber-800 mb-1 whitespace-nowrap">تنبيهات ذكية</p>
-              {visibleAlerts.slice(0,3).map(a=><div key={a.id} className="flex items-center gap-1 mt-1"><p className="text-[10px] text-amber-700 flex-1 truncate">{a.msg}</p><button onClick={()=>dismissAlert(a.id)} className="text-amber-400 hover:text-amber-700 shrink-0"><X size={10}/></button></div>)}
-            </div>
-          )}
-          <div className="mt-3 mx-0.5 p-3 bg-hover rounded-md text-[10px] overflow-hidden max-h-16 md:max-h-0 md:group-hover/sb:max-h-16 transition-[max-height] duration-200">
-            <p className="font-bold whitespace-nowrap">{isConnected?"متصل بالخادم":"وضع محلي"}</p>
-          </div>
-        </aside>
-
-        <main className="flex-1 p-5 pb-20 md:pb-5">
-          {view !== "home" && (
-            <div className="flex items-center gap-1.5 text-sm text-secondary mb-4">
-              <button onClick={()=>setView("home")} className="hover:text-blue-600 transition-colors flex items-center gap-1">
-                <Home size={13}/> الرئيسية
-              </button>
-              <ChevronLeft size={13}/>
-              <span className="font-semibold text-primary">{VIEW_LABELS[view] || view}</span>
-            </div>
-          )}
           {view==="home" && (
-            <HomeWidgets emp={emp} employees={employees} allRequests={allRequests} isAdmin={isAdmin} switchView={switchView}/>
+            <div className="space-y-6">
+              <div className="space-y-5">
+                <div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                    {visibleAdminItems.filter(i=>i.id!=="home").map(item=>(
+                      <button key={item.id} onClick={()=>switchView(item.id)}
+                        className="relative card rounded-2xl border-color border p-3 flex flex-col items-center gap-2 hover:bg-hover transition-colors text-center group">
+                        <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                          {React.cloneElement(item.icon,{size:24})}
+                        </div>
+                        <span className="text-xs font-medium leading-tight">{item.label}</span>
+                        {(item.badge||0)>0 && <span className="absolute top-1 left-1 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{item.badge}</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {visibleTechItems.length > 0 && <div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                    {visibleTechItems.map(item=>(
+                      <button key={item.id} onClick={()=>switchView(item.id)}
+                        className="relative card rounded-2xl border-color border p-3 flex flex-col items-center gap-2 hover:bg-hover transition-colors text-center group">
+                        <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center group-hover:bg-orange-600 group-hover:text-white transition-colors">
+                          {React.cloneElement(item.icon,{size:24})}
+                        </div>
+                        <span className="text-xs font-medium leading-tight">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>}
+              </div>
+              <HomeWidgets emp={emp} employees={employees} allRequests={allRequests} isAdmin={isAdmin} switchView={switchView}/>
+            </div>
           )}
           {view==="analytics" && canSeeAnalytics && (
             <React.Suspense fallback={<PageSkeleton/>}>
@@ -375,6 +407,11 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
               <LazyMaintenanceAnalytics/>
             </React.Suspense>
           )}
+          {view==="maint_work_report" && (
+            <React.Suspense fallback={<PageSkeleton/>}>
+              <LazyMaintenanceWorkReport emp={emp}/>
+            </React.Suspense>
+          )}
           {view==="evaluation" && (
             <React.Suspense fallback={<PageSkeleton/>}>
               <LazyEvaluationSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
@@ -406,12 +443,18 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
             </React.Suspense>
           )}
 
+          {view==="incentive" && (
+            <React.Suspense fallback={<PageSkeleton/>}>
+              <LazyIncentivePage emp={emp} employees={employees}/>
+            </React.Suspense>
+          )}
+
           {view==="projects" && (
             <React.Suspense fallback={<PageSkeleton/>}>
               <LazyProjectManagementPage emp={emp}/>
             </React.Suspense>
           )}
-          {view==="timesheet" && isTimeSheetAdmin && (
+          {view==="timesheet" && (
             <TsErrorBoundary>
               <React.Suspense fallback={<PageSkeleton rows={3}/>}>
                 <LazyTimeSheetPage emp={emp}/>
@@ -443,12 +486,6 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
         </div>
       )}
 
-      <MobileNav
-        view={view} chatOpen={chatOpen} setChatOpen={setChatOpen} switchView={switchView}
-        unreadNotifs={unreadNotifs} chatUnread={chatUnread} canSeeApprovals={canSeeApprovals}
-        pendingCount={pendingCount} showMobileMenu={showMobileMenu} setShowMobileMenu={setShowMobileMenu}
-        section={section} setSection={setSection} menuItems={menuItems} onLogout={onLogout}
-      />
     </div>
   );
 }

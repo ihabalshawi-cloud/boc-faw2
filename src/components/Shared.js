@@ -85,10 +85,19 @@ function playAlert(type = "notification") {
 
 function sendDesktopNotification(title, body) {
   if (!("Notification" in window)) return;
+  const show = () => {
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.ready
+        .then(reg => reg.showNotification(title, { body, icon: "/favicon.ico" }))
+        .catch(() => {});
+    } else {
+      try { new Notification(title, { body, icon: "/favicon.ico" }); } catch {}
+    }
+  };
   if (Notification.permission === "granted") {
-    new Notification(title, { body, icon: "/favicon.ico" });
+    show();
   } else if (Notification.permission !== "denied") {
-    Notification.requestPermission().then(p => { if (p === "granted") new Notification(title, { body }); });
+    Notification.requestPermission().then(p => { if (p === "granted") show(); });
   }
 }
 

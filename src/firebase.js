@@ -70,7 +70,6 @@ export const FirebaseAPI = {
       return true;
     } catch { return false; }
   },
-
   // ── Accounts ──────────────────────────────────────────────────────────────
   fetchAccount: async (jobNum) => {
     try {
@@ -186,7 +185,6 @@ export const FirebaseAPI = {
       return res.ok;
     } catch { return false; }
   },
-
   // ── Chat ──────────────────────────────────────────────────────────────────
   sendMessage: async (msg) => {
     try {
@@ -449,5 +447,73 @@ export const FirebaseAPI = {
       };
       return { malak: toArray(data.malak), contracts: toArray(data.contracts), drivers: toArray(data.drivers) };
     } catch { return null; }
+  },
+
+  // ── Maintenance Work Log ──────────────────────────────────────────────────
+  saveMaintWorkLog: async (list) => {
+    try {
+      const data = {};
+      for (const item of list) { data[String(item.id)] = item; }
+      const res = await fetch(`${FIREBASE_URL}/maint_work_log.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadMaintWorkLog: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/maint_work_log.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+      return Object.values(data).filter(Boolean).sort((a,b)=>b.id-a.id);
+    } catch { return null; }
+  },
+  saveMaintCfg: async (cfg) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/maint_rpt_cfg.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(cfg),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadMaintCfg: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/maint_rpt_cfg.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return (data && typeof data === "object" && !Array.isArray(data)) ? data : null;
+    } catch { return null; }
+  },
+  saveEmpViews: async (empId, views) => { try { return (await fetch(`${FIREBASE_URL}/emp_views/${empId}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(views||null)})).ok; } catch{return false;} },
+  loadEmpViews: async (empId) => { try { const r=await fetch(`${FIREBASE_URL}/emp_views/${empId}.json`); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d:[]; } catch{return null;} },
+  loadAllEmpViews: async () => { try { const r=await fetch(`${FIREBASE_URL}/emp_views.json`); if(!r.ok)return null; const d=await r.json(); return (d&&typeof d==="object"&&!Array.isArray(d))?d:{}; } catch{return null;} },
+  saveIncentiveCfg: async (c) => { try { const r=await fetch(`${FIREBASE_URL}/incentive_cfg.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(c)}); return r.ok; } catch{return false;} },
+  loadIncentiveCfg: async () => { try { const r=await fetch(`${FIREBASE_URL}/incentive_cfg.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch{return null;} },
+  saveIncentiveEntries: async (l) => { try { const r=await fetch(`${FIREBASE_URL}/incentive_entries.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(l||[])}); if(!r.ok){const b=await r.text().catch(()=>"");console.warn(`[Firebase] saveIncentiveEntries failed (${r.status}):`,b);} return r.ok; } catch(e){console.warn("[Firebase] saveIncentiveEntries error:",e.message);return false;} },
+  loadIncentiveEntries: async () => { try { const r=await fetch(`${FIREBASE_URL}/incentive_entries.json`); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d:(d&&typeof d==="object"?Object.values(d).filter(Boolean):null); } catch{return null;} },
+  saveIncentiveWorks: async (l) => { try { const r=await fetch(`${FIREBASE_URL}/incentive_works.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(l||[])}); if(!r.ok){const b=await r.text().catch(()=>"");console.warn(`[Firebase] saveIncentiveWorks failed (${r.status}):`,b);} return r.ok; } catch(e){console.warn("[Firebase] saveIncentiveWorks error:",e.message);return false;} },
+  loadIncentiveWorks: async () => { try { const r=await fetch(`${FIREBASE_URL}/incentive_works.json`); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d:(d&&typeof d==="object"?Object.values(d).filter(Boolean):null); } catch{return null;} },
+  saveLockInfo: async (jobNum, data) => { try { await fetch(`${FIREBASE_URL}/login_locks/${jobNum}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); return true; } catch{return false;} },
+  loadLockInfo: async (jobNum) => { try { const r=await fetch(`${FIREBASE_URL}/login_locks/${jobNum}.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch{return null;} },
+  clearLockInfo: async (jobNum) => { try { await fetch(`${FIREBASE_URL}/login_locks/${jobNum}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({count:0,lockedUntil:0})}); return true; } catch{return false;} },
+  // ── Self-evaluation ───────────────────────────────────────────────────────
+  saveEvalAssignments: async (year, month, data) => {
+    try { const r=await fetch(`${FIREBASE_URL}/eval_assignments/${year}/${month}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); return r.ok; } catch { return false; }
+  },
+  loadEvalAssignments: async (year, month) => {
+    try { const r=await fetch(`${FIREBASE_URL}/eval_assignments/${year}/${month}.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch { return null; }
+  },
+  saveSelfEval: async (year, month, empId, data) => {
+    try { const r=await fetch(`${FIREBASE_URL}/eval_self/${year}/${month}/${empId}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); return r.ok; } catch { return false; }
+  },
+  loadSelfEvals: async (year, month) => {
+    try { const r=await fetch(`${FIREBASE_URL}/eval_self/${year}/${month}.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch { return null; }
+  },
+  saveEvalCfg: async (data) => {
+    try { const r=await fetch(`${FIREBASE_URL}/eval_cfg.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); return r.ok; } catch { return false; }
+  },
+  loadEvalCfg: async () => {
+    try { const r=await fetch(`${FIREBASE_URL}/eval_cfg.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch { return null; }
   },
 };

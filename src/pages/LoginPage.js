@@ -15,14 +15,14 @@ function getLockInfo(jobNum) {
 function recordFail(jobNum) {
   const d = getLockInfo(jobNum);
   const count = d.count + 1;
-  storage.set(`login_lock_${jobNum}`, {
-    count,
-    lockedUntil: count >= LOCK_LIMIT ? Date.now() + LOCK_DURATION : d.lockedUntil,
-  });
+  const data = { count, lockedUntil: count >= LOCK_LIMIT ? Date.now() + LOCK_DURATION : d.lockedUntil };
+  storage.set(`login_lock_${jobNum}`, data);
+  FirebaseAPI.saveLockInfo(jobNum, data);
   return count >= LOCK_LIMIT;
 }
 function clearLockData(jobNum) {
   storage.set(`login_lock_${jobNum}`, { count: 0, lockedUntil: 0 });
+  FirebaseAPI.clearLockInfo(jobNum);
 }
 function lockSecsRemaining(jobNum) {
   const { lockedUntil } = getLockInfo(jobNum);
@@ -129,9 +129,20 @@ function LoginScreen({ onLogin, dark }) {
 
   useEffect(() => {
     if (!user.trim()) { setLockSecs(0); return; }
-    const secs = lockSecsRemaining(user.trim());
+    const jobNum = user.trim();
+    const secs = lockSecsRemaining(jobNum);
     if (secs > 0) startCountdown(secs);
     else setLockSecs(0);
+    FirebaseAPI.loadLockInfo(jobNum).then(fb => {
+      if (!fb) return;
+      if (fb.lockedUntil > Date.now()) {
+        storage.set(`login_lock_${jobNum}`, fb);
+        startCountdown(Math.ceil((fb.lockedUntil - Date.now()) / 1000));
+      } else {
+        storage.set(`login_lock_${jobNum}`, { count: 0, lockedUntil: 0 });
+        setLockSecs(0);
+      }
+    });
   }, [user, startCountdown]);
 
   useEffect(() => () => { if (lockTimer.current) clearInterval(lockTimer.current); }, []);
@@ -270,6 +281,7 @@ function LoginScreen({ onLogin, dark }) {
     if (isConnected) {
       await FirebaseAPI.deletePassword(acc.id);
       FirebaseAPI.clearPasswordChanged(acc.id);
+      FirebaseAPI.clearLockInfo(acc.jobNum);
     }
     setErr(""); setPass("");
     alert(`تمت إعادة ضبط كلمة مرور ${acc.name}\nالرقم الوظيفي: ${acc.jobNum}\nكلمة المرور الافتراضية: ${acc.password}`);
