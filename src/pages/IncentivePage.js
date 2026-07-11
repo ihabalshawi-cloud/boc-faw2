@@ -9,7 +9,7 @@ import { FirebaseAPI } from "../firebase";
 const EKEY = "boc_inc_entries";
 const WKEY = "boc_inc_works";
 const CFGKEY = "boc_incentive_cfg";
-const MONTHS_AR = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+const MONTHS_AR = ["كانون الثاني","شباط","آذار","نيسان","أيار","حزيران","تموز","آب","أيلول","تشرين الأول","تشرين الثاني","كانون الأول"];
 const SC = { "مسودة":"bg-gray-100 text-gray-600","بانتظار المراجعة":"bg-amber-100 text-amber-700","موافق عليها":"bg-emerald-100 text-emerald-700","مرفوضة":"bg-red-100 text-red-700" };
 const DEFAULT_CFG = { amounts:{أ:100000,ب:75000,ج:50000}, morningSupervisors:[2,3], shiftSupervisors:[] };
 const sk = e => e?.title==="عقد"?"عقود":e?.shift==="صباحي"?"صباحي":(e?.group||"؟");
