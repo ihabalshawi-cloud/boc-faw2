@@ -214,8 +214,8 @@ function GroupView({ emp, entries, works, setWorks, shiftKey, cfg }) {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth()+1);
   const [year,  setYear]  = useState(now.getFullYear());
-  const groupEntries    = entries.filter(e=>e.month===month&&e.year===year&&!e.isContract);
-  const contractEntries = entries.filter(e=>e.isContract&&e.month===month&&e.year===year);
+  const groupEntries    = entries.filter(e=>e.month===month&&e.year===year&&!e.isContract&&e.shiftKey===shiftKey);
+  const contractEntries = entries.filter(e=>e.isContract&&e.month===month&&e.year===year&&e.shiftKey===shiftKey);
   const existingWork    = works.find(w=>w.shiftKey===shiftKey&&w.month===month&&w.year===year&&w.status!=="مرفوضة");
 
   return (
