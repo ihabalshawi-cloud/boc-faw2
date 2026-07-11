@@ -39,6 +39,17 @@
     "maint_work_log":  { ".read": "true", ".write": "true" },
     "maint_rpt_cfg":   { ".read": "true", ".write": "true" },
 
+    "eval_assignments": { ".read": "true", ".write": "true" },
+    "eval_self":        { ".read": "true", ".write": "true" },
+    "eval_cfg":         { ".read": "true", ".write": "true" },
+    "push_subs":        { ".read": "true", ".write": "true" },
+    "emp_views":        { ".read": "true", ".write": "true" },
+    "incentive_cfg":    { ".read": "true", ".write": "true" },
+    "incentive_entries":{ ".read": "true", ".write": "true" },
+    "incentive_works":  { ".read": "true", ".write": "true" },
+    "login_locks":      { ".read": "true", ".write": "true" },
+    "typing":           { ".read": "true", ".write": "true" },
+
     "login_history": { ".read": "true", ".write": "true" },
     "chat": {
       ".read": "true",
