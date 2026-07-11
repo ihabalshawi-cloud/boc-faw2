@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Save, Download, Star, Plus, CheckCircle, Settings, Edit2 } from "lucide-react";
 import { MONTHS_IRAQI, EVAL_CRITERIA, EVAL_CRITERIA_DATA } from "../constants";
 import { FirebaseAPI } from "../firebase";
+import { sendBackgroundPush } from "../components/Shared";
 
 const BULK_RATINGS=["متوسط","جيد","جيد جدا","ممتاز"];
 const BULK_REQ={متوسط:5,جيد:20,"جيد جدا":40,ممتاز:35};
@@ -130,7 +131,18 @@ function AssignPanel({ allEmployees }) {
   const save=async()=>{
     const ok1=await FirebaseAPI.saveEvalAssignments(selYear,selMonth,assignments);
     const ok2=await FirebaseAPI.saveEvalCfg({leadershipIds});
-    T(ok1&&ok2?"✅ تم الحفظ":"⚠️ فشل الحفظ");
+    if(ok1&&ok2){
+      const monthLabel=MONTHS_IRAQI[selMonth];
+      const title=`⭐ إسناد تقييم ذاتي — ${monthLabel} ${selYear}`;
+      const body="تم إسنادك للتقييم الذاتي، يرجى فتح التطبيق وإتمام التقييم";
+      await Promise.all(Object.keys(assignments).map(async(eid)=>{
+        const notif={id:Date.now()+Number(eid),type:"تقييم",title,body,timestamp:new Date().toISOString(),read:false};
+        const prev=await FirebaseAPI.loadNotifications(eid)||[];
+        await FirebaseAPI.saveNotifications(eid,[notif,...prev]);
+        sendBackgroundPush(eid,title,body,"تقييم");
+      }));
+    }
+    T(ok1&&ok2?"✅ تم الحفظ والإشعار":"⚠️ فشل الحفظ");
   };
   const assignedCount=Object.keys(assignments).length;
   return (

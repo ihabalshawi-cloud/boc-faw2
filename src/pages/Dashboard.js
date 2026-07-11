@@ -136,6 +136,24 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const syncNotifs = () => {
+      FirebaseAPI.loadNotifications(emp.id).then(list => {
+        if (!list) return;
+        const local = storage.get(`notifications_${emp.id}`, []);
+        const merged = [...list];
+        local.forEach(n => { if (!merged.some(m => m.id === n.id)) merged.push(n); });
+        merged.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+        storage.set(`notifications_${emp.id}`, merged);
+        setUnreadNotifs(merged.filter(n => !n.read).length);
+      });
+    };
+    syncNotifs();
+    const t = setInterval(syncNotifs, 30000);
+    return () => clearInterval(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emp.id]);
+
   const setEmployees = useCallback((newList) => { setEmployeesRaw(newList); FirebaseAPI.saveAccounts(newList); }, []);
   const { isConnected } = useConnectionStatus();
   const smartAlerts = useSmartAlerts(employees);
@@ -151,7 +169,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const isTimeSheetAdmin = isAdmin || isAttendanceAdmin;
   const canSeeAnalytics = isAdmin;
   const pendingCount = allRequests.filter(r => r && r.status === "بانتظار المراجعة").length;
-  const unreadNotifs = (storage.get(`notifications_${emp.id}`, [])).filter(n => !n.read).length;
+  const [unreadNotifs, setUnreadNotifs] = useState(() => storage.get(`notifications_${emp.id}`, []).filter(n => !n.read).length);
   useStorageSync("all_requests", setAllRequests);
   const chatUnread = storage.get("chat_offline",[]).filter(m=>!m.read&&Number(m.toId)===Number(emp.id)).length;
   useEffect(() => {
