@@ -119,7 +119,7 @@ function AssignPanel({ allEmployees }) {
       </div>
       <p className="text-sm text-secondary">مُسند لـ {assignedCount} موظف من أصل {allEmployees.length}</p>
       <div className="card rounded-2xl border border-color overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm" dir="rtl"><thead><tr className="bg-gray-50 border-b border-color"><th className="px-3 py-2 text-right">الموظف</th><th className="px-3 py-2 text-right">الرقم</th><th className="px-3 py-2 text-center">إسناد تقييم ذاتي</th></tr></thead>
-        <tbody>{allEmployees.map(e=>(<tr key={e.id} className="border-b border-color"><td className="px-3 py-2 font-medium">{e.name.split(" ").slice(0,3).join(" ")}</td><td className="px-3 py-2 text-secondary text-xs">{e.jobNum}</td><td className="px-3 py-2 text-center"><button onClick={()=>toggleA(e.id)} className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${assignments[e.id]?"bg-indigo-600 text-white":"border border-color text-secondary hover:bg-indigo-50"}`}>{assignments[e.id]?"✓ مُسند":"إسناد"}</button></td></tr>))}</tbody></table></div></div>
+        <tbody>{allEmployees.map(e=>(<tr key={e.id} className="border-b border-color"><td className="px-3 py-2 font-medium">{e.name.split(" ").slice(0,3).join(" ")}</td><td className="px-3 py-2 text-secondary text-xs">{e.jobNum}</td><td className="px-3 py-2 text-center"><button onClick={()=>toggleA(e.id)} className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${assignments[String(e.id)]?"bg-indigo-600 text-white":"border border-color text-secondary hover:bg-indigo-50"}`}>{assignments[String(e.id)]?"✓ مُسند":"إسناد"}</button></td></tr>))}</tbody></table></div></div>
       <div className="card rounded-2xl border border-amber-200 overflow-hidden">
         <button onClick={()=>setShowLdr(p=>!p)} className="w-full flex items-center gap-2 px-4 py-3 text-sm font-bold text-amber-700 hover:bg-amber-50">
           <Settings size={15}/> إعدادات معيار القيادة {showLdr?"▲":"▼"}
@@ -128,7 +128,7 @@ function AssignPanel({ allEmployees }) {
           <p className="text-xs text-secondary mb-3">حدد الموظفين (مهندسون أو مسؤولو نوبات) الذين يظهر لهم معيار القيادة في التقييم الذاتي</p>
           {allEmployees.map(e=>(<div key={e.id} className="flex items-center justify-between py-1.5 border-b border-color last:border-0">
             <div><p className="text-sm">{e.name.split(" ").slice(0,3).join(" ")}</p><p className="text-xs text-secondary">{e.title}</p></div>
-            <button onClick={()=>toggleL(e.id)} className={`px-3 py-1 rounded-lg text-xs font-bold ${leadershipIds.includes(e.id)?"bg-amber-500 text-white":"border border-color text-secondary"}`}>{leadershipIds.includes(e.id)?"✓ مفعّل":"تفعيل"}</button>
+            <button onClick={()=>toggleL(e.id)} className={`px-3 py-1 rounded-lg text-xs font-bold ${leadershipIds.includes(String(e.id))?"bg-amber-500 text-white":"border border-color text-secondary"}`}>{leadershipIds.includes(String(e.id))?"✓ مفعّل":"تفعيل"}</button>
           </div>))}
         </div>}
       </div>
