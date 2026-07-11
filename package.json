@@ -40,7 +40,10 @@
     "extends": [
       "react-app",
       "react-app/jest"
-    ]
+    ],
+    "rules": {
+      "max-lines": ["warn", 500]
+    }
   },
   "browserslist": {
     "production": [
