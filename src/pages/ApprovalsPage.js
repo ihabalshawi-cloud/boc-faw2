@@ -3,7 +3,7 @@ import { Download, CheckCircle, ThumbsUp, ThumbsDown, X, PenTool, Printer, Send 
 import { ACCOUNTS } from "../constants";
 import { storage } from "../utils";
 import { FirebaseAPI } from "../firebase";
-import { EmpPopover, playAlert } from "../components/Shared";
+import { EmpPopover, playAlert, sendBackgroundPush } from "../components/Shared";
 import { hasPermission } from "../permissions";
 
 function InlineSigPad({ onSave, onCancel }) {
@@ -145,6 +145,7 @@ function ApprovalsPage({ emp }) {
         ...storage.get(`notifications_${req.empId}`, [])];
       storage.set(`notifications_${req.empId}`, empNotifs);
       FirebaseAPI.saveNotifications(req.empId, empNotifs);
+      sendBackgroundPush(req.empId, empNotifs[0].title, empNotifs[0].body, empNotifs[0].type);
     }
     setRequests(requests.filter(r => r.id !== id));
     setSigReqId(null);

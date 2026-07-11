@@ -4,6 +4,7 @@ import { storage } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { ACCOUNTS } from "../constants";
 import { useToast } from "../contexts";
+import { sendBackgroundPush } from "../components/Shared";
 import { useGDrive } from "../gdrive";
 import SignaturePad from "./LeaveSignaturePad";
 
@@ -79,7 +80,7 @@ function TimeLeaveForm({ emp }) {
     ACCOUNTS.filter(a => a.role === "admin" || a.username === "i.shawi").forEach(admin => {
       const key = `notifications_${admin.id}`;
       const notifs = [{ id: Date.now() + admin.id, type: "طلب_إجازة", title: `📋 طلب إجازة زمنية — ${name}`, body: `زمنية — ${hours || "؟"} ساعة | ${reason}`, timestamp: new Date().toISOString(), read: false, reqId: newReq.id }, ...storage.get(key, [])];
-      storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs);
+      storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs); sendBackgroundPush(admin.id, notifs[0].title, notifs[0].body, notifs[0].type);
     });
     toast("تم تقديم الإجازة الزمنية بنجاح", "success");
   };

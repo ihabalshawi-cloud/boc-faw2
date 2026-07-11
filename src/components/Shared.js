@@ -136,4 +136,38 @@ function useStorageSync(key, setState) {
   }, [key, setState]);
 }
 
-export { EmpPopover, PrintButton, SkeletonCard, SkeletonMsg, PageSkeleton, useDebounce, useStorageSync, playAlert, sendDesktopNotification, useConnectionStatus };
+function urlBase64ToUint8Array(b) {
+  const padding = "=".repeat((4 - b.length % 4) % 4);
+  const base64 = (b + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = window.atob(base64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+async function subscribeToPush(empId) {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  const key = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+  if (!key) return;
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") return;
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(key) });
+    await FirebaseAPI.savePushSub(String(empId), sub.toJSON());
+  } catch {}
+}
+
+async function sendBackgroundPush(empId, title, body, tag) {
+  try {
+    const sub = await FirebaseAPI.loadPushSub(String(empId));
+    if (!sub) return;
+    await fetch("/api/send-push", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscriptions: [sub], notification: { title, body, tag: tag || "boc-notif" } }),
+    });
+  } catch {}
+}
+
+export { EmpPopover, PrintButton, SkeletonCard, SkeletonMsg, PageSkeleton, useDebounce, useStorageSync, playAlert, sendDesktopNotification, useConnectionStatus, subscribeToPush, sendBackgroundPush };

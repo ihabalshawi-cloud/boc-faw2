@@ -18,7 +18,7 @@ import { storage } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useGDrive } from "../gdrive";
 import { useConfirm } from "../contexts";
-import { playAlert, useConnectionStatus, PageSkeleton, sendDesktopNotification, useStorageSync } from "../components/Shared";
+import { playAlert, useConnectionStatus, PageSkeleton, sendDesktopNotification, useStorageSync, subscribeToPush } from "../components/Shared";
 import { GDriveSettingsModal, GDriveQuotaBar } from "../components/GDriveComponents";
 import GlobalSearch from "../components/GlobalSearch";
 import HomeWidgets from "../components/HomeWidgets";
@@ -123,6 +123,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     FirebaseAPI.loadEmpViews(emp.id).then(views => {
       if (views !== null) { setAllowedViews(views); storage.set(`emp_allowed_views_${emp.id}`, views); }
     });
+    subscribeToPush(emp.id);
     FirebaseAPI.loadRequests().then(list => {
       if (list && list.length > 0) {
         const clean = list.filter(Boolean);
