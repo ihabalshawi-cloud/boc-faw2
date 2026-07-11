@@ -101,9 +101,9 @@ function AssignPanel({ allEmployees }) {
     FirebaseAPI.loadEvalAssignments(selYear,selMonth).then(d=>setAssignments(d||{}));
     FirebaseAPI.loadEvalCfg().then(d=>setLeadershipIds(d?.leadershipIds||[]));
   },[selYear,selMonth]);
-  const toggleA=(id)=>setAssignments(p=>({...p,[id]:!p[id]}));
-  const toggleL=(id)=>setLeadershipIds(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
-  const assignAll=()=>setAssignments(Object.fromEntries(allEmployees.map(e=>[e.id,true])));
+  const toggleA=(id)=>setAssignments(p=>{const k=String(id);const next={...p};next[k]?delete next[k]:(next[k]=true);return next;});
+  const toggleL=(id)=>setLeadershipIds(p=>p.includes(String(id))?p.filter(x=>x!==String(id)):[...p,String(id)]);
+  const assignAll=()=>setAssignments(Object.fromEntries(allEmployees.map(e=>[String(e.id),true])));
   const clearAll=()=>setAssignments({});
   const save=async()=>{
     const ok1=await FirebaseAPI.saveEvalAssignments(selYear,selMonth,assignments);
@@ -188,10 +188,12 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees }) {
 
   useEffect(()=>{
     if(!isAdmin){
+      const eid=String(emp.id);
       FirebaseAPI.loadEvalAssignments(selYear,selMonth).then(d=>{
-        if(!d?.[emp.id]){setSelfStatus("not_assigned");return;}
+        if(d===null){setSelfStatus("error");return;}
+        if(!d[eid]){setSelfStatus("not_assigned");return;}
         FirebaseAPI.loadSelfEvals(selYear,selMonth).then(se=>{
-          if(se?.[emp.id]){setSelfStatus("submitted");setSelfData(se[emp.id]);}
+          if(se?.[eid]){setSelfStatus("submitted");setSelfData(se[eid]);}
           else setSelfStatus("assigned");
         });
       });
@@ -200,13 +202,13 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees }) {
     }
   },[isAdmin,emp.id,selYear,selMonth]);
 
-  const criteria=EVAL_CRITERIA_DATA.filter(c=>!c.leadership||leadershipIds.includes(emp.id));
+  const criteria=EVAL_CRITERIA_DATA.filter(c=>!c.leadership||leadershipIds.includes(String(emp.id)));
 
   const submitSelf=async()=>{
     const total=Math.round(criteria.reduce((s,c)=>s+scores[c.id],0)/(criteria.length*5)*100);
     const activeScores=Object.fromEntries(criteria.map(c=>[c.id,scores[c.id]]));
     const data={scores:activeScores,total,notes:selfNotes,submittedAt:new Date().toISOString(),empName:emp.name};
-    const ok=await FirebaseAPI.saveSelfEval(selYear,selMonth,emp.id,data);
+    const ok=await FirebaseAPI.saveSelfEval(selYear,selMonth,String(emp.id),data);
     if(ok){setSelfStatus("submitted");setSelfData(data);T("✅ تم إرسال التقييم");}
     else T("⚠️ فشل الإرسال");
   };
@@ -226,6 +228,7 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees }) {
         <div>
           <h3 className="font-bold text-lg mb-3">التقييم الذاتي — {MONTHS_IRAQI[selMonth]} {selYear}</h3>
           {selfStatus==="loading"&&<div className="card rounded-2xl p-6 text-center border-color border"><p className="text-secondary">جارٍ التحميل...</p></div>}
+          {selfStatus==="error"&&<div className="card rounded-2xl p-8 text-center border-color border border-red-200 bg-red-50 dark:bg-red-900/20"><p className="text-red-600 font-bold mb-1">تعذّر الاتصال بقاعدة البيانات</p><p className="text-xs text-secondary">تحقق من اتصالك بالإنترنت أو تواصل مع المشرف</p><button onClick={()=>{setSelfStatus("loading");FirebaseAPI.loadEvalAssignments(selYear,selMonth).then(d=>{if(d===null){setSelfStatus("error");return;}const eid=String(emp.id);if(!d[eid]){setSelfStatus("not_assigned");return;}FirebaseAPI.loadSelfEvals(selYear,selMonth).then(se=>{if(se?.[eid]){setSelfStatus("submitted");setSelfData(se[eid]);}else setSelfStatus("assigned");});});}} className="mt-3 px-4 py-2 text-xs font-bold text-white bg-red-600 rounded-xl">إعادة المحاولة</button></div>}
           {selfStatus==="not_assigned"&&<div className="card rounded-2xl p-8 text-center border-color border"><Star size={40} className="mx-auto text-secondary mb-2"/><p className="text-secondary">لم يُسند لك تقييم ذاتي لهذا الشهر</p></div>}
           {selfStatus==="submitted"&&<div className="card rounded-2xl p-6 text-center border-color border border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20"><CheckCircle size={32} className="mx-auto text-emerald-500 mb-2"/><p className="font-bold text-emerald-700">تم إرسال تقييمك بنجاح</p>{selfData&&<p className={`text-2xl font-bold mt-2 ${GC(selfData.total)}`}>{selfData.total}% — {GL(selfData.total)}</p>}</div>}
           {selfStatus==="assigned"&&<div className="card rounded-2xl border-2 border-indigo-200 p-5 space-y-3">
