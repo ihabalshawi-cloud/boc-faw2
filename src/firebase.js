@@ -497,4 +497,23 @@ export const FirebaseAPI = {
   saveLockInfo: async (jobNum, data) => { try { await fetch(`${FIREBASE_URL}/login_locks/${jobNum}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); return true; } catch{return false;} },
   loadLockInfo: async (jobNum) => { try { const r=await fetch(`${FIREBASE_URL}/login_locks/${jobNum}.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch{return null;} },
   clearLockInfo: async (jobNum) => { try { await fetch(`${FIREBASE_URL}/login_locks/${jobNum}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({count:0,lockedUntil:0})}); return true; } catch{return false;} },
+  // ── Self-evaluation ───────────────────────────────────────────────────────
+  saveEvalAssignments: async (year, month, data) => {
+    try { const r=await fetch(`${FIREBASE_URL}/eval_assignments/${year}/${month}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); return r.ok; } catch { return false; }
+  },
+  loadEvalAssignments: async (year, month) => {
+    try { const r=await fetch(`${FIREBASE_URL}/eval_assignments/${year}/${month}.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch { return null; }
+  },
+  saveSelfEval: async (year, month, empId, data) => {
+    try { const r=await fetch(`${FIREBASE_URL}/eval_self/${year}/${month}/${empId}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); return r.ok; } catch { return false; }
+  },
+  loadSelfEvals: async (year, month) => {
+    try { const r=await fetch(`${FIREBASE_URL}/eval_self/${year}/${month}.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch { return null; }
+  },
+  saveEvalCfg: async (data) => {
+    try { const r=await fetch(`${FIREBASE_URL}/eval_cfg.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); return r.ok; } catch { return false; }
+  },
+  loadEvalCfg: async () => {
+    try { const r=await fetch(`${FIREBASE_URL}/eval_cfg.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch { return null; }
+  },
 };

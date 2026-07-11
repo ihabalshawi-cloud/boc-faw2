@@ -161,7 +161,6 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
         </div>
       </div>}
 
-<<<<<<< HEAD
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <div className="card rounded-2xl border-color border p-4">
           <div className="flex items-center justify-between mb-3">
@@ -174,25 +173,9 @@ export default function HomeWidgets({ emp, employees, allRequests, isAdmin, swit
               <span className="font-medium">{r.empName?.split(" ").slice(0,2).join(" ")}</span>
               <span className="text-secondary">{r.type} — {r.days} يوم</span>
               <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] ${r.status==="موافق عليها"?"bg-emerald-100 text-emerald-700":r.status==="مرفوضة"?"bg-red-100 text-red-700":"bg-amber-100 text-amber-700"}`}>{r.status}</span>
-=======
-      <div className={`grid grid-cols-1 gap-6 ${isPrivileged ? "md:grid-cols-3" : "md:grid-cols-1 max-w-lg"}`}>
-        {isPrivileged && (
-          <div className="card rounded-2xl border-color border p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="font-bold text-sm flex items-center gap-1.5"><FileText size={15}/> آخر طلبات الإجازة</h4>
-              <button onClick={()=>switchView(isAdmin?"approvals":"requests")} className="text-xs text-blue-600 hover:underline">عرض الكل</button>
->>>>>>> bb616ad (Revert "Claude/survey page tfzdf3")
             </div>
-            {allRequests.length===0 ? <p className="text-secondary text-xs text-center py-4">لا توجد طلبات</p> :
-            allRequests.slice(0,4).map(r=>(
-              <div key={r.id} className="flex justify-between items-center py-2 border-b border-color last:border-0 text-xs">
-                <span className="font-medium">{r.empName?.split(" ").slice(0,2).join(" ")}</span>
-                <span className="text-secondary">{r.type} — {r.days} يوم</span>
-                <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] ${r.status==="موافق عليها"?"bg-emerald-100 text-emerald-700":r.status==="مرفوضة"?"bg-red-100 text-red-700":"bg-amber-100 text-amber-700"}`}>{r.status}</span>
-              </div>
-            ))}
-          </div>
-        )}
+          ))}
+        </div>
 
         <div className="card rounded-2xl border-color border p-4">
           <div className="flex items-center justify-between mb-3">
