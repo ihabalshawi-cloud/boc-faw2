@@ -102,7 +102,10 @@ function ApprovalsPage({ emp }) {
       } else if (t.includes("زمنية")) {
         await wb.xlsx.load(await (await fetch("/templates/leave-time.xlsx")).arrayBuffer());
         const ws = wb.worksheets[0]; const set=(r,v)=>{ws.getCell(r).value=v??null;};
-        set("F2",fmtD(req.dateFrom)); set("C7",req.empName||""); set("E7",String(empAcct.jobNum||"")); set("G7",empAcct.title||""); set("D8",empAcct.dept||"");
+        set("C1","شركة نفط البصرة"); set("C2",empAcct.dept||"");
+        set("F1","الرقم /"); set("F2","التاريخ/"); set("G2",fmtD(req.dateFrom));
+        set("C7",req.empName||""); set("E7",String(empAcct.jobNum||"")); set("G7",empAcct.title||"");
+        set("D8","شعبة سيطرة مستودع الفاو والمرافئ");
         await addImg(wb,ws,req.empSigDataUrl,2,11); await addImg(wb,ws,req.sigDataUrl,6,11);
         fname=`اجازة_زمنية_${safe}_${req.dateFrom||""}.xlsx`;
       } else if (t.includes("خارج العراق")) {
