@@ -126,7 +126,9 @@ function ApprovalsPage({ emp }) {
     const load = () => FirebaseAPI.loadRequests().then(list => { if (list && list.length > 0) applyList(list); });
     load();
     const t = setInterval(load, 15000);
-    return () => clearInterval(t);
+    const onVisible = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVisible); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

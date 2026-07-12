@@ -57,7 +57,7 @@ function SickLeaveForm({ emp }) {
     storage.set(STORAGE_KEY, { name, jobNum, jobTitle, leaveDate, leaveTime, clinicDT, notes, returnDate, returnTime, sigDataUrl, empSigDataUrl, status: "draft" });
     toast("تم حفظ المسودة", "success");
   };
-  const saveAndSubmit = () => {
+  const saveAndSubmit = async () => {
     if (status === "submitted") {
       const today = new Date().toISOString().split("T")[0];
       const saved = storage.get(STORAGE_KEY, {});
@@ -69,9 +69,11 @@ function SickLeaveForm({ emp }) {
     setStatus("submitted");
     const daysNum = (leaveDate && returnDate) ? Math.round((new Date(returnDate) - new Date(leaveDate)) / 86400000) + 1 : 1;
     const newReq = { id: Date.now(), type: "مرضية", dateFrom: leaveDate, dateTo: returnDate || leaveDate, purpose: notes || "علاج طبي", days: daysNum, status: "بانتظار المراجعة", submittedAt: new Date().toISOString(), empId: emp.id, empName: name, empSigDataUrl };
-    const allReqs = [newReq, ...storage.get("all_requests", [])];
+    const prevAll = await FirebaseAPI.loadRequests() || storage.get("all_requests", []);
+    const allReqs = [newReq, ...prevAll.filter(r => r && r.id !== newReq.id)];
     storage.set("all_requests", allReqs);
-    FirebaseAPI.saveRequests(allReqs);
+    const saved = await FirebaseAPI.saveRequests(allReqs);
+    if (!saved) { toast("⚠️ تعذّر حفظ الطلب على الخادم — تحقق من الاتصال وأعد المحاولة", "error"); return; }
     storage.set(`requests_${emp.id}`, [newReq, ...storage.get(`requests_${emp.id}`, [])]);
     ACCOUNTS.filter(a => a.role === "admin" || a.username === "i.shawi").forEach(admin => {
       const key = `notifications_${admin.id}`;
