@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Save, CheckCircle, FileText, Printer, Download, Upload, Send } from "lucide-react";
-import { storage } from "../utils";
+import { storage, fmtIraqi, todayISO } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { ACCOUNTS } from "../constants";
 import { useToast } from "../contexts";
+import { sendBackgroundPush } from "../components/Shared";
 import { useGDrive } from "../gdrive";
 import SignaturePad from "./LeaveSignaturePad";
 
@@ -21,8 +22,8 @@ function AnnualLeaveForm({ emp }) {
   const [jobNum, setJobNum] = useState(emp.jobNum || "");
   const [jobTitle, setJobTitle] = useState(emp.title || "");
   const [dept, setDept] = useState(emp.dept || "");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(todayISO());
+  const [toDate, setToDate] = useState(todayISO());
   const [days, setDays] = useState("");
   const [purpose, setPurpose] = useState("");
   const [reqDate, setReqDate] = useState(now.toISOString().split("T")[0]);
@@ -58,7 +59,7 @@ function AnnualLeaveForm({ emp }) {
     storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, fromDate, toDate, days, purpose, reqDate, sigDataUrl, status: "draft" });
     toast("تم حفظ المسودة", "success");
   };
-  const saveAndSubmit = () => {
+  const saveAndSubmit = async () => {
     if (status === "submitted") {
       const today = new Date().toISOString().split("T")[0];
       const saved = storage.get(STORAGE_KEY, {});
@@ -70,14 +71,16 @@ function AnnualLeaveForm({ emp }) {
     setStatus("submitted");
     const daysNum = days ? Number(days) : 1;
     const newReq = { id: Date.now(), type: "اعتيادية", dateFrom: fromDate, dateTo: toDate, purpose, days: daysNum, status: "بانتظار المراجعة", submittedAt: new Date().toISOString(), empId: emp.id, empName: name, empSigDataUrl: sigDataUrl };
-    const allReqs = [newReq, ...storage.get("all_requests", [])];
+    const prevAll = await FirebaseAPI.loadRequests() || storage.get("all_requests", []);
+    const allReqs = [newReq, ...prevAll.filter(r => r && r.id !== newReq.id)];
     storage.set("all_requests", allReqs);
-    FirebaseAPI.saveRequests(allReqs);
+    const saved = await FirebaseAPI.saveRequests(allReqs);
+    if (!saved) { toast("⚠️ تعذّر حفظ الطلب على الخادم — تحقق من الاتصال وأعد المحاولة", "error"); return; }
     storage.set(`requests_${emp.id}`, [newReq, ...storage.get(`requests_${emp.id}`, [])]);
     ACCOUNTS.filter(a => a.role === "admin" || a.username === "i.shawi").forEach(admin => {
       const key = `notifications_${admin.id}`;
       const notifs = [{ id: Date.now() + admin.id, type: "طلب_إجازة", title: `📋 طلب إجازة اعتيادية — ${name}`, body: `اعتيادية — ${daysNum} يوم | ${purpose}`, timestamp: new Date().toISOString(), read: false, reqId: newReq.id }, ...storage.get(key, [])];
-      storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs);
+      storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs); sendBackgroundPush(admin.id, notifs[0].title, notifs[0].body, notifs[0].type);
     });
     toast("تم تقديم الإجازة الاعتيادية بنجاح", "success");
   };
@@ -260,12 +263,12 @@ function AnnualLeaveForm({ emp }) {
       <div><label className="block text-xs font-bold text-secondary mb-1">الرقم الوظيفي</label><input value={jobNum} onChange={e=>setJobNum(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
       <div><label className="block text-xs font-bold text-secondary mb-1">العنوان الوظيفي</label><input value={jobTitle} onChange={e=>setJobTitle(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
       <div className="grid grid-cols-3 gap-3">
-        <div><label className="block text-xs font-bold text-secondary mb-1">من تاريخ</label><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">إلى تاريخ</label><input type="date" value={toDate} onChange={e=>setToDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">من تاريخ</label><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/>{fromDate&&<p className="text-[10px] text-blue-600 mt-0.5 text-center">{fmtIraqi(fromDate)}</p>}</div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">إلى تاريخ</label><input type="date" value={toDate} onChange={e=>setToDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/>{toDate&&<p className="text-[10px] text-blue-600 mt-0.5 text-center">{fmtIraqi(toDate)}</p>}</div>
         <div><label className="block text-xs font-bold text-secondary mb-1">عدد الأيام</label><input type="number" min="1" value={days} onChange={e=>setDays(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm" dir="ltr"/></div>
       </div>
       <div><label className="block text-xs font-bold text-secondary mb-1">غرض الإجازة</label><input value={purpose} onChange={e=>setPurpose(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-      <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الطلب</label><input type="date" value={reqDate} onChange={e=>setReqDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+      <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الطلب</label><input type="date" value={reqDate} onChange={e=>setReqDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/>{reqDate&&<p className="text-[10px] text-blue-600 mt-0.5">{fmtIraqi(reqDate)}</p>}</div>
       <div>
         <label className="block text-xs font-bold text-secondary mb-2">توقيع طالب الإجازة (إلكتروني)</label>
         <SignaturePad onSave={setSigDataUrl} label="ارسم توقيعك ثم اضغط حفظ التوقيع"/>

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Save, CheckCircle, Clock, Printer, Download, Upload, Send } from "lucide-react";
-import { storage } from "../utils";
+import { storage, fmtIraqi } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { ACCOUNTS } from "../constants";
 import { useToast } from "../contexts";
+import { sendBackgroundPush } from "../components/Shared";
 import { useGDrive } from "../gdrive";
 import SignaturePad from "./LeaveSignaturePad";
 
@@ -60,7 +61,7 @@ function TimeLeaveForm({ emp }) {
     storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, leaveDate, departureTime, returnTime, hours, reason, sigDataUrl, status: "draft" });
     toast("تم حفظ المسودة", "success");
   };
-  const saveAndSubmit = () => {
+  const saveAndSubmit = async () => {
     if (status === "submitted") {
       const today = new Date().toISOString().split("T")[0];
       const saved = storage.get(STORAGE_KEY, {});
@@ -72,14 +73,16 @@ function TimeLeaveForm({ emp }) {
     setStatus("submitted");
     const purpose = reason || (hours ? `${hours} ساعة` : "إجازة زمنية");
     const newReq = { id: Date.now(), type: "زمنية", dateFrom: leaveDate, dateTo: leaveDate, purpose, days: 1, status: "بانتظار المراجعة", submittedAt: new Date().toISOString(), empId: emp.id, empName: name, empSigDataUrl: sigDataUrl };
-    const allReqs = [newReq, ...storage.get("all_requests", [])];
+    const prevAll = await FirebaseAPI.loadRequests() || storage.get("all_requests", []);
+    const allReqs = [newReq, ...prevAll.filter(r => r && r.id !== newReq.id)];
     storage.set("all_requests", allReqs);
-    FirebaseAPI.saveRequests(allReqs);
+    const saved = await FirebaseAPI.saveRequests(allReqs);
+    if (!saved) { toast("⚠️ تعذّر حفظ الطلب على الخادم — تحقق من الاتصال وأعد المحاولة", "error"); return; }
     storage.set(`requests_${emp.id}`, [newReq, ...storage.get(`requests_${emp.id}`, [])]);
     ACCOUNTS.filter(a => a.role === "admin" || a.username === "i.shawi").forEach(admin => {
       const key = `notifications_${admin.id}`;
       const notifs = [{ id: Date.now() + admin.id, type: "طلب_إجازة", title: `📋 طلب إجازة زمنية — ${name}`, body: `زمنية — ${hours || "؟"} ساعة | ${reason}`, timestamp: new Date().toISOString(), read: false, reqId: newReq.id }, ...storage.get(key, [])];
-      storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs);
+      storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs); sendBackgroundPush(admin.id, notifs[0].title, notifs[0].body, notifs[0].type);
     });
     toast("تم تقديم الإجازة الزمنية بنجاح", "success");
   };
@@ -248,7 +251,7 @@ function TimeLeaveForm({ emp }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className="block text-xs font-bold text-secondary mb-1">القسم / الشعبة</label><input value={dept} onChange={e=>setDept(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الإجازة</label><input type="date" value={leaveDate} onChange={e=>setLeaveDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ الإجازة</label><input type="date" value={leaveDate} onChange={e=>setLeaveDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/>{leaveDate&&<p className="text-[10px] text-blue-600 mt-0.5">{fmtIraqi(leaveDate)}</p>}</div>
       </div>
       <div className="grid grid-cols-3 gap-3">
         <div>

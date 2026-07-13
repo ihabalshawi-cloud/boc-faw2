@@ -5,7 +5,7 @@ import { MONTHS_IRAQI, TRAINING_TYPES, TASK_PRIORITIES, TASK_STATUSES } from "..
 import { storage, exportCSV } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
-import { EmpPopover, PrintButton, SkeletonMsg, playAlert } from "../components/Shared";
+import { EmpPopover, PrintButton, SkeletonMsg, playAlert, sendBackgroundPush } from "../components/Shared";
 
 function AttendanceSystem({ emp, isAdmin, allEmployees }) {
   const now = new Date();
@@ -143,8 +143,11 @@ function TasksSystem({ emp, isAdmin, allEmployees }) {
     setTasks(updated);
     // إشعار
     if (assignee) {
-      const notifs = storage.get(`notifications_${assignee.id}`, []);
-      storage.set(`notifications_${assignee.id}`, [{ id:Date.now(), type:"مهمة", title:"📋 مهمة جديدة", body:form.title, timestamp:new Date().toISOString(), read:false }, ...notifs]);
+      const notif={id:Date.now(),type:"مهمة",title:"📋 مهمة جديدة",body:form.title,timestamp:new Date().toISOString(),read:false};
+      const notifs=[notif,...storage.get(`notifications_${assignee.id}`,[])];
+      storage.set(`notifications_${assignee.id}`,notifs);
+      FirebaseAPI.saveNotifications(assignee.id,notifs);
+      sendBackgroundPush(assignee.id,notif.title,notif.body,"مهمة");
     }
     setShowForm(false); setForm({ title:"", desc:"", assignedTo:"", priority:"متوسطة", dueDate:"", status:"معلقة" });
     showToast("✅ تم إضافة المهمة"); playAlert("notification");

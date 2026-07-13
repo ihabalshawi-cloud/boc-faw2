@@ -9,7 +9,7 @@ import { FirebaseAPI } from "../firebase";
 const EKEY = "boc_inc_entries";
 const WKEY = "boc_inc_works";
 const CFGKEY = "boc_incentive_cfg";
-const MONTHS_AR = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+const MONTHS_AR = ["كانون الثاني","شباط","آذار","نيسان","أيار","حزيران","تموز","آب","أيلول","تشرين الأول","تشرين الثاني","كانون الأول"];
 const SC = { "مسودة":"bg-gray-100 text-gray-600","بانتظار المراجعة":"bg-amber-100 text-amber-700","موافق عليها":"bg-emerald-100 text-emerald-700","مرفوضة":"bg-red-100 text-red-700" };
 const DEFAULT_CFG = { amounts:{أ:100000,ب:75000,ج:50000}, morningSupervisors:[2,3], shiftSupervisors:[] };
 const sk = e => e?.title==="عقد"?"عقود":e?.shift==="صباحي"?"صباحي":(e?.group||"؟");
@@ -214,8 +214,8 @@ function GroupView({ emp, entries, works, setWorks, shiftKey, cfg }) {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth()+1);
   const [year,  setYear]  = useState(now.getFullYear());
-  const groupEntries    = entries.filter(e=>e.month===month&&e.year===year&&!e.isContract);
-  const contractEntries = entries.filter(e=>e.isContract&&e.month===month&&e.year===year);
+  const groupEntries    = entries.filter(e=>e.month===month&&e.year===year&&!e.isContract&&e.shiftKey===shiftKey);
+  const contractEntries = entries.filter(e=>e.isContract&&e.month===month&&e.year===year&&e.shiftKey===shiftKey);
   const existingWork    = works.find(w=>w.shiftKey===shiftKey&&w.month===month&&w.year===year&&w.status!=="مرفوضة");
 
   return (
@@ -390,7 +390,6 @@ export default function IncentivePage({ emp }) {
         <p className="text-xs text-secondary">أ: {(cfg?.amounts?.أ||100000).toLocaleString()} | ب: {(cfg?.amounts?.ب||75000).toLocaleString()} | ج: {(cfg?.amounts?.ج||50000).toLocaleString()} دينار</p>
       </div>
       <div className="flex items-center gap-2">
-        <a href="/templates/incentive-template.xlsx" download className="flex items-center gap-1 px-3 py-1.5 btn-secondary border border-color rounded-lg text-xs"><Download size={13}/> نموذج فارغ</a>
         {isAdmin && <button onClick={()=>setPv("settings")} className="p-2 btn-secondary rounded-xl border border-color"><Settings size={16}/></button>}
       </div>
     </div>

@@ -516,4 +516,8 @@ export const FirebaseAPI = {
   loadEvalCfg: async () => {
     try { const r=await fetch(`${FIREBASE_URL}/eval_cfg.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch { return null; }
   },
+  // ── Push subscriptions ────────────────────────────────────────────────────
+  savePushSub: async (empId, sub) => { try { await fetch(`${FIREBASE_URL}/push_subs/${empId}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(sub)}); return true; } catch{return false;} },
+  loadPushSub: async (empId) => { try { const r=await fetch(`${FIREBASE_URL}/push_subs/${empId}.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch{return null;} },
+  removePushSub: async (empId) => { try { await fetch(`${FIREBASE_URL}/push_subs/${empId}.json`,{method:"DELETE"}); return true; } catch{return false;} },
 };

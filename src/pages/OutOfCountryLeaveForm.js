@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Save, CheckCircle, FileText, Printer, Download, Upload, Globe, Send } from "lucide-react";
-import { storage } from "../utils";
+import { storage, fmtIraqi } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { ACCOUNTS } from "../constants";
 import { useToast } from "../contexts";
+import { sendBackgroundPush } from "../components/Shared";
 import { useGDrive } from "../gdrive";
 import SignaturePad from "./LeaveSignaturePad";
 import { buildOocDocx } from "./oocDocxBuilder";
@@ -56,7 +57,7 @@ function OutOfCountryLeaveForm({ emp }) {
     storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, country, days, salaryType, purpose, reqDate, refNum, sigDataUrl, empSigDataUrl, status: "draft" });
     toast("تم حفظ المسودة", "success");
   };
-  const saveAndSubmit = () => {
+  const saveAndSubmit = async () => {
     if (status === "submitted") {
       const today = new Date().toISOString().split("T")[0];
       const saved = storage.get(STORAGE_KEY, {});
@@ -68,14 +69,16 @@ function OutOfCountryLeaveForm({ emp }) {
     setStatus("submitted");
     const daysNum = days ? Number(days) : 1;
     const newReq = { id: Date.now(), type: "خارج العراق", dateFrom: reqDate, dateTo: reqDate, purpose: `${country || ""} — ${purpose || ""}`.trim(), days: daysNum, status: "بانتظار المراجعة", submittedAt: new Date().toISOString(), empId: emp.id, empName: name, empSigDataUrl };
-    const allReqs = [newReq, ...storage.get("all_requests", [])];
+    const prevAll = await FirebaseAPI.loadRequests() || storage.get("all_requests", []);
+    const allReqs = [newReq, ...prevAll.filter(r => r && r.id !== newReq.id)];
     storage.set("all_requests", allReqs);
-    FirebaseAPI.saveRequests(allReqs);
+    const saved = await FirebaseAPI.saveRequests(allReqs);
+    if (!saved) { toast("⚠️ تعذّر حفظ الطلب على الخادم — تحقق من الاتصال وأعد المحاولة", "error"); return; }
     storage.set(`requests_${emp.id}`, [newReq, ...storage.get(`requests_${emp.id}`, [])]);
     ACCOUNTS.filter(a => a.role === "admin" || a.username === "i.shawi").forEach(admin => {
       const key = `notifications_${admin.id}`;
       const notifs = [{ id: Date.now() + admin.id, type: "طلب_إجازة", title: `📋 طلب إجازة خارج العراق — ${name}`, body: `${country || ""} — ${daysNum} يوم`, timestamp: new Date().toISOString(), read: false, reqId: newReq.id }, ...storage.get(key, [])];
-      storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs);
+      storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs); sendBackgroundPush(admin.id, notifs[0].title, notifs[0].body, notifs[0].type);
     });
     toast("تم تقديم الطلب بنجاح", "success");
   };
@@ -308,7 +311,7 @@ function OutOfCountryLeaveForm({ emp }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className="block text-xs font-bold text-secondary mb-1">القسم (للكتاب المرفق)</label><input value={dept} onChange={e=>setDept(e.target.value)} placeholder="مثال: قسم السيطرة والنظم" className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
-        <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ تقديم الطلب</label><input type="date" value={reqDate} onChange={e=>setReqDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ تقديم الطلب</label><input type="date" value={reqDate} onChange={e=>setReqDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/>{reqDate&&<p className="text-[10px] text-blue-600 mt-0.5">{fmtIraqi(reqDate)}</p>}</div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className="block text-xs font-bold text-secondary mb-1">البلد / الجمهورية المقصودة</label><input value={country} onChange={e=>setCountry(e.target.value)} placeholder="مثال: جمهورية الهند" className="input w-full rounded-lg px-3 py-2 text-sm"/></div>

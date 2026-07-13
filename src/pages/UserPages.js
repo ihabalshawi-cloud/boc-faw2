@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Shield, Eye, EyeOff, Save, FileText, Trash2, Download, CheckCircle, Bell, ThumbsUp, ThumbsDown, X, Printer } from "lucide-react";
 import { ACCOUNTS, LEAVE_TYPES } from "../constants";
-import { storage, passStore, exportCSV, hashPassword } from "../utils";
+import { storage, passStore, exportCSV, hashPassword, fmtIraqi } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useToast, useConfirm } from "../contexts";
 import { EmpPopover, SkeletonCard, useConnectionStatus, playAlert } from "../components/Shared";
@@ -122,9 +122,9 @@ function RequestsPage({ emp }) {
                     <span className={`px-2 py-1 rounded-full text-xs font-bold ${LEAVE_TYPES[req.type]?.color||"bg-gray-100 text-gray-700"}`}>{req.type}</span>
                     <span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusBadge(req.status)}`}>{req.status}</span>
                   </div>
-                  <p className="text-sm">من {req.dateFrom} إلى {req.dateTo} — {req.days} يوم</p>
+                  <p className="text-sm">من {fmtIraqi(req.dateFrom)} إلى {fmtIraqi(req.dateTo)} — {req.days} يوم</p>
                   <p className="text-xs text-secondary mt-1">{req.purpose}</p>
-                  <p className="text-[10px] text-secondary mt-0.5">{new Date(req.submittedAt||Date.now()).toLocaleDateString("ar-IQ")}</p>
+                  <p className="text-[10px] text-secondary mt-0.5">{fmtIraqi((req.submittedAt||"").slice(0,10))}</p>
                   {req.sigDataUrl && <p className="text-[10px] text-emerald-600 mt-1">✔ موقّع إلكترونياً بواسطة {req.decidedBy}</p>}
                 </div>
                 <div className="flex gap-2 items-start">

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Save, CheckCircle, FileText, Printer, Download, Upload, Send } from "lucide-react";
-import { storage } from "../utils";
+import { storage, fmtIraqi, todayISO } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { ACCOUNTS } from "../constants";
 import { useToast } from "../contexts";
+import { sendBackgroundPush } from "../components/Shared";
 import { useGDrive } from "../gdrive";
 import SignaturePad from "./LeaveSignaturePad";
 import AnnualLeaveForm from "./AnnualLeaveForm";
@@ -23,7 +24,7 @@ function SickLeaveForm({ emp }) {
   const [name,        setName]        = useState(emp.name);
   const [jobNum,      setJobNum]      = useState(emp.jobNum || "");
   const [jobTitle,    setJobTitle]    = useState(emp.title || "");
-  const [leaveDate,   setLeaveDate]   = useState("");
+  const [leaveDate,   setLeaveDate]   = useState(todayISO());
   const [leaveTime,   setLeaveTime]   = useState("");
   const [clinicDT,    setClinicDT]    = useState("");
   const [notes,       setNotes]       = useState("");
@@ -56,7 +57,7 @@ function SickLeaveForm({ emp }) {
     storage.set(STORAGE_KEY, { name, jobNum, jobTitle, leaveDate, leaveTime, clinicDT, notes, returnDate, returnTime, sigDataUrl, empSigDataUrl, status: "draft" });
     toast("تم حفظ المسودة", "success");
   };
-  const saveAndSubmit = () => {
+  const saveAndSubmit = async () => {
     if (status === "submitted") {
       const today = new Date().toISOString().split("T")[0];
       const saved = storage.get(STORAGE_KEY, {});
@@ -68,14 +69,16 @@ function SickLeaveForm({ emp }) {
     setStatus("submitted");
     const daysNum = (leaveDate && returnDate) ? Math.round((new Date(returnDate) - new Date(leaveDate)) / 86400000) + 1 : 1;
     const newReq = { id: Date.now(), type: "مرضية", dateFrom: leaveDate, dateTo: returnDate || leaveDate, purpose: notes || "علاج طبي", days: daysNum, status: "بانتظار المراجعة", submittedAt: new Date().toISOString(), empId: emp.id, empName: name, empSigDataUrl };
-    const allReqs = [newReq, ...storage.get("all_requests", [])];
+    const prevAll = await FirebaseAPI.loadRequests() || storage.get("all_requests", []);
+    const allReqs = [newReq, ...prevAll.filter(r => r && r.id !== newReq.id)];
     storage.set("all_requests", allReqs);
-    FirebaseAPI.saveRequests(allReqs);
+    const saved = await FirebaseAPI.saveRequests(allReqs);
+    if (!saved) { toast("⚠️ تعذّر حفظ الطلب على الخادم — تحقق من الاتصال وأعد المحاولة", "error"); return; }
     storage.set(`requests_${emp.id}`, [newReq, ...storage.get(`requests_${emp.id}`, [])]);
     ACCOUNTS.filter(a => a.role === "admin" || a.username === "i.shawi").forEach(admin => {
       const key = `notifications_${admin.id}`;
       const notifs = [{ id: Date.now() + admin.id, type: "طلب_إجازة", title: `📋 طلب إجازة مرضية — ${name}`, body: `مرضية — ${daysNum} يوم`, timestamp: new Date().toISOString(), read: false, reqId: newReq.id }, ...storage.get(key, [])];
-      storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs);
+      storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs); sendBackgroundPush(admin.id, notifs[0].title, notifs[0].body, notifs[0].type);
     });
     toast("تم تقديم الإجازة المرضية بنجاح", "success");
   };
@@ -255,7 +258,7 @@ function SickLeaveForm({ emp }) {
       <div className="p-3 rounded-xl border border-rose-200 bg-rose-50 space-y-3">
         <p className="text-xs font-bold text-rose-700">بيانات ترك العمل</p>
         <div className="grid grid-cols-2 gap-3">
-          <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ ترك العمل</label><input type="date" value={leaveDate} onChange={e=>setLeaveDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
+          <div><label className="block text-xs font-bold text-secondary mb-1">تاريخ ترك العمل</label><input type="date" value={leaveDate} onChange={e=>setLeaveDate(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/>{leaveDate&&<p className="text-[10px] text-blue-600 mt-0.5">{fmtIraqi(leaveDate)}</p>}</div>
           <div><label className="block text-xs font-bold text-secondary mb-1">وقت ترك العمل</label><input type="time" value={leaveTime} onChange={e=>setLeaveTime(e.target.value)} className="input w-full rounded-lg px-3 py-2 text-sm"/></div>
         </div>
       </div>

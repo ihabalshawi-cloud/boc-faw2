@@ -4,6 +4,7 @@
   "private": true,
   "homepage": "https://boc-faw2.vercel.app",
   "dependencies": {
+    "@sentry/react": "^10.65.0",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
@@ -16,12 +17,15 @@
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
     "react-window": "^1.8.10",
+    "web-push": "^3.6.7",
     "web-vitals": "^2.1.4",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.14",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "postcss": "^8.4.24",
+    "prettier": "^3.9.5",
     "tailwindcss": "^3.3.2"
   },
   "scripts": {
@@ -36,7 +40,10 @@
     "extends": [
       "react-app",
       "react-app/jest"
-    ]
+    ],
+    "rules": {
+      "max-lines": ["warn", 500]
+    }
   },
   "browserslist": {
     "production": [

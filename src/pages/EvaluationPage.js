@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Save, Download, Star, Plus, CheckCircle, Settings } from "lucide-react";
+import { Save, Download, Star, Plus, CheckCircle, Settings, Edit2 } from "lucide-react";
 import { MONTHS_IRAQI, EVAL_CRITERIA, EVAL_CRITERIA_DATA } from "../constants";
 import { FirebaseAPI } from "../firebase";
+import { sendBackgroundPush } from "../components/Shared";
 
 const BULK_RATINGS=["متوسط","جيد","جيد جدا","ممتاز"];
 const BULK_REQ={متوسط:5,جيد:20,"جيد جدا":40,ممتاز:35};
@@ -9,6 +10,28 @@ const BULK_RCOLOR={متوسط:"bg-red-100 text-red-700",جيد:"bg-amber-100 tex
 const BULK_DEPT="شعبة سيطرة مستودع الفاو والمرافئ";
 const GL=(s)=>s>=90?"ممتاز":s>=75?"جيد جداً":s>=60?"جيد":s>=50?"مقبول":"ضعيف";
 const GC=(s)=>s>=90?"text-emerald-600":s>=75?"text-blue-600":s>=60?"text-amber-600":"text-red-600";
+
+// ── نظام التقييم الذاتي ─────────────────────────────────────────────────────
+// أول 11 مرسل → حدّ أقصى جيد جداً | 12-17 → جيد | 18+ → متوسط
+// من يملك مهارة القيادة → يمكنه الوصول لممتاز
+const SELF_GRADES=["متوسط","جيد","جيد جداً","ممتاز"];
+const SGC={ممتاز:"text-emerald-600","جيد جداً":"text-blue-600",جيد:"text-amber-600",متوسط:"text-orange-500"};
+function calcSelfGrade(rawPct,rank,hasLeadership){
+  if(hasLeadership){
+    if(rawPct>=90)return{grade:"ممتاز",color:"text-emerald-600"};
+    if(rawPct>=75)return{grade:"جيد جداً",color:"text-blue-600"};
+    if(rawPct>=60)return{grade:"جيد",color:"text-amber-600"};
+    return{grade:"متوسط",color:"text-orange-500"};
+  }
+  if(rank>17)return{grade:"متوسط",color:"text-orange-500"};
+  if(rank>11){
+    if(rawPct>=60)return{grade:"جيد",color:"text-amber-600"};
+    return{grade:"متوسط",color:"text-orange-500"};
+  }
+  if(rawPct>=75)return{grade:"جيد جداً",color:"text-blue-600"};
+  if(rawPct>=60)return{grade:"جيد",color:"text-amber-600"};
+  return{grade:"متوسط",color:"text-orange-500"};
+}
 
 function BulkEvaluationPanel({ emp, allEmployees }) {
   const now=new Date();
@@ -108,9 +131,20 @@ function AssignPanel({ allEmployees }) {
   const save=async()=>{
     const ok1=await FirebaseAPI.saveEvalAssignments(selYear,selMonth,assignments);
     const ok2=await FirebaseAPI.saveEvalCfg({leadershipIds});
-    T(ok1&&ok2?"✅ تم الحفظ":"⚠️ فشل الحفظ");
+    if(ok1&&ok2){
+      const monthLabel=MONTHS_IRAQI[selMonth];
+      const title=`⭐ إسناد تقييم ذاتي — ${monthLabel} ${selYear}`;
+      const body="تم إسنادك للتقييم الذاتي، يرجى فتح التطبيق وإتمام التقييم";
+      await Promise.all(Object.keys(assignments).map(async(eid)=>{
+        const notif={id:Date.now()+Number(eid),type:"تقييم",title,body,timestamp:new Date().toISOString(),read:false};
+        const prev=await FirebaseAPI.loadNotifications(eid)||[];
+        await FirebaseAPI.saveNotifications(eid,[notif,...prev]);
+        sendBackgroundPush(eid,title,body,"تقييم");
+      }));
+    }
+    T(ok1&&ok2?"✅ تم الحفظ والإشعار":"⚠️ فشل الحفظ");
   };
-  const assignedCount=Object.values(assignments).filter(Boolean).length;
+  const assignedCount=Object.keys(assignments).length;
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center justify-between">
@@ -122,10 +156,10 @@ function AssignPanel({ allEmployees }) {
         <tbody>{allEmployees.map(e=>(<tr key={e.id} className="border-b border-color"><td className="px-3 py-2 font-medium">{e.name.split(" ").slice(0,3).join(" ")}</td><td className="px-3 py-2 text-secondary text-xs">{e.jobNum}</td><td className="px-3 py-2 text-center"><button onClick={()=>toggleA(e.id)} className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${assignments[String(e.id)]?"bg-indigo-600 text-white":"border border-color text-secondary hover:bg-indigo-50"}`}>{assignments[String(e.id)]?"✓ مُسند":"إسناد"}</button></td></tr>))}</tbody></table></div></div>
       <div className="card rounded-2xl border border-amber-200 overflow-hidden">
         <button onClick={()=>setShowLdr(p=>!p)} className="w-full flex items-center gap-2 px-4 py-3 text-sm font-bold text-amber-700 hover:bg-amber-50">
-          <Settings size={15}/> إعدادات معيار القيادة {showLdr?"▲":"▼"}
+          <Settings size={15}/> إعدادات معيار القيادة (تفعيل درجة ممتاز) {showLdr?"▲":"▼"}
         </button>
         {showLdr&&<div className="border-t border-amber-200 p-4 space-y-2">
-          <p className="text-xs text-secondary mb-3">حدد الموظفين (مهندسون أو مسؤولو نوبات) الذين يظهر لهم معيار القيادة في التقييم الذاتي</p>
+          <p className="text-xs text-secondary mb-3">الموظفون المفعّلون هنا يمكنهم الحصول على تقييم <strong>ممتاز</strong> — الباقون لا يتجاوزون <strong>جيد جداً</strong></p>
           {allEmployees.map(e=>(<div key={e.id} className="flex items-center justify-between py-1.5 border-b border-color last:border-0">
             <div><p className="text-sm">{e.name.split(" ").slice(0,3).join(" ")}</p><p className="text-xs text-secondary">{e.title}</p></div>
             <button onClick={()=>toggleL(e.id)} className={`px-3 py-1 rounded-lg text-xs font-bold ${leadershipIds.includes(String(e.id))?"bg-amber-500 text-white":"border border-color text-secondary"}`}>{leadershipIds.includes(String(e.id))?"✓ مفعّل":"تفعيل"}</button>
@@ -142,17 +176,33 @@ function ResultsPanel({ allEmployees }) {
   const [selMonth,setSelMonth]=useState(now.getMonth());
   const [selYear,setSelYear]=useState(now.getFullYear());
   const [evals,setEvals]=useState({});
+  const [editId,setEditId]=useState(null);
+  const [editGrade,setEditGrade]=useState("");
+  const [editNote,setEditNote]=useState("");
   const [toast,setToast]=useState("");
   const T=(m)=>{setToast(m);setTimeout(()=>setToast(""),3000);};
-  useEffect(()=>{FirebaseAPI.loadSelfEvals(selYear,selMonth).then(d=>setEvals(d||{}));},[selYear,selMonth]);
-  const submitted=allEmployees.filter(e=>evals[e.id]);
+  useEffect(()=>{setEditId(null);FirebaseAPI.loadSelfEvals(selYear,selMonth).then(d=>setEvals(d||{}));},[selYear,selMonth]);
+  const submitted=allEmployees.filter(e=>evals[String(e.id)]).sort((a,b)=>(evals[String(a.id)]?.rank||99)-(evals[String(b.id)]?.rank||99));
+  const startEdit=(e)=>{const ev=evals[String(e.id)];const gi=calcSelfGrade(ev.rawTotal||ev.total||0,ev.rank||99,ev.hasLeadership);setEditId(e.id);setEditGrade(ev.adminGrade||gi.grade);setEditNote(ev.adminNote||"");};
+  const saveOverride=async(e)=>{
+    if(!editNote.trim())return T("⚠️ يجب كتابة سبب التعديل");
+    const eid=String(e.id);
+    const updated={...evals[eid],adminGrade:editGrade,adminNote:editNote};
+    const ok=await FirebaseAPI.saveSelfEval(selYear,selMonth,eid,updated);
+    if(ok){setEvals(p=>({...p,[eid]:updated}));setEditId(null);T("✅ تم حفظ التعديل");}
+    else T("⚠️ فشل الحفظ");
+  };
   const exportXls=async()=>{
     try{
       const mod=await import("exceljs");const ExcelJS=mod.default||mod;
       const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet("التقييم الذاتي");
-      const nonLdrCriteria=EVAL_CRITERIA_DATA.filter(c=>!c.leadership);
-      ws.addRow(["ت","الرقم الوظيفي","الموظف",...nonLdrCriteria.map(c=>c.name),"القيادة","المجموع %","تاريخ الإرسال"]);
-      submitted.forEach((e,i)=>{const ev=evals[e.id];const scores=ev.scores||{};ws.addRow([i+1,e.jobNum,e.name,...nonLdrCriteria.map(c=>scores[c.id]||"—"),scores.leadership||"—",ev.total||0,ev.submittedAt?new Date(ev.submittedAt).toLocaleDateString("ar-IQ"):"—"]);});
+      ws.addRow(["الترتيب","الرقم الوظيفي","الموظف",...EVAL_CRITERIA_DATA.filter(c=>!c.leadership).map(c=>c.name),"القيادة","النسبة%","التقييم","ملاحظة المشرف","تاريخ الإرسال"]);
+      submitted.forEach(e=>{
+        const ev=evals[String(e.id)];const s=ev.scores||{};
+        const rawPct=ev.rawTotal||ev.total||0;
+        const gi=calcSelfGrade(rawPct,ev.rank||99,ev.hasLeadership);
+        ws.addRow([ev.rank||"—",e.jobNum,e.name,...EVAL_CRITERIA_DATA.filter(c=>!c.leadership).map(c=>s[c.id]||"—"),s.leadership||"—",rawPct,ev.adminGrade||gi.grade,ev.adminNote||"",ev.submittedAt?new Date(ev.submittedAt).toLocaleDateString("ar-IQ"):"—"]);
+      });
       const buf=await wb.xlsx.writeBuffer();const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));a.download=`تقييم_ذاتي_${MONTHS_IRAQI[selMonth]}_${selYear}.xlsx`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);T("✅ تم التصدير");
     }catch{T("⚠️ فشل التصدير");}
   };
@@ -162,11 +212,55 @@ function ResultsPanel({ allEmployees }) {
         <div className="flex gap-2"><select value={selMonth} onChange={e=>setSelMonth(+e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{MONTHS_IRAQI.map((m,i)=><option key={i} value={i}>{m}</option>)}</select><select value={selYear} onChange={e=>setSelYear(+e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{[2024,2025,2026].map(y=><option key={y}>{y}</option>)}</select></div>
         <button onClick={exportXls} className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 px-3 py-2 rounded-xl"><Download size={13}/>تصدير Excel</button>
       </div>
-      <p className="text-sm text-secondary">أرسل تقييمه {submitted.length} موظف من أصل {allEmployees.length}</p>
-      {submitted.length===0?<div className="card rounded-2xl p-8 text-center border-color border"><Star size={40} className="mx-auto text-secondary mb-2"/><p className="text-secondary">لا توجد تقييمات ذاتية مرسلة لهذه الفترة</p></div>:(
-        <div className="card rounded-2xl border border-color overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-xs" dir="rtl"><thead><tr className="bg-gray-50 border-b border-color"><th className="px-3 py-2 text-right">الموظف</th>{EVAL_CRITERIA_DATA.filter(c=>!c.leadership).map(c=><th key={c.id} className="px-2 py-2 text-center" title={c.name}>{c.name.split("و")[0].trim().slice(0,6)}</th>)}<th className="px-2 py-2 text-center">قيادة</th><th className="px-2 py-2 text-center">%</th></tr></thead>
-          <tbody>{submitted.map(e=>{const ev=evals[e.id];const s=ev.scores||{};return(<tr key={e.id} className="border-b border-color"><td className="px-3 py-2 font-medium">{e.name.split(" ").slice(0,2).join(" ")}</td>{EVAL_CRITERIA_DATA.filter(c=>!c.leadership).map(c=><td key={c.id} className="px-2 py-2 text-center">{s[c.id]||"—"}</td>)}<td className="px-2 py-2 text-center">{s.leadership||"—"}</td><td className="px-2 py-2 text-center font-bold"><span className={GC(ev.total)}>{ev.total}%</span></td></tr>);})}</tbody></table></div></div>
-      )}
+      <p className="text-sm text-secondary">أرسل تقييمه {submitted.length} موظف — الترتيب: أول 11 → جيد جداً | 12-17 → جيد | 18+ → متوسط | القيادة → ممتاز</p>
+      {submitted.length===0
+        ?<div className="card rounded-2xl p-8 text-center border-color border"><Star size={40} className="mx-auto text-secondary mb-2"/><p className="text-secondary">لا توجد تقييمات ذاتية مرسلة لهذه الفترة</p></div>
+        :<div className="space-y-2">
+          {submitted.map(e=>{
+            const ev=evals[String(e.id)];
+            const rawPct=ev.rawTotal||ev.total||0;
+            const gi=calcSelfGrade(rawPct,ev.rank||99,ev.hasLeadership);
+            const fg=ev.adminGrade||gi.grade;
+            const fc=SGC[fg]||gi.color;
+            return(
+              <div key={e.id} className="card rounded-2xl border border-color overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-secondary bg-gray-100 dark:bg-gray-700 w-7 h-7 rounded-full flex items-center justify-center shrink-0">{ev.rank||"—"}</span>
+                    <div>
+                      <p className="font-bold text-sm">{e.name.split(" ").slice(0,3).join(" ")}</p>
+                      <p className="text-xs text-secondary">{e.jobNum}{ev.hasLeadership&&" · قيادة ⭐"}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-left">
+                      <p className={`font-bold text-lg ${fc}`}>{fg}{ev.adminGrade&&" ✎"}</p>
+                      <p className="text-xs text-secondary">{rawPct}%</p>
+                    </div>
+                    <button onClick={()=>editId===e.id?setEditId(null):startEdit(e)} className="p-2 rounded-xl border border-color hover:bg-indigo-50 transition-colors" title="تعديل التقييم">
+                      <Edit2 size={13} className="text-indigo-600"/>
+                    </button>
+                  </div>
+                </div>
+                {ev.adminNote&&<p className="px-4 pb-2 text-xs text-amber-700 italic border-t border-color pt-2">ملاحظة المشرف: {ev.adminNote}</p>}
+                {editId===e.id&&(
+                  <div className="border-t border-color p-4 bg-indigo-50 dark:bg-indigo-900/20 space-y-3">
+                    <p className="text-xs font-bold text-indigo-700">تعديل التقييم النهائي للموظف: {e.name.split(" ")[0]}</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {SELF_GRADES.map(g=><button key={g} onClick={()=>setEditGrade(g)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${editGrade===g?`${SGC[g]?.replace("text","bg").replace("600","100")||""} border-current`:"border-color hover:bg-indigo-50"}`}>{g}</button>)}
+                    </div>
+                    <textarea value={editNote} onChange={ev2=>setEditNote(ev2.target.value)} rows={2} placeholder="سبب تعديل التقييم (إلزامي)" className="input rounded-xl px-3 py-2 text-sm w-full"/>
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={()=>setEditId(null)} className="px-4 py-2 text-xs border border-color rounded-xl">إلغاء</button>
+                      <button onClick={()=>saveOverride(e)} className="flex items-center gap-1 px-4 py-2 text-xs font-bold text-white bg-indigo-600 rounded-xl"><Save size={12}/>حفظ التعديل</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      }
       {toast&&<div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
@@ -203,17 +297,23 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees }) {
   },[isAdmin,emp.id,selYear,selMonth]);
 
   const criteria=EVAL_CRITERIA_DATA.filter(c=>!c.leadership||leadershipIds.includes(String(emp.id)));
+  const hasLeadership=leadershipIds.includes(String(emp.id));
 
   const submitSelf=async()=>{
-    const total=Math.round(criteria.reduce((s,c)=>s+scores[c.id],0)/(criteria.length*5)*100);
+    const existingSubs=await FirebaseAPI.loadSelfEvals(selYear,selMonth);
+    const rank=existingSubs?Object.keys(existingSubs).filter(k=>k!==String(emp.id)).length+1:1;
+    const rawTotal=Math.round(criteria.reduce((s,c)=>s+scores[c.id],0)/(criteria.length*5)*100);
+    const {grade}=calcSelfGrade(rawTotal,rank,hasLeadership);
     const activeScores=Object.fromEntries(criteria.map(c=>[c.id,scores[c.id]]));
-    const data={scores:activeScores,total,notes:selfNotes,submittedAt:new Date().toISOString(),empName:emp.name};
+    const data={scores:activeScores,rawTotal,total:rawTotal,grade,rank,hasLeadership,notes:selfNotes,submittedAt:new Date().toISOString(),empName:emp.name};
     const ok=await FirebaseAPI.saveSelfEval(selYear,selMonth,String(emp.id),data);
     if(ok){setSelfStatus("submitted");setSelfData(data);T("✅ تم إرسال التقييم");}
     else T("⚠️ فشل الإرسال");
   };
 
   const ADMIN_TABS=[{id:"bulk",label:"📊 جماعي"},{id:"individual",label:"⭐ فردي"},{id:"assign",label:"🎯 إسناد"},{id:"results",label:"📋 النتائج"}];
+  const submittedGI=selfData?calcSelfGrade(selfData.rawTotal||selfData.total||0,selfData.rank||1,selfData.hasLeadership):null;
+  const submittedFG=selfData?.adminGrade||submittedGI?.grade;
 
   return (
     <div className="space-y-4">
@@ -226,16 +326,18 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees }) {
 
       {!isAdmin&&<div className="space-y-6">
         <div>
-          <h3 className="font-bold text-lg mb-3">التقييم الذاتي — {MONTHS_IRAQI[selMonth]} {selYear}</h3>
+          <h3 className="font-bold text-lg mb-1">التقييم الذاتي — {MONTHS_IRAQI[selMonth]} {selYear}</h3>
+          {hasLeadership&&<p className="text-xs text-amber-600 mb-3">⭐ مفعّل لديك معيار القيادة — يمكنك الحصول على تقييم ممتاز</p>}
+          {!hasLeadership&&<p className="text-xs text-secondary mb-3">الحد الأقصى للتقييم الاعتيادي: جيد جداً — التقييم الأول إرسالاً يحظى بأعلى الفرص</p>}
           {selfStatus==="loading"&&<div className="card rounded-2xl p-6 text-center border-color border"><p className="text-secondary">جارٍ التحميل...</p></div>}
           {selfStatus==="error"&&<div className="card rounded-2xl p-8 text-center border-color border border-red-200 bg-red-50 dark:bg-red-900/20"><p className="text-red-600 font-bold mb-1">تعذّر الاتصال بقاعدة البيانات</p><p className="text-xs text-secondary">تحقق من اتصالك بالإنترنت أو تواصل مع المشرف</p><button onClick={()=>{setSelfStatus("loading");FirebaseAPI.loadEvalAssignments(selYear,selMonth).then(d=>{if(d===null){setSelfStatus("error");return;}const eid=String(emp.id);if(!d[eid]){setSelfStatus("not_assigned");return;}FirebaseAPI.loadSelfEvals(selYear,selMonth).then(se=>{if(se?.[eid]){setSelfStatus("submitted");setSelfData(se[eid]);}else setSelfStatus("assigned");});});}} className="mt-3 px-4 py-2 text-xs font-bold text-white bg-red-600 rounded-xl">إعادة المحاولة</button></div>}
           {selfStatus==="not_assigned"&&<div className="card rounded-2xl p-8 text-center border-color border"><Star size={40} className="mx-auto text-secondary mb-2"/><p className="text-secondary">لم يُسند لك تقييم ذاتي لهذا الشهر</p></div>}
-          {selfStatus==="submitted"&&<div className="card rounded-2xl p-6 text-center border-color border border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20"><CheckCircle size={32} className="mx-auto text-emerald-500 mb-2"/><p className="font-bold text-emerald-700">تم إرسال تقييمك بنجاح</p>{selfData&&<p className={`text-2xl font-bold mt-2 ${GC(selfData.total)}`}>{selfData.total}% — {GL(selfData.total)}</p>}</div>}
+          {selfStatus==="submitted"&&<div className="card rounded-2xl p-6 text-center border-color border border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20"><CheckCircle size={32} className="mx-auto text-emerald-500 mb-2"/><p className="font-bold text-emerald-700">تم إرسال تقييمك بنجاح</p>{selfData&&<><p className={`text-3xl font-bold mt-2 ${SGC[submittedFG]||submittedGI?.color}`}>{selfData.rawTotal||selfData.total}%</p><p className={`text-xl font-bold ${SGC[submittedFG]||submittedGI?.color}`}>{submittedFG}</p><p className="text-xs text-secondary mt-1">ترتيبك في الإرسال: {selfData.rank}</p>{selfData.adminNote&&<p className="text-xs text-amber-600 mt-2 italic">ملاحظة المشرف: {selfData.adminNote}</p>}</>}</div>}
           {selfStatus==="assigned"&&<div className="card rounded-2xl border-2 border-indigo-200 p-5 space-y-3">
             <p className="text-sm font-bold text-indigo-700">قيّم نفسك في المعايير التالية (2 = مقبول، 3 = جيد، 4 = متميز، 5 = استثنائي)</p>
             {criteria.map(c=>(<div key={c.id} className="border border-color rounded-xl p-3">
               <div className="flex justify-between items-center mb-1">
-                <span className="font-bold text-sm">{c.name}</span>
+                <span className="font-bold text-sm">{c.name}{c.leadership&&" ⭐"}</span>
                 <div className="flex gap-1">{[2,3,4,5].map(n=><button key={n} onClick={()=>setScores(p=>({...p,[c.id]:n}))} className={`w-8 h-8 rounded-full text-sm font-bold transition-all ${scores[c.id]===n?"bg-indigo-600 text-white":"border border-color hover:bg-indigo-50"}`}>{n}</button>)}</div>
               </div>
               <p className="text-xs text-secondary">{c.levels[scores[c.id]]}</p>
