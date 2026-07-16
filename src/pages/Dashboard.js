@@ -155,6 +155,15 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   }, [emp.id]);
 
   useEffect(()=>{
+    if(isAdmin){setIncentiveVisible(true);return;}
+    FirebaseAPI.loadIncentiveCfg().then(cfg=>{
+      const open=cfg?.openedAt&&cfg?.windowHours?Date.now()<new Date(cfg.openedAt).getTime()+cfg.windowHours*3600000:false;
+      setIncentiveVisible(open);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[emp.id,isAdmin]);
+
+  useEffect(()=>{
     if(isAdmin){setEvalVisible(true);return;}
     const now=new Date();const m=now.getMonth();const y=now.getFullYear();const eid=String(emp.id);
     Promise.all([
@@ -189,6 +198,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const pendingCount = allRequests.filter(r => r && r.status === "بانتظار المراجعة").length;
   const [unreadNotifs, setUnreadNotifs] = useState(() => storage.get(`notifications_${emp.id}`, []).filter(n => !n.read).length);
   const [evalVisible, setEvalVisible] = useState(false);
+  const [incentiveVisible, setIncentiveVisible] = useState(false);
   useStorageSync("all_requests", setAllRequests);
   const chatUnread = storage.get("chat_offline",[]).filter(m=>!m.read&&Number(m.toId)===Number(emp.id)).length;
   useEffect(() => {
@@ -275,7 +285,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     ...(evalVisible ? [{ id:"evaluation", label:"التقييم", icon:<Star size={17}/> }] : []),
     ...(canSeeRestricted("chat") ? [{ id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> }] : []),
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
-    { id:"incentive", label:"نظام المكافآت", icon:<Star size={17}/>, badge: (() => { const c=storage.get("boc_incentive_v1",[]).filter(f=>f.status==="بانتظار المراجعة").length; return (isAdmin&&c>0)?c:0; })() },
+    ...((isAdmin||incentiveVisible) ? [{ id:"incentive", label:"نظام المكافآت", icon:<Star size={17}/>, badge: (() => { const c=storage.get("boc_incentive_v1",[]).filter(f=>f.status==="بانتظار المراجعة").length; return (isAdmin&&c>0)?c:0; })() }] : []),
     ...(canSeeRestricted("timesheet") ? [{ id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> }] : []),
     { id:"notifications", label:"الإشعارات", icon:<Bell size={17}/>, badge:unreadNotifs },
     { id:"changepass", label:"تغيير المرور", icon:<Shield size={17}/> },

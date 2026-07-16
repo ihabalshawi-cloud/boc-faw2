@@ -330,7 +330,8 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees, onSubmit }) {
 
   const submitSelf=async()=>{
     const existingSubs=await FirebaseAPI.loadSelfEvals(selYear,selMonth);
-    const rank=existingSubs?Object.keys(existingSubs).filter(k=>k!==String(emp.id)).length+1:1;
+    // Leadership employees are excluded from the 11-slot rank count for regular employees
+    const rank=existingSubs?Object.keys(existingSubs).filter(k=>k!==String(emp.id)&&!leadershipIds.includes(k)).length+1:1;
     const rawTotal=Math.round(criteria.reduce((s,c)=>s+scores[c.id],0)/(criteria.length*5)*100);
     const {grade}=calcSelfGrade(rawTotal,rank,hasLeadership);
     const activeScores=Object.fromEntries(criteria.map(c=>[c.id,scores[c.id]]));

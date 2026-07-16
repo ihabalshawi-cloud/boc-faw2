@@ -377,6 +377,11 @@ export default function IncentivePage({ emp }) {
   const myShiftKey   = sk(emp);
 
   const saveCfg = c => { setCfg(c); storage.set(CFGKEY,c); FirebaseAPI.saveIncentiveCfg(c); };
+  const incWindowOpen = cfg?.openedAt && cfg?.windowHours
+    ? Date.now() < new Date(cfg.openedAt).getTime() + cfg.windowHours * 3600000
+    : false;
+  const openWindow = (h) => saveCfg({...cfg, windowHours:h, openedAt:new Date().toISOString()});
+  const closeWindow = () => saveCfg({...cfg, openedAt:null});
 
   if (pv==="settings"&&isAdmin) return <SettingsView cfg={cfg} onSave={c=>{saveCfg(c);setPv("main");}} onBack={()=>setPv("main")}/>;
   if (pv==="detail"&&selWork) return (
@@ -389,7 +394,14 @@ export default function IncentivePage({ emp }) {
       <div><h2 className="font-bold text-lg">نظام المكافآت الشهرية</h2>
         <p className="text-xs text-secondary">أ: {(cfg?.amounts?.أ||100000).toLocaleString()} | ب: {(cfg?.amounts?.ب||75000).toLocaleString()} | ج: {(cfg?.amounts?.ج||50000).toLocaleString()} دينار</p>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap justify-end">
+        {isAdmin && <>
+          {incWindowOpen
+            ? <button onClick={closeWindow} className="text-xs font-bold text-red-600 border border-red-200 px-3 py-1.5 rounded-xl bg-red-50">🔒 إغلاق النافذة</button>
+            : <div className="flex items-center gap-1">{[24,48,96].map(h=><button key={h} onClick={()=>openWindow(h)} className="text-xs font-bold text-emerald-700 border border-emerald-200 px-2 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100">{h}س</button>)}</div>
+          }
+          {incWindowOpen && <span className="text-[10px] text-emerald-600 font-bold">✓ مفتوحة</span>}
+        </>}
         {isAdmin && <button onClick={()=>setPv("settings")} className="p-2 btn-secondary rounded-xl border border-color"><Settings size={16}/></button>}
       </div>
     </div>
