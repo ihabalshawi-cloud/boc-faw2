@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Save, Download, Star, Plus, CheckCircle, Settings, Edit2 } from "lucide-react";
 import { MONTHS_IRAQI, EVAL_CRITERIA, EVAL_CRITERIA_DATA } from "../constants";
 import { FirebaseAPI } from "../firebase";
+import { storage } from "../utils";
 import { sendBackgroundPush } from "../components/Shared";
 
 const BULK_RATINGS=["متوسط","جيد","جيد جدا","ممتاز"];
@@ -278,6 +279,7 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees }) {
   const [scores,setScores]=useState(()=>Object.fromEntries(EVAL_CRITERIA_DATA.map(c=>[c.id,2])));
   const [selfNotes,setSelfNotes]=useState("");
   const [toast,setToast]=useState("");
+  const [attendanceLocked,setAttendanceLocked]=useState(false);
   const T=(m)=>{setToast(m);setTimeout(()=>setToast(""),3000);};
 
   useEffect(()=>{
@@ -293,6 +295,16 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees }) {
       });
       FirebaseAPI.loadEvalCfg().then(d=>setLeadershipIds(d?.leadershipIds||[]));
       FirebaseAPI.loadEvaluations().then(list=>{if(list)setMyEvals(list.filter(e=>e?.empId===emp.id));});
+      FirebaseAPI.loadRequests().then(allReqs=>{
+        const reqs=allReqs||storage.get("all_requests",[]);
+        const leaveDays=reqs.filter(r=>
+          r&&Number(r.empId)===Number(emp.id)&&r.status==="موافق عليها"&&r.dateFrom&&
+          new Date(r.dateFrom).getFullYear()===selYear&&new Date(r.dateFrom).getMonth()===selMonth
+        ).reduce((s,r)=>s+(Number(r.days)||1),0);
+        const attScore=leaveDays===0?5:leaveDays===1?4:leaveDays===2?3:2;
+        setScores(p=>({...p,attendance:attScore}));
+        setAttendanceLocked(true);
+      });
     }
   },[isAdmin,emp.id,selYear,selMonth]);
 
@@ -335,13 +347,13 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees }) {
           {selfStatus==="submitted"&&<div className="card rounded-2xl p-6 text-center border-color border border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20"><CheckCircle size={32} className="mx-auto text-emerald-500 mb-2"/><p className="font-bold text-emerald-700">تم إرسال تقييمك بنجاح</p>{selfData&&<><p className={`text-3xl font-bold mt-2 ${SGC[submittedFG]||submittedGI?.color}`}>{selfData.rawTotal||selfData.total}%</p><p className={`text-xl font-bold ${SGC[submittedFG]||submittedGI?.color}`}>{submittedFG}</p><p className="text-xs text-secondary mt-1">ترتيبك في الإرسال: {selfData.rank}</p>{selfData.adminNote&&<p className="text-xs text-amber-600 mt-2 italic">ملاحظة المشرف: {selfData.adminNote}</p>}</>}</div>}
           {selfStatus==="assigned"&&<div className="card rounded-2xl border-2 border-indigo-200 p-5 space-y-3">
             <p className="text-sm font-bold text-indigo-700">قيّم نفسك في المعايير التالية (2 = مقبول، 3 = جيد، 4 = متميز، 5 = استثنائي)</p>
-            {criteria.map(c=>(<div key={c.id} className="border border-color rounded-xl p-3">
+            {criteria.map(c=>{const locked=c.id==="attendance"&&attendanceLocked;return(<div key={c.id} className={`border rounded-xl p-3 ${locked?"border-amber-200 bg-amber-50 dark:bg-amber-900/10":"border-color"}`}>
               <div className="flex justify-between items-center mb-1">
-                <span className="font-bold text-sm">{c.name}{c.leadership&&" ⭐"}</span>
-                <div className="flex gap-1">{[2,3,4,5].map(n=><button key={n} onClick={()=>setScores(p=>({...p,[c.id]:n}))} className={`w-8 h-8 rounded-full text-sm font-bold transition-all ${scores[c.id]===n?"bg-indigo-600 text-white":"border border-color hover:bg-indigo-50"}`}>{n}</button>)}</div>
+                <span className="font-bold text-sm">{c.name}{c.leadership&&" ⭐"}{locked&&<span className="text-[10px] text-amber-600 mr-2 font-normal">🔒 محسوب من إجازاتك</span>}</span>
+                <div className="flex gap-1">{[2,3,4,5].map(n=><button key={n} disabled={locked} onClick={()=>{if(!locked)setScores(p=>({...p,[c.id]:n}));}} className={`w-8 h-8 rounded-full text-sm font-bold transition-all ${scores[c.id]===n?"bg-indigo-600 text-white":"border border-color hover:bg-indigo-50"} ${locked?"opacity-60 cursor-not-allowed":""}`}>{n}</button>)}</div>
               </div>
               <p className="text-xs text-secondary">{c.levels[scores[c.id]]}</p>
-            </div>))}
+            </div>);})}
             <textarea value={selfNotes} onChange={e=>setSelfNotes(e.target.value)} rows={2} placeholder="ملاحظات إضافية (اختياري)" className="input rounded-xl px-3 py-2 text-sm w-full"/>
             <button onClick={submitSelf} className="w-full py-3 font-bold text-white bg-indigo-600 rounded-xl flex items-center justify-center gap-2"><Save size={14}/>إرسال التقييم</button>
           </div>}
