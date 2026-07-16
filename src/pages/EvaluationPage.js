@@ -46,6 +46,30 @@ function BulkEvaluationPanel({ emp, allEmployees }) {
     FirebaseAPI.loadBulkEval(selYear,selMonth).then(d=>setRatings(d?.ratings||{}));
     FirebaseAPI.loadSelfEvals(selYear,selMonth).then(d=>setSelfEvals(d||{}));
   },[selYear,selMonth]);
+  const selfToRating=g=>g==="جيد جداً"?"جيد جدا":g;
+  useEffect(()=>{
+    if(!Object.keys(selfEvals).length)return;
+    setRatings(prev=>{
+      const upd={...prev};let changed=false;
+      Object.entries(selfEvals).forEach(([eid,ev])=>{
+        if(upd[eid])return;
+        const g=selfToRating(ev.adminGrade||ev.grade);
+        if(BULK_RATINGS.includes(g)){upd[eid]=g;changed=true;}
+      });
+      return changed?upd:prev;
+    });
+  },[selfEvals]);
+  const importFromResults=()=>{
+    setRatings(prev=>{
+      const upd={...prev};
+      Object.entries(selfEvals).forEach(([eid,ev])=>{
+        const g=selfToRating(ev.adminGrade||ev.grade);
+        if(BULK_RATINGS.includes(g))upd[eid]=g;
+      });
+      return upd;
+    });
+    T("✅ تم نقل التقييمات من النتائج");
+  };
   const dist=BULK_RATINGS.reduce((a,r)=>({...a,[r]:Object.values(ratings).filter(x=>x===r).length}),{});
   const pct=(n)=>allEmployees.length>0?Math.round(n/allEmployees.length*100):0;
   const save=async()=>T((await FirebaseAPI.saveBulkEval(selYear,selMonth,{ratings,savedBy:emp.name,month:selMonth,year:selYear}))?"✅ تم الحفظ":"⚠️ فشل الحفظ");
@@ -67,11 +91,11 @@ function BulkEvaluationPanel({ emp, allEmployees }) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div className="flex gap-2"><select value={selMonth} onChange={e=>setSelMonth(+e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{MONTHS_IRAQI.map((m,i)=><option key={i} value={i}>{m}</option>)}</select><select value={selYear} onChange={e=>setSelYear(+e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{[2024,2025,2026].map(y=><option key={y}>{y}</option>)}</select></div>
-        <div className="flex gap-2"><button onClick={save} className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 px-3 py-2 rounded-xl"><Save size={13}/>حفظ</button><button onClick={exportXls} className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 px-3 py-2 rounded-xl"><Download size={13}/>Excel</button><button onClick={printPDF} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Star size={13}/>PDF</button></div>
+        <div className="flex gap-2 flex-wrap justify-end"><button onClick={importFromResults} className="flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl hover:bg-amber-100"><Star size={13}/>نقل من النتائج</button><button onClick={save} className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 px-3 py-2 rounded-xl"><Save size={13}/>حفظ</button><button onClick={exportXls} className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 px-3 py-2 rounded-xl"><Download size={13}/>Excel</button><button onClick={printPDF} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Star size={13}/>PDF</button></div>
       </div>
       <div className="grid grid-cols-4 gap-2">{BULK_RATINGS.map(r=><div key={r} className={`rounded-xl p-2 text-center text-xs ${BULK_RCOLOR[r]}`}><p className="font-bold text-lg">{dist[r]}</p><p className="font-bold">{r}</p><p className="text-[10px]">{pct(dist[r])}% / مطلوب {BULK_REQ[r]}%</p></div>)}</div>
       <div className="card rounded-2xl border border-color overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm" dir="rtl"><thead><tr className="bg-gray-50 border-b border-color"><th className="px-3 py-2 text-right font-semibold">ت</th><th className="px-3 py-2 text-right font-semibold">الرقم</th><th className="px-3 py-2 text-right font-semibold">الموظف</th><th className="px-3 py-2 text-center font-semibold">ذاتي</th><th className="px-3 py-2 text-center font-semibold">التقييم الجماعي</th></tr></thead>
-        <tbody>{allEmployees.map((e,i)=>{const done=!!selfEvals[String(e.id)];return(<tr key={e.id} className={`border-b border-color ${done?"bg-emerald-50 dark:bg-emerald-900/10":""}`}><td className="px-3 py-2 text-secondary text-xs">{i+1}</td><td className="px-3 py-2 font-mono text-secondary text-xs">{e.jobNum}</td><td className="px-3 py-2 font-medium">{e.name}{done&&<span className="text-[10px] text-emerald-600 font-bold mr-1">✓</span>}</td><td className="px-3 py-2 text-center">{done?<span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">أرسل</span>:<span className="text-[10px] text-secondary">—</span>}</td><td className="px-3 py-2 text-center"><select value={ratings[e.id]||""} onChange={ev=>setRatings(p=>({...p,[e.id]:ev.target.value}))} className="input text-xs rounded-lg px-2 py-1"><option value="">—</option>{BULK_RATINGS.map(r=><option key={r}>{r}</option>)}</select></td></tr>);})}</tbody></table></div></div>
+        <tbody>{allEmployees.map((e,i)=>{const ev=selfEvals[String(e.id)];const done=!!ev;const selfGrade=done?selfToRating(ev.adminGrade||ev.grade):"";return(<tr key={e.id} className={`border-b border-color ${done?"bg-emerald-50 dark:bg-emerald-900/10":""}`}><td className="px-3 py-2 text-secondary text-xs">{i+1}</td><td className="px-3 py-2 font-mono text-secondary text-xs">{e.jobNum}</td><td className="px-3 py-2 font-medium">{e.name}{done&&<span className="text-[10px] text-emerald-600 font-bold mr-1">✓</span>}</td><td className="px-3 py-2 text-center">{done?<span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${BULK_RCOLOR[selfGrade]||"bg-emerald-100 text-emerald-700"}`}>{selfGrade||"أرسل"}</span>:<span className="text-[10px] text-secondary">—</span>}</td><td className="px-3 py-2 text-center"><select value={ratings[e.id]||""} onChange={ev2=>setRatings(p=>({...p,[e.id]:ev2.target.value}))} className="input text-xs rounded-lg px-2 py-1"><option value="">—</option>{BULK_RATINGS.map(r=><option key={r}>{r}</option>)}</select></td></tr>);})}</tbody></table></div></div>
       {toast&&<div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
