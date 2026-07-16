@@ -39,9 +39,13 @@ function BulkEvaluationPanel({ emp, allEmployees }) {
   const [selMonth,setSelMonth]=useState(now.getMonth());
   const [selYear,setSelYear]=useState(now.getFullYear());
   const [ratings,setRatings]=useState({});
+  const [selfEvals,setSelfEvals]=useState({});
   const [toast,setToast]=useState("");
   const T=(m)=>{setToast(m);setTimeout(()=>setToast(""),3000);};
-  useEffect(()=>{FirebaseAPI.loadBulkEval(selYear,selMonth).then(d=>setRatings(d?.ratings||{}));},[selYear,selMonth]);
+  useEffect(()=>{
+    FirebaseAPI.loadBulkEval(selYear,selMonth).then(d=>setRatings(d?.ratings||{}));
+    FirebaseAPI.loadSelfEvals(selYear,selMonth).then(d=>setSelfEvals(d||{}));
+  },[selYear,selMonth]);
   const dist=BULK_RATINGS.reduce((a,r)=>({...a,[r]:Object.values(ratings).filter(x=>x===r).length}),{});
   const pct=(n)=>allEmployees.length>0?Math.round(n/allEmployees.length*100):0;
   const save=async()=>T((await FirebaseAPI.saveBulkEval(selYear,selMonth,{ratings,savedBy:emp.name,month:selMonth,year:selYear}))?"✅ تم الحفظ":"⚠️ فشل الحفظ");
@@ -66,8 +70,8 @@ function BulkEvaluationPanel({ emp, allEmployees }) {
         <div className="flex gap-2"><button onClick={save} className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 px-3 py-2 rounded-xl"><Save size={13}/>حفظ</button><button onClick={exportXls} className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 px-3 py-2 rounded-xl"><Download size={13}/>Excel</button><button onClick={printPDF} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Star size={13}/>PDF</button></div>
       </div>
       <div className="grid grid-cols-4 gap-2">{BULK_RATINGS.map(r=><div key={r} className={`rounded-xl p-2 text-center text-xs ${BULK_RCOLOR[r]}`}><p className="font-bold text-lg">{dist[r]}</p><p className="font-bold">{r}</p><p className="text-[10px]">{pct(dist[r])}% / مطلوب {BULK_REQ[r]}%</p></div>)}</div>
-      <div className="card rounded-2xl border border-color overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm" dir="rtl"><thead><tr className="bg-gray-50 border-b border-color"><th className="px-3 py-2 text-right font-semibold">ت</th><th className="px-3 py-2 text-right font-semibold">الرقم</th><th className="px-3 py-2 text-right font-semibold">الموظف</th><th className="px-3 py-2 text-center font-semibold">التقييم</th></tr></thead>
-        <tbody>{allEmployees.map((e,i)=>(<tr key={e.id} className="border-b border-color"><td className="px-3 py-2 text-secondary text-xs">{i+1}</td><td className="px-3 py-2 font-mono text-secondary text-xs">{e.jobNum}</td><td className="px-3 py-2 font-medium">{e.name}</td><td className="px-3 py-2 text-center"><select value={ratings[e.id]||""} onChange={ev=>setRatings(p=>({...p,[e.id]:ev.target.value}))} className="input text-xs rounded-lg px-2 py-1"><option value="">—</option>{BULK_RATINGS.map(r=><option key={r}>{r}</option>)}</select></td></tr>))}</tbody></table></div></div>
+      <div className="card rounded-2xl border border-color overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm" dir="rtl"><thead><tr className="bg-gray-50 border-b border-color"><th className="px-3 py-2 text-right font-semibold">ت</th><th className="px-3 py-2 text-right font-semibold">الرقم</th><th className="px-3 py-2 text-right font-semibold">الموظف</th><th className="px-3 py-2 text-center font-semibold">ذاتي</th><th className="px-3 py-2 text-center font-semibold">التقييم الجماعي</th></tr></thead>
+        <tbody>{allEmployees.map((e,i)=>{const done=!!selfEvals[String(e.id)];return(<tr key={e.id} className={`border-b border-color ${done?"bg-emerald-50 dark:bg-emerald-900/10":""}`}><td className="px-3 py-2 text-secondary text-xs">{i+1}</td><td className="px-3 py-2 font-mono text-secondary text-xs">{e.jobNum}</td><td className="px-3 py-2 font-medium">{e.name}{done&&<span className="text-[10px] text-emerald-600 font-bold mr-1">✓</span>}</td><td className="px-3 py-2 text-center">{done?<span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">أرسل</span>:<span className="text-[10px] text-secondary">—</span>}</td><td className="px-3 py-2 text-center"><select value={ratings[e.id]||""} onChange={ev=>setRatings(p=>({...p,[e.id]:ev.target.value}))} className="input text-xs rounded-lg px-2 py-1"><option value="">—</option>{BULK_RATINGS.map(r=><option key={r}>{r}</option>)}</select></td></tr>);})}</tbody></table></div></div>
       {toast&&<div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );
@@ -118,12 +122,13 @@ function AssignPanel({ allEmployees }) {
   const [selYear,setSelYear]=useState(now.getFullYear());
   const [assignments,setAssignments]=useState({});
   const [leadershipIds,setLeadershipIds]=useState([]);
+  const [windowHours,setWindowHours]=useState(48);
   const [showLdr,setShowLdr]=useState(false);
   const [toast,setToast]=useState("");
   const T=(m)=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   useEffect(()=>{
     FirebaseAPI.loadEvalAssignments(selYear,selMonth).then(d=>setAssignments(d||{}));
-    FirebaseAPI.loadEvalCfg().then(d=>setLeadershipIds(d?.leadershipIds||[]));
+    FirebaseAPI.loadEvalCfg().then(d=>{setLeadershipIds(d?.leadershipIds||[]);if(d?.windowHours)setWindowHours(d.windowHours);});
   },[selYear,selMonth]);
   const toggleA=(id)=>setAssignments(p=>{const k=String(id);const next={...p};next[k]?delete next[k]:(next[k]=true);return next;});
   const toggleL=(id)=>setLeadershipIds(p=>p.includes(String(id))?p.filter(x=>x!==String(id)):[...p,String(id)]);
@@ -131,7 +136,7 @@ function AssignPanel({ allEmployees }) {
   const clearAll=()=>setAssignments({});
   const save=async()=>{
     const ok1=await FirebaseAPI.saveEvalAssignments(selYear,selMonth,assignments);
-    const ok2=await FirebaseAPI.saveEvalCfg({leadershipIds});
+    const ok2=await FirebaseAPI.saveEvalCfg({leadershipIds,windowHours,assignedAt:new Date().toISOString()});
     if(ok1&&ok2){
       const monthLabel=MONTHS_IRAQI[selMonth];
       const title=`⭐ إسناد تقييم ذاتي — ${monthLabel} ${selYear}`;
@@ -150,7 +155,11 @@ function AssignPanel({ allEmployees }) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div className="flex gap-2"><select value={selMonth} onChange={e=>setSelMonth(+e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{MONTHS_IRAQI.map((m,i)=><option key={i} value={i}>{m}</option>)}</select><select value={selYear} onChange={e=>setSelYear(+e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{[2024,2025,2026].map(y=><option key={y}>{y}</option>)}</select></div>
-        <div className="flex gap-2"><button onClick={assignAll} className="text-xs font-bold text-indigo-600 border border-indigo-200 px-3 py-2 rounded-xl">تحديد الكل</button><button onClick={clearAll} className="text-xs font-bold text-secondary border border-color px-3 py-2 rounded-xl">إلغاء الكل</button><button onClick={save} className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 px-3 py-2 rounded-xl"><Save size={13}/>حفظ</button></div>
+        <div className="flex gap-2 flex-wrap items-center">
+          <span className="text-xs text-secondary font-bold">مدة التقييم:</span>
+          {[24,48,96].map(h=><button key={h} onClick={()=>setWindowHours(h)} className={`text-xs font-bold px-3 py-2 rounded-xl border transition-colors ${windowHours===h?"bg-indigo-600 text-white border-indigo-600":"border-color text-secondary hover:bg-indigo-50"}`}>{h} ساعة</button>)}
+          <button onClick={assignAll} className="text-xs font-bold text-indigo-600 border border-indigo-200 px-3 py-2 rounded-xl">تحديد الكل</button><button onClick={clearAll} className="text-xs font-bold text-secondary border border-color px-3 py-2 rounded-xl">إلغاء الكل</button><button onClick={save} className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 px-3 py-2 rounded-xl"><Save size={13}/>حفظ</button>
+        </div>
       </div>
       <p className="text-sm text-secondary">مُسند لـ {assignedCount} موظف من أصل {allEmployees.length}</p>
       <div className="card rounded-2xl border border-color overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm" dir="rtl"><thead><tr className="bg-gray-50 border-b border-color"><th className="px-3 py-2 text-right">الموظف</th><th className="px-3 py-2 text-right">الرقم</th><th className="px-3 py-2 text-center">إسناد تقييم ذاتي</th></tr></thead>
@@ -267,7 +276,7 @@ function ResultsPanel({ allEmployees }) {
   );
 }
 
-export function EvaluationSystem({ emp, isAdmin, allEmployees }) {
+export function EvaluationSystem({ emp, isAdmin, allEmployees, onSubmit }) {
   const now=new Date();
   const [tab,setTab]=useState("bulk");
   const [selfStatus,setSelfStatus]=useState("loading");
@@ -280,6 +289,7 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees }) {
   const [selfNotes,setSelfNotes]=useState("");
   const [toast,setToast]=useState("");
   const [attendanceLocked,setAttendanceLocked]=useState(false);
+  const [leaveDays,setLeaveDays]=useState(0);
   const T=(m)=>{setToast(m);setTimeout(()=>setToast(""),3000);};
 
   useEffect(()=>{
@@ -297,11 +307,18 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees }) {
       FirebaseAPI.loadEvaluations().then(list=>{if(list)setMyEvals(list.filter(e=>e?.empId===emp.id));});
       FirebaseAPI.loadRequests().then(allReqs=>{
         const reqs=allReqs||storage.get("all_requests",[]);
-        const leaveDays=reqs.filter(r=>
+        const reqDays=reqs.filter(r=>
           r&&Number(r.empId)===Number(emp.id)&&r.status==="موافق عليها"&&r.dateFrom&&
           new Date(r.dateFrom).getFullYear()===selYear&&new Date(r.dateFrom).getMonth()===selMonth
         ).reduce((s,r)=>s+(Number(r.days)||1),0);
-        const attScore=leaveDays===0?5:leaveDays===1?4:leaveDays===2?3:2;
+        const tsData=storage.get("boc_timesheet_v7",null);
+        const allTs=[...(tsData?.malak||[]),...(tsData?.contracts||[]),...(tsData?.drivers||[])];
+        const TS_LEAVE=new Set(["L","S","I","G","M","T","H","D","7","J","P","4","5","K","U","8","W","A"]);
+        const tsRow=allTs.find(e=>String(e.jobNum||"")===String(emp.jobNum)||String(e.id||"")===String(emp.id));
+        const tsDays=tsRow?Object.values(tsRow.days||{}).filter(v=>TS_LEAVE.has(v)).length:0;
+        const total=Math.max(reqDays,tsDays);
+        const attScore=total===0?5:total===1?4:total===2?3:2;
+        setLeaveDays(total);
         setScores(p=>({...p,attendance:attScore}));
         setAttendanceLocked(true);
       });
@@ -319,7 +336,7 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees }) {
     const activeScores=Object.fromEntries(criteria.map(c=>[c.id,scores[c.id]]));
     const data={scores:activeScores,rawTotal,total:rawTotal,grade,rank,hasLeadership,notes:selfNotes,submittedAt:new Date().toISOString(),empName:emp.name};
     const ok=await FirebaseAPI.saveSelfEval(selYear,selMonth,String(emp.id),data);
-    if(ok){setSelfStatus("submitted");setSelfData(data);T("✅ تم إرسال التقييم");}
+    if(ok){setSelfStatus("submitted");setSelfData(data);T("✅ تم إرسال التقييم");if(onSubmit)onSubmit();}
     else T("⚠️ فشل الإرسال");
   };
 
@@ -347,6 +364,7 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees }) {
           {selfStatus==="submitted"&&<div className="card rounded-2xl p-6 text-center border-color border border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20"><CheckCircle size={32} className="mx-auto text-emerald-500 mb-2"/><p className="font-bold text-emerald-700">تم إرسال تقييمك بنجاح</p>{selfData&&<><p className={`text-3xl font-bold mt-2 ${SGC[submittedFG]||submittedGI?.color}`}>{selfData.rawTotal||selfData.total}%</p><p className={`text-xl font-bold ${SGC[submittedFG]||submittedGI?.color}`}>{submittedFG}</p><p className="text-xs text-secondary mt-1">ترتيبك في الإرسال: {selfData.rank}</p>{selfData.adminNote&&<p className="text-xs text-amber-600 mt-2 italic">ملاحظة المشرف: {selfData.adminNote}</p>}</>}</div>}
           {selfStatus==="assigned"&&<div className="card rounded-2xl border-2 border-indigo-200 p-5 space-y-3">
             <p className="text-sm font-bold text-indigo-700">قيّم نفسك في المعايير التالية (2 = مقبول، 3 = جيد، 4 = متميز، 5 = استثنائي)</p>
+            {attendanceLocked&&leaveDays>0&&<div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 rounded-xl p-3 text-xs text-amber-700"><span className="text-base leading-none">⚠️</span><span>لديك <strong>{leaveDays} {leaveDays===1?"يوم":"أيام"}</strong> إجازة مسجّلة في {MONTHS_IRAQI[selMonth]} — تمّت برمجة درجة الحضور تلقائياً ({leaveDays===1?4:leaveDays===2?3:2}/5)</span></div>}
             {criteria.map(c=>{const locked=c.id==="attendance"&&attendanceLocked;return(<div key={c.id} className={`border rounded-xl p-3 ${locked?"border-amber-200 bg-amber-50 dark:bg-amber-900/10":"border-color"}`}>
               <div className="flex justify-between items-center mb-1">
                 <span className="font-bold text-sm">{c.name}{c.leadership&&" ⭐"}{locked&&<span className="text-[10px] text-amber-600 mr-2 font-normal">🔒 محسوب من إجازاتك</span>}</span>

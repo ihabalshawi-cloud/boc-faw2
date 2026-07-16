@@ -154,6 +154,24 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emp.id]);
 
+  useEffect(()=>{
+    if(isAdmin){setEvalVisible(true);return;}
+    const now=new Date();const m=now.getMonth();const y=now.getFullYear();const eid=String(emp.id);
+    Promise.all([
+      FirebaseAPI.loadEvalAssignments(y,m),
+      FirebaseAPI.loadSelfEvals(y,m),
+      FirebaseAPI.loadEvalCfg(),
+    ]).then(([asgn,subs,cfg])=>{
+      const assigned=!!(asgn?.[eid]);
+      const submitted=!!(subs?.[eid]);
+      const wh=cfg?.windowHours||48;
+      const assignedAt=cfg?.assignedAt?new Date(cfg.assignedAt).getTime():0;
+      const windowOpen=assignedAt>0?Date.now()<assignedAt+wh*3600000:false;
+      setEvalVisible(assigned&&!submitted&&windowOpen);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[emp.id,isAdmin]);
+
   const setEmployees = useCallback((newList) => { setEmployeesRaw(newList); FirebaseAPI.saveAccounts(newList); }, []);
   const { isConnected } = useConnectionStatus();
   const smartAlerts = useSmartAlerts(employees);
@@ -170,6 +188,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const canSeeAnalytics = isAdmin;
   const pendingCount = allRequests.filter(r => r && r.status === "بانتظار المراجعة").length;
   const [unreadNotifs, setUnreadNotifs] = useState(() => storage.get(`notifications_${emp.id}`, []).filter(n => !n.read).length);
+  const [evalVisible, setEvalVisible] = useState(false);
   useStorageSync("all_requests", setAllRequests);
   const chatUnread = storage.get("chat_offline",[]).filter(m=>!m.read&&Number(m.toId)===Number(emp.id)).length;
   useEffect(() => {
@@ -253,7 +272,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     { id:"requests", label:"طلبات ونماذج الإجازات", icon:<FileText size={17}/> },
     ...(canSeeRestricted("training") ? [{ id:"training", label:"التدريب", icon:<GraduationCap size={17}/> }] : []),
     ...(canSeeRestricted("tasks") ? [{ id:"tasks", label:"المهام", icon:<CheckSquare size={17}/> }] : []),
-    ...(canSeeRestricted("evaluation") ? [{ id:"evaluation", label:"التقييم", icon:<Star size={17}/> }] : []),
+    ...(evalVisible ? [{ id:"evaluation", label:"التقييم", icon:<Star size={17}/> }] : []),
     ...(canSeeRestricted("chat") ? [{ id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> }] : []),
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
     { id:"incentive", label:"نظام المكافآت", icon:<Star size={17}/>, badge: (() => { const c=storage.get("boc_incentive_v1",[]).filter(f=>f.status==="بانتظار المراجعة").length; return (isAdmin&&c>0)?c:0; })() },
@@ -433,7 +452,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
           )}
           {view==="evaluation" && (
             <React.Suspense fallback={<PageSkeleton/>}>
-              <LazyEvaluationSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
+              <LazyEvaluationSystem emp={emp} isAdmin={isAdmin} allEmployees={employees} onSubmit={()=>setEvalVisible(false)}/>
             </React.Suspense>
           )}
           {view==="notifications" && (
