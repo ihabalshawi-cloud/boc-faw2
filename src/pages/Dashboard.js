@@ -129,7 +129,10 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
       if (list && list.length > 0) setEmployeesRaw(list.filter(Boolean));
     });
     FirebaseAPI.loadEmpViews(emp.id).then(views => {
-      if (views !== null) { setAllowedViews(views); storage.set(`emp_allowed_views_${emp.id}`, views); }
+      if (views !== null) {
+        setAllowedViews(views);
+        storage.set(`emp_allowed_views_${emp.id}`, views);
+      }
     });
     subscribeToPush(emp.id);
     FirebaseAPI.loadRequests().then(list => {
@@ -228,6 +231,17 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   useEffect(() => {
     const t = setInterval(() => { FirebaseAPI.loadRequests().then(list => { if(list?.length){const clean=list.filter(Boolean);storage.set("all_requests",clean);setAllRequests(clean);} }); }, 60000);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin) return;
+    const t = setInterval(() => {
+      FirebaseAPI.loadEmpViews(emp.id).then(views => {
+        if (views !== null) { setAllowedViews(views); storage.set(`emp_allowed_views_${emp.id}`, views); }
+      });
+    }, 120000);
+    return () => clearInterval(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const switchSection = (s) => { setSection(s); storage.set("dash_section", s); };
