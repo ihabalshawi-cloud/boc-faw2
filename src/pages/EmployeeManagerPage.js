@@ -134,7 +134,6 @@ function ViewsPanel({ employees, setEmployees }) {
     setVm(m=>({...m,[emp.id]:updated}));
     setEmployees(employees.map(e=>e.id===emp.id ? {...e,allowedViews:updated} : e));
     const ok = await FirebaseAPI.saveEmpViews(emp.id, updated);
-    if (ok) { try { localStorage.setItem(`emp_allowed_views_${emp.id}`, JSON.stringify(updated)); } catch {} }
     addToast(ok ? "تم حفظ صلاحية الأيقونة ✅" : "تعذر الحفظ في Firebase ⚠️", ok?"success":"warning");
   };
   const nonAdmins = employees.filter(e=>e.role!=="admin"&&e.jobNum!=="728004"&&e.username!=="i.shawi");

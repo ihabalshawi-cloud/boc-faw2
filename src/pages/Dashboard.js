@@ -125,16 +125,14 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const [incentiveVisible, setIncentiveVisible] = useState(false);
 
   useEffect(() => {
-    if (allowedViews !== null) storage.set(`emp_allowed_views_${emp.id}`, allowedViews);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowedViews]);
-
-  useEffect(() => {
     FirebaseAPI.loadAccounts().then(list => {
       if (list && list.length > 0) setEmployeesRaw(list.filter(Boolean));
     });
     FirebaseAPI.loadEmpViews(emp.id).then(views => {
-      if (views !== null) setAllowedViews(views);
+      if (views !== null) {
+        setAllowedViews(views);
+        storage.set(`emp_allowed_views_${emp.id}`, views);
+      }
     });
     subscribeToPush(emp.id);
     FirebaseAPI.loadRequests().then(list => {
@@ -238,8 +236,10 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   useEffect(() => {
     if (isAdmin) return;
     const t = setInterval(() => {
-      FirebaseAPI.loadEmpViews(emp.id).then(views => { if (views !== null) setAllowedViews(views); });
-    }, 600000);
+      FirebaseAPI.loadEmpViews(emp.id).then(views => {
+        if (views !== null) { setAllowedViews(views); storage.set(`emp_allowed_views_${emp.id}`, views); }
+      });
+    }, 120000);
     return () => clearInterval(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
