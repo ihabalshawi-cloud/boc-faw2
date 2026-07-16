@@ -107,6 +107,12 @@ const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","ma
 const RESTRICTED_VIEWS = new Set(["training","tasks","evaluation","timesheet","chat","maint_equipment","maint_parts","maint_reports","maint_work_report","inventory","furniture","projects"]);
 
 export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode, largeFont, setLargeFont }) {
+  const isAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
+  const isAttendanceAdmin = emp.role === "attendance_admin";
+  const canSeeApprovals = isAdmin || isAttendanceAdmin;
+  const isTimeSheetAdmin = isAdmin || isAttendanceAdmin;
+  const canSeeAnalytics = isAdmin;
+
   const [employees, setEmployeesRaw] = useState(ACCOUNTS);
   const [allowedViews, setAllowedViews] = useState(() => storage.get(`emp_allowed_views_${emp.id}`, null));
   const [view, setView] = useState("home");
@@ -115,6 +121,8 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const [reqSubTab, setReqSubTab] = useState("requests");
   const [section, setSection] = useState(() => storage.get("dash_section","admin"));
   const [allRequests, setAllRequests] = useState(() => storage.get("all_requests", []).filter(Boolean));
+  const [evalVisible, setEvalVisible] = useState(false);
+  const [incentiveVisible, setIncentiveVisible] = useState(false);
 
   useEffect(() => {
     FirebaseAPI.loadAccounts().then(list => {
@@ -154,6 +162,31 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emp.id]);
 
+  useEffect(()=>{
+    if(isAdmin){setIncentiveVisible(true);return;}
+    FirebaseAPI.loadIncentiveCfg().then(cfg=>{
+      const open=cfg?.openedAt&&cfg?.windowHours?Date.now()<new Date(cfg.openedAt).getTime()+cfg.windowHours*3600000:false;
+      setIncentiveVisible(open);
+    });
+  },[emp.id,isAdmin]);
+
+  useEffect(()=>{
+    if(isAdmin){setEvalVisible(true);return;}
+    const now=new Date();const m=now.getMonth();const y=now.getFullYear();const eid=String(emp.id);
+    Promise.all([
+      FirebaseAPI.loadEvalAssignments(y,m),
+      FirebaseAPI.loadSelfEvals(y,m),
+      FirebaseAPI.loadEvalCfg(),
+    ]).then(([asgn,subs,cfg])=>{
+      const assigned=!!(asgn?.[eid]);
+      const submitted=!!(subs?.[eid]);
+      const wh=cfg?.windowHours||48;
+      const assignedAt=cfg?.assignedAt?new Date(cfg.assignedAt).getTime():0;
+      const windowOpen=assignedAt>0?Date.now()<assignedAt+wh*3600000:false;
+      setEvalVisible(assigned&&!submitted&&windowOpen);
+    });
+  },[emp.id,isAdmin]);
+
   const setEmployees = useCallback((newList) => { setEmployeesRaw(newList); FirebaseAPI.saveAccounts(newList); }, []);
   const { isConnected } = useConnectionStatus();
   const smartAlerts = useSmartAlerts(employees);
@@ -163,13 +196,8 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
   const confirm = useConfirm();
   const [showSearch, setShowSearch] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
-  const isAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
-  const isAttendanceAdmin = emp.role === "attendance_admin";
-  const canSeeApprovals = isAdmin || isAttendanceAdmin;
-  const isTimeSheetAdmin = isAdmin || isAttendanceAdmin;
-  const canSeeAnalytics = isAdmin;
   const pendingCount = allRequests.filter(r => r && r.status === "بانتظار المراجعة").length;
-  const [unreadNotifs, setUnreadNotifs] = useState(() => storage.get(`notifications_${emp.id}`, []).filter(n => !n.read).length);
+  const [unreadNotifs, setUnreadNotifs] = useState(() => { const n=storage.get(`notifications_${emp.id}`,[]); return Array.isArray(n)?n.filter(x=>!x.read).length:0; });
   useStorageSync("all_requests", setAllRequests);
   const chatUnread = storage.get("chat_offline",[]).filter(m=>!m.read&&Number(m.toId)===Number(emp.id)).length;
   useEffect(() => {
@@ -207,7 +235,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     if (id === "chat") { if (!isAdmin && !(allowedViews && allowedViews.includes("chat"))) return; setChatOpen(true); return; }
     if ((id==="admin_dashboard"||id==="employees"||id==="analytics")&&!isAdmin) return;
     if (id==="approvals"&&!canSeeApprovals) return;
-    if (RESTRICTED_VIEWS.has(id) && !isAdmin && !(allowedViews && allowedViews.includes(id))) return;
+    if (RESTRICTED_VIEWS.has(id) && !isAdmin && !(allowedViews && allowedViews.includes(id)) && !(id==="evaluation"&&evalVisible)) return;
     setViewHistory(h => [...h, view]);
     setViewFuture([]);
     if (id === "leave_forms") {
@@ -253,10 +281,10 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     { id:"requests", label:"طلبات ونماذج الإجازات", icon:<FileText size={17}/> },
     ...(canSeeRestricted("training") ? [{ id:"training", label:"التدريب", icon:<GraduationCap size={17}/> }] : []),
     ...(canSeeRestricted("tasks") ? [{ id:"tasks", label:"المهام", icon:<CheckSquare size={17}/> }] : []),
-    ...(canSeeRestricted("evaluation") ? [{ id:"evaluation", label:"التقييم", icon:<Star size={17}/> }] : []),
+    ...(evalVisible ? [{ id:"evaluation", label:"التقييم", icon:<Star size={17}/> }] : []),
     ...(canSeeRestricted("chat") ? [{ id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> }] : []),
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
-    { id:"incentive", label:"نظام المكافآت", icon:<Star size={17}/>, badge: (() => { const c=storage.get("boc_incentive_v1",[]).filter(f=>f.status==="بانتظار المراجعة").length; return (isAdmin&&c>0)?c:0; })() },
+    ...((isAdmin||incentiveVisible) ? [{ id:"incentive", label:"نظام المكافآت", icon:<Star size={17}/>, badge: (() => { const c=storage.get("boc_inc_works",[]).filter(f=>f.status==="بانتظار المراجعة").length; return (isAdmin&&c>0)?c:0; })() }] : []),
     ...(canSeeRestricted("timesheet") ? [{ id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> }] : []),
     { id:"notifications", label:"الإشعارات", icon:<Bell size={17}/>, badge:unreadNotifs },
     { id:"changepass", label:"تغيير المرور", icon:<Shield size={17}/> },
@@ -433,7 +461,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
           )}
           {view==="evaluation" && (
             <React.Suspense fallback={<PageSkeleton/>}>
-              <LazyEvaluationSystem emp={emp} isAdmin={isAdmin} allEmployees={employees}/>
+              <LazyEvaluationSystem emp={emp} isAdmin={isAdmin} allEmployees={employees} onSubmit={()=>setEvalVisible(false)}/>
             </React.Suspense>
           )}
           {view==="notifications" && (
