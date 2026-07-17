@@ -106,7 +106,8 @@ function BulkEvaluationPanel({ emp, allEmployees }) {
   const computeAuto=()=>{
     if(!Object.keys(selfEvals).length)return T("⚠️ لا توجد تقييمات ذاتية");
     const computed=computeBulkGrades(selfEvals);
-    setRatings(p=>({...p,...computed}));
+    if(!Object.keys(computed).length)return T("⚠️ لا توجد تقييمات ذاتية مكتملة");
+    setRatings(computed);
     T("✅ تم الاحتساب التلقائي");
   };
   const sendNotifs=async()=>{
