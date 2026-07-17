@@ -295,7 +295,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     { id:"requests", label:"طلبات ونماذج الإجازات", icon:<FileText size={17}/> },
     ...(canSeeRestricted("training") ? [{ id:"training", label:"التدريب", icon:<GraduationCap size={17}/> }] : []),
     ...(canSeeRestricted("tasks") ? [{ id:"tasks", label:"المهام", icon:<CheckSquare size={17}/> }] : []),
-    ...(evalVisible ? [{ id:"evaluation", label:"التقييم", icon:<Star size={17}/> }] : []),
+    ...(evalVisible || canSeeRestricted("evaluation") ? [{ id:"evaluation", label:"التقييم", icon:<Star size={17}/> }] : []),
     ...(canSeeRestricted("chat") ? [{ id:"chat", label:"الدردشة", icon:<MessageSquare size={17}/> }] : []),
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
     ...((isAdmin||incentiveVisible) ? [{ id:"incentive", label:"نظام المكافآت", icon:<Star size={17}/>, badge: (() => { const c=storage.get("boc_inc_works",[]).filter(f=>f.status==="بانتظار المراجعة").length; return (isAdmin&&c>0)?c:0; })() }] : []),
