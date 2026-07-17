@@ -152,6 +152,32 @@ function ViewsPanel({ employees, setEmployees }) {
   };
   const nonAdmins = employees.filter(e=>e.role!=="admin"&&e.jobNum!=="728004"&&e.username!=="i.shawi");
 
+  const enableAll = async (vid) => {
+    const results = await Promise.all(nonAdmins.map(async e => {
+      const cur = Array.isArray(vm[e.id]) ? vm[e.id] : (e.allowedViews||[]);
+      if (cur.includes(vid)) return true;
+      const updated = [...cur, vid];
+      const ok = await FirebaseAPI.saveEmpViews(e.id, updated);
+      if (ok) setVm(m=>({...m,[e.id]:updated}));
+      return ok;
+    }));
+    const failed = results.filter(r=>!r).length;
+    addToast(failed===0 ? "✅ تم تفعيل الأيقونة للجميع" : `⚠️ فشل ${failed} موظف`, failed===0?"success":"warning");
+  };
+
+  const disableAll = async (vid) => {
+    const results = await Promise.all(nonAdmins.map(async e => {
+      const cur = Array.isArray(vm[e.id]) ? vm[e.id] : (e.allowedViews||[]);
+      if (!cur.includes(vid)) return true;
+      const updated = cur.filter(v=>v!==vid);
+      const ok = await FirebaseAPI.saveEmpViews(e.id, updated);
+      if (ok) setVm(m=>({...m,[e.id]:updated}));
+      return ok;
+    }));
+    const failed = results.filter(r=>!r).length;
+    addToast(failed===0 ? "✅ تم إلغاء الأيقونة للجميع" : `⚠️ فشل ${failed} موظف`, failed===0?"success":"warning");
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
@@ -171,6 +197,21 @@ function ViewsPanel({ employees, setEmployees }) {
                   <span className="block text-[9px] leading-tight whitespace-nowrap">{v.label}</span>
                 </th>
               ))}
+            </tr>
+            <tr className="border-b border-color bg-blue-50/60">
+              <th className="px-3 py-1.5 text-right sticky right-0 bg-blue-50 text-[9px] font-bold text-blue-700">تفعيل / إلغاء الكل</th>
+              {ICON_VIEWS.map(v=>{
+                const allOn=nonAdmins.every(e=>(Array.isArray(vm[e.id])?vm[e.id]:(e.allowedViews||[])).includes(v.id));
+                return(
+                  <th key={v.id} className="px-2 py-1.5 text-center">
+                    <button onClick={()=>allOn?disableAll(v.id):enableAll(v.id)}
+                      title={allOn?"إلغاء للجميع":"تفعيل للجميع"}
+                      className={`w-6 h-6 rounded-md flex items-center justify-center mx-auto text-xs font-bold transition-all border ${allOn?"bg-blue-100 text-blue-700 border-blue-300 hover:bg-red-100 hover:text-red-600 hover:border-red-300":"bg-gray-100 text-gray-400 border-gray-200 hover:bg-blue-100 hover:text-blue-700 hover:border-blue-300"}`}>
+                      {allOn?"✓":"＋"}
+                    </button>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
