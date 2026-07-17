@@ -127,20 +127,40 @@ const ICON_VIEWS = [
 function ViewsPanel({ employees, setEmployees }) {
   const addToast = useToast();
   const [vm, setVm] = useState({});
-  useEffect(()=>{ FirebaseAPI.loadAllEmpViews().then(m=>{if(m)setVm(m);}); },[]);
+  const [fbReady, setFbReady] = useState(false);
+  const loadFromFb = () => {
+    setFbReady(false);
+    FirebaseAPI.loadAllEmpViews().then(m=>{
+      if(m){setVm(m);setFbReady(true);addToast("✅ تم تحميل البيانات من Firebase","success");}
+      else addToast("❌ تعذر تحميل البيانات من Firebase — تحقق من قواعد قاعدة البيانات","warning");
+    });
+  };
+  useEffect(()=>{ loadFromFb(); },[]);
   const toggle = async (emp, vid) => {
     const cur = Array.isArray(vm[emp.id]) ? vm[emp.id] : (emp.allowedViews||[]);
     const updated = cur.includes(vid) ? cur.filter(v=>v!==vid) : [...cur, vid];
     setVm(m=>({...m,[emp.id]:updated}));
     setEmployees(employees.map(e=>e.id===emp.id ? {...e,allowedViews:updated} : e));
     const ok = await FirebaseAPI.saveEmpViews(emp.id, updated);
-    addToast(ok ? "تم حفظ صلاحية الأيقونة ✅" : "تعذر الحفظ في Firebase ⚠️", ok?"success":"warning");
+    if (!ok) {
+      setVm(m=>({...m,[emp.id]:cur}));
+      setEmployees(employees.map(e=>e.id===emp.id ? {...e,allowedViews:cur} : e));
+      addToast("❌ فشل الحفظ في Firebase — تحقق من قواعد قاعدة البيانات", "warning");
+    } else {
+      addToast("✅ تم حفظ صلاحية الأيقونة", "success");
+    }
   };
   const nonAdmins = employees.filter(e=>e.role!=="admin"&&e.jobNum!=="728004"&&e.username!=="i.shawi");
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-secondary">انقر على الخانة لمنح أو إلغاء وصول الموظف لأيقونة معيّنة في الصفحة الرئيسية. الأيقونات مخفية بالافتراضي لجميع الموظفين.</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-secondary">انقر على الخانة لمنح أو إلغاء وصول الموظف لأيقونة معيّنة في الصفحة الرئيسية.</p>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={`text-[10px] font-bold ${fbReady?"text-emerald-600":"text-amber-600"}`}>{fbReady?"● Firebase":"○ محلي"}</span>
+          <button onClick={loadFromFb} className="text-[10px] px-2 py-1 rounded-lg border border-color text-secondary hover:text-primary btn-secondary">تحديث من Firebase</button>
+        </div>
+      </div>
       <div className="card rounded-2xl border border-color overflow-x-auto">
         <table className="w-full text-xs" dir="rtl">
           <thead>
