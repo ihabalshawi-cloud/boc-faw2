@@ -34,6 +34,38 @@ function calcSelfGrade(rawPct,rank,hasLeadership){
   return{grade:"متوسط",color:"text-orange-500"};
 }
 
+const normGrade=g=>g==="جيد جداً"?"جيد جدا":g;
+function computeBulkGrades(selfEvals){
+  const AMTIYAZ_SEATS=9,JEED_JIDA_BASE=11,JEED_SEATS=6;
+  const leaders=[],regulars=[];
+  Object.entries(selfEvals).forEach(([eid,ev])=>{
+    if(!ev||!ev.grade)return;
+    if(ev.hasLeadership)leaders.push({eid,ev});
+    else regulars.push({eid,ev});
+  });
+  const ratings={};let amtiyazFilled=0;
+  leaders.forEach(({eid,ev})=>{
+    const g=normGrade(ev.adminGrade||ev.grade);
+    ratings[eid]=BULK_RATINGS.includes(g)?g:"متوسط";
+    if(g==="ممتاز")amtiyazFilled++;
+  });
+  const emptyAmtiyaz=Math.max(0,AMTIYAZ_SEATS-amtiyazFilled);
+  let availJeedJida=JEED_JIDA_BASE+emptyAmtiyaz;let availJeed=JEED_SEATS;
+  regulars.sort((a,b)=>new Date(a.ev.submittedAt)-new Date(b.ev.submittedAt));
+  regulars.forEach(({eid,ev})=>{
+    const g=normGrade(ev.adminGrade||ev.grade);
+    if(g==="ممتاز"||g==="جيد جدا"){
+      if(availJeedJida>0){ratings[eid]="جيد جدا";availJeedJida--;}
+      else if(availJeed>0){ratings[eid]="جيد";availJeed--;}
+      else ratings[eid]="متوسط";
+    }else if(g==="جيد"){
+      if(availJeed>0){ratings[eid]="جيد";availJeed--;}
+      else ratings[eid]="متوسط";
+    }else ratings[eid]="متوسط";
+  });
+  return ratings;
+}
+
 function BulkEvaluationPanel({ emp, allEmployees }) {
   const now=new Date();
   const [selMonth,setSelMonth]=useState(now.getMonth());
@@ -71,6 +103,30 @@ function BulkEvaluationPanel({ emp, allEmployees }) {
     });
     T("✅ تم نقل التقييمات من النتائج");
   };
+  const computeAuto=()=>{
+    if(!Object.keys(selfEvals).length)return T("⚠️ لا توجد تقييمات ذاتية");
+    const computed=computeBulkGrades(selfEvals);
+    setRatings(p=>({...p,...computed}));
+    T("✅ تم الاحتساب التلقائي");
+  };
+  const sendNotifs=async()=>{
+    const entries=allEmployees.filter(e=>ratings[e.id]);
+    if(!entries.length)return T("⚠️ لا توجد تقييمات للإرسال");
+    const monthLabel=MONTHS_IRAQI[selMonth];
+    let sent=0;
+    await Promise.all(entries.map(async e=>{
+      const grade=ratings[e.id];
+      const eid=String(e.id);
+      const title=`📊 نتيجة التقييم الجماعي — ${monthLabel} ${selYear}`;
+      const body=`تقييمك النهائي: ${grade}`;
+      const notif={id:Date.now()+Number(eid),type:"تقييم",title,body,timestamp:new Date().toISOString(),read:false};
+      const prev=await FirebaseAPI.loadNotifications(eid)||[];
+      await FirebaseAPI.saveNotifications(eid,[notif,...prev]);
+      sendBackgroundPush(eid,title,body,"تقييم");
+      sent++;
+    }));
+    T(`✅ تم إرسال ${sent} إشعار`);
+  };
   const dist=BULK_RATINGS.reduce((a,r)=>({...a,[r]:Object.values(ratings).filter(x=>x===r).length}),{});
   const pct=(n)=>allEmployees.length>0?Math.round(n/allEmployees.length*100):0;
   const save=async()=>T((await FirebaseAPI.saveBulkEval(selYear,selMonth,{ratings,savedBy:emp.name,month:selMonth,year:selYear}))?"✅ تم الحفظ":"⚠️ فشل الحفظ");
@@ -92,7 +148,7 @@ function BulkEvaluationPanel({ emp, allEmployees }) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div className="flex gap-2"><select value={selMonth} onChange={e=>setSelMonth(+e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{MONTHS_IRAQI.map((m,i)=><option key={i} value={i}>{m}</option>)}</select><select value={selYear} onChange={e=>setSelYear(+e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{[2024,2025,2026].map(y=><option key={y}>{y}</option>)}</select></div>
-        <div className="flex gap-2 flex-wrap justify-end"><button onClick={importFromResults} className="flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl hover:bg-amber-100"><Star size={13}/>نقل من النتائج</button><button onClick={save} className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 px-3 py-2 rounded-xl"><Save size={13}/>حفظ</button><button onClick={exportXls} className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 px-3 py-2 rounded-xl"><Download size={13}/>Excel</button><button onClick={printPDF} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Star size={13}/>PDF</button></div>
+        <div className="flex gap-2 flex-wrap justify-end"><button onClick={importFromResults} className="flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl hover:bg-amber-100"><Star size={13}/>نقل من النتائج</button><button onClick={computeAuto} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl hover:bg-violet-700"><Settings size={13}/>احتساب تلقائي</button><button onClick={sendNotifs} className="flex items-center gap-1.5 text-xs font-bold text-white bg-teal-600 px-3 py-2 rounded-xl hover:bg-teal-700"><CheckCircle size={13}/>إرسال الإشعارات</button><button onClick={save} className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 px-3 py-2 rounded-xl"><Save size={13}/>حفظ</button><button onClick={exportXls} className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 px-3 py-2 rounded-xl"><Download size={13}/>Excel</button><button onClick={printPDF} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Star size={13}/>PDF</button></div>
       </div>
       <div className="grid grid-cols-4 gap-2">{BULK_RATINGS.map(r=><div key={r} className={`rounded-xl p-2 text-center text-xs ${BULK_RCOLOR[r]}`}><p className="font-bold text-lg">{dist[r]}</p><p className="font-bold">{r}</p><p className="text-[10px]">{pct(dist[r])}% / مطلوب {BULK_REQ[r]}%</p></div>)}</div>
       <div className="card rounded-2xl border border-color overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm" dir="rtl"><thead><tr className="bg-gray-50 border-b border-color"><th className="px-3 py-2 text-right font-semibold">ت</th><th className="px-3 py-2 text-right font-semibold">الرقم</th><th className="px-3 py-2 text-right font-semibold">الموظف</th><th className="px-3 py-2 text-center font-semibold">ذاتي</th><th className="px-3 py-2 text-center font-semibold">التقييم الجماعي</th></tr></thead>
