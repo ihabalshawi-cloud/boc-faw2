@@ -34,31 +34,34 @@ function calcSelfGrade(rawPct,rank,hasLeadership){
   return{grade:"متوسط",color:"text-orange-500"};
 }
 
-const normGrade=g=>g==="جيد جداً"?"جيد جدا":g;
 function computeBulkGrades(selfEvals){
   const AMTIYAZ_SEATS=9,JEED_JIDA_BASE=11,JEED_SEATS=6;
   const leaders=[],regulars=[];
   Object.entries(selfEvals).forEach(([eid,ev])=>{
-    if(!ev||!ev.grade)return;
-    if(ev.hasLeadership)leaders.push({eid,ev});
-    else regulars.push({eid,ev});
+    if(!ev)return;
+    const raw=ev.rawTotal||ev.total||0;
+    if(ev.hasLeadership)leaders.push({eid,raw});
+    else regulars.push({eid,raw,sub:ev.submittedAt});
   });
   const ratings={};let amtiyazFilled=0;
-  leaders.forEach(({eid,ev})=>{
-    const g=normGrade(ev.adminGrade||ev.grade);
-    ratings[eid]=BULK_RATINGS.includes(g)?g:"متوسط";
-    if(g==="ممتاز")amtiyazFilled++;
+  // قيادي: درجة مباشرة بالنسبة الخام
+  leaders.forEach(({eid,raw})=>{
+    if(raw>=90){ratings[eid]="ممتاز";amtiyazFilled++;}
+    else if(raw>=75)ratings[eid]="جيد جدا";
+    else if(raw>=60)ratings[eid]="جيد";
+    else ratings[eid]="متوسط";
   });
-  const emptyAmtiyaz=Math.max(0,AMTIYAZ_SEATS-amtiyazFilled);
-  let availJeedJida=JEED_JIDA_BASE+emptyAmtiyaz;let availJeed=JEED_SEATS;
-  regulars.sort((a,b)=>new Date(a.ev.submittedAt)-new Date(b.ev.submittedAt));
-  regulars.forEach(({eid,ev})=>{
-    const g=normGrade(ev.adminGrade||ev.grade);
-    if(g==="ممتاز"||g==="جيد جدا"){
+  // مقاعد شاغرة من ممتاز تضاف لجيد جدا
+  let availJeedJida=JEED_JIDA_BASE+Math.max(0,AMTIYAZ_SEATS-amtiyazFilled);
+  let availJeed=JEED_SEATS;
+  // عادي: مرتّب حسب تاريخ الإرسال (الأقدم أولاً)
+  regulars.sort((a,b)=>new Date(a.sub)-new Date(b.sub));
+  regulars.forEach(({eid,raw})=>{
+    if(raw>=80){
       if(availJeedJida>0){ratings[eid]="جيد جدا";availJeedJida--;}
       else if(availJeed>0){ratings[eid]="جيد";availJeed--;}
       else ratings[eid]="متوسط";
-    }else if(g==="جيد"){
+    }else if(raw>=70){
       if(availJeed>0){ratings[eid]="جيد";availJeed--;}
       else ratings[eid]="متوسط";
     }else ratings[eid]="متوسط";
