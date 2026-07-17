@@ -52,7 +52,7 @@ function BulkEvaluationPanel({ emp, allEmployees }) {
     setRatings(prev=>{
       const upd={...prev};let changed=false;
       Object.entries(selfEvals).forEach(([eid,ev])=>{
-        if(upd[eid])return;
+        if(!ev||upd[eid])return;
         const g=selfToRating(ev.adminGrade||ev.grade);
         if(BULK_RATINGS.includes(g)){upd[eid]=g;changed=true;}
       });
@@ -63,6 +63,7 @@ function BulkEvaluationPanel({ emp, allEmployees }) {
     setRatings(prev=>{
       const upd={...prev};
       Object.entries(selfEvals).forEach(([eid,ev])=>{
+        if(!ev)return;
         const g=selfToRating(ev.adminGrade||ev.grade);
         if(BULK_RATINGS.includes(g))upd[eid]=g;
       });
