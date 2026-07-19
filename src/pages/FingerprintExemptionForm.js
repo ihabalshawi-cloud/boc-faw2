@@ -223,7 +223,7 @@ function FingerprintExemptionForm({ emp }) {
         </div>
         <div>
           <label className="block text-xs font-bold text-secondary mb-1">سبب الإعفاء</label>
-          <textarea value={reason} onChange={e=>setReason(e.target.value)} rows={2} placeholder="مثال: مراجعتي باب الزبير لغرض استلام الختم الخاص بوكالة مسؤولية الشعبة" className="input w-full rounded-lg px-3 py-2 text-sm resize-none"/>
+          <textarea value={reason} onChange={e=>setReason(e.target.value)} rows={2} placeholder="مثال: مراجعة باب الزبير لمتابعة استمارة تغيير العنوان الوظيفي" className="input w-full rounded-lg px-3 py-2 text-sm resize-none"/>
         </div>
       </div>
 
