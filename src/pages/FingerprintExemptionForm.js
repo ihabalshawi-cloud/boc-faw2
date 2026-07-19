@@ -166,14 +166,10 @@ function FingerprintExemptionForm({ emp }) {
   };
 
   const printForm = () => {
-    const html = buildHtml();
-    const iframe = document.createElement("iframe");
-    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0";
-    document.body.appendChild(iframe);
-    iframe.contentDocument.write(html);
-    iframe.contentDocument.close();
-    iframe.contentWindow.focus();
-    setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 2000); }, 400);
+    const toolbar = `<style>@media print{#_pb{display:none!important}}</style><div id="_pb" style="position:sticky;top:0;z-index:9999;background:#1a1a2e;display:flex;gap:10px;padding:8px 14px;direction:rtl;align-items:center"><button onclick="window.print()" style="background:#C87A2E;color:#fff;border:none;padding:7px 18px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Arial,sans-serif">&#128424; طباعة</button><button onclick="window.close()" style="background:#dc2626;color:#fff;border:none;padding:7px 18px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Arial,sans-serif">&#x2715; إغلاق</button><span style="color:#9ca3af;font-size:11px;font-family:Arial,sans-serif">معاينة قبل الطباعة</span></div>`;
+    const finalHtml = buildHtml().replace("</body>", toolbar + "</body>");
+    const win = window.open("", "_blank", "width=960,height=720");
+    if (win) { win.document.write(finalHtml); win.document.close(); win.focus(); }
   };
 
   const uploadToDrive = async () => {
