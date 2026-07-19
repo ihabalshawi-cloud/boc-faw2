@@ -10,6 +10,7 @@ import SignaturePad from "./LeaveSignaturePad";
 import AnnualLeaveForm from "./AnnualLeaveForm";
 import OutOfCountryLeaveForm from "./OutOfCountryLeaveForm";
 import TimeLeaveForm from "./TimeLeaveForm";
+import FingerprintExemptionForm from "./FingerprintExemptionForm";
 
 // ========== نموذج الإجازة المرضية ==========
 function SickLeaveForm({ emp }) {
@@ -323,11 +324,13 @@ function LeaveFormsPrintPage({ emp }) {
         <button onClick={()=>setTab("sick")}   className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="sick"  ?"bg-rose-500 text-white border-rose-500"  :"btn-secondary border-color"}`}>إجازة مرضية</button>
         <button onClick={()=>setTab("annual")} className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="annual"?"bg-blue-600 text-white border-blue-600":"btn-secondary border-color"}`}>إجازة اعتيادية</button>
         <button onClick={()=>setTab("ooc")}    className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="ooc"   ?"bg-violet-600 text-white border-violet-600":"btn-secondary border-color"}`}>إجازة خارج القطر</button>
+        <button onClick={()=>setTab("fp_exempt")} className={`px-4 py-2 rounded-xl font-bold text-sm border transition-colors ${tab==="fp_exempt"?"bg-orange-500 text-white border-orange-500":"btn-secondary border-color"}`}>إعفاء بصمة</button>
       </div>
-      {tab==="time"   && <TimeLeaveForm emp={emp}/>}
-      {tab==="sick"   && <SickLeaveForm emp={emp}/>}
-      {tab==="annual" && <AnnualLeaveForm emp={emp}/>}
-      {tab==="ooc"    && <OutOfCountryLeaveForm emp={emp}/>}
+      {tab==="time"      && <TimeLeaveForm emp={emp}/>}
+      {tab==="sick"      && <SickLeaveForm emp={emp}/>}
+      {tab==="annual"    && <AnnualLeaveForm emp={emp}/>}
+      {tab==="ooc"       && <OutOfCountryLeaveForm emp={emp}/>}
+      {tab==="fp_exempt" && <FingerprintExemptionForm emp={emp}/>}
     </div>
   );
 }
