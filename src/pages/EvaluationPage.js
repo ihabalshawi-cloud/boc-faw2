@@ -9,6 +9,12 @@ const BULK_RATINGS=["متوسط","جيد","جيد جدا","ممتاز"];
 const BULK_REQ={متوسط:5,جيد:20,"جيد جدا":40,ممتاز:35};
 const BULK_RCOLOR={متوسط:"bg-red-100 text-red-700",جيد:"bg-amber-100 text-amber-700","جيد جدا":"bg-blue-100 text-blue-700",ممتاز:"bg-emerald-100 text-emerald-700"};
 const BULK_DEPT="شعبة سيطرة مستودع الفاو والمرافئ";
+const MOTIV={
+  متوسط:"أداؤك في هذه الدورة التقييمية كان متوسطاً — نثق بقدراتك وبإمكانية التطوّر. نحن معك ونتمنى لك مزيداً من التألق في الفترة القادمة 💪",
+  جيد:"أحسنت! حققت مستوى جيداً في هذا التقييم. استمر في هذا المسار وبذل جهد إضافي لتصل إلى القمة — نحن نؤمن بك 👍",
+  "جيد جدا":"أداء مميز! نتائجك تعكس جهداً حقيقياً وإخلاصاً في العمل. لا تتوقف هنا — الامتياز على بُعد خطوة واحدة ⭐",
+  ممتاز:"تهانينا! حققت أعلى مستوى في التقييم — هذا دليل على كفاءتك وتفانيك. أنت قدوة لزملائك ونفخر بك 🏆",
+};
 const GL=(s)=>s>=90?"ممتاز":s>=75?"جيد جداً":s>=60?"جيد":s>=50?"مقبول":"ضعيف";
 const GC=(s)=>s>=90?"text-emerald-600":s>=75?"text-blue-600":s>=60?"text-amber-600":"text-red-600";
 
@@ -123,10 +129,13 @@ function BulkEvaluationPanel({ emp, allEmployees }) {
     const monthLabel=MONTHS_IRAQI[selMonth];
     let sent=0;
     await Promise.all(entries.map(async e=>{
-      const grade=ratings[e.id];
+      const bulkGrade=ratings[e.id];
       const eid=String(e.id);
-      const title=`📊 نتيجة التقييم الجماعي — ${monthLabel} ${selYear}`;
-      const body=`تقييمك النهائي: ${grade}`;
+      const ev=selfEvals[eid];
+      const selfGrade=ev?selfToRating(ev.adminGrade||ev.grade):"—";
+      const motiv=MOTIV[bulkGrade]||"";
+      const title=`📊 نتيجة التقييم — ${monthLabel} ${selYear}`;
+      const body=`تقييمك الذاتي هو: ${selfGrade}\nتقييمك الجماعي (بواسطة مسؤول الشعبة) هو: ${bulkGrade}\n\n${motiv}`;
       const notif={id:Date.now()+Number(eid),type:"تقييم",title,body,timestamp:new Date().toISOString(),read:false};
       const prev=await FirebaseAPI.loadNotifications(eid)||[];
       await FirebaseAPI.saveNotifications(eid,[notif,...prev]);
