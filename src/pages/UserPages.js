@@ -203,7 +203,7 @@ function NotificationsPage({ emp }) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-sm">{n.title}</p>
-                <p className="text-xs text-secondary">{n.body}</p>
+                <p className="text-xs text-secondary whitespace-pre-wrap">{n.body}</p>
                 <p className="text-[10px] text-secondary mt-0.5">{new Date(n.timestamp).toLocaleString("ar-IQ")}</p>
               </div>
               {!n.read && <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 shrink-0"/>}
