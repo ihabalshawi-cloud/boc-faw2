@@ -46,9 +46,11 @@ function FingerprintExemptionForm({ emp }) {
   };
 
   const saveAndSubmit = async () => {
-    if (status === "submitted") {
-      const saved = storage.get(STORAGE_KEY, {});
-      if (saved.exemptDate === exemptDate) { toast("تم تقديم هذا الطلب مسبقاً — يرجى الانتظار حتى تتم مراجعته", "warning"); return; }
+    const todayStr = new Date().toISOString().split("T")[0];
+    const submittedToday = storage.get("all_requests", []).some(r => r && Number(r.empId) === Number(emp.id) && r.submittedAt && r.submittedAt.startsWith(todayStr));
+    if (submittedToday) {
+      const perm = await FirebaseAPI.loadDailyPermission(String(emp.id));
+      if (!perm || perm.grantedDate !== todayStr) { toast("لقد أرسلت طلباً اليوم — تواصل مع مسؤول الشعبة للحصول على إذن إضافي", "warning"); return; }
     }
     if (!empSigDataUrl) { toast("توقيع مقدم الطلب إلزامي للتقديم", "warning"); return; }
     storage.set(STORAGE_KEY, { name, jobNum, jobTitle, exemptDate, location, reason, empSigDataUrl, status: "submitted", submittedDate: todayISO() });

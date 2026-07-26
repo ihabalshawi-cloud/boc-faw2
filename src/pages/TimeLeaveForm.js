@@ -67,6 +67,12 @@ function TimeLeaveForm({ emp }) {
       const saved = storage.get(STORAGE_KEY, {});
       if (saved.submittedDate === today && saved.leaveDate === leaveDate) { toast("تم تقديم هذا الطلب مسبقاً — يرجى الانتظار حتى تتم مراجعته", "warning"); return; }
     }
+    const todayStr = new Date().toISOString().split("T")[0];
+    const submittedToday = storage.get("all_requests", []).some(r => r && Number(r.empId) === Number(emp.id) && r.submittedAt && r.submittedAt.startsWith(todayStr));
+    if (submittedToday) {
+      const perm = await FirebaseAPI.loadDailyPermission(String(emp.id));
+      if (!perm || perm.grantedDate !== todayStr) { toast("لقد أرسلت طلباً اليوم — تواصل مع مسؤول الشعبة للحصول على إذن إضافي", "warning"); return; }
+    }
     if (!sigDataUrl) { toast("توقيع الموظف إلزامي للتقديم", "warning"); return; }
     const today = new Date().toISOString().split("T")[0];
     storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, leaveDate, departureTime, returnTime, hours, reason, sigDataUrl, status: "submitted", submittedDate: today });

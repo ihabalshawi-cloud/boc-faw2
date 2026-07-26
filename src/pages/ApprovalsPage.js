@@ -41,7 +41,9 @@ function ApprovalsPage({ emp }) {
   const [archived, setArchived] = useState(() => storage.get("all_requests", []).filter(r => r && r.archived).sort(sortDesc));
   const [sigReqId, setSigReqId] = useState(null);
   const [toast, setToast] = useState("");
+  const [dailyPerms, setDailyPerms] = useState({});
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const todayStr = new Date().toISOString().split("T")[0];
 
   const applyList = (list) => {
     storage.set("all_requests", list);
@@ -135,6 +137,22 @@ function ApprovalsPage({ emp }) {
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVisible); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!isSupervisor) return;
+    FirebaseAPI.loadAllDailyPermissions().then(d => setDailyPerms(d || {}));
+  }, [isSupervisor]);
+
+  const grantPerm = async (empId) => {
+    const ok = await FirebaseAPI.grantDailyPermission(String(empId), emp.name);
+    if (ok) { setDailyPerms(p => ({...p, [String(empId)]: { grantedDate: todayStr, grantedBy: emp.name }})); showToast("✅ تم منح الإذن"); }
+    else showToast("⚠️ فشل منح الإذن");
+  };
+  const revokePerm = async (empId) => {
+    await FirebaseAPI.revokeDailyPermission(String(empId));
+    setDailyPerms(p => { const n = {...p}; delete n[String(empId)]; return n; });
+    showToast("🔒 تم إلغاء الإذن");
+  };
 
   const updateStatus = (id, status, sigDataUrl=null) => {
     const allRequests = storage.get("all_requests", []);
@@ -288,6 +306,31 @@ function ApprovalsPage({ emp }) {
           ))}
         </div>
       )}
+      {isSupervisor && (() => {
+        const allR = storage.get("all_requests", []);
+        const todayRequestors = ACCOUNTS.filter(a => allR.some(r => r && Number(r.empId) === Number(a.id) && r.submittedAt && r.submittedAt.startsWith(todayStr)));
+        if (!todayRequestors.length) return null;
+        return (
+          <div className="mt-6 border border-amber-200 rounded-2xl p-4 bg-amber-50/30 dark:bg-amber-900/10 space-y-3">
+            <h3 className="font-bold text-sm text-amber-700">🛡️ إذن طلبات إضافية اليوم</h3>
+            <p className="text-xs text-secondary">يمكنك منح موظف إذناً لإرسال أكثر من طلب واحد اليوم</p>
+            <div className="space-y-1">
+              {todayRequestors.map(a => {
+                const hasPerm = dailyPerms[String(a.id)]?.grantedDate === todayStr;
+                return (
+                  <div key={a.id} className="flex items-center justify-between py-2 border-b border-color last:border-0">
+                    <span className="text-sm font-medium">{a.name.split(" ").slice(0,3).join(" ")}</span>
+                    {hasPerm
+                      ? <div className="flex items-center gap-2"><span className="text-xs text-emerald-600 font-bold">✓ مُذن</span><button onClick={()=>revokePerm(a.id)} className="text-xs px-2.5 py-1 bg-red-100 text-red-700 rounded-lg font-bold hover:bg-red-200 transition-colors">إلغاء الإذن</button></div>
+                      : <button onClick={()=>grantPerm(a.id)} className="text-xs px-2.5 py-1 bg-amber-500 text-white rounded-lg font-bold hover:bg-amber-600 transition-colors">منح إذن</button>
+                    }
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );

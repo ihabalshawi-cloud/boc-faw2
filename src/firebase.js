@@ -525,6 +525,38 @@ export const FirebaseAPI = {
   loadEvalCfg: async () => {
     try { const r=await fetch(`${FIREBASE_URL}/eval_cfg.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch { return null; }
   },
+  // ── Daily request permission ──────────────────────────────────────────────
+  grantDailyPermission: async (empId, grantedBy) => {
+    try {
+      const data = { grantedDate: new Date().toISOString().split("T")[0], grantedBy };
+      const res = await fetch(`${FIREBASE_URL}/daily_req_perm/${empId}.json`, {
+        method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify(data),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadDailyPermission: async (empId) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/daily_req_perm/${empId}.json`);
+      if (!res.ok) return null;
+      const d = await res.json();
+      return (d && typeof d === "object") ? d : null;
+    } catch { return null; }
+  },
+  revokeDailyPermission: async (empId) => {
+    try {
+      await fetch(`${FIREBASE_URL}/daily_req_perm/${empId}.json`, { method: "DELETE" });
+      return true;
+    } catch { return false; }
+  },
+  loadAllDailyPermissions: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/daily_req_perm.json`);
+      if (!res.ok) return {};
+      const d = await res.json();
+      return (d && typeof d === "object") ? d : {};
+    } catch { return {}; }
+  },
   // ── Push subscriptions ────────────────────────────────────────────────────
   savePushSub: async (empId, sub) => { try { await fetch(`${FIREBASE_URL}/push_subs/${empId}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(sub)}); return true; } catch{return false;} },
   loadPushSub: async (empId) => { try { const r=await fetch(`${FIREBASE_URL}/push_subs/${empId}.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch{return null;} },
