@@ -328,6 +328,15 @@ export const FirebaseAPI = {
   },
 
   // ── Leave Requests ────────────────────────────────────────────────────────
+  addRequest: async (req) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/all_requests.json`, {
+        method: "PATCH", headers: {"Content-Type":"application/json"}, body: JSON.stringify({[req.id]: req}),
+      });
+      if (!res.ok) console.warn(`[Firebase] addRequest failed (${res.status})`);
+      return res.ok;
+    } catch (e) { console.warn("[Firebase] addRequest network error:", e.message); return false; }
+  },
   saveRequests: async (list) => {
     try {
       const res = await fetch(`${FIREBASE_URL}/all_requests.json`, {

@@ -73,11 +73,10 @@ function TimeLeaveForm({ emp }) {
     setStatus("submitted");
     const purpose = reason || (hours ? `${hours} ساعة` : "إجازة زمنية");
     const newReq = { id: Date.now(), type: "زمنية", dateFrom: leaveDate, dateTo: leaveDate, purpose, days: 1, status: "بانتظار المراجعة", submittedAt: new Date().toISOString(), empId: emp.id, empName: name, empSigDataUrl: sigDataUrl };
-    const prevAll = await FirebaseAPI.loadRequests() || storage.get("all_requests", []);
-    const allReqs = [newReq, ...prevAll.filter(r => r && r.id !== newReq.id)];
-    storage.set("all_requests", allReqs);
-    const saved = await FirebaseAPI.saveRequests(allReqs);
+    const saved = await FirebaseAPI.addRequest(newReq);
     if (!saved) { toast("⚠️ تعذّر حفظ الطلب على الخادم — تحقق من الاتصال وأعد المحاولة", "error"); return; }
+    const allReqs = [newReq, ...storage.get("all_requests", []).filter(r => r && r.id !== newReq.id)];
+    storage.set("all_requests", allReqs);
     storage.set(`requests_${emp.id}`, [newReq, ...storage.get(`requests_${emp.id}`, [])]);
     ACCOUNTS.filter(a => a.role === "admin" || a.username === "i.shawi").forEach(admin => {
       const key = `notifications_${admin.id}`;
