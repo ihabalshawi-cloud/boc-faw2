@@ -80,6 +80,8 @@ function OutOfCountryLeaveForm({ emp }) {
       storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs); sendBackgroundPush(admin.id, notifs[0].title, notifs[0].body, notifs[0].type);
     });
     toast("تم تقديم الطلب بنجاح", "success");
+    setStatus("draft"); setCountry(""); setDays(""); setPurpose(""); setRefNum(""); setSigDataUrl(null); setEmpSigDataUrl(null);
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, reqDate, status: "draft" });
   };
 
   const fmtDate = (d) => {

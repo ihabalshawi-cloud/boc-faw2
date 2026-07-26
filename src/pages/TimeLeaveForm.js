@@ -84,6 +84,8 @@ function TimeLeaveForm({ emp }) {
       storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs); sendBackgroundPush(admin.id, notifs[0].title, notifs[0].body, notifs[0].type);
     });
     toast("تم تقديم الإجازة الزمنية بنجاح", "success");
+    setStatus("draft"); setLeaveDate(""); setDepartureTime(""); setReturnTime(""); setHours(""); setReason(""); setSigDataUrl(null);
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, status: "draft" });
   };
 
   const fmtDate = (d) => {

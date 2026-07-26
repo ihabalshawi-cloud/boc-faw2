@@ -81,6 +81,8 @@ function SickLeaveForm({ emp }) {
       storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs); sendBackgroundPush(admin.id, notifs[0].title, notifs[0].body, notifs[0].type);
     });
     toast("تم تقديم الإجازة المرضية بنجاح", "success");
+    setStatus("draft"); setLeaveDate(todayISO()); setLeaveTime(""); setClinicDT(""); setNotes(""); setReturnDate(""); setReturnTime(""); setSigDataUrl(null); setEmpSigDataUrl(null);
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, status: "draft" });
   };
 
   const fmtDate = (d) => {

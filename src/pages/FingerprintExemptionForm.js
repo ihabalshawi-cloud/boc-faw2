@@ -88,6 +88,8 @@ function FingerprintExemptionForm({ emp }) {
       sendBackgroundPush(admin.id, notifs[0].title, notifs[0].body, notifs[0].type);
     });
     toast("تم تقديم طلب الإعفاء بنجاح", "success");
+    setStatus("draft"); setExemptDate(todayISO()); setReason(""); setEmpSigDataUrl(null);
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, status: "draft" });
   };
 
   const fmtDate = (d) => {
