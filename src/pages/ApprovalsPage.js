@@ -307,7 +307,7 @@ function ApprovalsPage({ emp }) {
         </div>
       )}
       {isSupervisor && (() => {
-        const allR = storage.get("all_requests", []);
+        const allR = [...requests, ...approved, ...archived];
         const todayRequestors = ACCOUNTS.filter(a => allR.some(r => r && Number(r.empId) === Number(a.id) && r.submittedAt && r.submittedAt.startsWith(todayStr)));
         if (!todayRequestors.length) return null;
         return (
