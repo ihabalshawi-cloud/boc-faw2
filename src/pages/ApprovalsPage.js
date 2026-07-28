@@ -72,8 +72,8 @@ function ApprovalsPage({ emp }) {
   };
 
   const exportReqExcel = (req) => {
-    const supSig = req.sigDataUrl ? `<img src="${req.sigDataUrl}" width="130" height="45"/>` : "(غير موقّع)";
-    const empSig = req.empSigDataUrl ? `<img src="${req.empSigDataUrl}" width="130" height="45"/>` : "(غير موقّع)";
+    const supSig = req.sigDataUrl ? `<img src="${req.sigDataUrl}" style="max-width:280px;height:auto;"/>` : "(غير موقّع)";
+    const empSig = req.empSigDataUrl ? `<img src="${req.empSigDataUrl}" style="max-width:130px;height:auto;"/>` : "(غير موقّع)";
     const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='UTF-8'/><style>body{font-family:Arial;direction:rtl}table{border-collapse:collapse;width:600pt}td,th{border:1pt solid #000;padding:6pt 8pt;font-size:11pt}th{background:#d6e4f0;font-weight:bold}.ttl{font-size:14pt;font-weight:bold;text-align:center}.sig-td{height:130pt;vertical-align:middle;text-align:center}</style></head><body><table><tr><td colspan="4" class="ttl">شركة نفط البصرة — شعبة مستودع الفاو</td></tr><tr><td colspan="4" class="ttl">نموذج إجازة ${req.type}</td></tr><tr><th>الموظف</th><td>${req.empName||""}</td><th>نوع الإجازة</th><td>${req.type||""}</td></tr><tr><th>من</th><td>${req.dateFrom||""}</td><th>إلى</th><td>${req.dateTo||""}</td></tr><tr><th>عدد الأيام</th><td>${req.days||""}</td><th>الغرض</th><td>${req.purpose||""}</td></tr><tr><th>تاريخ الطلب</th><td>${req.submittedAt?new Date(req.submittedAt).toLocaleDateString("ar-IQ"):""}</td><th>تاريخ الموافقة</th><td>${req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</td></tr><tr><th>وافق عليها</th><td colspan="3">${req.decidedBy||""}</td></tr><tr><td class="sig-td">توقيع الموظف<br/>${empSig}<br/><small>${req.empName||""}</small></td><td colspan="3" class="sig-td">توقيع مسؤول الشعبة<br/>${supSig}</td></tr></table></body></html>`;
     const blob = new Blob(["﻿"+html],{type:"application/vnd.ms-excel;charset=utf-8"});
     const url = URL.createObjectURL(blob);
@@ -85,7 +85,9 @@ function ApprovalsPage({ emp }) {
   const exportToTemplate = async (req) => {
     const empAcct = ACCOUNTS.find(a => a.id === req.empId) || {};
     const fmtD = d => { if (!d) return ""; const dt = new Date(d+"T00:00:00"); return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`; };
-    const addImg = async (wb, ws, dataUrl, col, row) => { if (!dataUrl?.startsWith("data:")) return; try { const imgId = wb.addImage({base64:dataUrl.split(",")[1],extension:"png"}); ws.addImage(imgId,{tl:{col,row},ext:{width:130,height:45}}); } catch {} };
+    const addImg = async (wb, ws, dataUrl, col, row, w=130, h=45) => { if (!dataUrl?.startsWith("data:")) return; try { const imgId = wb.addImage({base64:dataUrl.split(",")[1],extension:"png"}); ws.addImage(imgId,{tl:{col,row},ext:{width:w,height:h}}); } catch {} };
+    // supervisor_sig_stamp.png is 1528×965 — use proportional dims (≈1.58:1)
+    const addSupSig = (wb, ws, col, row) => addImg(wb, ws, req.sigDataUrl, col, row, 260, 164);
     try {
       const mod = await import("exceljs");
       const ExcelJS = mod.default || mod;
@@ -97,13 +99,13 @@ function ApprovalsPage({ emp }) {
         await wb.xlsx.load(await (await fetch("/templates/leave-annual.xlsx")).arrayBuffer());
         const ws = wb.worksheets[0]; const set=(r,v,sz=13)=>{const c=ws.getCell(r);c.value=v??null;if(v!=null&&v!=='')c.font={...(c.font||{}),size:sz};};
         set("A5",fmtD((req.submittedAt||"").split("T")[0])); set("I8",req.empName||""); set("I9",String(empAcct.jobNum||"")); set("I10",empAcct.title||""); set("I11",fmtD((req.submittedAt||"").split("T")[0])); set("D13",fmtD(req.dateFrom)); set("G13",String(req.days||"")); set("I14",req.purpose||"");
-        await addImg(wb,ws,req.sigDataUrl,1,17); await addImg(wb,ws,req.empSigDataUrl,8,17);
+        await addSupSig(wb,ws,1,17); await addImg(wb,ws,req.empSigDataUrl,8,17);
         fname=`اجازة_اعتيادية_${safe}_${req.dateFrom||""}.xlsx`;
       } else if (t.includes("مرضية")) {
         await wb.xlsx.load(await (await fetch("/templates/leave-sick.xlsx")).arrayBuffer());
         const ws = wb.worksheets[0]; const set=(r,v)=>{ws.getCell(r).value=v??null;};
         set("C5",fmtD((req.submittedAt||"").split("T")[0])); set("I8",req.empName||""); set("I9",String(empAcct.jobNum||"")); set("I10",empAcct.title||""); set("I11",fmtD(req.dateFrom)); set("I24",fmtD(req.dateTo));
-        await addImg(wb,ws,req.empSigDataUrl,1,27); await addImg(wb,ws,req.sigDataUrl,7,27);
+        await addImg(wb,ws,req.empSigDataUrl,1,27); await addSupSig(wb,ws,7,27);
         fname=`اجازة_مرضية_${safe}_${req.dateFrom||""}.xlsx`;
       } else if (t.includes("زمنية")) {
         await wb.xlsx.load(await (await fetch("/templates/leave-time.xlsx")).arrayBuffer());
@@ -113,7 +115,7 @@ function ApprovalsPage({ emp }) {
         setBold("F1","الرقم /"); setBold("F2","التاريخ/"); set("G1",null); set("G2",fmtD(req.dateFrom));
         set("C7",req.empName||""); set("E7",String(empAcct.jobNum||"")); set("G7",empAcct.title||"");
         set("D8","شعبة سيطرة مستودع الفاو والمرافئ");
-        await addImg(wb,ws,req.empSigDataUrl,2,11); await addImg(wb,ws,req.sigDataUrl,6,11);
+        await addImg(wb,ws,req.empSigDataUrl,2,11); await addSupSig(wb,ws,6,11);
         fname=`اجازة_زمنية_${safe}_${req.dateFrom||""}.xlsx`;
       } else if (t.includes("خارج العراق")) {
         await wb.xlsx.load(await (await fetch("/templates/leave-ooc.xlsx")).arrayBuffer());
@@ -122,7 +124,7 @@ function ApprovalsPage({ emp }) {
         set("D9",String(req.days||"")); set("H10",req.purpose||"");
         set("D16",req.empName||""); set("D17",String(empAcct.jobNum||""));
         set("D18",empAcct.title||""); set("D19",fmtD((req.submittedAt||"").split("T")[0]));
-        await addImg(wb,ws,req.empSigDataUrl,1,14); await addImg(wb,ws,req.sigDataUrl,7,22);
+        await addImg(wb,ws,req.empSigDataUrl,1,14); await addSupSig(wb,ws,7,22);
         fname=`اجازة_خارج_العراق_${safe}_${req.dateFrom||""}.xlsx`;
       } else { exportReqExcel(req); return; }
       const outBuf = await wb.xlsx.writeBuffer();
@@ -203,8 +205,8 @@ function ApprovalsPage({ emp }) {
   };
 
   const printForm = (req) => {
-    const supSig = req.sigDataUrl ? `<img src="${req.sigDataUrl}" style="max-width:150px;max-height:50px;"/>` : "(غير موقّع)";
-    const empSig = req.empSigDataUrl ? `<img src="${req.empSigDataUrl}" style="max-width:150px;max-height:50px;"/>` : "(غير موقّع)";
+    const supSig = req.sigDataUrl ? `<img src="${req.sigDataUrl}" style="max-width:280px;height:auto;"/>` : "(غير موقّع)";
+    const empSig = req.empSigDataUrl ? `<img src="${req.empSigDataUrl}" style="max-width:130px;height:auto;"/>` : "(غير موقّع)";
     const w = window.open("","_blank");
     w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>نموذج إجازة</title>
 <style>body{font-family:Arial,sans-serif;padding:30px;direction:rtl}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:8px;text-align:right}h2,h3{text-align:center}.sigs{display:flex;justify-content:space-around;margin-top:30px;text-align:center}</style>
