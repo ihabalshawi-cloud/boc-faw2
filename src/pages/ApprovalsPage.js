@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Download, CheckCircle, ThumbsUp, ThumbsDown, X, PenTool, Printer, Send } from "lucide-react";
 import { ACCOUNTS } from "../constants";
 import { storage, fmtIraqi } from "../utils";
@@ -6,47 +6,28 @@ import { FirebaseAPI } from "../firebase";
 import { EmpPopover, playAlert, sendBackgroundPush } from "../components/Shared";
 import { hasPermission } from "../permissions";
 
-const generateStamp = (supervisorName, dateStr) => {
-  const size = 160;
-  const c = document.createElement("canvas");
-  c.width = size; c.height = size;
-  const ctx = c.getContext("2d");
-  const cx = size / 2, cy = size / 2, r = 72;
-  ctx.strokeStyle = "#1B3FA0"; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.stroke();
-  ctx.strokeStyle = "#1B3FA0"; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(cx, cy, r - 10, 0, 2 * Math.PI); ctx.stroke();
-  ctx.fillStyle = "#1B3FA0";
-  ctx.direction = "rtl"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.font = "bold 12px Arial";
-  ctx.fillText("شركة نفط البصرة", cx, cy - 24);
-  ctx.font = "bold 11px Arial";
-  ctx.fillText("شعبة مستودع الفاو", cx, cy - 7);
-  ctx.font = "bold 10px Arial";
-  ctx.fillText((supervisorName || "").split(" ").slice(0, 3).join(" "), cx, cy + 10);
-  ctx.font = "9px Arial";
-  ctx.fillText(dateStr, cx, cy + 26);
-  return c.toDataURL("image/png");
-};
-
 function InlineSigPad({ onSave, onCancel }) {
-  const canvasRef = useRef(null);
-  const drawing = useRef(false);
-  const lastPos = useRef(null);
-  const getPos = (e, c) => { const r=c.getBoundingClientRect(),sx=c.width/r.width,sy=c.height/r.height; return e.touches?{x:(e.touches[0].clientX-r.left)*sx,y:(e.touches[0].clientY-r.top)*sy}:{x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy}; };
-  const startDraw = (e) => { e.preventDefault(); drawing.current=true; lastPos.current=getPos(e,canvasRef.current); };
-  const draw = (e) => { e.preventDefault(); if(!drawing.current)return; const c=canvasRef.current,ctx=c.getContext("2d"),p=getPos(e,c); ctx.beginPath();ctx.moveTo(lastPos.current.x,lastPos.current.y);ctx.lineTo(p.x,p.y);ctx.strokeStyle="#1B3FA0";ctx.lineWidth=2;ctx.lineCap="round";ctx.stroke();lastPos.current=p; };
-  const stopDraw = () => { drawing.current=false; };
-  const clear = () => canvasRef.current.getContext("2d").clearRect(0,0,canvasRef.current.width,canvasRef.current.height);
+  const [preview, setPreview] = useState(null);
+  const [err, setErr] = useState(false);
+  useEffect(() => {
+    fetch("/supervisor_sig_stamp.png")
+      .then(r => { if (!r.ok) throw new Error(); return r.blob(); })
+      .then(blob => { const fr = new FileReader(); fr.onload = () => setPreview(fr.result); fr.readAsDataURL(blob); })
+      .catch(() => setErr(true));
+  }, []);
   return (
-    <div className="space-y-2">
-      <p className="text-xs text-secondary flex items-center gap-1"><PenTool size={12}/> ارسم توقيعك أدناه للموافقة</p>
-      <canvas ref={canvasRef} width={380} height={80} className="border-2 border-dashed border-gray-300 rounded-lg cursor-crosshair touch-none w-full bg-gray-50"
-        onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw} onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw}/>
+    <div className="space-y-3 p-3 bg-blue-50/40 rounded-xl border border-blue-100">
+      <p className="text-xs text-secondary flex items-center gap-1"><PenTool size={12}/> التوقيع الرسمي لمسؤول الشعبة</p>
+      {err
+        ? <p className="text-xs text-red-500 text-center py-2">تعذّر تحميل التوقيع الرسمي</p>
+        : preview
+          ? <img src={preview} alt="توقيع رسمي" className="max-h-36 mx-auto block"/>
+          : <p className="text-xs text-gray-400 text-center py-4">جاري تحميل التوقيع...</p>
+      }
       <div className="flex gap-2 justify-end">
-        <button onClick={clear} className="text-xs px-3 py-1.5 rounded border border-color">مسح</button>
         <button onClick={onCancel} className="text-xs px-3 py-1.5 rounded border border-color">إلغاء</button>
-        <button onClick={()=>onSave(canvasRef.current.toDataURL("image/png"))} className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded">تأكيد الموافقة</button>
+        <button onClick={() => preview && onSave(preview)} disabled={!preview}
+          className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded disabled:opacity-40">تأكيد الموافقة</button>
       </div>
     </div>
   );
@@ -93,8 +74,7 @@ function ApprovalsPage({ emp }) {
   const exportReqExcel = (req) => {
     const supSig = req.sigDataUrl ? `<img src="${req.sigDataUrl}" width="130" height="45"/>` : "(غير موقّع)";
     const empSig = req.empSigDataUrl ? `<img src="${req.empSigDataUrl}" width="130" height="45"/>` : "(غير موقّع)";
-    const stampHtml = req.stampDataUrl ? `<img src="${req.stampDataUrl}" width="90" height="90" style="opacity:0.88;display:block;margin:0 auto 4px;"/><br/>` : "";
-    const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='UTF-8'/><style>body{font-family:Arial;direction:rtl}table{border-collapse:collapse;width:600pt}td,th{border:1pt solid #000;padding:6pt 8pt;font-size:11pt}th{background:#d6e4f0;font-weight:bold}.ttl{font-size:14pt;font-weight:bold;text-align:center}.sig-td{height:100pt;vertical-align:middle;text-align:center}</style></head><body><table><tr><td colspan="4" class="ttl">شركة نفط البصرة — شعبة مستودع الفاو</td></tr><tr><td colspan="4" class="ttl">نموذج إجازة ${req.type}</td></tr><tr><th>الموظف</th><td>${req.empName||""}</td><th>نوع الإجازة</th><td>${req.type||""}</td></tr><tr><th>من</th><td>${req.dateFrom||""}</td><th>إلى</th><td>${req.dateTo||""}</td></tr><tr><th>عدد الأيام</th><td>${req.days||""}</td><th>الغرض</th><td>${req.purpose||""}</td></tr><tr><th>تاريخ الطلب</th><td>${req.submittedAt?new Date(req.submittedAt).toLocaleDateString("ar-IQ"):""}</td><th>تاريخ الموافقة</th><td>${req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</td></tr><tr><th>وافق عليها</th><td colspan="3">${req.decidedBy||""}</td></tr><tr><td class="sig-td">توقيع الموظف<br/>${empSig}<br/><small>${req.empName||""}</small></td><td colspan="3" class="sig-td">توقيع مسؤول الشعبة<br/>${stampHtml}${supSig}<br/><small>${req.decidedBy||"إيهاب الشاوي"}</small></td></tr></table></body></html>`;
+    const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='UTF-8'/><style>body{font-family:Arial;direction:rtl}table{border-collapse:collapse;width:600pt}td,th{border:1pt solid #000;padding:6pt 8pt;font-size:11pt}th{background:#d6e4f0;font-weight:bold}.ttl{font-size:14pt;font-weight:bold;text-align:center}.sig-td{height:130pt;vertical-align:middle;text-align:center}</style></head><body><table><tr><td colspan="4" class="ttl">شركة نفط البصرة — شعبة مستودع الفاو</td></tr><tr><td colspan="4" class="ttl">نموذج إجازة ${req.type}</td></tr><tr><th>الموظف</th><td>${req.empName||""}</td><th>نوع الإجازة</th><td>${req.type||""}</td></tr><tr><th>من</th><td>${req.dateFrom||""}</td><th>إلى</th><td>${req.dateTo||""}</td></tr><tr><th>عدد الأيام</th><td>${req.days||""}</td><th>الغرض</th><td>${req.purpose||""}</td></tr><tr><th>تاريخ الطلب</th><td>${req.submittedAt?new Date(req.submittedAt).toLocaleDateString("ar-IQ"):""}</td><th>تاريخ الموافقة</th><td>${req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</td></tr><tr><th>وافق عليها</th><td colspan="3">${req.decidedBy||""}</td></tr><tr><td class="sig-td">توقيع الموظف<br/>${empSig}<br/><small>${req.empName||""}</small></td><td colspan="3" class="sig-td">توقيع مسؤول الشعبة<br/>${supSig}</td></tr></table></body></html>`;
     const blob = new Blob(["﻿"+html],{type:"application/vnd.ms-excel;charset=utf-8"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href=url;
@@ -179,9 +159,8 @@ function ApprovalsPage({ emp }) {
   };
 
   const updateStatus = (id, status, sigDataUrl=null) => {
-    const stampDataUrl = status === "موافق عليها" ? generateStamp(emp.name, new Date().toLocaleDateString("ar-IQ")) : null;
     const allRequests = storage.get("all_requests", []);
-    const updated = allRequests.map(r => r.id === id ? { ...r, status, decidedAt:new Date().toISOString(), decidedBy:emp.name, sigDataUrl, ...(stampDataUrl && { stampDataUrl }) } : r);
+    const updated = allRequests.map(r => r.id === id ? { ...r, status, decidedAt:new Date().toISOString(), decidedBy:emp.name, sigDataUrl } : r);
     storage.set("all_requests", updated);
     FirebaseAPI.saveRequests(updated);
     const req = allRequests.find(r => r.id === id);
@@ -226,7 +205,6 @@ function ApprovalsPage({ emp }) {
   const printForm = (req) => {
     const supSig = req.sigDataUrl ? `<img src="${req.sigDataUrl}" style="max-width:150px;max-height:50px;"/>` : "(غير موقّع)";
     const empSig = req.empSigDataUrl ? `<img src="${req.empSigDataUrl}" style="max-width:150px;max-height:50px;"/>` : "(غير موقّع)";
-    const stamp = req.stampDataUrl ? `<img src="${req.stampDataUrl}" style="width:110px;height:110px;opacity:0.88;display:block;margin:0 auto 6px;"/>` : "";
     const w = window.open("","_blank");
     w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>نموذج إجازة</title>
 <style>body{font-family:Arial,sans-serif;padding:30px;direction:rtl}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:8px;text-align:right}h2,h3{text-align:center}.sigs{display:flex;justify-content:space-around;margin-top:30px;text-align:center}</style>
@@ -237,7 +215,7 @@ function ApprovalsPage({ emp }) {
 <tr><th>عدد الأيام</th><td>${req.days}</td><th>الغرض</th><td>${req.purpose||""}</td></tr>
 <tr><th>تاريخ الطلب</th><td>${new Date(req.submittedAt).toLocaleDateString("ar-IQ")}</td><th>تاريخ الموافقة</th><td>${req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</td></tr>
 <tr><th>وافق عليها</th><td colspan="3">${req.decidedBy||""}</td></tr></table>
-<div class="sigs"><div><p>توقيع الموظف</p>${empSig}<p style="font-size:11px;margin-top:4px;">${req.empName}</p></div><div><p>مسؤول الشعبة</p>${stamp}${supSig}<p style="font-size:11px;margin-top:4px;">إيهاب عبد اللطيف الشاوي</p></div></div>
+<div class="sigs"><div><p>توقيع الموظف</p>${empSig}</div><div><p>مسؤول الشعبة</p>${supSig}</div></div>
 </body></html>`);
     w.document.close(); w.focus(); setTimeout(()=>w.print(),400);
   };
