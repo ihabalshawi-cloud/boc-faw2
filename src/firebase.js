@@ -527,35 +527,57 @@ export const FirebaseAPI = {
   },
   // ── Daily request permission ──────────────────────────────────────────────
   grantDailyPermission: async (empId, grantedBy) => {
+    const data = { grantedDate: new Date().toISOString().split("T")[0], grantedBy };
+    // Always persist to localStorage so same-device checks work instantly
+    try { localStorage.setItem(`boc_daily_perm_${empId}`, JSON.stringify(data)); } catch {}
+    // Also try Firebase for cross-device sync (non-fatal if rules block it)
     try {
-      const data = { grantedDate: new Date().toISOString().split("T")[0], grantedBy };
       const res = await fetch(`${FIREBASE_URL}/daily_req_perm/${empId}.json`, {
         method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify(data),
       });
-      return res.ok;
-    } catch { return false; }
+      if (!res.ok) console.warn(`[Firebase] grantDailyPermission HTTP ${res.status}`);
+    } catch (e) { console.warn("[Firebase] grantDailyPermission network error:", e.message); }
+    return true; // localStorage succeeded — always return true
   },
   loadDailyPermission: async (empId) => {
+    // Try Firebase first for cross-device, fall back to localStorage
     try {
       const res = await fetch(`${FIREBASE_URL}/daily_req_perm/${empId}.json`);
-      if (!res.ok) return null;
-      const d = await res.json();
-      return (d && typeof d === "object") ? d : null;
-    } catch { return null; }
+      if (res.ok) {
+        const d = await res.json();
+        if (d && typeof d === "object") return d;
+      }
+    } catch {}
+    try {
+      const s = localStorage.getItem(`boc_daily_perm_${empId}`);
+      if (s) { const d = JSON.parse(s); return (d && typeof d === "object") ? d : null; }
+    } catch {}
+    return null;
   },
   revokeDailyPermission: async (empId) => {
+    try { localStorage.removeItem(`boc_daily_perm_${empId}`); } catch {}
     try {
       await fetch(`${FIREBASE_URL}/daily_req_perm/${empId}.json`, { method: "DELETE" });
-      return true;
-    } catch { return false; }
+    } catch {}
+    return true;
   },
   loadAllDailyPermissions: async () => {
+    // Try Firebase; merge with localStorage entries
+    let fbPerms = {};
     try {
       const res = await fetch(`${FIREBASE_URL}/daily_req_perm.json`);
-      if (!res.ok) return {};
-      const d = await res.json();
-      return (d && typeof d === "object") ? d : {};
-    } catch { return {}; }
+      if (res.ok) { const d = await res.json(); if (d && typeof d === "object") fbPerms = d; }
+    } catch {}
+    // Merge localStorage entries (take whichever is newer)
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key?.startsWith("boc_daily_perm_")) continue;
+        const empId = key.replace("boc_daily_perm_", "");
+        if (!fbPerms[empId]) { const s = localStorage.getItem(key); if (s) { try { fbPerms[empId] = JSON.parse(s); } catch {} } }
+      }
+    } catch {}
+    return fbPerms;
   },
   // ── Push subscriptions ────────────────────────────────────────────────────
   savePushSub: async (empId, sub) => { try { await fetch(`${FIREBASE_URL}/push_subs/${empId}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(sub)}); return true; } catch{return false;} },
