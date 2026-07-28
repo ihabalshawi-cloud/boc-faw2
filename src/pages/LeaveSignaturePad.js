@@ -1,4 +1,5 @@
 import React, { useRef } from "react";
+import { INK_BLUE } from "../utils";
 
 function SignaturePad({ onSave, label = "التوقيع" }) {
   const canvasRef = useRef(null);
@@ -23,7 +24,7 @@ function SignaturePad({ onSave, label = "التوقيع" }) {
     ctx.beginPath();
     ctx.moveTo(lastPos.current.x, lastPos.current.y);
     ctx.lineTo(pos.x, pos.y);
-    ctx.strokeStyle = "#1a1a1a";
+    ctx.strokeStyle = INK_BLUE;
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";

@@ -63,6 +63,42 @@ export function printElement(elementId, title = "تقرير") {
   }, 500);
 }
 
+// ── Approval ink & stamp ──────────────────────────────────────────────────────
+export const INK_BLUE = "#173f94";
+
+export function generateApprovalStamp(dateStr) {
+  const w = 260, h = 150;
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, w, h);
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  ctx.rotate(-6 * Math.PI / 180);
+  ctx.translate(-w / 2, -h / 2);
+
+  ctx.strokeStyle = INK_BLUE;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(6, 6, w - 12, h - 12);
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(13, 13, w - 26, h - 26);
+
+  ctx.fillStyle = INK_BLUE;
+  ctx.textAlign = "center";
+  ctx.direction = "rtl";
+  ctx.font = "bold 15px Arial";
+  ctx.fillText("شركة نفط البصرة", w / 2, 36);
+  ctx.font = "bold 12px Arial";
+  ctx.fillText("شعبة مستودع الفاو والمرافئ", w / 2, 54);
+  ctx.font = "900 22px Arial";
+  ctx.fillText("✓ معتمد", w / 2, 90);
+  ctx.font = "12px Arial";
+  ctx.fillText(dateStr || "", w / 2, 114);
+
+  ctx.restore();
+  return canvas.toDataURL("image/png");
+}
+
 // ── CSV export ────────────────────────────────────────────────────────────────
 export function exportCSV(data, filename) {
   if (!data.length) return;
