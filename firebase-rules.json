@@ -1,0 +1,51 @@
+{
+  "rules": {
+    ".read": "false",
+    ".write": "false",
+
+    "accounts": {
+      ".read": "false",
+      ".write": "false",
+      "$jobNum": { ".read": "true", ".write": "true" }
+    },
+    "init_hashes": {
+      "$jobNum": { ".read": "true", ".write": "true" }
+    },
+    "passwords": {
+      ".read": "false",
+      "$id": {
+        ".read": "true",
+        ".write": "true",
+        ".validate": "newData.isString() && newData.val().length == 64"
+      }
+    },
+    "pass_changed": {
+      "$id": { ".read": "true", ".write": "true" }
+    },
+
+    "emp_statuses":    { ".read": "true", ".write": "true" },
+    "employees_list":  { ".read": "true", ".write": "true" },
+    "inventory_items": { ".read": "true", ".write": "true" },
+    "furniture_items": { ".read": "true", ".write": "true" },
+    "equipment_list":  { ".read": "true", ".write": "true" },
+    "pm_projects":     { ".read": "true", ".write": "true" },
+    "timesheet_data":  { ".read": "true", ".write": "true" },
+    "all_requests":    { ".read": "true", ".write": "true" },
+    "notifications":   { ".read": "true", ".write": "true" },
+    "tasks_system":    { ".read": "true", ".write": "true" },
+    "evaluations":     { ".read": "true", ".write": "true" },
+    "backups":         { ".read": "true", ".write": "true" },
+    "bulk_evals":      { ".read": "true", ".write": "true" },
+    "maint_work_log":  { ".read": "true", ".write": "true" },
+    "maint_rpt_cfg":   { ".read": "true", ".write": "true" },
+
+    "login_history": { ".read": "true", ".write": "true" },
+    "chat": {
+      ".read": "true",
+      ".write": "true",
+      "$messageId": {
+        ".validate": "newData.hasChildren(['text','sender','senderId','timestamp'])"
+      }
+    }
+  }
+}
