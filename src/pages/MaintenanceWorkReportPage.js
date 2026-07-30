@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Plus, ChevronRight, Printer, Trash2, Settings, Camera, X, Download, Pencil, Archive } from "lucide-react";
+import AIAdvisorView from "./MaintenanceAIAdvisor";
 import { storage } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { ACCOUNTS, INITIAL_EQUIPMENT, MONTHS_AR } from "../constants";
@@ -478,12 +479,13 @@ export default function MaintenanceWorkReport({ emp }) {
         {isAdmin&&<button onClick={()=>setPv("settings")} className="p-2 btn-secondary rounded-xl border border-color"><Settings size={16}/></button>}
       </div>
       <div className="flex gap-1 border-b border-color">
-        {[["daily","التقرير اليومي"],["monthly","التقرير الشهري"]].map(([k,l])=>(
+        {[["daily","التقرير اليومي"],["monthly","التقرير الشهري"],["ai","المستشار الذكي"]].map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)} className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${tab===k?"border-blue-600 text-blue-600":"border-transparent text-secondary hover:text-primary"}`}>{l}</button>
         ))}
       </div>
       {tab==="daily"   && <DailyView   entries={entries} date={date} setDate={setDate} emp={emp} isAdmin={isAdmin} canWrite={canWrite} onDelete={del} onAdd={()=>setPv("add")} onEdit={e=>{setEditEntry(e);setPv("edit");}}/>}
       {tab==="monthly" && <MonthlyView entries={entries} isAdmin={isAdmin} onDelete={del} onUpdate={update}/>}
+      {tab==="ai"      && <AIAdvisorView entries={entries}/>}
     </div>
   );
 }
