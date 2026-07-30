@@ -110,6 +110,7 @@ function LoginScreen({ onLogin, dark }) {
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
   const [showP, setShowP] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [lockSecs, setLockSecs] = useState(0);
@@ -146,6 +147,13 @@ function LoginScreen({ onLogin, dark }) {
   }, [user, startCountdown]);
 
   useEffect(() => () => { if (lockTimer.current) clearInterval(lockTimer.current); }, []);
+
+  useEffect(() => {
+    try {
+      const rem = JSON.parse(localStorage.getItem("boc_remember") || "null");
+      if (rem) { setUser(rem.jobNum || ""); setPass(rem.pass || ""); setRememberMe(true); }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     try {
@@ -245,6 +253,10 @@ function LoginScreen({ onLogin, dark }) {
       clearLockData(user.trim());
       try { sessionStorage.setItem("boc_session", JSON.stringify({ acctId: account.id, expiry: Date.now() + 8 * 3600000 })); } catch {}
       if (pass.trim() === DEFAULT_PASSWORD && !localPass) { try { sessionStorage.setItem("force_password_change", "true"); } catch {} }
+      try {
+        if (rememberMe) localStorage.setItem("boc_remember", JSON.stringify({ jobNum: user.trim(), pass: pass.trim() }));
+        else localStorage.removeItem("boc_remember");
+      } catch {}
       const empSt = getEmpStatus(account.id);
       if (!empSt.active) { setErr("هذا الحساب معطّل. تواصل مع مسؤول الشعبة."); recordLoginAttempt(account, "failed", "account_disabled"); return; }
       recordLoginAttempt(account, "success");
@@ -331,6 +343,16 @@ function LoginScreen({ onLogin, dark }) {
                 <button onClick={()=>setShowP(!showP)} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#787774] hover:text-[#C87A2E] transition-colors">{showP?<EyeOff size={16}/>:<Eye size={16}/>}</button>
               </div>
             </div>
+
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={e => setRememberMe(e.target.checked)}
+                className="w-4 h-4 accent-[#C87A2E] cursor-pointer"
+              />
+              <span className={`text-xs ${dark?"text-[#9ca3af]":"text-[#787774]"}`}>حفظ كلمة المرور</span>
+            </label>
 
             {lockSecs > 0 && (
               <div className={`border text-sm p-3 rounded-md flex items-center gap-2 ${dark?"bg-red-900/20 border-red-800 text-red-300":"bg-red-50 border-red-200 text-red-700"}`}>

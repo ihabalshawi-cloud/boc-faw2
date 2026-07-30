@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Download, CheckCircle, ThumbsUp, ThumbsDown, X, PenTool, Printer, Send } from "lucide-react";
 import { ACCOUNTS } from "../constants";
 import { storage, fmtIraqi, INK_BLUE, generateApprovalStamp } from "../utils";
@@ -7,23 +7,27 @@ import { EmpPopover, playAlert, sendBackgroundPush } from "../components/Shared"
 import { hasPermission } from "../permissions";
 
 function InlineSigPad({ onSave, onCancel }) {
-  const canvasRef = useRef(null);
-  const drawing = useRef(false);
-  const lastPos = useRef(null);
-  const getPos = (e, c) => { const r=c.getBoundingClientRect(),sx=c.width/r.width,sy=c.height/r.height; return e.touches?{x:(e.touches[0].clientX-r.left)*sx,y:(e.touches[0].clientY-r.top)*sy}:{x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy}; };
-  const startDraw = (e) => { e.preventDefault(); drawing.current=true; lastPos.current=getPos(e,canvasRef.current); };
-  const draw = (e) => { e.preventDefault(); if(!drawing.current)return; const c=canvasRef.current,ctx=c.getContext("2d"),p=getPos(e,c); ctx.beginPath();ctx.moveTo(lastPos.current.x,lastPos.current.y);ctx.lineTo(p.x,p.y);ctx.strokeStyle=INK_BLUE;ctx.lineWidth=2;ctx.lineCap="round";ctx.stroke();lastPos.current=p; };
-  const stopDraw = () => { drawing.current=false; };
-  const clear = () => canvasRef.current.getContext("2d").clearRect(0,0,canvasRef.current.width,canvasRef.current.height);
+  const [preview, setPreview] = useState(null);
+  const [err, setErr] = useState(false);
+  useEffect(() => {
+    fetch("/supervisor_sig_stamp.png")
+      .then(r => { if (!r.ok) throw new Error(); return r.blob(); })
+      .then(blob => { const fr = new FileReader(); fr.onload = () => setPreview(fr.result); fr.readAsDataURL(blob); })
+      .catch(() => setErr(true));
+  }, []);
   return (
-    <div className="space-y-2">
-      <p className="text-xs text-secondary flex items-center gap-1"><PenTool size={12}/> ارسم توقيعك أدناه للموافقة</p>
-      <canvas ref={canvasRef} width={380} height={80} className="border-2 border-dashed border-gray-300 rounded-lg cursor-crosshair touch-none w-full bg-gray-50"
-        onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw} onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw}/>
+    <div className="space-y-3 p-3 bg-blue-50/40 rounded-xl border border-blue-100">
+      <p className="text-xs text-secondary flex items-center gap-1"><PenTool size={12}/> التوقيع الرسمي لمسؤول الشعبة</p>
+      {err
+        ? <p className="text-xs text-red-500 text-center py-2">تعذّر تحميل التوقيع الرسمي</p>
+        : preview
+          ? <img src={preview} alt="توقيع رسمي" className="max-h-36 mx-auto block"/>
+          : <p className="text-xs text-gray-400 text-center py-4">جاري تحميل التوقيع...</p>
+      }
       <div className="flex gap-2 justify-end">
-        <button onClick={clear} className="text-xs px-3 py-1.5 rounded border border-color">مسح</button>
         <button onClick={onCancel} className="text-xs px-3 py-1.5 rounded border border-color">إلغاء</button>
-        <button onClick={()=>onSave(canvasRef.current.toDataURL("image/png"))} className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded">تأكيد الموافقة</button>
+        <button onClick={() => preview && onSave(preview)} disabled={!preview}
+          className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded disabled:opacity-40">تأكيد الموافقة</button>
       </div>
     </div>
   );
@@ -41,7 +45,9 @@ function ApprovalsPage({ emp }) {
   const [archived, setArchived] = useState(() => storage.get("all_requests", []).filter(r => r && r.archived).sort(sortDesc));
   const [sigReqId, setSigReqId] = useState(null);
   const [toast, setToast] = useState("");
+  const [dailyPerms, setDailyPerms] = useState({});
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(""),3000); };
+  const todayStr = new Date().toISOString().split("T")[0];
 
   const applyList = (list) => {
     storage.set("all_requests", list);
@@ -66,10 +72,9 @@ function ApprovalsPage({ emp }) {
   };
 
   const exportReqExcel = (req) => {
-    const supSig = req.sigDataUrl ? `<img src="${req.sigDataUrl}" width="130" height="45"/>` : "(غير موقّع)";
-    const empSig = req.empSigDataUrl ? `<img src="${req.empSigDataUrl}" width="130" height="45"/>` : "(غير موقّع)";
-    const stamp = req.stampDataUrl ? `<br/><img src="${req.stampDataUrl}" width="110" height="63"/>` : "";
-    const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='UTF-8'/><style>body{font-family:Arial;direction:rtl}table{border-collapse:collapse;width:600pt}td,th{border:1pt solid #000;padding:6pt 8pt;font-size:11pt}th{background:#d6e4f0;font-weight:bold}.ttl{font-size:14pt;font-weight:bold;text-align:center}.sig-td{height:60pt;vertical-align:middle;text-align:center}</style></head><body><table><tr><td colspan="4" class="ttl">شركة نفط البصرة — شعبة مستودع الفاو</td></tr><tr><td colspan="4" class="ttl">نموذج إجازة ${req.type}</td></tr><tr><th>الموظف</th><td>${req.empName||""}</td><th>نوع الإجازة</th><td>${req.type||""}</td></tr><tr><th>من</th><td>${req.dateFrom||""}</td><th>إلى</th><td>${req.dateTo||""}</td></tr><tr><th>عدد الأيام</th><td>${req.days||""}</td><th>الغرض</th><td>${req.purpose||""}</td></tr><tr><th>تاريخ الطلب</th><td>${req.submittedAt?new Date(req.submittedAt).toLocaleDateString("ar-IQ"):""}</td><th>تاريخ الموافقة</th><td>${req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</td></tr><tr><th>وافق عليها</th><td colspan="3">${req.decidedBy||""}</td></tr><tr><td class="sig-td">توقيع الموظف<br/>${empSig}<br/><small>${req.empName||""}</small></td><td colspan="3" class="sig-td">توقيع مسؤول الشعبة<br/>${supSig}${stamp}<br/><small>${req.decidedBy||"إيهاب الشاوي"}</small></td></tr></table></body></html>`;
+    const supSig = req.sigDataUrl ? `<img src="${req.sigDataUrl}" style="max-width:280px;height:auto;"/>` : "(غير موقّع)";
+    const empSig = req.empSigDataUrl ? `<img src="${req.empSigDataUrl}" style="max-width:130px;height:auto;"/>` : "(غير موقّع)";
+    const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='UTF-8'/><style>body{font-family:Arial;direction:rtl}table{border-collapse:collapse;width:600pt}td,th{border:1pt solid #000;padding:6pt 8pt;font-size:11pt}th{background:#d6e4f0;font-weight:bold}.ttl{font-size:14pt;font-weight:bold;text-align:center}.sig-td{height:130pt;vertical-align:middle;text-align:center}</style></head><body><table><tr><td colspan="4" class="ttl">شركة نفط البصرة — شعبة مستودع الفاو</td></tr><tr><td colspan="4" class="ttl">نموذج إجازة ${req.type}</td></tr><tr><th>الموظف</th><td>${req.empName||""}</td><th>نوع الإجازة</th><td>${req.type||""}</td></tr><tr><th>من</th><td>${req.dateFrom||""}</td><th>إلى</th><td>${req.dateTo||""}</td></tr><tr><th>عدد الأيام</th><td>${req.days||""}</td><th>الغرض</th><td>${req.purpose||""}</td></tr><tr><th>تاريخ الطلب</th><td>${req.submittedAt?new Date(req.submittedAt).toLocaleDateString("ar-IQ"):""}</td><th>تاريخ الموافقة</th><td>${req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</td></tr><tr><th>وافق عليها</th><td colspan="3">${req.decidedBy||""}</td></tr><tr><td class="sig-td">توقيع الموظف<br/>${empSig}<br/><small>${req.empName||""}</small></td><td colspan="3" class="sig-td">توقيع مسؤول الشعبة<br/>${supSig}</td></tr></table></body></html>`;
     const blob = new Blob(["﻿"+html],{type:"application/vnd.ms-excel;charset=utf-8"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href=url;
@@ -80,8 +85,9 @@ function ApprovalsPage({ emp }) {
   const exportToTemplate = async (req) => {
     const empAcct = ACCOUNTS.find(a => a.id === req.empId) || {};
     const fmtD = d => { if (!d) return ""; const dt = new Date(d+"T00:00:00"); return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getDate()).padStart(2,"0")}`; };
-    const addImg = async (wb, ws, dataUrl, col, row) => { if (!dataUrl?.startsWith("data:")) return; try { const imgId = wb.addImage({base64:dataUrl.split(",")[1],extension:"png"}); ws.addImage(imgId,{tl:{col,row},ext:{width:130,height:45}}); } catch {} };
-    const addStamp = async (wb, ws, col, row) => { if (!req.stampDataUrl?.startsWith("data:")) return; try { const imgId = wb.addImage({base64:req.stampDataUrl.split(",")[1],extension:"png"}); ws.addImage(imgId,{tl:{col,row},ext:{width:140,height:81}}); } catch {} };
+    const addImg = async (wb, ws, dataUrl, col, row, w=130, h=45) => { if (!dataUrl?.startsWith("data:")) return; try { const imgId = wb.addImage({base64:dataUrl.split(",")[1],extension:"png"}); ws.addImage(imgId,{tl:{col,row},ext:{width:w,height:h}}); } catch {} };
+    // supervisor_sig_stamp.png is 1528×965 — use proportional dims (≈1.58:1)
+    const addSupSig = (wb, ws, col, row) => addImg(wb, ws, req.sigDataUrl, col, row, 260, 164);
     try {
       const mod = await import("exceljs");
       const ExcelJS = mod.default || mod;
@@ -93,13 +99,13 @@ function ApprovalsPage({ emp }) {
         await wb.xlsx.load(await (await fetch("/templates/leave-annual.xlsx")).arrayBuffer());
         const ws = wb.worksheets[0]; const set=(r,v,sz=13)=>{const c=ws.getCell(r);c.value=v??null;if(v!=null&&v!=='')c.font={...(c.font||{}),size:sz};};
         set("A5",fmtD((req.submittedAt||"").split("T")[0])); set("I8",req.empName||""); set("I9",String(empAcct.jobNum||"")); set("I10",empAcct.title||""); set("I11",fmtD((req.submittedAt||"").split("T")[0])); set("D13",fmtD(req.dateFrom)); set("G13",String(req.days||"")); set("I14",req.purpose||"");
-        await addImg(wb,ws,req.sigDataUrl,1,17); await addImg(wb,ws,req.empSigDataUrl,8,17); await addStamp(wb,ws,0.2,15.5);
+        await addSupSig(wb,ws,1,17); await addImg(wb,ws,req.empSigDataUrl,8,17);
         fname=`اجازة_اعتيادية_${safe}_${req.dateFrom||""}.xlsx`;
       } else if (t.includes("مرضية")) {
         await wb.xlsx.load(await (await fetch("/templates/leave-sick.xlsx")).arrayBuffer());
         const ws = wb.worksheets[0]; const set=(r,v)=>{ws.getCell(r).value=v??null;};
         set("C5",fmtD((req.submittedAt||"").split("T")[0])); set("I8",req.empName||""); set("I9",String(empAcct.jobNum||"")); set("I10",empAcct.title||""); set("I11",fmtD(req.dateFrom)); set("I24",fmtD(req.dateTo));
-        await addImg(wb,ws,req.empSigDataUrl,1,27); await addImg(wb,ws,req.sigDataUrl,7,27); await addStamp(wb,ws,6.2,25.5);
+        await addImg(wb,ws,req.empSigDataUrl,1,27); await addSupSig(wb,ws,7,27);
         fname=`اجازة_مرضية_${safe}_${req.dateFrom||""}.xlsx`;
       } else if (t.includes("زمنية")) {
         await wb.xlsx.load(await (await fetch("/templates/leave-time.xlsx")).arrayBuffer());
@@ -109,7 +115,7 @@ function ApprovalsPage({ emp }) {
         setBold("F1","الرقم /"); setBold("F2","التاريخ/"); set("G1",null); set("G2",fmtD(req.dateFrom));
         set("C7",req.empName||""); set("E7",String(empAcct.jobNum||"")); set("G7",empAcct.title||"");
         set("D8","شعبة سيطرة مستودع الفاو والمرافئ");
-        await addImg(wb,ws,req.empSigDataUrl,2,11); await addImg(wb,ws,req.sigDataUrl,6,11); await addStamp(wb,ws,5.2,9.5);
+        await addImg(wb,ws,req.empSigDataUrl,2,11); await addSupSig(wb,ws,6,11);
         fname=`اجازة_زمنية_${safe}_${req.dateFrom||""}.xlsx`;
       } else if (t.includes("خارج العراق")) {
         await wb.xlsx.load(await (await fetch("/templates/leave-ooc.xlsx")).arrayBuffer());
@@ -118,7 +124,7 @@ function ApprovalsPage({ emp }) {
         set("D9",String(req.days||"")); set("H10",req.purpose||"");
         set("D16",req.empName||""); set("D17",String(empAcct.jobNum||""));
         set("D18",empAcct.title||""); set("D19",fmtD((req.submittedAt||"").split("T")[0]));
-        await addImg(wb,ws,req.empSigDataUrl,1,14); await addImg(wb,ws,req.sigDataUrl,7,22); await addStamp(wb,ws,6.2,20.5);
+        await addImg(wb,ws,req.empSigDataUrl,1,14); await addSupSig(wb,ws,7,22);
         fname=`اجازة_خارج_العراق_${safe}_${req.dateFrom||""}.xlsx`;
       } else { exportReqExcel(req); return; }
       const outBuf = await wb.xlsx.writeBuffer();
@@ -137,6 +143,22 @@ function ApprovalsPage({ emp }) {
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVisible); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!isSupervisor) return;
+    FirebaseAPI.loadAllDailyPermissions().then(d => setDailyPerms(d || {}));
+  }, [isSupervisor]);
+
+  const grantPerm = async (empId) => {
+    const ok = await FirebaseAPI.grantDailyPermission(String(empId), emp.name);
+    if (ok) { setDailyPerms(p => ({...p, [String(empId)]: { grantedDate: todayStr, grantedBy: emp.name }})); showToast("✅ تم منح الإذن"); }
+    else showToast("⚠️ فشل منح الإذن");
+  };
+  const revokePerm = async (empId) => {
+    await FirebaseAPI.revokeDailyPermission(String(empId));
+    setDailyPerms(p => { const n = {...p}; delete n[String(empId)]; return n; });
+    showToast("🔒 تم إلغاء الإذن");
+  };
 
   const updateStatus = (id, status, sigDataUrl=null) => {
     const decidedAt = new Date().toISOString();
@@ -185,9 +207,8 @@ function ApprovalsPage({ emp }) {
   };
 
   const printForm = (req) => {
-    const supSig = req.sigDataUrl ? `<img src="${req.sigDataUrl}" style="max-width:150px;max-height:50px;position:relative;z-index:2;"/>` : "(غير موقّع)";
-    const empSig = req.empSigDataUrl ? `<img src="${req.empSigDataUrl}" style="max-width:150px;max-height:50px;"/>` : "(غير موقّع)";
-    const stamp = req.stampDataUrl ? `<img src="${req.stampDataUrl}" style="position:absolute;top:-35px;left:-45px;width:150px;opacity:.92;z-index:1;pointer-events:none;"/>` : "";
+    const supSig = req.sigDataUrl ? `<img src="${req.sigDataUrl}" style="max-width:280px;height:auto;"/>` : "(غير موقّع)";
+    const empSig = req.empSigDataUrl ? `<img src="${req.empSigDataUrl}" style="max-width:130px;height:auto;"/>` : "(غير موقّع)";
     const w = window.open("","_blank");
     w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>نموذج إجازة</title>
 <style>body{font-family:Arial,sans-serif;padding:30px;direction:rtl}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:8px;text-align:right}h2,h3{text-align:center}.sigs{display:flex;justify-content:space-around;margin-top:30px;text-align:center}.sig-wrap{position:relative;display:inline-block;}</style>
@@ -198,7 +219,7 @@ function ApprovalsPage({ emp }) {
 <tr><th>عدد الأيام</th><td>${req.days}</td><th>الغرض</th><td>${req.purpose||""}</td></tr>
 <tr><th>تاريخ الطلب</th><td>${new Date(req.submittedAt).toLocaleDateString("ar-IQ")}</td><th>تاريخ الموافقة</th><td>${req.decidedAt?new Date(req.decidedAt).toLocaleDateString("ar-IQ"):""}</td></tr>
 <tr><th>وافق عليها</th><td colspan="3">${req.decidedBy||""}</td></tr></table>
-<div class="sigs"><div><p>توقيع الموظف</p>${empSig}<p style="font-size:11px;margin-top:4px;">${req.empName}</p></div><div><p>مسؤول الشعبة</p><div class="sig-wrap">${supSig}${stamp}</div><p style="font-size:11px;margin-top:4px;">إيهاب عبد اللطيف الشاوي</p></div></div>
+<div class="sigs"><div><p>توقيع الموظف</p>${empSig}</div><div><p>مسؤول الشعبة</p>${supSig}</div></div>
 </body></html>`);
     w.document.close(); w.focus(); setTimeout(()=>w.print(),400);
   };
@@ -293,6 +314,31 @@ function ApprovalsPage({ emp }) {
           ))}
         </div>
       )}
+      {isSupervisor && (() => {
+        const allR = [...requests, ...approved, ...archived];
+        const todayRequestors = ACCOUNTS.filter(a => allR.some(r => r && Number(r.empId) === Number(a.id) && r.submittedAt && r.submittedAt.startsWith(todayStr)));
+        if (!todayRequestors.length) return null;
+        return (
+          <div className="mt-6 border border-amber-200 rounded-2xl p-4 bg-amber-50/30 dark:bg-amber-900/10 space-y-3">
+            <h3 className="font-bold text-sm text-amber-700">🛡️ إذن طلبات إضافية اليوم</h3>
+            <p className="text-xs text-secondary">يمكنك منح موظف إذناً لإرسال أكثر من طلب واحد اليوم</p>
+            <div className="space-y-1">
+              {todayRequestors.map(a => {
+                const hasPerm = dailyPerms[String(a.id)]?.grantedDate === todayStr;
+                return (
+                  <div key={a.id} className="flex items-center justify-between py-2 border-b border-color last:border-0">
+                    <span className="text-sm font-medium">{a.name.split(" ").slice(0,3).join(" ")}</span>
+                    {hasPerm
+                      ? <div className="flex items-center gap-2"><span className="text-xs text-emerald-600 font-bold">✓ مُذن</span><button onClick={()=>revokePerm(a.id)} className="text-xs px-2.5 py-1 bg-red-100 text-red-700 rounded-lg font-bold hover:bg-red-200 transition-colors">إلغاء الإذن</button></div>
+                      : <button onClick={()=>grantPerm(a.id)} className="text-xs px-2.5 py-1 bg-amber-500 text-white rounded-lg font-bold hover:bg-amber-600 transition-colors">منح إذن</button>
+                    }
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );

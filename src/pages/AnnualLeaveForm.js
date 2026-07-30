@@ -60,10 +60,11 @@ function AnnualLeaveForm({ emp }) {
     toast("تم حفظ المسودة", "success");
   };
   const saveAndSubmit = async () => {
-    if (status === "submitted") {
-      const today = new Date().toISOString().split("T")[0];
-      const saved = storage.get(STORAGE_KEY, {});
-      if (saved.submittedDate === today && saved.fromDate === fromDate && saved.toDate === toDate) { toast("تم تقديم هذا الطلب مسبقاً — يرجى الانتظار حتى تتم مراجعته", "warning"); return; }
+    const todayStr = new Date().toISOString().split("T")[0];
+    const submittedToday = storage.get("all_requests", []).some(r => r && Number(r.empId) === Number(emp.id) && r.submittedAt && r.submittedAt.startsWith(todayStr));
+    if (submittedToday) {
+      const perm = await FirebaseAPI.loadDailyPermission(String(emp.id));
+      if (!perm || perm.grantedDate !== todayStr) { toast("لقد أرسلت طلباً اليوم — تواصل مع مسؤول الشعبة للحصول على إذن إضافي", "warning"); return; }
     }
     if (!sigDataUrl) { toast("توقيع طالب الإجازة إلزامي للتقديم", "warning"); return; }
     const today = new Date().toISOString().split("T")[0];
@@ -71,11 +72,10 @@ function AnnualLeaveForm({ emp }) {
     setStatus("submitted");
     const daysNum = days ? Number(days) : 1;
     const newReq = { id: Date.now(), type: "اعتيادية", dateFrom: fromDate, dateTo: toDate, purpose, days: daysNum, status: "بانتظار المراجعة", submittedAt: new Date().toISOString(), empId: emp.id, empName: name, empSigDataUrl: sigDataUrl };
-    const prevAll = await FirebaseAPI.loadRequests() || storage.get("all_requests", []);
-    const allReqs = [newReq, ...prevAll.filter(r => r && r.id !== newReq.id)];
-    storage.set("all_requests", allReqs);
-    const saved = await FirebaseAPI.saveRequests(allReqs);
+    const saved = await FirebaseAPI.addRequest(newReq);
     if (!saved) { toast("⚠️ تعذّر حفظ الطلب على الخادم — تحقق من الاتصال وأعد المحاولة", "error"); return; }
+    const allReqs = [newReq, ...storage.get("all_requests", []).filter(r => r && r.id !== newReq.id)];
+    storage.set("all_requests", allReqs);
     storage.set(`requests_${emp.id}`, [newReq, ...storage.get(`requests_${emp.id}`, [])]);
     ACCOUNTS.filter(a => a.role === "admin" || a.username === "i.shawi").forEach(admin => {
       const key = `notifications_${admin.id}`;
@@ -83,6 +83,8 @@ function AnnualLeaveForm({ emp }) {
       storage.set(key, notifs); FirebaseAPI.saveNotifications(admin.id, notifs); sendBackgroundPush(admin.id, notifs[0].title, notifs[0].body, notifs[0].type);
     });
     toast("تم تقديم الإجازة الاعتيادية بنجاح", "success");
+    setStatus("draft"); setFromDate(""); setToDate(""); setDays(""); setPurpose(""); setSigDataUrl(null);
+    storage.set(STORAGE_KEY, { name, jobNum, jobTitle, dept, reqDate, status: "draft" });
   };
 
   const fmtDateParts = (d) => {
@@ -178,14 +180,10 @@ function AnnualLeaveForm({ emp }) {
   };
 
   const printForm = () => {
-    const html = buildAnnualHtml();
-    const iframe = document.createElement("iframe");
-    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0";
-    document.body.appendChild(iframe);
-    iframe.contentDocument.write(html);
-    iframe.contentDocument.close();
-    iframe.contentWindow.focus();
-    setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 2000); }, 400);
+    const toolbar = `<style>@media print{#_pb{display:none!important}}</style><div id="_pb" style="position:sticky;top:0;z-index:9999;background:#1a1a2e;display:flex;gap:10px;padding:8px 14px;direction:rtl;align-items:center"><button onclick="window.print()" style="background:#C87A2E;color:#fff;border:none;padding:7px 18px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Arial,sans-serif">&#128424; طباعة</button><button onclick="window.close()" style="background:#dc2626;color:#fff;border:none;padding:7px 18px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Arial,sans-serif">&#x2715; إغلاق</button><span style="color:#9ca3af;font-size:11px;font-family:Arial,sans-serif">معاينة قبل الطباعة</span></div>`;
+    const finalHtml = buildAnnualHtml().replace("</body>", toolbar + "</body>");
+    const win = window.open("", "_blank", "width=960,height=720");
+    if (win) { win.document.write(finalHtml); win.document.close(); win.focus(); }
   };
 
   const uploadToDrive = async () => {

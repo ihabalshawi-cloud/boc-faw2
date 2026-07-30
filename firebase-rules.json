@@ -48,6 +48,7 @@
     "incentive_entries":{ ".read": "true", ".write": "true" },
     "incentive_works":  { ".read": "true", ".write": "true" },
     "login_locks":      { ".read": "true", ".write": "true" },
+    "daily_req_perm":   { ".read": "true", ".write": "true" },
     "typing":           { ".read": "true", ".write": "true" },
 
     "login_history": { ".read": "true", ".write": "true" },

@@ -9,6 +9,12 @@ const BULK_RATINGS=["متوسط","جيد","جيد جدا","ممتاز"];
 const BULK_REQ={متوسط:5,جيد:20,"جيد جدا":40,ممتاز:35};
 const BULK_RCOLOR={متوسط:"bg-red-100 text-red-700",جيد:"bg-amber-100 text-amber-700","جيد جدا":"bg-blue-100 text-blue-700",ممتاز:"bg-emerald-100 text-emerald-700"};
 const BULK_DEPT="شعبة سيطرة مستودع الفاو والمرافئ";
+const MOTIV={
+  متوسط:"أداؤك في هذه الدورة التقييمية كان متوسطاً — نثق بقدراتك وبإمكانية التطوّر. نحن معك ونتمنى لك مزيداً من التألق في الفترة القادمة 💪",
+  جيد:"أحسنت! حققت مستوى جيداً في هذا التقييم. استمر في هذا المسار وبذل جهد إضافي لتصل إلى القمة — نحن نؤمن بك 👍",
+  "جيد جدا":"أداء مميز! نتائجك تعكس جهداً حقيقياً وإخلاصاً في العمل. لا تتوقف هنا — الامتياز على بُعد خطوة واحدة ⭐",
+  ممتاز:"تهانينا! حققت أعلى مستوى في التقييم — هذا دليل على كفاءتك وتفانيك. أنت قدوة لزملائك ونفخر بك 🏆",
+};
 const GL=(s)=>s>=90?"ممتاز":s>=75?"جيد جداً":s>=60?"جيد":s>=50?"مقبول":"ضعيف";
 const GC=(s)=>s>=90?"text-emerald-600":s>=75?"text-blue-600":s>=60?"text-amber-600":"text-red-600";
 
@@ -34,12 +40,48 @@ function calcSelfGrade(rawPct,rank,hasLeadership){
   return{grade:"متوسط",color:"text-orange-500"};
 }
 
+function computeBulkGrades(selfEvals){
+  const AMTIYAZ_SEATS=9,JEED_JIDA_BASE=11,JEED_SEATS=6;
+  const leaders=[],regulars=[];
+  Object.entries(selfEvals).forEach(([eid,ev])=>{
+    if(!ev)return;
+    const raw=ev.rawTotal||ev.total||0;
+    if(ev.hasLeadership)leaders.push({eid,raw});
+    else regulars.push({eid,raw,sub:ev.submittedAt});
+  });
+  const ratings={};let amtiyazFilled=0;
+  // قيادي: درجة مباشرة بالنسبة الخام
+  leaders.forEach(({eid,raw})=>{
+    if(raw>=90){ratings[eid]="ممتاز";amtiyazFilled++;}
+    else if(raw>=75)ratings[eid]="جيد جدا";
+    else if(raw>=60)ratings[eid]="جيد";
+    else ratings[eid]="متوسط";
+  });
+  // مقاعد شاغرة من ممتاز تضاف لجيد جدا
+  let availJeedJida=JEED_JIDA_BASE+Math.max(0,AMTIYAZ_SEATS-amtiyazFilled);
+  let availJeed=JEED_SEATS;
+  // عادي: مرتّب حسب تاريخ الإرسال (الأقدم أولاً)
+  regulars.sort((a,b)=>new Date(a.sub)-new Date(b.sub));
+  regulars.forEach(({eid,raw})=>{
+    if(raw>=80){
+      if(availJeedJida>0){ratings[eid]="جيد جدا";availJeedJida--;}
+      else if(availJeed>0){ratings[eid]="جيد";availJeed--;}
+      else ratings[eid]="متوسط";
+    }else if(raw>=70){
+      if(availJeed>0){ratings[eid]="جيد";availJeed--;}
+      else ratings[eid]="متوسط";
+    }else ratings[eid]="متوسط";
+  });
+  return ratings;
+}
+
 function BulkEvaluationPanel({ emp, allEmployees }) {
   const now=new Date();
   const [selMonth,setSelMonth]=useState(now.getMonth());
   const [selYear,setSelYear]=useState(now.getFullYear());
   const [ratings,setRatings]=useState({});
   const [selfEvals,setSelfEvals]=useState({});
+  const [computedRatings,setComputedRatings]=useState({});
   const [toast,setToast]=useState("");
   const T=(m)=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   useEffect(()=>{
@@ -59,6 +101,9 @@ function BulkEvaluationPanel({ emp, allEmployees }) {
       return changed?upd:prev;
     });
   },[selfEvals]);
+  useEffect(()=>{
+    setComputedRatings(Object.keys(selfEvals).length?computeBulkGrades(selfEvals):{});
+  },[selfEvals]);
   const importFromResults=()=>{
     setRatings(prev=>{
       const upd={...prev};
@@ -70,6 +115,34 @@ function BulkEvaluationPanel({ emp, allEmployees }) {
       return upd;
     });
     T("✅ تم نقل التقييمات من النتائج");
+  };
+  const computeAuto=()=>{
+    if(!Object.keys(selfEvals).length)return T("⚠️ لا توجد تقييمات ذاتية");
+    const computed=computeBulkGrades(selfEvals);
+    if(!Object.keys(computed).length)return T("⚠️ لا توجد تقييمات ذاتية مكتملة");
+    setRatings(computed);
+    T("✅ تم الاحتساب التلقائي");
+  };
+  const sendNotifs=async()=>{
+    const entries=allEmployees.filter(e=>ratings[e.id]);
+    if(!entries.length)return T("⚠️ لا توجد تقييمات للإرسال");
+    const monthLabel=MONTHS_IRAQI[selMonth];
+    let sent=0;
+    await Promise.all(entries.map(async e=>{
+      const bulkGrade=ratings[e.id];
+      const eid=String(e.id);
+      const ev=selfEvals[eid];
+      const selfGrade=ev?selfToRating(ev.adminGrade||ev.grade):"—";
+      const motiv=MOTIV[bulkGrade]||"";
+      const title=`📊 نتيجة التقييم — ${monthLabel} ${selYear}`;
+      const body=`تقييمك الذاتي هو: ${selfGrade}\nتقييمك الجماعي (بواسطة مسؤول الشعبة) هو: ${bulkGrade}\n\n${motiv}`;
+      const notif={id:Date.now()+Number(eid),type:"تقييم",title,body,timestamp:new Date().toISOString(),read:false};
+      const prev=await FirebaseAPI.loadNotifications(eid)||[];
+      await FirebaseAPI.saveNotifications(eid,[notif,...prev]);
+      sendBackgroundPush(eid,title,body,"تقييم");
+      sent++;
+    }));
+    T(`✅ تم إرسال ${sent} إشعار`);
   };
   const dist=BULK_RATINGS.reduce((a,r)=>({...a,[r]:Object.values(ratings).filter(x=>x===r).length}),{});
   const pct=(n)=>allEmployees.length>0?Math.round(n/allEmployees.length*100):0;
@@ -92,11 +165,11 @@ function BulkEvaluationPanel({ emp, allEmployees }) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div className="flex gap-2"><select value={selMonth} onChange={e=>setSelMonth(+e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{MONTHS_IRAQI.map((m,i)=><option key={i} value={i}>{m}</option>)}</select><select value={selYear} onChange={e=>setSelYear(+e.target.value)} className="input rounded-xl px-3 py-2 text-sm">{[2024,2025,2026].map(y=><option key={y}>{y}</option>)}</select></div>
-        <div className="flex gap-2 flex-wrap justify-end"><button onClick={importFromResults} className="flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl hover:bg-amber-100"><Star size={13}/>نقل من النتائج</button><button onClick={save} className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 px-3 py-2 rounded-xl"><Save size={13}/>حفظ</button><button onClick={exportXls} className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 px-3 py-2 rounded-xl"><Download size={13}/>Excel</button><button onClick={printPDF} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Star size={13}/>PDF</button></div>
+        <div className="flex gap-2 flex-wrap justify-end"><button onClick={importFromResults} className="flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl hover:bg-amber-100"><Star size={13}/>نقل من النتائج</button><button onClick={computeAuto} className="flex items-center gap-1.5 text-xs font-bold text-white bg-violet-600 px-3 py-2 rounded-xl hover:bg-violet-700"><Settings size={13}/>احتساب تلقائي</button><button onClick={sendNotifs} className="flex items-center gap-1.5 text-xs font-bold text-white bg-teal-600 px-3 py-2 rounded-xl hover:bg-teal-700"><CheckCircle size={13}/>إرسال الإشعارات</button><button onClick={save} className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 px-3 py-2 rounded-xl"><Save size={13}/>حفظ</button><button onClick={exportXls} className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 px-3 py-2 rounded-xl"><Download size={13}/>Excel</button><button onClick={printPDF} className="flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 px-3 py-2 rounded-xl"><Star size={13}/>PDF</button></div>
       </div>
       <div className="grid grid-cols-4 gap-2">{BULK_RATINGS.map(r=><div key={r} className={`rounded-xl p-2 text-center text-xs ${BULK_RCOLOR[r]}`}><p className="font-bold text-lg">{dist[r]}</p><p className="font-bold">{r}</p><p className="text-[10px]">{pct(dist[r])}% / مطلوب {BULK_REQ[r]}%</p></div>)}</div>
-      <div className="card rounded-2xl border border-color overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm" dir="rtl"><thead><tr className="bg-gray-50 border-b border-color"><th className="px-3 py-2 text-right font-semibold">ت</th><th className="px-3 py-2 text-right font-semibold">الرقم</th><th className="px-3 py-2 text-right font-semibold">الموظف</th><th className="px-3 py-2 text-center font-semibold">ذاتي</th><th className="px-3 py-2 text-center font-semibold">التقييم الجماعي</th></tr></thead>
-        <tbody>{allEmployees.map((e,i)=>{const ev=selfEvals[String(e.id)];const done=!!ev;const selfGrade=done?selfToRating(ev.adminGrade||ev.grade):"";return(<tr key={e.id} className={`border-b border-color ${done?"bg-emerald-50 dark:bg-emerald-900/10":""}`}><td className="px-3 py-2 text-secondary text-xs">{i+1}</td><td className="px-3 py-2 font-mono text-secondary text-xs">{e.jobNum}</td><td className="px-3 py-2 font-medium">{e.name}{done&&<span className="text-[10px] text-emerald-600 font-bold mr-1">✓</span>}</td><td className="px-3 py-2 text-center">{done?<span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${BULK_RCOLOR[selfGrade]||"bg-emerald-100 text-emerald-700"}`}>{selfGrade||"أرسل"}</span>:<span className="text-[10px] text-secondary">—</span>}</td><td className="px-3 py-2 text-center"><select value={ratings[e.id]||""} onChange={ev2=>setRatings(p=>({...p,[e.id]:ev2.target.value}))} className="input text-xs rounded-lg px-2 py-1"><option value="">—</option>{BULK_RATINGS.map(r=><option key={r}>{r}</option>)}</select></td></tr>);})}</tbody></table></div></div>
+      <div className="card rounded-2xl border border-color overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm" dir="rtl"><thead><tr className="bg-gray-50 border-b border-color"><th className="px-3 py-2 text-right font-semibold">ت</th><th className="px-3 py-2 text-right font-semibold">الرقم</th><th className="px-3 py-2 text-right font-semibold">الموظف</th><th className="px-3 py-2 text-center font-semibold">ذاتي</th><th className="px-3 py-2 text-center font-semibold text-violet-700">احتساب تلقائي</th><th className="px-3 py-2 text-center font-semibold">التقييم الجماعي</th></tr></thead>
+        <tbody>{allEmployees.map((e,i)=>{const ev=selfEvals[String(e.id)];const done=!!ev;const selfGrade=done?selfToRating(ev.adminGrade||ev.grade):"";return(<tr key={e.id} className={`border-b border-color ${done?"bg-emerald-50 dark:bg-emerald-900/10":""}`}><td className="px-3 py-2 text-secondary text-xs">{i+1}</td><td className="px-3 py-2 font-mono text-secondary text-xs">{e.jobNum}</td><td className="px-3 py-2 font-medium">{e.name}{done&&<span className="text-[10px] text-emerald-600 font-bold mr-1">✓</span>}</td><td className="px-3 py-2 text-center">{done?<span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${BULK_RCOLOR[selfGrade]||"bg-emerald-100 text-emerald-700"}`}>{selfGrade||"أرسل"}</span>:<span className="text-[10px] text-secondary">—</span>}</td><td className="px-3 py-2 text-center">{computedRatings[String(e.id)]?<span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border-2 border-violet-400 ${BULK_RCOLOR[computedRatings[String(e.id)]]||""}`}>{computedRatings[String(e.id)]}</span>:<span className="text-[10px] text-secondary">—</span>}</td><td className="px-3 py-2 text-center"><select value={ratings[e.id]||""} onChange={ev2=>setRatings(p=>({...p,[e.id]:ev2.target.value}))} className="input text-xs rounded-lg px-2 py-1"><option value="">—</option>{BULK_RATINGS.map(r=><option key={r}>{r}</option>)}</select></td></tr>);})}</tbody></table></div></div>
       {toast&&<div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl"><CheckCircle size={14} className="text-emerald-400 inline ml-2"/>{toast}</div>}
     </div>
   );

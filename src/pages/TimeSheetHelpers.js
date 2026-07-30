@@ -41,9 +41,10 @@ export const TS_CODES_ALL = {
   "ث": { label:"المركز الثقافي النفطي",        color:"bg-lime-200 text-lime-800",      type:"work" },
   "ق": { label:"قسم",                          color:"bg-orange-50 text-orange-600",   type:"work" },
   "س": { label:"إجازة مرضية",                 color:"bg-red-100 text-red-600",        type:"sick"  },
+  "ع": { label:"عمل في موقع آخر",             color:"bg-teal-200 text-teal-800",      type:"work"  },
 };
-export const TS_CODES_GENERAL = ["O","2","3","R","L","S","Y","X","N","V","I","B","G","M","T","H","D","7","J","P","4","5","K","U","8","W","A","Z","E","F"];
-export const TS_CODES_DRIVER  = ["م","ث","ف","ح","ر","ب","ق","غ","س","R","Y","L","S","X","I","M","W","U"];
+export const TS_CODES_GENERAL = ["O","2","3","R","L","S","Y","X","N","V","I","B","G","M","T","H","D","7","J","P","4","5","K","U","8","W","A","Z","E","F","ع"];
+export const TS_CODES_DRIVER  = ["م","ث","ف","ح","ر","ب","ق","غ","س","ع","R","Y","L","S","X","I","M","W","U"];
 export const MONTHS_AR_TS = ["كانون الثاني","شباط","آذار","نيسان","أيار","حزيران","تموز","آب","أيلول","تشرين الأول","تشرين الثاني","كانون الأول"];
 export const DAY_NAMES_AR = ['أحد','إثن','ثلا','أرب','خمي','جمع','سبت'];
 export const SHIFT_TEXT_COLORS = { 'أ':'#dc2626','ب':'#2563eb','ج':'#16a34a','د':'#7c3aed' };
