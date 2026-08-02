@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Archive, Download, Trash2, RotateCcw } from "lucide-react";
 import { MONTHS_AR_TS } from "./TimeSheetHelpers";
 import { storage } from "../utils";
@@ -28,6 +28,39 @@ function downloadArchive(entry) {
   });
   document.body.appendChild(a); a.click();
   document.body.removeChild(a); URL.revokeObjectURL(a.href);
+}
+
+export function useAutoArchive(data, tsArchives, setTsArchives, addToast) {
+  const ref = useRef({ data, tsArchives });
+  useEffect(() => { ref.current = { data, tsArchives }; });
+
+  useEffect(() => {
+    const isLastDay = () => {
+      const now = new Date();
+      return now.getDate() === new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    };
+
+    const tryAutoArchive = () => {
+      if (!isLastDay()) return;
+      const now = new Date();
+      const y = now.getFullYear(), m = now.getMonth();
+      const key = `${y}-${String(m + 1).padStart(2, "0")}`;
+      const { data: d, tsArchives: arch } = ref.current;
+      if (arch.some(a => a.key === key)) return;
+      const updated = archiveMonth(d, y, m);
+      setTsArchives(updated);
+      addToast(`تمت الأرشفة التلقائية لشهر ${MONTHS_AR_TS[m]} ${y} 📦`, "success");
+    };
+
+    tryAutoArchive();
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      if (now.getHours() === 23 && now.getMinutes() === 59) tryAutoArchive();
+    }, 60_000);
+
+    return () => clearInterval(interval);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 export function ArchivePanel({ archives, setArchives, onRestore }) {

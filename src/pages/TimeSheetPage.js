@@ -12,7 +12,7 @@ import { importFromBuffer, exportToTemplate, buildHTMLTable } from "./TimeSheetE
 import { buildExcelFormattedHTML, buildOfficialFormHTML } from "./TimeSheetPrintBuilders";
 import { TsImportPanel, TsExportPanel } from "./TimeSheetPanels";
 import { useDebounce } from "../components/Shared";
-import { archiveMonth, ArchivePanel, ARCHIVE_KEY } from "./TimeSheetArchive";
+import { archiveMonth, ArchivePanel, ARCHIVE_KEY, useAutoArchive } from "./TimeSheetArchive";
 
 const STORAGE_KEY       = "boc_timesheet_v7";
 const STORAGE_PREV_KEYS = ["boc_timesheet_v6", "boc_timesheet_v5"];
@@ -233,6 +233,8 @@ function TimeSheetPage({ emp }) {
       rest:   all.reduce((s, st) => s + st.restDays,   0),
     };
   }, [data, activeTab]);
+
+  useAutoArchive(data, tsArchives, setTsArchives, addToast);
 
   const doArchive = async () => {
     const ok = await confirm(`أرشفة تايم شيت شهر ${MONTHS_AR_TS[tsMonth]} ${tsYear}؟`);
