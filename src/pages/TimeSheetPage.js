@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Search, Calendar, X, AlertTriangle, FileCheck, Printer, Upload, Plus, Trash2, Bell } from "lucide-react";
+import { Search, Calendar, X, AlertTriangle, FileCheck, Printer, Upload, Plus, Trash2, Bell, Archive } from "lucide-react";
 import { useToast, useConfirm } from "../contexts";
 import { storage } from "../utils";
 import { FirebaseAPI } from "../firebase";
@@ -12,6 +12,7 @@ import { importFromBuffer, exportToTemplate, buildHTMLTable } from "./TimeSheetE
 import { buildExcelFormattedHTML, buildOfficialFormHTML } from "./TimeSheetPrintBuilders";
 import { TsImportPanel, TsExportPanel } from "./TimeSheetPanels";
 import { useDebounce } from "../components/Shared";
+import { archiveMonth, ArchivePanel, ARCHIVE_KEY } from "./TimeSheetArchive";
 
 const STORAGE_KEY       = "boc_timesheet_v7";
 const STORAGE_PREV_KEYS = ["boc_timesheet_v6", "boc_timesheet_v5"];
@@ -73,6 +74,8 @@ function TimeSheetPage({ emp }) {
   const [exportDriveId,  setExportDriveId]  = useState("");
   const exportFileRef = useRef(null);
   const fileInputRef  = useRef(null);
+  const [showArchive,  setShowArchive]  = useState(false);
+  const [tsArchives,   setTsArchives]   = useState(() => storage.get(ARCHIVE_KEY, []));
 
   const persistTs = useCallback((updated) => {
     storage.set(STORAGE_KEY, updated);
@@ -231,6 +234,23 @@ function TimeSheetPage({ emp }) {
     };
   }, [data, activeTab]);
 
+  const doArchive = async () => {
+    const ok = await confirm(`أرشفة تايم شيت شهر ${MONTHS_AR_TS[tsMonth]} ${tsYear}؟`);
+    if (!ok) return;
+    const updated = archiveMonth(data, tsYear, tsMonth);
+    setTsArchives(updated);
+    addToast(`تمت أرشفة شهر ${MONTHS_AR_TS[tsMonth]} ${tsYear} ✅`, "success");
+  };
+
+  const onRestore = async (entry) => {
+    const ok = await confirm(`استعادة بيانات شهر ${entry.monthName} ${entry.year}؟ سيتم استبدال البيانات الحالية.`);
+    if (!ok) return;
+    const restored = { malak: dedup(toArr(entry.data.malak)), contracts: dedup(toArr(entry.data.contracts)), drivers: dedup(toArr(entry.data.drivers)) };
+    persistTs(restored);
+    setData(restored);
+    addToast(`تمت استعادة بيانات ${entry.monthName} ${entry.year}`, "success");
+  };
+
   const resetData = async () => {
     const ok = await confirm("هل تريد إعادة تعيين جميع البيانات للبيانات الأصلية؟");
     if (!ok) return;
@@ -356,6 +376,14 @@ function TimeSheetPage({ emp }) {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700">
             <Upload size={14}/> استيراد Excel
           </button>
+          <button onClick={()=>setShowArchive(v=>!v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-[#C87A2E] text-white hover:bg-[#B06D27]">
+            <Archive size={14}/> الأرشيف
+          </button>
+          <button onClick={doArchive}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-purple-600 text-white hover:bg-purple-700">
+            <Archive size={14}/> أرشفة الشهر
+          </button>
         </div>
       </div>
 
@@ -376,6 +404,10 @@ function TimeSheetPage({ emp }) {
           exportFromBuiltin={exportFromBuiltin}
           exportFileRef={exportFileRef}
         />
+      )}
+
+      {showArchive && (
+        <ArchivePanel archives={tsArchives} setArchives={setTsArchives} onRestore={onRestore}/>
       )}
 
       {showLegend && (
