@@ -135,7 +135,18 @@ function ApprovalsPage({ emp }) {
   };
 
   useEffect(() => {
-    const load = () => FirebaseAPI.loadRequests().then(list => { if (list && list.length > 0) applyList(list); });
+    const load = () => FirebaseAPI.loadRequests().then(list => {
+      if (!list?.length) return;
+      // Prefer local "decided" status over stale Firebase "pending" to avoid revert on slow writes
+      const local = storage.get("all_requests", []);
+      const DECIDED = new Set(["موافق عليها", "مرفوضة"]);
+      const merged = list.map(fbR => {
+        const loc = local.find(r => r.id === fbR.id);
+        if (loc && DECIDED.has(loc.status) && !DECIDED.has(fbR.status)) return loc;
+        return fbR;
+      });
+      applyList(merged);
+    });
     load();
     const t = setInterval(load, 15000);
     const onVisible = () => { if (document.visibilityState === "visible") load(); };
