@@ -99,6 +99,15 @@ export function generateApprovalStamp(dateStr) {
   return canvas.toDataURL("image/png");
 }
 
+// ── Export log ────────────────────────────────────────────────────────────────
+export const EXPORT_LOG_KEY = "boc_export_log";
+export function logExport(label) {
+  try {
+    const prev = storage.get(EXPORT_LOG_KEY, []);
+    storage.set(EXPORT_LOG_KEY, [{ label, at: new Date().toISOString() }, ...prev].slice(0, 20));
+  } catch {}
+}
+
 // ── CSV export ────────────────────────────────────────────────────────────────
 export function exportCSV(data, filename) {
   if (!data.length) return;

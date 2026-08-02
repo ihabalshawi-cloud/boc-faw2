@@ -583,4 +583,21 @@ export const FirebaseAPI = {
   savePushSub: async (empId, sub) => { try { await fetch(`${FIREBASE_URL}/push_subs/${empId}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(sub)}); return true; } catch{return false;} },
   loadPushSub: async (empId) => { try { const r=await fetch(`${FIREBASE_URL}/push_subs/${empId}.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch{return null;} },
   removePushSub: async (empId) => { try { await fetch(`${FIREBASE_URL}/push_subs/${empId}.json`,{method:"DELETE"}); return true; } catch{return false;} },
+  // ── Timesheet Archive ─────────────────────────────────────────────────────
+  saveArchive: async (list) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/ts_archive.json`, {
+        method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify(list || []),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  loadArchive: async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/ts_archive.json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data) ? data : (data && typeof data === "object" ? Object.values(data).filter(Boolean) : null);
+    } catch { return null; }
+  },
 };

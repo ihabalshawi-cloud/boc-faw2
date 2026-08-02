@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from "react";
-import { Archive, Download, Trash2, RotateCcw } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Archive, Download, Trash2, RotateCcw, ClipboardList } from "lucide-react";
 import { MONTHS_AR_TS } from "./TimeSheetHelpers";
-import { storage } from "../utils";
+import { storage, EXPORT_LOG_KEY } from "../utils";
 import { useConfirm } from "../contexts";
+import { FirebaseAPI } from "../firebase";
 
 export const ARCHIVE_KEY = "boc_ts_archive";
 
@@ -15,7 +16,7 @@ export function archiveMonth(data, year, month) {
     archivedAt: new Date().toISOString(),
     data: JSON.parse(JSON.stringify(data)),
   };
-  const updated = [entry, ...prev.filter(a => a.key !== key)];
+  const updated = [entry, ...prev.filter(a => a.key !== key)].slice(0, 12);
   storage.set(ARCHIVE_KEY, updated);
   return updated;
 }
@@ -35,6 +36,18 @@ export function useAutoArchive(data, tsArchives, setTsArchives, addToast) {
   useEffect(() => { ref.current = { data, tsArchives }; });
 
   useEffect(() => {
+    // Load from Firebase on mount and merge with localStorage
+    FirebaseAPI.loadArchive().then(fbList => {
+      if (!fbList?.length) return;
+      const local = storage.get(ARCHIVE_KEY, []);
+      const merged = [...local];
+      fbList.forEach(e => { if (!merged.some(l => l.key === e.key)) merged.push(e); });
+      merged.sort((a, b) => b.key.localeCompare(a.key));
+      const limited = merged.slice(0, 12);
+      storage.set(ARCHIVE_KEY, limited);
+      setTsArchives(limited);
+    }).catch(() => {});
+
     const isLastDay = () => {
       const now = new Date();
       return now.getDate() === new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -49,6 +62,7 @@ export function useAutoArchive(data, tsArchives, setTsArchives, addToast) {
       if (arch.some(a => a.key === key)) return;
       const updated = archiveMonth(d, y, m);
       setTsArchives(updated);
+      FirebaseAPI.saveArchive(updated).catch(() => {});
       addToast(`تمت الأرشفة التلقائية لشهر ${MONTHS_AR_TS[m]} ${y} 📦`, "success");
     };
 
@@ -65,12 +79,14 @@ export function useAutoArchive(data, tsArchives, setTsArchives, addToast) {
 
 export function ArchivePanel({ archives, setArchives, onRestore }) {
   const confirm = useConfirm();
+  const [exportLog] = useState(() => storage.get(EXPORT_LOG_KEY, []));
 
   const del = async (key) => {
     if (!await confirm("حذف هذا الأرشيف نهائياً؟")) return;
     const updated = archives.filter(a => a.key !== key);
     storage.set(ARCHIVE_KEY, updated);
     setArchives(updated);
+    FirebaseAPI.saveArchive(updated).catch(() => {});
   };
 
   return (
@@ -117,6 +133,22 @@ export function ArchivePanel({ archives, setArchives, onRestore }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {exportLog.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-color">
+          <p className="text-xs font-bold text-secondary flex items-center gap-1.5 mb-2">
+            <ClipboardList size={13}/> سجل التصديرات الأخيرة
+          </p>
+          <div className="space-y-1 max-h-40 overflow-y-auto">
+            {exportLog.map((e, i) => (
+              <div key={i} className="flex items-center justify-between text-xs px-2 py-1 rounded-lg bg-hover">
+                <span className="text-primary truncate">{e.label}</span>
+                <span className="text-secondary shrink-0 mr-2">{new Date(e.at).toLocaleDateString("ar-IQ")} {new Date(e.at).toLocaleTimeString("ar-IQ",{hour:"2-digit",minute:"2-digit"})}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

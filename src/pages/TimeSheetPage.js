@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Search, Calendar, X, AlertTriangle, FileCheck, Printer, Upload, Plus, Trash2, Bell, Archive } from "lucide-react";
 import { useToast, useConfirm } from "../contexts";
-import { storage } from "../utils";
+import { storage, logExport } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useGDrive } from "../gdrive";
 import {
@@ -241,6 +241,8 @@ function TimeSheetPage({ emp }) {
     if (!ok) return;
     const updated = archiveMonth(data, tsYear, tsMonth);
     setTsArchives(updated);
+    FirebaseAPI.saveArchive(updated).catch(() => {});
+    logExport(`أرشفة ${MONTHS_AR_TS[tsMonth]} ${tsYear}`);
     addToast(`تمت أرشفة شهر ${MONTHS_AR_TS[tsMonth]} ${tsYear} ✅`, "success");
   };
 
@@ -314,11 +316,13 @@ function TimeSheetPage({ emp }) {
 
   const exportExcel = () => {
     downloadBlob(new Blob(["﻿"+buildHTMLTable(data[activeTab]||[],TAB_INFO[activeTab].title,MONTHS_AR_TS[tsMonth],tsYear,tsMonth,days)],{type:"application/vnd.ms-excel;charset=utf-8"}),`تايم_شيت_${TAB_INFO[activeTab].label}_${tsYear}_${String(tsMonth+1).padStart(2,"0")}.xls`);
+    logExport(`Excel - ${TAB_INFO[activeTab].label} ${MONTHS_AR_TS[tsMonth]} ${tsYear}`);
     addToast("تم تصدير الملف بتنسيق Excel", "success");
   };
 
   const exportExcelFormatted = () => {
     downloadBlob(new Blob(["﻿"+buildExcelFormattedHTML(data[activeTab]||[],TAB_INFO[activeTab].label,tsYear,tsMonth,days)],{type:"application/vnd.ms-excel"}),`تايم_شيت_${TAB_INFO[activeTab].label}_${tsYear}_${String(tsMonth+1).padStart(2,"0")}.xls`);
+    logExport(`Excel رسمي - ${TAB_INFO[activeTab].label} ${MONTHS_AR_TS[tsMonth]} ${tsYear}`);
     addToast("تم تصدير الملف بنجاح بالتنسيق الرسمي ✅", "success");
   };
 
@@ -333,12 +337,14 @@ function TimeSheetPage({ emp }) {
   const exportPDF = () => {
     const html = buildHTMLTable(data[activeTab]||[], TAB_INFO[activeTab].title, MONTHS_AR_TS[tsMonth], tsYear, tsMonth, days);
     printInIframe(html.replace("<body>",`<body><style>@page{size:A3 landscape;margin:10mm;} @media print{body{zoom:0.7;}}</style>`), 1400, 900);
+    logExport(`PDF - ${TAB_INFO[activeTab].label} ${MONTHS_AR_TS[tsMonth]} ${tsYear}`);
     addToast("جارٍ فتح نافذة الطباعة / تصدير PDF", "info");
   };
 
   const exportOfficialForm = () => {
     const html = buildOfficialFormHTML(data[activeTab]||[], TAB_INFO[activeTab].title, MONTHS_AR_TS[tsMonth], tsYear, tsMonth, days);
     printInIframe(html, 1500, 1000, 900);
+    logExport(`فورمة رسمية - ${TAB_INFO[activeTab].label} ${MONTHS_AR_TS[tsMonth]} ${tsYear}`);
     addToast("جارٍ طباعة الفورمة الرسمية", "info");
   };
 
