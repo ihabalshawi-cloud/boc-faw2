@@ -40,7 +40,7 @@ function ApprovalsPage({ emp }) {
   const canArchive = isSupervisor || isAdmin || isAttendanceAdmin;
   const canExportLeave = hasPermission(emp, "EXPORT_LEAVE_EXCEL");
   const sortDesc = (a,b) => { if(!a||!b) return 0; return new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt); };
-  const [requests, setRequests] = useState(() => storage.get("all_requests", []).filter(r => r && r.status === "بانتظار المراجعة"));
+  const [requests, setRequests] = useState(() => storage.get("all_requests", []).filter(r => r && r.status === "بانتظار المراجعة" && !r.archived));
   const [approved, setApproved] = useState(() => storage.get("all_requests", []).filter(r => r && r.status === "موافق عليها" && !r.archived).sort(sortDesc));
   const [archived, setArchived] = useState(() => storage.get("all_requests", []).filter(r => r && r.archived).sort(sortDesc));
   const [sigReqId, setSigReqId] = useState(null);
@@ -51,7 +51,7 @@ function ApprovalsPage({ emp }) {
 
   const applyList = (list) => {
     storage.set("all_requests", list);
-    setRequests(list.filter(r => r && r.status === "بانتظار المراجعة"));
+    setRequests(list.filter(r => r && r.status === "بانتظار المراجعة" && !r.archived));
     setApproved(list.filter(r => r && r.status === "موافق عليها" && !r.archived).sort(sortDesc));
     setArchived(list.filter(r => r && r.archived).sort(sortDesc));
   };
@@ -72,6 +72,12 @@ function ApprovalsPage({ emp }) {
     const all = storage.get("all_requests", []).map(r => r.id === id ? {...r, archived:false} : r);
     storage.set("all_requests", all); FirebaseAPI.saveRequests(all);
     refreshApproved(); showToast("↩️ تم استرداد الطلب من الأرشيف");
+  };
+  const purgeAllArchived = () => {
+    if (!window.confirm("هل تريد حذف جميع الطلبات المؤرشفة نهائياً؟")) return;
+    const all = storage.get("all_requests", []).filter(r => r && !r.archived);
+    storage.set("all_requests", all); FirebaseAPI.saveRequests(all);
+    refreshApproved(); showToast("🗑️ تم حذف جميع الأرشيف");
   };
 
   const exportReqExcel = (req) => {
@@ -305,7 +311,10 @@ function ApprovalsPage({ emp }) {
 
       {canArchive && archived.length > 0 && (
         <div className="mt-6 space-y-3">
-          <h3 className="font-bold text-base border-t border-color pt-4 text-gray-500">📁 الأرشيف ({archived.length})</h3>
+          <div className="flex items-center justify-between border-t border-color pt-4">
+            <h3 className="font-bold text-base text-gray-500">📁 الأرشيف ({archived.length})</h3>
+            <button onClick={purgeAllArchived} className="text-[11px] px-3 py-1.5 bg-red-600 text-white rounded-lg">🗑️ حذف جميع الأرشيف</button>
+          </div>
           {archived.map(req=>(
             <div key={req.id} className="card rounded-2xl p-4 border-gray-200 border bg-gray-50/50 space-y-1">
               <div className="flex justify-between items-start">
