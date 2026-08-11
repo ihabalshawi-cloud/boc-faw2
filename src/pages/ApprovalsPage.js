@@ -73,6 +73,11 @@ function ApprovalsPage({ emp }) {
     storage.set("all_requests", all); FirebaseAPI.saveRequests(all);
     refreshApproved(); showToast("↩️ تم استرداد الطلب من الأرشيف");
   };
+  const deleteArchivedReq = (id) => {
+    const all = storage.get("all_requests", []).filter(r => r.id !== id);
+    storage.set("all_requests", all); FirebaseAPI.saveRequests(all);
+    refreshApproved(); showToast("🗑️ تم حذف الطلب نهائياً");
+  };
   const purgeAllArchived = () => {
     if (!window.confirm("هل تريد حذف جميع الطلبات المؤرشفة نهائياً؟")) return;
     const all = storage.get("all_requests", []).filter(r => r && !r.archived);
@@ -334,6 +339,7 @@ function ApprovalsPage({ emp }) {
                   )}
                   <button onClick={()=>printForm(req)} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Printer size={10}/> طباعة</button>
                   <button onClick={()=>restoreReq(req.id)} className="px-2.5 py-1.5 bg-amber-500 text-white rounded-lg text-[11px]">↩️ استرداد</button>
+                  <button onClick={()=>deleteArchivedReq(req.id)} className="px-2.5 py-1.5 bg-red-600 text-white rounded-lg text-[11px]">🗑️</button>
                 </div>
               </div>
             </div>
