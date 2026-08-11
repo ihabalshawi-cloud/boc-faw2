@@ -480,7 +480,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
           )}
           {view==="notifications" && (
             <React.Suspense fallback={<PageSkeleton/>}>
-              <LazyNotificationsPage emp={emp}/>
+              <LazyNotificationsPage emp={emp} onNavigate={switchView}/>
             </React.Suspense>
           )}
           {view==="changepass" && (

@@ -147,9 +147,10 @@ const NOTIF_FILTERS = [
   { key:"مهام",         match: n => n.type==="مهمة" },
 ];
 
-function NotificationsPage({ emp }) {
+function NotificationsPage({ emp, onNavigate }) {
   const [notifications, setNotifications] = useState(() => storage.get(`notifications_${emp.id}`, []));
   const [filter, setFilter] = useState("الكل");
+  const [recovering, setRecovering] = useState(null);
 
   useEffect(() => {
     FirebaseAPI.loadNotifications(emp.id).then(list => {
@@ -174,6 +175,26 @@ function NotificationsPage({ emp }) {
   const markAsRead = (id) => saveNotifs(notifications.map(n => n.id === id ? { ...n, read: true } : n));
   const markAllRead = () => saveNotifs(notifications.map(n => ({ ...n, read: true })));
   const deleteNotif = (id) => saveNotifs(notifications.filter(n => n.id !== id));
+
+  const recoverRequest = async (notif) => {
+    if (!notif.reqId) return;
+    setRecovering(notif.id);
+    try {
+      const fbList = await FirebaseAPI.loadRequests();
+      const req = fbList?.find(r => r && String(r.id) === String(notif.reqId));
+      if (req) {
+        const all = storage.get("all_requests", []);
+        if (!all.some(r => String(r.id) === String(notif.reqId))) {
+          storage.set("all_requests", [req, ...all]);
+        }
+        if (onNavigate) onNavigate("approvals");
+      } else {
+        alert("تعذّر استرداد الطلب — قد يكون محذوفاً نهائياً من الخادم");
+      }
+    } finally {
+      setRecovering(null);
+    }
+  };
 
   const unread = notifications.filter(n => !n.read).length;
   const activeFilter = NOTIF_FILTERS.find(f => f.key === filter);
@@ -205,6 +226,21 @@ function NotificationsPage({ emp }) {
                 <p className="font-bold text-sm">{n.title}</p>
                 <p className="text-xs text-secondary whitespace-pre-wrap">{n.body}</p>
                 <p className="text-[10px] text-secondary mt-0.5">{new Date(n.timestamp).toLocaleString("ar-IQ")}</p>
+                {n.reqId && (
+                  <div className="flex gap-2 mt-2">
+                    {onNavigate && (
+                      <button onClick={e=>{e.stopPropagation();markAsRead(n.id);onNavigate("approvals");}}
+                        className="text-[10px] px-2 py-1 bg-amber-100 text-amber-800 rounded-lg font-bold">
+                        📋 عرض في الموافقات
+                      </button>
+                    )}
+                    <button onClick={e=>{e.stopPropagation();recoverRequest(n);}}
+                      disabled={recovering===n.id}
+                      className="text-[10px] px-2 py-1 bg-emerald-100 text-emerald-800 rounded-lg font-bold disabled:opacity-50">
+                      {recovering===n.id ? "جاري..." : "🔄 استرداد الطلب"}
+                    </button>
+                  </div>
+                )}
               </div>
               {!n.read && <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 shrink-0"/>}
               <button onClick={e=>{e.stopPropagation();deleteNotif(n.id);}} className="text-secondary hover:text-red-500 shrink-0"><X size={14}/></button>
