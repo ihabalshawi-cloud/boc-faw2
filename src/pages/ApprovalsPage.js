@@ -61,7 +61,7 @@ function ApprovalsPage({ emp }) {
     setArchived(all.filter(r => r && r.archived).sort(sortDesc));
   };
   const archiveReq = (id) => {
-    const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000; // 90 days
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000; // 30 days
     const all = storage.get("all_requests", [])
       .map(r => r.id === id ? {...r, archived:true, archivedAt: new Date().toISOString()} : r)
       .filter(r => !r.archived || !r.archivedAt || new Date(r.archivedAt).getTime() > cutoff);
