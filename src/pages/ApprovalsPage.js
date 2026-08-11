@@ -61,7 +61,10 @@ function ApprovalsPage({ emp }) {
     setArchived(all.filter(r => r && r.archived).sort(sortDesc));
   };
   const archiveReq = (id) => {
-    const all = storage.get("all_requests", []).map(r => r.id === id ? {...r, archived:true} : r);
+    const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000; // 90 days
+    const all = storage.get("all_requests", [])
+      .map(r => r.id === id ? {...r, archived:true, archivedAt: new Date().toISOString()} : r)
+      .filter(r => !r.archived || !r.archivedAt || new Date(r.archivedAt).getTime() > cutoff);
     storage.set("all_requests", all); FirebaseAPI.saveRequests(all);
     refreshApproved(); showToast("📁 تم أرشفة الطلب");
   };
@@ -182,7 +185,7 @@ function ApprovalsPage({ emp }) {
       const empNotifs = [{ id:Date.now(), type:status==="موافق عليها"?"موافقة":"رفض",
         title:status==="موافق عليها"?"✅ تمت الموافقة على طلبك":"❌ تم رفض طلبك",
         body:`${req.type} — ${req.days} يوم`, timestamp:new Date().toISOString(), read:false },
-        ...storage.get(`notifications_${req.empId}`, [])];
+        ...storage.get(`notifications_${req.empId}`, [])].slice(0, 30);
       storage.set(`notifications_${req.empId}`, empNotifs);
       FirebaseAPI.saveNotifications(req.empId, empNotifs);
       sendBackgroundPush(req.empId, empNotifs[0].title, empNotifs[0].body, empNotifs[0].type);
@@ -206,7 +209,7 @@ function ApprovalsPage({ emp }) {
       const adminNotifs = [{ id:Date.now()+admin.id, type:"أرشفة_إجازة",
         title:`📋 إجازة مرحّلة للأرشفة — ${req.empName}`,
         body:`${req.type} — ${req.days} يوم | وافق: ${req.decidedBy}`,
-        timestamp:new Date().toISOString(), read:false, reqId:req.id }, ...storage.get(nk,[])];
+        timestamp:new Date().toISOString(), read:false, reqId:req.id }, ...storage.get(nk,[])].slice(0, 30);
       storage.set(nk, adminNotifs);
       FirebaseAPI.saveNotifications(admin.id, adminNotifs);
     });

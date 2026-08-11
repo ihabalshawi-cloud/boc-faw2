@@ -186,9 +186,26 @@ export const FirebaseAPI = {
     } catch { return false; }
   },
   // ── Chat ──────────────────────────────────────────────────────────────────
+  pruneChat: async (keepLast = 200) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/chat.json?shallow=true`);
+      if (!res.ok) return;
+      const keysObj = await res.json();
+      if (!keysObj || typeof keysObj !== "object") return;
+      const keys = Object.keys(keysObj).sort(); // Firebase push keys sort chronologically
+      if (keys.length <= keepLast) return;
+      const toDelete = keys.slice(0, keys.length - keepLast);
+      await Promise.all(toDelete.map(k =>
+        fetch(`${FIREBASE_URL}/chat/${k}.json`, { method: "DELETE" }).catch(() => {})
+      ));
+    } catch {}
+  },
+
   sendMessage: async (msg) => {
     try {
       await fetch(`${FIREBASE_URL}/chat.json`, { method: "POST", body: JSON.stringify(msg) });
+      // Prune every ~20 sends to keep chat under 200 messages
+      if (Math.random() < 0.05) FirebaseAPI.pruneChat(200);
       return true;
     } catch { return false; }
   },
