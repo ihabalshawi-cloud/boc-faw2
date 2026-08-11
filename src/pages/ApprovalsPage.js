@@ -145,6 +145,7 @@ function ApprovalsPage({ emp }) {
       const merged = list.map(fbR => {
         const loc = local.find(r => r.id === fbR.id);
         if (loc && DECIDED.has(loc.status) && !DECIDED.has(fbR.status)) return loc;
+        if (loc && loc.archived && !fbR.archived) return loc;
         return fbR;
       });
       applyList(merged);
@@ -190,7 +191,7 @@ function ApprovalsPage({ emp }) {
       FirebaseAPI.saveNotifications(req.empId, empNotifs);
       sendBackgroundPush(req.empId, empNotifs[0].title, empNotifs[0].body, empNotifs[0].type);
     }
-    setRequests(requests.filter(r => r.id !== id));
+    setRequests(prev => prev.filter(r => r.id !== id));
     setSigReqId(null);
     refreshApproved();
     showToast(`✅ تم ${status==="موافق عليها"?"قبول":"رفض"} الطلب`);
