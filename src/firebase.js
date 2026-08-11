@@ -347,8 +347,9 @@ export const FirebaseAPI = {
   // ── Leave Requests ────────────────────────────────────────────────────────
   addRequest: async (req) => {
     try {
+      const { sigDataUrl: _s, empSigDataUrl: _e, ...slim } = req;
       const res = await fetch(`${FIREBASE_URL}/all_requests.json`, {
-        method: "PATCH", headers: {"Content-Type":"application/json"}, body: JSON.stringify({[req.id]: req}),
+        method: "PATCH", headers: {"Content-Type":"application/json"}, body: JSON.stringify({[slim.id]: slim}),
       });
       if (!res.ok) console.warn(`[Firebase] addRequest failed (${res.status})`);
       return res.ok;
@@ -356,8 +357,11 @@ export const FirebaseAPI = {
   },
   saveRequests: async (list) => {
     try {
+      // Strip large base64 image fields before writing to Firebase to keep payload small.
+      // These fields are preserved in localStorage for same-device export.
+      const slim = (list || []).map(({ sigDataUrl: _s, empSigDataUrl: _e, ...r }) => r);
       const res = await fetch(`${FIREBASE_URL}/all_requests.json`, {
-        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(list||[]),
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(slim),
       });
       if (!res.ok) {
         const body = await res.text().catch(() => "");

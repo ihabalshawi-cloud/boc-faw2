@@ -152,9 +152,14 @@ function ApprovalsPage({ emp }) {
         const loc = local.find(r => r.id === fbR.id);
         if (loc && DECIDED.has(loc.status) && !DECIDED.has(fbR.status)) return loc;
         if (loc && loc.archived && !fbR.archived) return loc;
-        return fbR;
+        // Restore large fields stripped before Firebase write
+        const sig = loc?.sigDataUrl ? { sigDataUrl: loc.sigDataUrl } : {};
+        const empSig = loc?.empSigDataUrl ? { empSigDataUrl: loc.empSigDataUrl } : {};
+        return { ...fbR, ...sig, ...empSig };
       });
-      applyList(merged);
+      // Include locally-archived items not present in Firebase
+      const localArchived = local.filter(r => r.archived && !merged.some(m => m.id === r.id));
+      applyList([...merged, ...localArchived]);
     });
     load();
     const t = setInterval(load, 15000);
