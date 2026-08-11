@@ -176,6 +176,40 @@ function NotificationsPage({ emp, onNavigate }) {
   const markAllRead = () => saveNotifs(notifications.map(n => ({ ...n, read: true })));
   const deleteNotif = (id) => saveNotifs(notifications.filter(n => n.id !== id));
 
+  const rebuildRequest = (notif) => {
+    // Parse employee name from title: "📋 طلب إجازة زمنية — NAME" or "📋 طلب إعفاء بصمة — NAME"
+    const namePart = (notif.title || "").split("—").slice(1).join("—").trim();
+    const empAcc = ACCOUNTS.find(a => a.name && namePart && a.name.includes(namePart.split(" ")[0]));
+    // Detect type from title
+    let type = "إجازة زمنية";
+    if (notif.title?.includes("اعتيادية")) type = "إجازة اعتيادية";
+    else if (notif.title?.includes("مرضية")) type = "إجازة مرضية";
+    else if (notif.title?.includes("إعفاء بصمة") || notif.title?.includes("بصمة")) type = "إعفاء بصمة";
+    else if (notif.title?.includes("خارج العراق")) type = "إجازة خارج العراق";
+    // Parse days/hours from body: "زمنية — N ساعة" or "اعتيادية — N يوم"
+    const daysMatch = (notif.body || "").match(/(\d+)\s*(يوم|ساعة)/);
+    const days = daysMatch ? daysMatch[1] : "1";
+    const approxDate = notif.timestamp ? notif.timestamp.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    const newReq = {
+      id: Date.now(),
+      originalReqId: notif.reqId,
+      type,
+      dateFrom: approxDate,
+      dateTo: approxDate,
+      days,
+      purpose: (notif.body || "").split("|").slice(1).join("|").trim() || "—",
+      status: "بانتظار المراجعة",
+      submittedAt: notif.timestamp || new Date().toISOString(),
+      empId: empAcc?.id || null,
+      empName: namePart || notif.title,
+      note: "⚠️ طلب معاد بناؤه من الإشعار — التواريخ تقريبية",
+    };
+    const all = storage.get("all_requests", []);
+    storage.set("all_requests", [newReq, ...all]);
+    FirebaseAPI.saveRequests([newReq, ...all]);
+    if (onNavigate) onNavigate("approvals");
+  };
+
   const recoverRequest = async (notif) => {
     if (!notif.reqId) return;
     setRecovering(notif.id);
@@ -189,7 +223,9 @@ function NotificationsPage({ emp, onNavigate }) {
         }
         if (onNavigate) onNavigate("approvals");
       } else {
-        alert("تعذّر استرداد الطلب — قد يكون محذوفاً نهائياً من الخادم");
+        if (window.confirm("لم يُعثر على الطلب في الخادم. هل تريد إنشاء طلب تعويضي من بيانات الإشعار؟")) {
+          rebuildRequest(notif);
+        }
       }
     } finally {
       setRecovering(null);
@@ -227,7 +263,7 @@ function NotificationsPage({ emp, onNavigate }) {
                 <p className="text-xs text-secondary whitespace-pre-wrap">{n.body}</p>
                 <p className="text-[10px] text-secondary mt-0.5">{new Date(n.timestamp).toLocaleString("ar-IQ")}</p>
                 {n.reqId && (
-                  <div className="flex gap-2 mt-2">
+                  <div className="flex flex-wrap gap-2 mt-2">
                     {onNavigate && (
                       <button onClick={e=>{e.stopPropagation();markAsRead(n.id);onNavigate("approvals");}}
                         className="text-[10px] px-2 py-1 bg-amber-100 text-amber-800 rounded-lg font-bold">
@@ -237,7 +273,11 @@ function NotificationsPage({ emp, onNavigate }) {
                     <button onClick={e=>{e.stopPropagation();recoverRequest(n);}}
                       disabled={recovering===n.id}
                       className="text-[10px] px-2 py-1 bg-emerald-100 text-emerald-800 rounded-lg font-bold disabled:opacity-50">
-                      {recovering===n.id ? "جاري..." : "🔄 استرداد الطلب"}
+                      {recovering===n.id ? "جاري..." : "🔄 استرداد من الخادم"}
+                    </button>
+                    <button onClick={e=>{e.stopPropagation();rebuildRequest(n);}}
+                      className="text-[10px] px-2 py-1 bg-blue-100 text-blue-800 rounded-lg font-bold">
+                      🛠️ طلب تعويضي
                     </button>
                   </div>
                 )}
