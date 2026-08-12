@@ -287,23 +287,29 @@ function TimeSheetPage({ emp }) {
 
   const SHIFT_MOVES = new Set(['أ','ب','ج','د']);
   const fillShiftWorkers = async () => {
-    const shiftEmps = (data.malak || []).filter(e => SHIFT_MOVES.has(e.movement));
-    if (!shiftEmps.length) { addToast("لا يوجد مناوبون بنوبة محددة (أ/ب/ج/د) في الملاك", "warning"); return; }
-    const ok = await confirm(`إملاء تلقائي لـ ${shiftEmps.length} مناوب في ${MONTHS_AR_TS[tsMonth]} ${tsYear}؟\nسيُستبدل جميع محتوى أيامهم بـ 3 أو N.`);
+    let cur = null;
+    const fillMap = new Map();
+    for (const e of (data.malak || [])) {
+      if (SHIFT_MOVES.has(e.movement)) { cur = e.movement; fillMap.set(e.id, cur); }
+      else if (cur) fillMap.set(e.id, cur);
+    }
+    if (!fillMap.size) { addToast("لا يوجد مناوبون في الملاك (بدون تعيين نوبة أ/ب/ج/د)", "warning"); return; }
+    const ok = await confirm(`إملاء تلقائي لـ ${fillMap.size} مناوب في ${MONTHS_AR_TS[tsMonth]} ${tsYear}؟\nسيُستبدل جميع محتوى أيامهم بـ 3 أو N.`);
     if (!ok) return;
     setData(prev => {
       const u = {
         ...prev,
         malak: prev.malak.map(e => {
-          if (!SHIFT_MOVES.has(e.movement)) return e;
+          const shift = fillMap.get(e.id);
+          if (!shift) return e;
           const nd = {};
-          days.forEach(d => { nd[String(d)] = getShiftForDay(tsYear, tsMonth, d) === e.movement ? "3" : "N"; });
+          days.forEach(d => { nd[String(d)] = getShiftForDay(tsYear, tsMonth, d) === shift ? "3" : "N"; });
           return {...e, days: nd, hours: {}};
         }),
       };
       persistTs(u); return u;
     });
-    addToast(`✅ تم إملاء تايم شيت ${shiftEmps.length} مناوب تلقائياً`, "success");
+    addToast(`✅ تم إملاء تايم شيت ${fillMap.size} مناوب تلقائياً`, "success");
   };
 
   const downloadBlob = (blob, filename) => {
