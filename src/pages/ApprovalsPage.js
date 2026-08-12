@@ -157,9 +157,9 @@ function ApprovalsPage({ emp }) {
         const loc = local.find(r => r.id === fbR.id);
         if (loc && DECIDED.has(loc.status) && !DECIDED.has(fbR.status)) return loc;
         if (loc && loc.archived && !fbR.archived) return loc;
-        // Restore large fields stripped before Firebase write
-        const sig = loc?.sigDataUrl ? { sigDataUrl: loc.sigDataUrl } : {};
-        const empSig = loc?.empSigDataUrl ? { empSigDataUrl: loc.empSigDataUrl } : {};
+        // For active requests Firebase now stores signatures; for archived, restore from local if present
+        const sig = (!fbR.sigDataUrl && loc?.sigDataUrl) ? { sigDataUrl: loc.sigDataUrl } : {};
+        const empSig = (!fbR.empSigDataUrl && loc?.empSigDataUrl) ? { empSigDataUrl: loc.empSigDataUrl } : {};
         return { ...fbR, ...sig, ...empSig };
       });
       // Include locally-archived items not present in Firebase
