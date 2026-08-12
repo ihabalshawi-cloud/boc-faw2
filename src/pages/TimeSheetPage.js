@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Search, Calendar, X, AlertTriangle, FileCheck, Printer, Upload, Plus, Trash2, Bell } from "lucide-react";
+import { Search, Calendar, X, AlertTriangle, FileCheck, Printer, Upload, Plus, Trash2, Bell, Zap } from "lucide-react";
 import { useToast, useConfirm } from "../contexts";
 import { storage } from "../utils";
 import { FirebaseAPI } from "../firebase";
@@ -285,6 +285,27 @@ function TimeSheetPage({ emp }) {
     addToast("تم ملء رموز عطلة نهاية الأسبوع للكادر الصباحي", "success");
   };
 
+  const SHIFT_MOVES = new Set(['أ','ب','ج','د']);
+  const fillShiftWorkers = async () => {
+    const shiftEmps = (data.malak || []).filter(e => SHIFT_MOVES.has(e.movement));
+    if (!shiftEmps.length) { addToast("لا يوجد مناوبون بنوبة محددة (أ/ب/ج/د) في الملاك", "warning"); return; }
+    const ok = await confirm(`إملاء تلقائي لـ ${shiftEmps.length} مناوب في ${MONTHS_AR_TS[tsMonth]} ${tsYear}؟\nسيُستبدل جميع محتوى أيامهم بـ 3 أو N.`);
+    if (!ok) return;
+    setData(prev => {
+      const u = {
+        ...prev,
+        malak: prev.malak.map(e => {
+          if (!SHIFT_MOVES.has(e.movement)) return e;
+          const nd = {};
+          days.forEach(d => { nd[String(d)] = getShiftForDay(tsYear, tsMonth, d) === e.movement ? "3" : "N"; });
+          return {...e, days: nd, hours: {}};
+        }),
+      };
+      persistTs(u); return u;
+    });
+    addToast(`✅ تم إملاء تايم شيت ${shiftEmps.length} مناوب تلقائياً`, "success");
+  };
+
   const downloadBlob = (blob, filename) => {
     const url=URL.createObjectURL(blob), a=Object.assign(document.createElement("a"),{href:url,download:filename});
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
@@ -340,6 +361,8 @@ function TimeSheetPage({ emp }) {
           </select>
           <button onClick={fillWeekend} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-orange-500 text-white hover:bg-orange-600">
             <Calendar size={14}/> ج/س صباحي</button>
+          {activeTab==="malak"&&<button onClick={fillShiftWorkers} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-purple-600 text-white hover:bg-purple-700">
+            <Zap size={14}/> إملاء المناوبين</button>}
           <button onClick={resetTab} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-amber-500 text-white hover:bg-amber-600">
             <X size={14}/> تصفير</button>
           <button onClick={()=>setShowLegend(v=>!v)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm btn-secondary">
