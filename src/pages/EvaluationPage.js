@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Save, Download, Star, Plus, CheckCircle, Settings, Edit2 } from "lucide-react";
+import { Save, Download, Star, Plus, CheckCircle, Settings, Edit2, ClipboardList } from "lucide-react";
 import { MONTHS_IRAQI, EVAL_CRITERIA, EVAL_CRITERIA_DATA } from "../constants";
 import { FirebaseAPI } from "../firebase";
 import { storage } from "../utils";
 import { sendBackgroundPush } from "../components/Shared";
+import { EvaluationSurvey, calcSurveyScore } from "./EvaluationSurvey";
 
 const BULK_RATINGS=["متوسط","جيد","جيد جدا","ممتاز"];
 const BULK_REQ={متوسط:5,جيد:20,"جيد جدا":40,ممتاز:35};
@@ -220,21 +221,23 @@ function AssignPanel({ allEmployees }) {
   const [selYear,setSelYear]=useState(now.getFullYear());
   const [assignments,setAssignments]=useState({});
   const [leadershipIds,setLeadershipIds]=useState([]);
+  const [surveyExemptIds,setSurveyExemptIds]=useState([]);
   const [windowHours,setWindowHours]=useState(48);
   const [showLdr,setShowLdr]=useState(false);
   const [toast,setToast]=useState("");
   const T=(m)=>{setToast(m);setTimeout(()=>setToast(""),3000);};
   useEffect(()=>{
     FirebaseAPI.loadEvalAssignments(selYear,selMonth).then(d=>setAssignments(d||{}));
-    FirebaseAPI.loadEvalCfg().then(d=>{setLeadershipIds(d?.leadershipIds||[]);if(d?.windowHours)setWindowHours(d.windowHours);});
+    FirebaseAPI.loadEvalCfg().then(d=>{setLeadershipIds(d?.leadershipIds||[]);setSurveyExemptIds(d?.surveyExemptIds||[]);if(d?.windowHours)setWindowHours(d.windowHours);});
   },[selYear,selMonth]);
   const toggleA=(id)=>setAssignments(p=>{const k=String(id);const next={...p};next[k]?delete next[k]:(next[k]=true);return next;});
   const toggleL=(id)=>setLeadershipIds(p=>p.includes(String(id))?p.filter(x=>x!==String(id)):[...p,String(id)]);
+  const toggleSurveyExempt=(id)=>setSurveyExemptIds(p=>p.includes(String(id))?p.filter(x=>x!==String(id)):[...p,String(id)]);
   const assignAll=()=>setAssignments(Object.fromEntries(allEmployees.map(e=>[String(e.id),true])));
   const clearAll=()=>setAssignments({});
   const save=async()=>{
     const ok1=await FirebaseAPI.saveEvalAssignments(selYear,selMonth,assignments);
-    const ok2=await FirebaseAPI.saveEvalCfg({leadershipIds,windowHours,assignedAt:new Date().toISOString()});
+    const ok2=await FirebaseAPI.saveEvalCfg({leadershipIds,surveyExemptIds,windowHours,assignedAt:new Date().toISOString()});
     if(ok1&&ok2){
       const monthLabel=MONTHS_IRAQI[selMonth];
       const title=`⭐ إسناد تقييم ذاتي — ${monthLabel} ${selYear}`;
@@ -260,8 +263,8 @@ function AssignPanel({ allEmployees }) {
         </div>
       </div>
       <p className="text-sm text-secondary">مُسند لـ {assignedCount} موظف من أصل {allEmployees.length}</p>
-      <div className="card rounded-2xl border border-color overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm" dir="rtl"><thead><tr className="bg-gray-50 border-b border-color"><th className="px-3 py-2 text-right">الموظف</th><th className="px-3 py-2 text-right">الرقم</th><th className="px-3 py-2 text-center">إسناد تقييم ذاتي</th></tr></thead>
-        <tbody>{allEmployees.map(e=>(<tr key={e.id} className="border-b border-color"><td className="px-3 py-2 font-medium">{e.name.split(" ").slice(0,3).join(" ")}</td><td className="px-3 py-2 text-secondary text-xs">{e.jobNum}</td><td className="px-3 py-2 text-center"><button onClick={()=>toggleA(e.id)} className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${assignments[String(e.id)]?"bg-indigo-600 text-white":"border border-color text-secondary hover:bg-indigo-50"}`}>{assignments[String(e.id)]?"✓ مُسند":"إسناد"}</button></td></tr>))}</tbody></table></div></div>
+      <div className="card rounded-2xl border border-color overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm" dir="rtl"><thead><tr className="bg-gray-50 border-b border-color"><th className="px-3 py-2 text-right">الموظف</th><th className="px-3 py-2 text-right">الرقم</th><th className="px-3 py-2 text-center">إسناد تقييم ذاتي</th><th className="px-3 py-2 text-center">إعفاء من الاستبيان</th></tr></thead>
+        <tbody>{allEmployees.map(e=>(<tr key={e.id} className="border-b border-color"><td className="px-3 py-2 font-medium">{e.name.split(" ").slice(0,3).join(" ")}</td><td className="px-3 py-2 text-secondary text-xs">{e.jobNum}</td><td className="px-3 py-2 text-center"><button onClick={()=>toggleA(e.id)} className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${assignments[String(e.id)]?"bg-indigo-600 text-white":"border border-color text-secondary hover:bg-indigo-50"}`}>{assignments[String(e.id)]?"✓ مُسند":"إسناد"}</button></td><td className="px-3 py-2 text-center"><button onClick={()=>toggleSurveyExempt(e.id)} className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${surveyExemptIds.includes(String(e.id))?"bg-orange-500 text-white":"border border-color text-secondary hover:bg-orange-50"}`}>{surveyExemptIds.includes(String(e.id))?"معفى":"—"}</button></td></tr>))}</tbody></table></div></div>
       <div className="card rounded-2xl border border-amber-200 overflow-hidden">
         <button onClick={()=>setShowLdr(p=>!p)} className="w-full flex items-center gap-2 px-4 py-3 text-sm font-bold text-amber-700 hover:bg-amber-50">
           <Settings size={15}/> إعدادات معيار القيادة (تفعيل درجة ممتاز) {showLdr?"▲":"▼"}
@@ -388,6 +391,8 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees, onSubmit }) {
   const [toast,setToast]=useState("");
   const [attendanceLocked,setAttendanceLocked]=useState(false);
   const [leaveDays,setLeaveDays]=useState(0);
+  const [surveyData,setSurveyData]=useState(null);
+  const [surveyExempt,setSurveyExempt]=useState(false);
   const T=(m)=>{setToast(m);setTimeout(()=>setToast(""),3000);};
 
   useEffect(()=>{
@@ -401,7 +406,7 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees, onSubmit }) {
           else setSelfStatus("assigned");
         });
       });
-      FirebaseAPI.loadEvalCfg().then(d=>setLeadershipIds(d?.leadershipIds||[]));
+      FirebaseAPI.loadEvalCfg().then(d=>{setLeadershipIds(d?.leadershipIds||[]);setSurveyExempt((d?.surveyExemptIds||[]).includes(String(emp.id)));});
       FirebaseAPI.loadEvaluations().then(list=>{if(list)setMyEvals(list.filter(e=>e?.empId===emp.id));});
       FirebaseAPI.loadRequests().then(allReqs=>{
         const reqs=allReqs||storage.get("all_requests",[]);
@@ -428,12 +433,13 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees, onSubmit }) {
 
   const submitSelf=async()=>{
     const existingSubs=await FirebaseAPI.loadSelfEvals(selYear,selMonth);
-    // Leadership employees are excluded from the 11-slot rank count for regular employees
     const rank=existingSubs?Object.keys(existingSubs).filter(k=>k!==String(emp.id)&&!leadershipIds.includes(k)).length+1:1;
     const rawTotal=Math.round(criteria.reduce((s,c)=>s+scores[c.id],0)/(criteria.length*5)*100);
-    const {grade}=calcSelfGrade(rawTotal,rank,hasLeadership);
+    const survScore=surveyData?.score??null;
+    const finalTotal=survScore!=null?Math.round(survScore*0.30+rawTotal*0.70):rawTotal;
+    const {grade}=calcSelfGrade(finalTotal,rank,hasLeadership);
     const activeScores=Object.fromEntries(criteria.map(c=>[c.id,scores[c.id]]));
-    const data={scores:activeScores,rawTotal,total:rawTotal,grade,rank,hasLeadership,notes:selfNotes,submittedAt:new Date().toISOString(),empName:emp.name};
+    const data={scores:activeScores,rawTotal,surveyScore:survScore,total:finalTotal,grade,rank,hasLeadership,notes:selfNotes,submittedAt:new Date().toISOString(),empName:emp.name};
     const ok=await FirebaseAPI.saveSelfEval(selYear,selMonth,String(emp.id),data);
     if(ok){setSelfStatus("submitted");setSelfData(data);T("✅ تم إرسال التقييم");if(onSubmit)onSubmit();}
     else T("⚠️ فشل الإرسال");
@@ -460,8 +466,10 @@ export function EvaluationSystem({ emp, isAdmin, allEmployees, onSubmit }) {
           {selfStatus==="loading"&&<div className="card rounded-2xl p-6 text-center border-color border"><p className="text-secondary">جارٍ التحميل...</p></div>}
           {selfStatus==="error"&&<div className="card rounded-2xl p-8 text-center border-color border border-red-200 bg-red-50 dark:bg-red-900/20"><p className="text-red-600 font-bold mb-1">تعذّر الاتصال بقاعدة البيانات</p><p className="text-xs text-secondary">تحقق من اتصالك بالإنترنت أو تواصل مع المشرف</p><button onClick={()=>{setSelfStatus("loading");FirebaseAPI.loadEvalAssignments(selYear,selMonth).then(d=>{if(d===null){setSelfStatus("error");return;}const eid=String(emp.id);if(!d[eid]){setSelfStatus("not_assigned");return;}FirebaseAPI.loadSelfEvals(selYear,selMonth).then(se=>{if(se?.[eid]){setSelfStatus("submitted");setSelfData(se[eid]);}else setSelfStatus("assigned");});});}} className="mt-3 px-4 py-2 text-xs font-bold text-white bg-red-600 rounded-xl">إعادة المحاولة</button></div>}
           {selfStatus==="not_assigned"&&<div className="card rounded-2xl p-8 text-center border-color border"><Star size={40} className="mx-auto text-secondary mb-2"/><p className="text-secondary">لم يُسند لك تقييم ذاتي لهذا الشهر</p></div>}
-          {selfStatus==="submitted"&&<div className="card rounded-2xl p-6 text-center border-color border border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20"><CheckCircle size={32} className="mx-auto text-emerald-500 mb-2"/><p className="font-bold text-emerald-700">تم إرسال تقييمك بنجاح</p>{selfData&&<><p className={`text-3xl font-bold mt-2 ${SGC[submittedFG]||submittedGI?.color}`}>{selfData.rawTotal||selfData.total}%</p><p className={`text-xl font-bold ${SGC[submittedFG]||submittedGI?.color}`}>{submittedFG}</p><p className="text-xs text-secondary mt-1">ترتيبك في الإرسال: {selfData.rank}</p>{selfData.adminNote&&<p className="text-xs text-amber-600 mt-2 italic">ملاحظة المشرف: {selfData.adminNote}</p>}</>}</div>}
-          {selfStatus==="assigned"&&<div className="card rounded-2xl border-2 border-indigo-200 p-5 space-y-3">
+          {selfStatus==="submitted"&&<div className="card rounded-2xl p-6 text-center border-color border border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20"><CheckCircle size={32} className="mx-auto text-emerald-500 mb-2"/><p className="font-bold text-emerald-700">تم إرسال تقييمك بنجاح</p>{selfData&&<><p className={`text-3xl font-bold mt-2 ${SGC[submittedFG]||submittedGI?.color}`}>{selfData.rawTotal||selfData.total}%</p><p className={`text-xl font-bold ${SGC[submittedFG]||submittedGI?.color}`}>{submittedFG}</p><p className="text-xs text-secondary mt-1">ترتيبك في الإرسال: {selfData.rank}</p>{selfData.surveyScore!=null&&<p className="text-xs text-secondary">درجة الاستبيان: {selfData.surveyScore}%</p>}{selfData.adminNote&&<p className="text-xs text-amber-600 mt-2 italic">ملاحظة المشرف: {selfData.adminNote}</p>}</>}</div>}
+          {selfStatus==="assigned"&&!surveyExempt&&surveyData===null&&<EvaluationSurvey onComplete={setSurveyData}/>}
+          {selfStatus==="assigned"&&(surveyExempt||surveyData!==null)&&<div className="card rounded-2xl border-2 border-indigo-200 p-5 space-y-3">
+            {surveyData&&<div className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-700"><ClipboardList size={14}/><span>درجة الاستبيان: <strong>{surveyData.score}%</strong> · تحتسب 30% من إجمالي تقييمك</span></div>}
             <p className="text-sm font-bold text-indigo-700">قيّم نفسك في المعايير التالية (2 = مقبول، 3 = جيد، 4 = متميز، 5 = استثنائي)</p>
             {attendanceLocked&&leaveDays>0&&<div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 rounded-xl p-3 text-xs text-amber-700"><span className="text-base leading-none">⚠️</span><span>لديك <strong>{leaveDays} {leaveDays===1?"يوم":"أيام"}</strong> إجازة مسجّلة في {MONTHS_IRAQI[selMonth]} — تمّت برمجة درجة الحضور تلقائياً ({leaveDays===1?4:leaveDays===2?3:2}/5)</span></div>}
             {criteria.map(c=>{const locked=c.id==="attendance"&&attendanceLocked;return(<div key={c.id} className={`border rounded-xl p-3 ${locked?"border-amber-200 bg-amber-50 dark:bg-amber-900/10":"border-color"}`}>
