@@ -63,9 +63,17 @@ function RequestsPage({ emp }) {
   useEffect(() => {
     const load = () => FirebaseAPI.loadRequests().then(list => {
       if (list && list.length > 0) {
-        storage.set("all_requests", list);
-        const mine = list.filter(r => r && Number(r.empId) === Number(emp.id));
+        const localMine = storage.get(`requests_${emp.id}`, []);
+        const mine = list
+          .filter(r => r && Number(r.empId) === Number(emp.id))
+          .map(fbR => {
+            const loc = localMine.find(l => l.id === fbR.id);
+            const sig = (!fbR.sigDataUrl && loc?.sigDataUrl) ? { sigDataUrl: loc.sigDataUrl } : {};
+            const empSig = (!fbR.empSigDataUrl && loc?.empSigDataUrl) ? { empSigDataUrl: loc.empSigDataUrl } : {};
+            return { ...fbR, ...sig, ...empSig };
+          });
         if (mine.length > 0) { storage.set(`requests_${emp.id}`, mine); setRequests(mine); }
+        storage.set("all_requests", list);
       }
     });
     load();
