@@ -12,7 +12,18 @@ function InlineSigPad({ onSave, onCancel }) {
   useEffect(() => {
     fetch("/supervisor_sig_stamp.png")
       .then(r => { if (!r.ok) throw new Error(); return r.blob(); })
-      .then(blob => { const fr = new FileReader(); fr.onload = () => setPreview(fr.result); fr.readAsDataURL(blob); })
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          const W = 300, H = Math.round(img.naturalHeight * (300 / img.naturalWidth));
+          const c = document.createElement("canvas"); c.width = W; c.height = H;
+          c.getContext("2d").drawImage(img, 0, 0, W, H);
+          setPreview(c.toDataURL("image/jpeg", 0.82));
+          URL.revokeObjectURL(url);
+        };
+        img.src = url;
+      })
       .catch(() => setErr(true));
   }, []);
   return (
