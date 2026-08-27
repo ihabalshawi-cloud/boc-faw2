@@ -19,7 +19,7 @@ function InlineSigPad({ onSave, onCancel }) {
           const W = 300, H = Math.round(img.naturalHeight * (300 / img.naturalWidth));
           const c = document.createElement("canvas"); c.width = W; c.height = H;
           c.getContext("2d").drawImage(img, 0, 0, W, H);
-          setPreview(c.toDataURL("image/jpeg", 0.82));
+          setPreview(c.toDataURL("image/png"));
           URL.revokeObjectURL(url);
         };
         img.src = url;
