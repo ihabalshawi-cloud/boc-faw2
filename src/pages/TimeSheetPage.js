@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Search, Calendar, X, AlertTriangle, FileCheck, Printer, Upload, Plus, Trash2, Bell, Zap } from "lucide-react";
+import { Search, Calendar, X, AlertTriangle, FileCheck, Printer, Upload, Plus, Trash2, Bell, Zap, Archive } from "lucide-react";
 import { useToast, useConfirm } from "../contexts";
 import { storage } from "../utils";
 import { FirebaseAPI } from "../firebase";
@@ -312,6 +312,13 @@ function TimeSheetPage({ emp }) {
     addToast(`✅ تم إملاء تايم شيت ${fillMap.size} مناوب تلقائياً`, "success");
   };
 
+  const archiveMonth = async () => {
+    const ok = await confirm(`أرشفة تايم شيت ${MONTHS_AR_TS[tsMonth]} ${tsYear} إلى Firebase؟`);
+    if (!ok) return;
+    const saved = await FirebaseAPI.saveTimesheetArchive(tsYear, tsMonth, data);
+    addToast(saved ? `✅ أُرشف ${MONTHS_AR_TS[tsMonth]} ${tsYear}` : "تعذّرت الأرشفة", saved ? "success" : "error");
+  };
+
   const downloadBlob = (blob, filename) => {
     const url=URL.createObjectURL(blob), a=Object.assign(document.createElement("a"),{href:url,download:filename});
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
@@ -384,6 +391,10 @@ function TimeSheetPage({ emp }) {
           <button onClick={()=>{setShowImport(v=>!v);setShowExport(false);}}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700">
             <Upload size={14}/> استيراد Excel
+          </button>
+          <button onClick={archiveMonth}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-slate-700 text-white hover:bg-slate-800">
+            <Archive size={14}/> أرشفة الشهر
           </button>
         </div>
       </div>
