@@ -77,7 +77,7 @@ function RequestsPage({ emp }) {
       }
     });
     load();
-    const poll = setInterval(load, 20000);
+    const poll = setInterval(load, 90000);
     const t = setTimeout(() => setPageLoading(false), 250);
     return () => { clearInterval(poll); clearTimeout(t); };
   // eslint-disable-next-line react-hooks/exhaustive-deps

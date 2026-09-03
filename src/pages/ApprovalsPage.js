@@ -178,7 +178,7 @@ function ApprovalsPage({ emp }) {
       applyList([...merged, ...localArchived]);
     });
     load();
-    const t = setInterval(load, 15000);
+    const t = setInterval(load, 60000);
     const onVisible = () => { if (document.visibilityState === "visible") load(); };
     document.addEventListener("visibilitychange", onVisible);
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVisible); };

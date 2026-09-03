@@ -161,7 +161,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
       });
     };
     syncNotifs();
-    const t = setInterval(syncNotifs, 30000);
+    const t = setInterval(syncNotifs, 120000);
     return () => clearInterval(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emp.id]);
@@ -230,7 +230,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     prevReqRef.current = allRequests;
   }, [allRequests, emp.id]);
   useEffect(() => {
-    const t = setInterval(() => { FirebaseAPI.loadRequests().then(list => { if(list?.length){const clean=list.filter(Boolean);storage.set("all_requests",clean);setAllRequests(clean);} }); }, 60000);
+    const t = setInterval(() => { FirebaseAPI.loadRequests().then(list => { if(list?.length){const clean=list.filter(Boolean);storage.set("all_requests",clean);setAllRequests(clean);} }); }, 180000);
     return () => clearInterval(t);
   }, []);
 
