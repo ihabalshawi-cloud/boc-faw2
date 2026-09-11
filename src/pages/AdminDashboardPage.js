@@ -6,6 +6,7 @@ import { useToast, useConfirm } from "../contexts";
 import { PERMISSIONS_DEF, BUILT_IN_ROLES, getEmpStatus } from "../permissions";
 import EmployeeManager from "./EmployeeManagerPage";
 import { useDebounce } from "../components/Shared";
+import FirebaseCleanupSection from "./FirebaseCleanupSection";
 
 function FirebaseRulesTab() {
   const [rules, setRules] = useState(null);
@@ -470,8 +471,8 @@ function AdminDashboard({ emp, employees, setEmployees }) {
         </div>
       )}
 
-      {/* ── Firebase Rules ── */}
-      {tab === "firebase" && <FirebaseRulesTab/>}
+      {/* ── Firebase Rules + Cleanup ── */}
+      {tab === "firebase" && <><FirebaseRulesTab/><FirebaseCleanupSection/></>}
     </div>
   );
 }
