@@ -49,29 +49,29 @@ class AssignmentModel extends Assignment {
   }
 
   factory AssignmentModel.fromEntity(Assignment a) => AssignmentModel(
-    id: a.id,
-    title: a.title,
-    description: a.description,
-    type: a.type,
-    classId: a.classId,
-    teacherId: a.teacherId,
-    lessonId: a.lessonId,
-    maxScore: a.maxScore,
-    dueDate: a.dueDate,
-    createdAt: a.createdAt,
-    isPublished: a.isPublished,
-  );
+        id: a.id,
+        title: a.title,
+        description: a.description,
+        type: a.type,
+        classId: a.classId,
+        teacherId: a.teacherId,
+        lessonId: a.lessonId,
+        maxScore: a.maxScore,
+        dueDate: a.dueDate,
+        createdAt: a.createdAt,
+        isPublished: a.isPublished,
+      );
 
   Map<String, dynamic> toJson() => {
-    'title': title,
-    'description': description,
-    'type': type.name,
-    'classId': classId,
-    'teacherId': teacherId,
-    'lessonId': lessonId,
-    'maxScore': maxScore,
-    'dueDate': dueDate,
-    'createdAt': createdAt,
-    'isPublished': isPublished,
-  };
+        'title': title,
+        'description': description,
+        'type': type.name,
+        'classId': classId,
+        'teacherId': teacherId,
+        'lessonId': lessonId,
+        'maxScore': maxScore,
+        'dueDate': dueDate,
+        'createdAt': createdAt,
+        'isPublished': isPublished,
+      };
 }

@@ -32,19 +32,19 @@ abstract final class UserModel {
   }
 
   static Map<String, dynamic> toJson(AppUser user) => switch (user) {
-    Student s => StudentModel.fromEntity(s).toJson(),
-    Teacher t => TeacherModel.fromEntity(t).toJson(),
-    Parent p => ParentModel.fromEntity(p).toJson(),
-  };
+        final Student s => StudentModel.fromEntity(s).toJson(),
+        final Teacher t => TeacherModel.fromEntity(t).toJson(),
+        final Parent p => ParentModel.fromEntity(p).toJson(),
+      };
 
   static Map<String, dynamic> _baseToJson(AppUser u) => {
-    'role': u.role.name,
-    'fullName': u.fullName,
-    'email': u.email,
-    'avatarUrl': u.avatarUrl,
-    'createdAt': u.createdAt,
-    'fcmTokens': u.fcmTokens,
-  };
+        'role': u.role.name,
+        'fullName': u.fullName,
+        'email': u.email,
+        'avatarUrl': u.avatarUrl,
+        'createdAt': u.createdAt,
+        'fcmTokens': u.fcmTokens,
+      };
 
   static String _readId(Map<String, dynamic> json, String? id) =>
       id ?? JsonUtils.requireString(json, 'id');
@@ -89,29 +89,29 @@ class StudentModel extends Student {
       );
 
   factory StudentModel.fromEntity(Student s) => StudentModel(
-    id: s.id,
-    fullName: s.fullName,
-    email: s.email,
-    avatarUrl: s.avatarUrl,
-    createdAt: s.createdAt,
-    fcmTokens: s.fcmTokens,
-    classId: s.classId,
-    gradeLevel: s.gradeLevel,
-    parentIds: s.parentIds,
-    totalPoints: s.totalPoints,
-    completedLessonIds: s.completedLessonIds,
-    avatarCharacter: s.avatarCharacter,
-  );
+        id: s.id,
+        fullName: s.fullName,
+        email: s.email,
+        avatarUrl: s.avatarUrl,
+        createdAt: s.createdAt,
+        fcmTokens: s.fcmTokens,
+        classId: s.classId,
+        gradeLevel: s.gradeLevel,
+        parentIds: s.parentIds,
+        totalPoints: s.totalPoints,
+        completedLessonIds: s.completedLessonIds,
+        avatarCharacter: s.avatarCharacter,
+      );
 
   Map<String, dynamic> toJson() => {
-    ...UserModel._baseToJson(this),
-    'classId': classId,
-    'gradeLevel': gradeLevel,
-    'parentIds': parentIds,
-    'totalPoints': totalPoints,
-    'completedLessonIds': completedLessonIds,
-    'avatarCharacter': avatarCharacter,
-  };
+        ...UserModel._baseToJson(this),
+        'classId': classId,
+        'gradeLevel': gradeLevel,
+        'parentIds': parentIds,
+        'totalPoints': totalPoints,
+        'completedLessonIds': completedLessonIds,
+        'avatarCharacter': avatarCharacter,
+      };
 }
 
 class TeacherModel extends Teacher {
@@ -139,21 +139,21 @@ class TeacherModel extends Teacher {
       );
 
   factory TeacherModel.fromEntity(Teacher t) => TeacherModel(
-    id: t.id,
-    fullName: t.fullName,
-    email: t.email,
-    avatarUrl: t.avatarUrl,
-    createdAt: t.createdAt,
-    fcmTokens: t.fcmTokens,
-    classIds: t.classIds,
-    subject: t.subject,
-  );
+        id: t.id,
+        fullName: t.fullName,
+        email: t.email,
+        avatarUrl: t.avatarUrl,
+        createdAt: t.createdAt,
+        fcmTokens: t.fcmTokens,
+        classIds: t.classIds,
+        subject: t.subject,
+      );
 
   Map<String, dynamic> toJson() => {
-    ...UserModel._baseToJson(this),
-    'classIds': classIds,
-    'subject': subject,
-  };
+        ...UserModel._baseToJson(this),
+        'classIds': classIds,
+        'subject': subject,
+      };
 }
 
 class ParentModel extends Parent {
@@ -181,19 +181,19 @@ class ParentModel extends Parent {
       );
 
   factory ParentModel.fromEntity(Parent p) => ParentModel(
-    id: p.id,
-    fullName: p.fullName,
-    email: p.email,
-    avatarUrl: p.avatarUrl,
-    createdAt: p.createdAt,
-    fcmTokens: p.fcmTokens,
-    childrenIds: p.childrenIds,
-    phoneNumber: p.phoneNumber,
-  );
+        id: p.id,
+        fullName: p.fullName,
+        email: p.email,
+        avatarUrl: p.avatarUrl,
+        createdAt: p.createdAt,
+        fcmTokens: p.fcmTokens,
+        childrenIds: p.childrenIds,
+        phoneNumber: p.phoneNumber,
+      );
 
   Map<String, dynamic> toJson() => {
-    ...UserModel._baseToJson(this),
-    'childrenIds': childrenIds,
-    'phoneNumber': phoneNumber,
-  };
+        ...UserModel._baseToJson(this),
+        'childrenIds': childrenIds,
+        'phoneNumber': phoneNumber,
+      };
 }

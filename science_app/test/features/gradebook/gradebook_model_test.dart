@@ -80,6 +80,25 @@ void main() {
 
     final json = g.toJson();
     expect(json['gradeLevel'], 'veryGood');
+    // الدرجات مخزّنة كخريطة مفتاحها معرّف الواجب.
+    expect((json['entries'] as Map).keys, ['a1', 'a2']);
     expect(GradebookModel.fromJson(json, id: 's1'), g);
+  });
+
+  test('سجل الدرجات: يقرأ الشكل القديم (قائمة) أيضاً', () {
+    final g = GradebookModel.fromJson({
+      'classId': '5A',
+      'entries': [
+        {
+          'assignmentId': 'a1',
+          'assignmentTitle': 'الطفو',
+          'score': 7,
+          'maxScore': 10,
+          'gradedAt': DateTime(2026, 10, 11),
+        },
+      ],
+    }, id: 's1');
+    expect(g.entries.single.assignmentId, 'a1');
+    expect(g.totalScore, 7);
   });
 }

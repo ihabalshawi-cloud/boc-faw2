@@ -65,19 +65,19 @@ class Submission extends Equatable {
 
   @override
   List<Object?> get props => [
-    id,
-    assignmentId,
-    studentId,
-    classId,
-    status,
-    quizAnswers,
-    textAnswer,
-    attachmentUrls,
-    score,
-    maxScore,
-    teacherFeedback,
-    submittedAt,
-    gradedAt,
-    gradedBy,
-  ];
+        id,
+        assignmentId,
+        studentId,
+        classId,
+        status,
+        quizAnswers,
+        textAnswer,
+        attachmentUrls,
+        score,
+        maxScore,
+        teacherFeedback,
+        submittedAt,
+        gradedAt,
+        gradedBy,
+      ];
 }

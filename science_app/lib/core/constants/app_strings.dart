@@ -38,6 +38,61 @@ abstract final class AppStrings {
   static const wrongAnswer = 'حاول مرة أخرى 💪';
   static const quizFinished = 'انتهى الاختبار';
 
+  // شاشة الاختبار التفاعلي
+  static const trueLabel = 'صح';
+  static const falseLabel = 'خطأ';
+  static const questionOf = 'السؤال';
+  static const of = 'من';
+  static const myPoints = 'نقاطي';
+  static const nextQuestion = 'السؤال التالي';
+  static const chooseCorrectAnswer = 'اختر الإجابة الصحيحة';
+  static const trueOrFalse = 'صح أم خطأ؟';
+  static const showResult = 'اعرض النتيجة';
+  static const theCorrectAnswerIs = 'الإجابة الصحيحة هي:';
+  static const didYouKnow = 'هل تعلم؟';
+  static const streakBonus = 'سلسلة نارية! 🔥';
+  static const pointsSuffix = 'نقطة';
+  static const noQuestions = 'لا توجد أسئلة في هذا الدرس بعد';
+  static const exitQuizTitle = 'هل تريد الخروج؟';
+  static const exitQuizBody = 'إذا خرجت الآن ستضيع إجاباتك في هذا الاختبار.';
+  static const stay = 'أكمل الاختبار';
+  static const exit = 'خروج';
+
+  /// عبارات التشجيع عند الإجابة الصحيحة.
+  static const praises = [
+    'بطل العلوم! 🎉',
+    'عالِم صغير رائع! 🔬',
+    'إجابة مذهلة! ⭐',
+    'أحسنت يا بطل! 🚀',
+    'عبقري! 🧠',
+    'رائع جداً! 🌟',
+  ];
+
+  /// عبارات لطيفة عند الإجابة الخاطئة.
+  static const encouragements = [
+    'لا بأس، نتعلم من أخطائنا 💪',
+    'قريب جداً! ركّز في السؤال القادم 🌈',
+    'المحاولة شجاعة! هيا نكمل 🦸',
+  ];
+
+  // شاشة النتيجة
+  static const resultPerfect = 'رائع! أنت بطل العلوم 🏆';
+  static const resultGreat = 'عمل ممتاز! ⭐';
+  static const resultGood = 'جيد! استمر بالتعلم 💪';
+  static const resultTryAgain = 'لا بأس، لنحاول مرة أخرى 🌱';
+  static const pointsEarned = 'النقاط المكتسبة';
+  static const correctAnswers = 'الإجابات الصحيحة';
+  static const bestStreak = 'أطول سلسلة صحيحة';
+  static const percentage = 'النسبة';
+  static const playAgain = 'العب مرة أخرى';
+  static const backToLessons = 'العودة إلى الدروس';
+  static const savingScore = 'جارِ إرسال درجتك إلى المعلّمة...';
+  static const scoreSaved = 'تم حفظ درجتك في سجل المعلّمة ✅';
+  static const scoreAlreadySaved =
+      'حللت هذا الاختبار من قبل، والدرجة المحفوظة هي محاولتك الأولى';
+  static const practiceMode = 'اختبار تدريبي، الدرجة لا تُرسل إلى السجل';
+  static const scoreSaveFailed = 'لم نتمكن من حفظ درجتك';
+
   // الواجبات والدرجات
   static const assignments = 'الواجبات';
   static const gradebook = 'سجل الدرجات';

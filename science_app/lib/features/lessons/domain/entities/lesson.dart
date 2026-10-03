@@ -48,18 +48,18 @@ class Lesson extends Equatable {
 
   @override
   List<Object?> get props => [
-    id,
-    title,
-    videoUrl,
-    quizList,
-    description,
-    unitTitle,
-    order,
-    thumbnailUrl,
-    durationMinutes,
-    isPublished,
-    createdBy,
-    createdAt,
-    updatedAt,
-  ];
+        id,
+        title,
+        videoUrl,
+        quizList,
+        description,
+        unitTitle,
+        order,
+        thumbnailUrl,
+        durationMinutes,
+        isPublished,
+        createdBy,
+        createdAt,
+        updatedAt,
+      ];
 }

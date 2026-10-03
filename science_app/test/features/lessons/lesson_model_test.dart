@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:science_kids/core/errors/exceptions.dart';
 import 'package:science_kids/features/lessons/data/models/lesson_model.dart';
 import 'package:science_kids/features/lessons/data/models/quiz_question_model.dart';
+import 'package:science_kids/features/lessons/domain/entities/quiz_question.dart';
 
 void main() {
   final questionJson = {
@@ -47,5 +48,36 @@ void main() {
       }, id: 'l2'),
       throwsA(isA<DataParsingException>()),
     );
+  });
+
+  test('سؤال صح أو خطأ: خيارات افتراضية وتحويل ذهاب وإياب', () {
+    final q = QuizQuestionModel.fromJson({
+      'id': 'q2',
+      'type': 'trueFalse',
+      'questionText': 'النباتات تصنع غذاءها بنفسها',
+      'correctAnswerIndex': 0,
+    });
+    expect(q.isTrueFalse, isTrue);
+    expect(q.options, ['صح', 'خطأ']);
+    expect(q.correctAnswer, 'صح');
+    expect(QuizQuestionModel.fromJson(q.toJson()), q);
+  });
+
+  test('يرفض سؤال صح أو خطأ بأكثر من خيارين', () {
+    expect(
+      () => QuizQuestionModel.fromJson({
+        'id': 'q3',
+        'type': 'trueFalse',
+        'questionText': 'سؤال',
+        'options': ['صح', 'خطأ', 'ربما'],
+        'correctAnswerIndex': 0,
+      }),
+      throwsA(isA<DataParsingException>()),
+    );
+  });
+
+  test('الأسئلة القديمة بدون نوع تُقرأ اختياراً من متعدد', () {
+    final q = QuizQuestionModel.fromJson(questionJson);
+    expect(q.type, QuestionType.multipleChoice);
   });
 }

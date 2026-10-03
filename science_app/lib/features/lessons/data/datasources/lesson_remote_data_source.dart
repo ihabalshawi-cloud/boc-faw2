@@ -11,12 +11,12 @@ class LessonRemoteDataSource {
 
   final FirestoreService _firestore;
 
-  late final CollectionReference<Lesson> lessons = _firestore
-      .collection<Lesson>(
-        FirestoreCollections.lessons,
-        fromJson: (json, id) => LessonModel.fromJson(json, id: id),
-        toJson: (lesson) => LessonModel.fromEntity(lesson).toJson(),
-      );
+  late final CollectionReference<Lesson> lessons =
+      _firestore.collection<Lesson>(
+    FirestoreCollections.lessons,
+    fromJson: (json, id) => LessonModel.fromJson(json, id: id),
+    toJson: (lesson) => LessonModel.fromEntity(lesson).toJson(),
+  );
 
   /// الدروس المنشورة مرتبة حسب تسلسلها (للطالب ووليّ الأمر).
   Stream<List<Lesson>> watchPublishedLessons() => lessons

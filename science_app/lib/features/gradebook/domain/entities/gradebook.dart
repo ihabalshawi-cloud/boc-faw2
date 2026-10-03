@@ -16,9 +16,9 @@ enum GradeLevel {
   final double minPercentage;
 
   static GradeLevel fromPercentage(double percentage) => values.firstWhere(
-    (g) => percentage >= g.minPercentage,
-    orElse: () => needsWork,
-  );
+        (g) => percentage >= g.minPercentage,
+        orElse: () => needsWork,
+      );
 }
 
 /// درجة واحدة في سجل الطالب.
@@ -43,13 +43,13 @@ class GradeEntry extends Equatable {
 
   @override
   List<Object?> get props => [
-    assignmentId,
-    assignmentTitle,
-    submissionId,
-    score,
-    maxScore,
-    gradedAt,
-  ];
+        assignmentId,
+        assignmentTitle,
+        submissionId,
+        score,
+        maxScore,
+        gradedAt,
+      ];
 }
 
 /// سجل درجات الطالب في مادة العلوم. مستند واحد لكل طالب.
@@ -79,10 +79,10 @@ class Gradebook extends Equatable {
 
   @override
   List<Object?> get props => [
-    studentId,
-    studentName,
-    classId,
-    entries,
-    updatedAt,
-  ];
+        studentId,
+        studentName,
+        classId,
+        entries,
+        updatedAt,
+      ];
 }

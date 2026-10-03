@@ -37,14 +37,14 @@ sealed class AppUser extends Equatable {
 
   @override
   List<Object?> get props => [
-    id,
-    fullName,
-    email,
-    avatarUrl,
-    createdAt,
-    fcmTokens,
-    role,
-  ];
+        id,
+        fullName,
+        email,
+        avatarUrl,
+        createdAt,
+        fcmTokens,
+        role,
+      ];
 }
 
 /// الطالب.
@@ -81,14 +81,14 @@ class Student extends AppUser {
 
   @override
   List<Object?> get props => [
-    ...super.props,
-    classId,
-    gradeLevel,
-    parentIds,
-    totalPoints,
-    completedLessonIds,
-    avatarCharacter,
-  ];
+        ...super.props,
+        classId,
+        gradeLevel,
+        parentIds,
+        totalPoints,
+        completedLessonIds,
+        avatarCharacter,
+      ];
 }
 
 /// المعلّم.

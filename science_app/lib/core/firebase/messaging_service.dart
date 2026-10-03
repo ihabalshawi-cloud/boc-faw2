@@ -24,8 +24,8 @@ class MessagingService {
     FirebaseMessaging? messaging,
     FirebaseFirestore? firestore,
     this.webVapidKey,
-  }) : _messaging = messaging ?? FirebaseMessaging.instance,
-       _db = firestore ?? FirebaseFirestore.instance;
+  })  : _messaging = messaging ?? FirebaseMessaging.instance,
+        _db = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseMessaging _messaging;
   final FirebaseFirestore _db;
@@ -102,23 +102,23 @@ class MessagingService {
   }
 
   Future<void> _saveToken(String uid, String token) => _userDoc(uid).update({
-    'fcmTokens': FieldValue.arrayUnion([token]),
-  });
+        'fcmTokens': FieldValue.arrayUnion([token]),
+      });
 
   DocumentReference<Map<String, dynamic>> _userDoc(String uid) =>
       _db.collection(FirestoreCollections.users).doc(uid);
 
   static List<String> _topicsFor(AppUser user) => switch (user) {
-    Student s => [
-      MessagingTopics.allStudents,
-      MessagingTopics.forClass(s.classId),
-    ],
-    Teacher t => [
-      MessagingTopics.allTeachers,
-      ...t.classIds.map(MessagingTopics.forClass),
-    ],
-    Parent _ => [MessagingTopics.allParents],
-  };
+        final Student s => [
+            MessagingTopics.allStudents,
+            MessagingTopics.forClass(s.classId),
+          ],
+        final Teacher t => [
+            MessagingTopics.allTeachers,
+            ...t.classIds.map(MessagingTopics.forClass),
+          ],
+        Parent _ => [MessagingTopics.allParents],
+      };
 
   void dispose() => _tokenRefreshSub?.cancel();
 }

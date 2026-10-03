@@ -7,7 +7,7 @@ import '../errors/exceptions.dart';
 /// توفّر مجموعات مُنمّطة (typed) وتحويل أخطاء Firebase إلى رسائل عربية.
 class FirestoreService {
   FirestoreService({FirebaseFirestore? firestore})
-    : _db = firestore ?? FirebaseFirestore.instance;
+      : _db = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _db;
 
@@ -19,9 +19,7 @@ class FirestoreService {
     required T Function(Map<String, dynamic> json, String id) fromJson,
     required Map<String, dynamic> Function(T value) toJson,
   }) {
-    return _db
-        .collection(path)
-        .withConverter<T>(
+    return _db.collection(path).withConverter<T>(
           fromFirestore: (snap, _) => fromJson(snap.data() ?? {}, snap.id),
           toFirestore: (value, _) => toJson(value),
         );
@@ -41,9 +39,9 @@ class FirestoreService {
   }
 
   static String _messageFor(String code) => switch (code) {
-    'permission-denied' => AppStrings.errorPermission,
-    'not-found' => AppStrings.errorNotFound,
-    'unavailable' || 'deadline-exceeded' => AppStrings.errorNetwork,
-    _ => AppStrings.errorGeneric,
-  };
+        'permission-denied' => AppStrings.errorPermission,
+        'not-found' => AppStrings.errorNotFound,
+        'unavailable' || 'deadline-exceeded' => AppStrings.errorNetwork,
+        _ => AppStrings.errorGeneric,
+      };
 }

@@ -15,6 +15,38 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(studentId)).data.parentIds;
     }
 
+    function isAutoGradedQuiz(submissionId) {
+      let s = request.resource.data;
+      let a = get(/databases/$(database)/documents/assignments/$(s.assignmentId)).data;
+      return s.studentId == uid() &&
+        submissionId == s.assignmentId + '_' + uid() &&
+        s.status == 'graded' && s.gradedBy == 'auto' &&
+        a.type == 'quiz' && a.isPublished == true &&
+        s.classId == a.classId && userData().classId == a.classId &&
+        s.maxScore == a.maxScore &&
+        s.score is number && s.score >= 0 && s.score <= s.maxScore;
+    }
+
+    function studentAddsQuizGrade(studentId) {
+      let next = request.resource.data;
+      let prev = resource == null
+        ? {'entries': {}, 'totalScore': 0, 'totalMaxScore': 0}
+        : resource.data;
+      let key = next.lastAssignmentId;
+      let added = next.entries.diff(prev.entries);
+      let sub = getAfter(/databases/$(database)/documents/submissions/$(key + '_' + studentId)).data;
+      return next.studentId == studentId &&
+        next.classId == userData().classId &&
+        added.addedKeys() == [key].toSet() &&
+        added.changedKeys().size() == 0 &&
+        added.removedKeys().size() == 0 &&
+        sub.gradedBy == 'auto' &&
+        next.entries[key].score == sub.score &&
+        next.entries[key].maxScore == sub.maxScore &&
+        next.totalScore == prev.totalScore + sub.score &&
+        next.totalMaxScore == prev.totalMaxScore + sub.maxScore;
+    }
+
     // ===== المستخدمون =====
     match /users/{userId} {
       allow read: if signedIn() &&
@@ -61,6 +93,13 @@ service cloud.firestore {
         resource.data.studentId == uid() || isTeacher() ||
         isParentOf(resource.data.studentId));
 
+      // يسمح للطالب بالتحقق من وجود تسليمه حتى لو لم يُنشأ بعد.
+      allow get: if signedIn() && submissionId.matches('.+_' + uid());
+
+      // اختبار مصحَّح آلياً: الطالب ينشئه مرة واحدة فقط (لا تعديل بعدها)،
+      // والدرجة بين صفر والدرجة القصوى للواجب نفسه.
+      allow create: if signedIn() && isAutoGradedQuiz(submissionId);
+
       // الطالب يسلّم بدون درجة، والدرجة يضعها المعلّم فقط.
       allow create, update: if signedIn() &&
         request.resource.data.studentId == uid() &&
@@ -77,6 +116,11 @@ service cloud.firestore {
       allow read: if signedIn() &&
         (uid() == studentId || isTeacher() || isParentOf(studentId));
       allow write: if isTeacher();
+
+      // الطالب يضيف درجة اختبار واحدة جديدة فقط، مطابقة لتسليمه المحفوظ
+      // في المعاملة نفسها، ولا يستطيع تعديل أي درجة سابقة.
+      allow create, update: if signedIn() && uid() == studentId &&
+        studentAddsQuizGrade(studentId);
     }
   }
 }

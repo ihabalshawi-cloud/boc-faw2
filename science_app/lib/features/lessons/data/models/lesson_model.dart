@@ -50,36 +50,36 @@ class LessonModel extends Lesson {
   }
 
   factory LessonModel.fromEntity(Lesson l) => LessonModel(
-    id: l.id,
-    title: l.title,
-    videoUrl: l.videoUrl,
-    quizList: l.quizList,
-    description: l.description,
-    unitTitle: l.unitTitle,
-    order: l.order,
-    thumbnailUrl: l.thumbnailUrl,
-    durationMinutes: l.durationMinutes,
-    isPublished: l.isPublished,
-    createdBy: l.createdBy,
-    createdAt: l.createdAt,
-    updatedAt: l.updatedAt,
-  );
+        id: l.id,
+        title: l.title,
+        videoUrl: l.videoUrl,
+        quizList: l.quizList,
+        description: l.description,
+        unitTitle: l.unitTitle,
+        order: l.order,
+        thumbnailUrl: l.thumbnailUrl,
+        durationMinutes: l.durationMinutes,
+        isPublished: l.isPublished,
+        createdBy: l.createdBy,
+        createdAt: l.createdAt,
+        updatedAt: l.updatedAt,
+      );
 
   Map<String, dynamic> toJson() => {
-    'title': title,
-    'videoUrl': videoUrl,
-    'quizList': quizList
-        .map((q) => QuizQuestionModel.fromEntity(q).toJson())
-        .toList(),
-    'description': description,
-    'unitTitle': unitTitle,
-    'order': order,
-    'thumbnailUrl': thumbnailUrl,
-    'durationMinutes': durationMinutes,
-    'isPublished': isPublished,
-    'createdBy': createdBy,
-    'createdAt': createdAt,
-    'updatedAt': updatedAt,
-    'totalPoints': totalPoints,
-  };
+        'title': title,
+        'videoUrl': videoUrl,
+        'quizList': quizList
+            .map((q) => QuizQuestionModel.fromEntity(q).toJson())
+            .toList(),
+        'description': description,
+        'unitTitle': unitTitle,
+        'order': order,
+        'thumbnailUrl': thumbnailUrl,
+        'durationMinutes': durationMinutes,
+        'isPublished': isPublished,
+        'createdBy': createdBy,
+        'createdAt': createdAt,
+        'updatedAt': updatedAt,
+        'totalPoints': totalPoints,
+      };
 }
