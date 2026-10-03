@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_strings.dart';
@@ -71,18 +72,23 @@ class QuestionCard extends StatelessWidget {
             const SizedBox(height: 14),
             ClipRRect(
               borderRadius: BorderRadius.circular(20),
-              child: Image.network(
-                imageUrl,
-                height: 170,
-                fit: BoxFit.contain,
-                loadingBuilder: (context, child, progress) => progress == null
-                    ? child
-                    : const SizedBox(
-                        height: 170,
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                errorBuilder: (context, error, stackTrace) =>
-                    const Text('🔬', style: TextStyle(fontSize: 80)),
+              // الصورة تُحفظ على الجهاز بعد أول تحميل، فتظهر لاحقاً بدون إنترنت.
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => const ColoredBox(
+                    color: AppColors.background,
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  errorWidget: (context, url, error) => const ColoredBox(
+                    color: AppColors.background,
+                    child: Center(
+                      child: Text('🔬', style: TextStyle(fontSize: 80)),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],

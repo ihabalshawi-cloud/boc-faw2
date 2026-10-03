@@ -1,0 +1,15 @@
+{
+  "name": "science-kids-seed",
+  "private": true,
+  "description": "رفع الدروس وصورها إلى Firebase Storage وFirestore",
+  "type": "module",
+  "scripts": {
+    "seed": "node seed_lessons.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}

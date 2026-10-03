@@ -1,0 +1,85 @@
+{
+  "id": "unit1_ch1_plants",
+  "title": "النباتات الزهرية واللازهرية",
+  "unitTitle": "الوحدة الأولى: التصنيف والتنوع",
+  "description": "نتعرف على أجزاء الزهرة وكيف تتكون البذور والثمار، ثم نكتشف الحزازيات والسرخسيات التي تتكاثر بالأبواغ.",
+  "videoUrl": "https://example.com/videos/flowering-and-nonflowering-plants.mp4",
+  "order": 1,
+  "durationMinutes": 3,
+  "isPublished": true,
+  "createdAt": "2026-10-03T00:00:00Z",
+  "quizList": [
+    {
+      "id": "q1",
+      "type": "multipleChoice",
+      "questionText": "ما جزء الزهرة الذي يكوّن حبوب اللقاح؟",
+      "options": [
+        "الكأس",
+        "التويج",
+        "الطلع",
+        "المتاع"
+      ],
+      "correctAnswerIndex": 2,
+      "points": 10,
+      "explanation": "الطلع هو عضو التكاثر الذكري في الزهرة، وهو الذي يكوّن حبوب اللقاح.",
+      "imageUrl": "upload:images/flower_parts.webp"
+    },
+    {
+      "id": "q2",
+      "type": "trueFalse",
+      "questionText": "التلقيح هو اتحاد حبة اللقاح بالبويضة داخل المتاع.",
+      "options": [
+        "صح",
+        "خطأ"
+      ],
+      "correctAnswerIndex": 1,
+      "points": 5,
+      "explanation": "التلقيح هو انتقال حبوب اللقاح من الطلع إلى المتاع، أما اتحاد حبة اللقاح بالبويضة فاسمه الإخصاب.",
+      "imageUrl": "upload:images/pollination_and_seeds.webp"
+    },
+    {
+      "id": "q3",
+      "type": "multipleChoice",
+      "questionText": "بذرة الباقلاء يمكن فلقها إلى نصفين متماثلين، لذلك هي من:",
+      "options": [
+        "ذوات الفلقة الواحدة",
+        "النباتات اللازهرية",
+        "الحزازيات",
+        "ذوات الفلقتين"
+      ],
+      "correctAnswerIndex": 3,
+      "points": 10,
+      "explanation": "بذور ذوات الفلقتين مثل الباقلاء والفاصوليا تتكون من فلقتين متقابلتين، أما القمح والذرة فمن ذوات الفلقة الواحدة.",
+      "imageUrl": "upload:images/pollination_and_seeds.webp"
+    },
+    {
+      "id": "q4",
+      "type": "trueFalse",
+      "questionText": "توجد أكياس الأبواغ في السرخسيات على السطح السفلي للأوراق.",
+      "options": [
+        "صح",
+        "خطأ"
+      ],
+      "correctAnswerIndex": 0,
+      "points": 5,
+      "explanation": "عندما تنفتح أكياس الأبواغ تنطلق الأبواغ في الهواء، وتنمو إلى نبات سرخسي جديد عند توفر الظروف الملائمة.",
+      "imageUrl": "upload:images/nonflowering_plants.webp"
+    },
+    {
+      "id": "q5",
+      "type": "multipleChoice",
+      "questionText": "أين تعيش الحزازيات غالباً؟",
+      "options": [
+        "في الأماكن الرطبة الظليلة",
+        "في الصحاري الحارة",
+        "في الأماكن الجافة المشمسة",
+        "تحت الرمال"
+      ],
+      "correctAnswerIndex": 0,
+      "points": 10,
+      "explanation": "الحزازيات تحتاج إلى الماء، لذلك نجدها فوق الصخور الرطبة وعلى الجدران القديمة الرطبة.",
+      "imageUrl": "upload:images/nonflowering_plants.webp"
+    }
+  ],
+  "thumbnailUrl": "upload:images/flower_parts.webp"
+}
