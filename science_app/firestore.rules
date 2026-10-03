@@ -1,0 +1,82 @@
+rules_version = '2';
+
+// قواعد الحماية: كل مستخدم يرى ما يخصّه فقط.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function userData() {
+      return get(/databases/$(database)/documents/users/$(uid())).data;
+    }
+    function isTeacher() { return signedIn() && userData().role == 'teacher'; }
+    function isParentOf(studentId) {
+      return signedIn() && uid() in
+        get(/databases/$(database)/documents/users/$(studentId)).data.parentIds;
+    }
+
+    // ===== المستخدمون =====
+    match /users/{userId} {
+      allow read: if signedIn() &&
+        (uid() == userId || isTeacher() || uid() in resource.data.get('parentIds', []));
+
+      // الطالب ووليّ الأمر يسجّلان بنفسيهما. المعلّم يحتاج custom claim من الإدارة.
+      allow create: if signedIn() && uid() == userId &&
+        (request.resource.data.role in ['student', 'parent'] ||
+         (request.resource.data.role == 'teacher' && request.auth.token.teacher == true)) &&
+        request.resource.data.get('totalPoints', 0) == 0;
+
+      // المستخدم يعدّل حقولاً محدودة فقط (لا يغيّر دوره أو نقاطه).
+      allow update: if signedIn() && uid() == userId &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['fullName', 'avatarUrl', 'avatarCharacter', 'fcmTokens']);
+
+      // المعلّم يحدّث نقاط الطلاب والدروس المكتملة.
+      allow update: if isTeacher() && resource.data.role == 'student' &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['totalPoints', 'completedLessonIds', 'parentIds']);
+    }
+
+    // ===== الشعب =====
+    match /classes/{classId} {
+      allow read: if signedIn();
+      allow write: if isTeacher();
+    }
+
+    // ===== الدروس =====
+    match /lessons/{lessonId} {
+      allow read: if signedIn() && (resource.data.isPublished == true || isTeacher());
+      allow write: if isTeacher();
+    }
+
+    // ===== الواجبات =====
+    match /assignments/{assignmentId} {
+      allow read: if signedIn() && (resource.data.isPublished == true || isTeacher());
+      allow write: if isTeacher();
+    }
+
+    // ===== التسليمات: المعرّف = {assignmentId}_{studentId} =====
+    match /submissions/{submissionId} {
+      allow read: if signedIn() && (
+        resource.data.studentId == uid() || isTeacher() ||
+        isParentOf(resource.data.studentId));
+
+      // الطالب يسلّم بدون درجة، والدرجة يضعها المعلّم فقط.
+      allow create, update: if signedIn() &&
+        request.resource.data.studentId == uid() &&
+        submissionId == request.resource.data.assignmentId + '_' + uid() &&
+        request.resource.data.status in ['submitted', 'late'] &&
+        request.resource.data.get('score', null) == null &&
+        (resource == null || resource.data.status != 'graded');
+
+      allow update: if isTeacher();
+    }
+
+    // ===== سجل الدرجات: المعرّف = studentId =====
+    match /gradebooks/{studentId} {
+      allow read: if signedIn() &&
+        (uid() == studentId || isTeacher() || isParentOf(studentId));
+      allow write: if isTeacher();
+    }
+  }
+}
