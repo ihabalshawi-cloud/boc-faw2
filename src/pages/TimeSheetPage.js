@@ -26,6 +26,15 @@ function dedup(arr) {
   return arr.filter(e => { const k = e.id || e.name; if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
+const _mvDefaults = new Map([
+  ...INITIAL_TS.malak.map(e => [e.id, e.movement]),
+  ...INITIAL_TS.contracts.map(e => [e.id, e.movement]),
+  ...(INITIAL_TS.drivers || []).map(e => [e.id, e.movement]),
+]);
+function patchMovements(arr) {
+  return arr.map(e => (!e.movement && _mvDefaults.get(e.id)) ? { ...e, movement: _mvDefaults.get(e.id) } : e);
+}
+
 function TimeSheetPage({ emp }) {
   const addToast = useToast();
   const confirm  = useConfirm();
@@ -47,8 +56,8 @@ function TimeSheetPage({ emp }) {
         }
       }
       return {
-        malak:     malak.length     ? malak     : INITIAL_TS.malak,
-        contracts: contracts.length ? contracts : INITIAL_TS.contracts,
+        malak:     malak.length     ? patchMovements(malak)     : INITIAL_TS.malak,
+        contracts: contracts.length ? patchMovements(contracts) : INITIAL_TS.contracts,
         drivers:   INITIAL_TS.drivers,
       };
     }
@@ -56,9 +65,9 @@ function TimeSheetPage({ emp }) {
     const contracts = dedup(toArr(raw.contracts));
     const drivers   = dedup(toArr(raw.drivers));
     return {
-      malak:     malak.length     ? malak     : INITIAL_TS.malak,
-      contracts: contracts.length ? contracts : INITIAL_TS.contracts,
-      drivers:   drivers.length   ? drivers   : INITIAL_TS.drivers,
+      malak:     malak.length     ? patchMovements(malak)     : INITIAL_TS.malak,
+      contracts: contracts.length ? patchMovements(contracts) : INITIAL_TS.contracts,
+      drivers:   drivers.length   ? patchMovements(drivers)   : INITIAL_TS.drivers,
     };
   });
   const [editCell,       setEditCell]       = useState(null);
@@ -82,7 +91,7 @@ function TimeSheetPage({ emp }) {
   useEffect(() => {
     FirebaseAPI.loadTimesheet().then(d => {
       if (d && Array.isArray(d.malak) && d.malak.length) {
-        const clean = { malak: dedup(d.malak), contracts: dedup(d.contracts || []), drivers: dedup(d.drivers || []) };
+        const clean = { malak: patchMovements(dedup(d.malak)), contracts: patchMovements(dedup(d.contracts || [])), drivers: patchMovements(dedup(d.drivers || [])) };
         setData(clean); storage.set(STORAGE_KEY, clean);
       }
     });
