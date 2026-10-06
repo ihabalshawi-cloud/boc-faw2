@@ -1,8 +1,8 @@
 {
   "files": {
     "main.css": "/static/css/main.7ac9a43e.css",
-    "main.js": "/static/js/main.58bcf5a2.js",
-    "static/js/681.917ebf6f.chunk.js": "/static/js/681.917ebf6f.chunk.js",
+    "main.js": "/static/js/main.cef4867b.js",
+    "static/js/681.032572df.chunk.js": "/static/js/681.032572df.chunk.js",
     "static/js/604.cea6cafe.chunk.js": "/static/js/604.cea6cafe.chunk.js",
     "static/js/528.72ab2e4b.chunk.js": "/static/js/528.72ab2e4b.chunk.js",
     "static/js/671.6529e1a8.chunk.js": "/static/js/671.6529e1a8.chunk.js",
@@ -24,11 +24,11 @@
     "static/js/159.03bb6075.chunk.js": "/static/js/159.03bb6075.chunk.js",
     "static/js/205.775a747e.chunk.js": "/static/js/205.775a747e.chunk.js",
     "static/js/448.aab3b610.chunk.js": "/static/js/448.aab3b610.chunk.js",
-    "static/js/753.fc4afad1.chunk.js": "/static/js/753.fc4afad1.chunk.js",
+    "static/js/753.1a927886.chunk.js": "/static/js/753.1a927886.chunk.js",
     "index.html": "/index.html",
     "main.7ac9a43e.css.map": "/static/css/main.7ac9a43e.css.map",
-    "main.58bcf5a2.js.map": "/static/js/main.58bcf5a2.js.map",
-    "681.917ebf6f.chunk.js.map": "/static/js/681.917ebf6f.chunk.js.map",
+    "main.cef4867b.js.map": "/static/js/main.cef4867b.js.map",
+    "681.032572df.chunk.js.map": "/static/js/681.032572df.chunk.js.map",
     "604.cea6cafe.chunk.js.map": "/static/js/604.cea6cafe.chunk.js.map",
     "528.72ab2e4b.chunk.js.map": "/static/js/528.72ab2e4b.chunk.js.map",
     "671.6529e1a8.chunk.js.map": "/static/js/671.6529e1a8.chunk.js.map",
@@ -50,10 +50,10 @@
     "159.03bb6075.chunk.js.map": "/static/js/159.03bb6075.chunk.js.map",
     "205.775a747e.chunk.js.map": "/static/js/205.775a747e.chunk.js.map",
     "448.aab3b610.chunk.js.map": "/static/js/448.aab3b610.chunk.js.map",
-    "753.fc4afad1.chunk.js.map": "/static/js/753.fc4afad1.chunk.js.map"
+    "753.1a927886.chunk.js.map": "/static/js/753.1a927886.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.7ac9a43e.css",
-    "static/js/main.58bcf5a2.js"
+    "static/js/main.cef4867b.js"
   ]
 }
