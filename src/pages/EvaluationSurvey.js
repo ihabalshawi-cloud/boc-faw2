@@ -1,23 +1,22 @@
 import React, { useState } from "react";
-import { ClipboardList, CheckCircle2 } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 
 const QUESTIONS = [
-  { id: "q1",  cat: "الحضور والانضباط",       text: "هل حافظت على مواعيد الدوام والحضور المنتظم طوال الشهر؟" },
-  { id: "q2",  cat: "الحضور والانضباط",       text: "هل أنجزت جميع مهامك في أوقاتها المحددة دون تأخير؟" },
-  { id: "q3",  cat: "المشاركة وإنجاز العمل",  text: "هل شاركت بفاعلية في الأعمال الموكلة إليك خلال هذا الشهر؟" },
-  { id: "q4",  cat: "المشاركة وإنجاز العمل",  text: "هل ساهمت بشكل ملموس في تحقيق أهداف قسمك الشهرية؟" },
-  { id: "q5",  cat: "المبادرة والإبداع",       text: "هل بادرت بتقديم مقترحات أو حلول لتحسين العمل؟" },
-  { id: "q6",  cat: "المبادرة والإبداع",       text: "هل تصرفت باستقلالية لحل المشكلات دون انتظار التوجيه؟" },
-  { id: "q7",  cat: "العمل الجماعي والتعاون", text: "هل تعاونت مع زملائك وأسهمت في إنجاز الأعمال المشتركة؟" },
-  { id: "q8",  cat: "العمل الجماعي والتعاون", text: "هل بادرت بمساعدة زملائك عند الحاجة؟" },
-  { id: "q9",  cat: "جودة العمل والالتزام",   text: "هل حرصت على الدقة وجودة عملك وتجنبت الأخطاء؟" },
-  { id: "q10", cat: "جودة العمل والالتزام",   text: "هل التزمت بالتعليمات والسياسات الإدارية خلال الشهر؟" },
+  { id: 1, cat: "الحضور والانضباط",       text: "هل تلتزم بمواعيد الدوام الرسمي؟" },
+  { id: 2, cat: "الحضور والانضباط",       text: "هل تُنهي مهامك في الوقت المحدد؟" },
+  { id: 3, cat: "إنجاز العمل",            text: "هل تُكمل المهام المطلوبة منك بالشكل الصحيح؟" },
+  { id: 4, cat: "إنجاز العمل",            text: "هل تُشارك في المهام الإضافية حين يستدعي العمل؟" },
+  { id: 5, cat: "المبادرة والإبداع",      text: "هل تقدّم مقترحات لتحسين طريقة العمل؟" },
+  { id: 6, cat: "المبادرة والإبداع",      text: "هل تبحث عن حلول المشكلات بنفسك قبل طلب المساعدة؟" },
+  { id: 7, cat: "العمل الجماعي",          text: "هل تتعاون مع زملائك في إنجاز الأعمال المشتركة؟" },
+  { id: 8, cat: "العمل الجماعي",          text: "هل تُساعد زملاءك عند الحاجة؟" },
+  { id: 9, cat: "جودة العمل والالتزام",   text: "هل تُراجع عملك قبل تسليمه للتأكد من دقته؟" },
+  { id:10, cat: "جودة العمل والالتزام",   text: "هل تلتزم بسياسات وأنظمة العمل المعتمدة؟" },
 ];
-
 const CHOICES = [
-  { value: 2, label: "نعم",     cls: "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700" },
-  { value: 1, label: "أحياناً", cls: "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700" },
-  { value: 0, label: "لا",      cls: "bg-red-50 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700" },
+  { value: 2, label: "نعم",      cls: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+  { value: 1, label: "أحياناً",  cls: "bg-amber-100  text-amber-800  border-amber-300"  },
+  { value: 0, label: "لا",       cls: "bg-red-100    text-red-800    border-red-300"    },
 ];
 
 export function calcSurveyScore(answers) {
@@ -25,67 +24,53 @@ export function calcSurveyScore(answers) {
   return Math.round((total / (QUESTIONS.length * 2)) * 100);
 }
 
+const CATS = [...new Set(QUESTIONS.map(q => q.cat))];
+
 export function EvaluationSurvey({ onComplete }) {
   const [answers, setAnswers] = useState({});
   const answered = Object.keys(answers).length;
-  const allDone  = answered === QUESTIONS.length;
-  const cats     = [...new Set(QUESTIONS.map(q => q.cat))];
+  const allDone = answered === QUESTIONS.length;
 
-  const submit = () => onComplete(answers, calcSurveyScore(answers));
+  const submit = () => {
+    if (!allDone) return;
+    const score = calcSurveyScore(answers);
+    onComplete({ answers, score });
+  };
 
   return (
-    <div className="space-y-4" dir="rtl">
-      <div className="card rounded-xl border border-color p-4">
-        <div className="flex items-center gap-2 mb-1">
-          <ClipboardList size={18} className="text-[#C87A2E]"/>
-          <h2 className="font-bold text-primary text-sm">استبيان الأداء الشهري — الخطوة 1 من 2</h2>
+    <div className="card rounded-2xl border-2 border-indigo-200 p-5 space-y-5">
+      <div>
+        <p className="font-bold text-indigo-700 mb-1">📋 استبيان الأداء الشهري</p>
+        <p className="text-xs text-secondary">أجب بصدق — يؤثر بنسبة 30% في تقييمك النهائي</p>
+        <div className="mt-2 h-2 rounded-full bg-gray-100 overflow-hidden">
+          <div className="h-full bg-indigo-500 transition-all rounded-full"
+               style={{ width: `${(answered / QUESTIONS.length) * 100}%` }}/>
         </div>
-        <p className="text-xs text-secondary mb-3">أجب بصدق على الأسئلة — نتيجة الاستبيان تُحسب كـ 30% من تقييمك النهائي</p>
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-            <div className="h-full bg-[#C87A2E] transition-all duration-300"
-              style={{width:`${(answered / QUESTIONS.length) * 100}%`}}/>
-          </div>
-          <span className="text-xs text-secondary shrink-0">{answered}/{QUESTIONS.length}</span>
-        </div>
+        <p className="text-[10px] text-secondary mt-1">{answered} / {QUESTIONS.length} سؤال</p>
       </div>
-
-      {cats.map(cat => {
-        const qs = QUESTIONS.filter(q => q.cat === cat);
-        return (
-          <div key={cat} className="card rounded-xl border border-color p-4 space-y-4">
-            <h3 className="text-xs font-bold text-[#C87A2E] border-b border-color pb-2">{cat}</h3>
-            {qs.map(q => {
-              const num    = QUESTIONS.indexOf(q) + 1;
-              const chosen = answers[q.id];
-              return (
-                <div key={q.id} className="space-y-2">
-                  <p className="text-sm text-primary">{num}. {q.text}</p>
-                  <div className="flex gap-2">
-                    {CHOICES.map(c => (
-                      <button key={c.value}
-                        onClick={() => setAnswers(p => ({...p, [q.id]: c.value}))}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                          chosen === c.value
-                            ? c.cls + " ring-2 ring-offset-1 ring-current"
-                            : "border-color text-secondary hover:bg-hover"
-                        }`}>
-                        {c.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
-
+      {CATS.map(cat => (
+        <div key={cat} className="space-y-3">
+          <p className="text-xs font-bold text-indigo-600 border-b border-color pb-1">{cat}</p>
+          {QUESTIONS.filter(q => q.cat === cat).map(q => (
+            <div key={q.id} className="space-y-2">
+              <p className="text-sm">{q.id}. {q.text}</p>
+              <div className="flex gap-2">
+                {CHOICES.map(c => (
+                  <button key={c.value}
+                    onClick={() => setAnswers(p => ({ ...p, [q.id]: c.value }))}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-all
+                      ${answers[q.id] === c.value ? c.cls + " font-extrabold shadow-sm" : "border-color text-secondary hover:bg-indigo-50"}`}>
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
       <button onClick={submit} disabled={!allDone}
-        className="w-full py-3 rounded-xl font-bold text-sm bg-[#C87A2E] text-white hover:bg-[#B06D27] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-        {allDone
-          ? <><CheckCircle2 size={15}/> المضي إلى التقييم الذاتي</>
-          : `أكمل الإجابة (${QUESTIONS.length - answered} سؤال متبقٍ)`}
+        className="w-full py-3 font-bold text-white bg-indigo-600 rounded-xl flex items-center justify-center gap-2 disabled:opacity-40">
+        <CheckCircle size={15}/> إرسال الاستبيان والمتابعة
       </button>
     </div>
   );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Search, Calendar, X, AlertTriangle, FileCheck, Printer, Upload, Plus, Trash2, Bell, Archive } from "lucide-react";
+import { Search, Calendar, X, AlertTriangle, FileCheck, Printer, Upload, Plus, Trash2, Bell, Zap, Archive } from "lucide-react";
 import { useToast, useConfirm } from "../contexts";
-import { storage, logExport } from "../utils";
+import { storage } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { useGDrive } from "../gdrive";
 import {
@@ -12,7 +12,6 @@ import { importFromBuffer, exportToTemplate, buildHTMLTable } from "./TimeSheetE
 import { buildExcelFormattedHTML, buildOfficialFormHTML } from "./TimeSheetPrintBuilders";
 import { TsImportPanel, TsExportPanel } from "./TimeSheetPanels";
 import { useDebounce } from "../components/Shared";
-import { archiveMonth, ArchivePanel, ARCHIVE_KEY, useAutoArchive } from "./TimeSheetArchive";
 
 const STORAGE_KEY       = "boc_timesheet_v7";
 const STORAGE_PREV_KEYS = ["boc_timesheet_v6", "boc_timesheet_v5"];
@@ -25,6 +24,18 @@ function toArr(v) {
 function dedup(arr) {
   const seen = new Set();
   return arr.filter(e => { const k = e.id || e.name; if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
+const _mvDefaults = new Map([
+  ...INITIAL_TS.malak.map(e => [e.id, e.movement]),
+  ...INITIAL_TS.contracts.map(e => [e.id, e.movement]),
+  ...(INITIAL_TS.drivers || []).map(e => [e.id, e.movement]),
+]);
+function patchMovements(arr) {
+  return arr.map(e => (!e.movement && _mvDefaults.get(e.id)) ? { ...e, movement: _mvDefaults.get(e.id) } : e);
+}
+function needsMovementPatch(arr) {
+  return arr.some(e => !e.movement && _mvDefaults.get(e.id));
 }
 
 function TimeSheetPage({ emp }) {
@@ -48,8 +59,8 @@ function TimeSheetPage({ emp }) {
         }
       }
       return {
-        malak:     malak.length     ? malak     : INITIAL_TS.malak,
-        contracts: contracts.length ? contracts : INITIAL_TS.contracts,
+        malak:     malak.length     ? patchMovements(malak)     : INITIAL_TS.malak,
+        contracts: contracts.length ? patchMovements(contracts) : INITIAL_TS.contracts,
         drivers:   INITIAL_TS.drivers,
       };
     }
@@ -57,9 +68,9 @@ function TimeSheetPage({ emp }) {
     const contracts = dedup(toArr(raw.contracts));
     const drivers   = dedup(toArr(raw.drivers));
     return {
-      malak:     malak.length     ? malak     : INITIAL_TS.malak,
-      contracts: contracts.length ? contracts : INITIAL_TS.contracts,
-      drivers:   drivers.length   ? drivers   : INITIAL_TS.drivers,
+      malak:     malak.length     ? patchMovements(malak)     : INITIAL_TS.malak,
+      contracts: contracts.length ? patchMovements(contracts) : INITIAL_TS.contracts,
+      drivers:   drivers.length   ? patchMovements(drivers)   : INITIAL_TS.drivers,
     };
   });
   const [editCell,       setEditCell]       = useState(null);
@@ -74,8 +85,6 @@ function TimeSheetPage({ emp }) {
   const [exportDriveId,  setExportDriveId]  = useState("");
   const exportFileRef = useRef(null);
   const fileInputRef  = useRef(null);
-  const [showArchive,  setShowArchive]  = useState(false);
-  const [tsArchives,   setTsArchives]   = useState(() => storage.get(ARCHIVE_KEY, []));
 
   const persistTs = useCallback((updated) => {
     storage.set(STORAGE_KEY, updated);
@@ -85,8 +94,11 @@ function TimeSheetPage({ emp }) {
   useEffect(() => {
     FirebaseAPI.loadTimesheet().then(d => {
       if (d && Array.isArray(d.malak) && d.malak.length) {
-        const clean = { malak: dedup(d.malak), contracts: dedup(d.contracts || []), drivers: dedup(d.drivers || []) };
+        const raw = { malak: d.malak, contracts: d.contracts || [], drivers: d.drivers || [] };
+        const shouldWrite = needsMovementPatch(raw.malak) || needsMovementPatch(raw.contracts) || needsMovementPatch(raw.drivers);
+        const clean = { malak: patchMovements(dedup(raw.malak)), contracts: patchMovements(dedup(raw.contracts)), drivers: patchMovements(dedup(raw.drivers)) };
         setData(clean); storage.set(STORAGE_KEY, clean);
+        if (shouldWrite) FirebaseAPI.saveTimesheet(clean);
       }
     });
   }, []);
@@ -234,27 +246,6 @@ function TimeSheetPage({ emp }) {
     };
   }, [data, activeTab]);
 
-  useAutoArchive(data, tsArchives, setTsArchives, addToast);
-
-  const doArchive = async () => {
-    const ok = await confirm(`أرشفة تايم شيت شهر ${MONTHS_AR_TS[tsMonth]} ${tsYear}؟`);
-    if (!ok) return;
-    const updated = archiveMonth(data, tsYear, tsMonth);
-    setTsArchives(updated);
-    FirebaseAPI.saveArchive(updated).catch(() => {});
-    logExport(`أرشفة ${MONTHS_AR_TS[tsMonth]} ${tsYear}`);
-    addToast(`تمت أرشفة شهر ${MONTHS_AR_TS[tsMonth]} ${tsYear} ✅`, "success");
-  };
-
-  const onRestore = async (entry) => {
-    const ok = await confirm(`استعادة بيانات شهر ${entry.monthName} ${entry.year}؟ سيتم استبدال البيانات الحالية.`);
-    if (!ok) return;
-    const restored = { malak: dedup(toArr(entry.data.malak)), contracts: dedup(toArr(entry.data.contracts)), drivers: dedup(toArr(entry.data.drivers)) };
-    persistTs(restored);
-    setData(restored);
-    addToast(`تمت استعادة بيانات ${entry.monthName} ${entry.year}`, "success");
-  };
-
   const resetData = async () => {
     const ok = await confirm("هل تريد إعادة تعيين جميع البيانات للبيانات الأصلية؟");
     if (!ok) return;
@@ -309,6 +300,40 @@ function TimeSheetPage({ emp }) {
     addToast("تم ملء رموز عطلة نهاية الأسبوع للكادر الصباحي", "success");
   };
 
+  const SHIFT_MOVES = new Set(['أ','ب','ج','د']);
+  const fillShiftWorkers = async () => {
+    let cur = null;
+    const fillMap = new Map();
+    for (const e of (data.malak || [])) {
+      if (SHIFT_MOVES.has(e.movement)) { cur = e.movement; fillMap.set(e.id, cur); }
+      else if (cur) fillMap.set(e.id, cur);
+    }
+    if (!fillMap.size) { addToast("لا يوجد مناوبون في الملاك (بدون تعيين نوبة أ/ب/ج/د)", "warning"); return; }
+    const ok = await confirm(`إملاء تلقائي لـ ${fillMap.size} مناوب في ${MONTHS_AR_TS[tsMonth]} ${tsYear}؟\nسيُستبدل جميع محتوى أيامهم بـ 3 أو N.`);
+    if (!ok) return;
+    setData(prev => {
+      const u = {
+        ...prev,
+        malak: prev.malak.map(e => {
+          const shift = fillMap.get(e.id);
+          if (!shift) return e;
+          const nd = {};
+          days.forEach(d => { nd[String(d)] = getShiftForDay(tsYear, tsMonth, d) === shift ? "3" : "N"; });
+          return {...e, days: nd, hours: {}};
+        }),
+      };
+      persistTs(u); return u;
+    });
+    addToast(`✅ تم إملاء تايم شيت ${fillMap.size} مناوب تلقائياً`, "success");
+  };
+
+  const archiveMonth = async () => {
+    const ok = await confirm(`أرشفة تايم شيت ${MONTHS_AR_TS[tsMonth]} ${tsYear} إلى Firebase؟`);
+    if (!ok) return;
+    const saved = await FirebaseAPI.saveTimesheetArchive(tsYear, tsMonth, data);
+    addToast(saved ? `✅ أُرشف ${MONTHS_AR_TS[tsMonth]} ${tsYear}` : "تعذّرت الأرشفة", saved ? "success" : "error");
+  };
+
   const downloadBlob = (blob, filename) => {
     const url=URL.createObjectURL(blob), a=Object.assign(document.createElement("a"),{href:url,download:filename});
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
@@ -316,13 +341,11 @@ function TimeSheetPage({ emp }) {
 
   const exportExcel = () => {
     downloadBlob(new Blob(["﻿"+buildHTMLTable(data[activeTab]||[],TAB_INFO[activeTab].title,MONTHS_AR_TS[tsMonth],tsYear,tsMonth,days)],{type:"application/vnd.ms-excel;charset=utf-8"}),`تايم_شيت_${TAB_INFO[activeTab].label}_${tsYear}_${String(tsMonth+1).padStart(2,"0")}.xls`);
-    logExport(`Excel - ${TAB_INFO[activeTab].label} ${MONTHS_AR_TS[tsMonth]} ${tsYear}`);
     addToast("تم تصدير الملف بتنسيق Excel", "success");
   };
 
   const exportExcelFormatted = () => {
     downloadBlob(new Blob(["﻿"+buildExcelFormattedHTML(data[activeTab]||[],TAB_INFO[activeTab].label,tsYear,tsMonth,days)],{type:"application/vnd.ms-excel"}),`تايم_شيت_${TAB_INFO[activeTab].label}_${tsYear}_${String(tsMonth+1).padStart(2,"0")}.xls`);
-    logExport(`Excel رسمي - ${TAB_INFO[activeTab].label} ${MONTHS_AR_TS[tsMonth]} ${tsYear}`);
     addToast("تم تصدير الملف بنجاح بالتنسيق الرسمي ✅", "success");
   };
 
@@ -337,14 +360,12 @@ function TimeSheetPage({ emp }) {
   const exportPDF = () => {
     const html = buildHTMLTable(data[activeTab]||[], TAB_INFO[activeTab].title, MONTHS_AR_TS[tsMonth], tsYear, tsMonth, days);
     printInIframe(html.replace("<body>",`<body><style>@page{size:A3 landscape;margin:10mm;} @media print{body{zoom:0.7;}}</style>`), 1400, 900);
-    logExport(`PDF - ${TAB_INFO[activeTab].label} ${MONTHS_AR_TS[tsMonth]} ${tsYear}`);
     addToast("جارٍ فتح نافذة الطباعة / تصدير PDF", "info");
   };
 
   const exportOfficialForm = () => {
     const html = buildOfficialFormHTML(data[activeTab]||[], TAB_INFO[activeTab].title, MONTHS_AR_TS[tsMonth], tsYear, tsMonth, days);
     printInIframe(html, 1500, 1000, 900);
-    logExport(`فورمة رسمية - ${TAB_INFO[activeTab].label} ${MONTHS_AR_TS[tsMonth]} ${tsYear}`);
     addToast("جارٍ طباعة الفورمة الرسمية", "info");
   };
 
@@ -368,6 +389,8 @@ function TimeSheetPage({ emp }) {
           </select>
           <button onClick={fillWeekend} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-orange-500 text-white hover:bg-orange-600">
             <Calendar size={14}/> ج/س صباحي</button>
+          {activeTab==="malak"&&<button onClick={fillShiftWorkers} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-purple-600 text-white hover:bg-purple-700">
+            <Zap size={14}/> إملاء المناوبين</button>}
           <button onClick={resetTab} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-amber-500 text-white hover:bg-amber-600">
             <X size={14}/> تصفير</button>
           <button onClick={()=>setShowLegend(v=>!v)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm btn-secondary">
@@ -384,12 +407,8 @@ function TimeSheetPage({ emp }) {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700">
             <Upload size={14}/> استيراد Excel
           </button>
-          <button onClick={()=>setShowArchive(v=>!v)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-[#C87A2E] text-white hover:bg-[#B06D27]">
-            <Archive size={14}/> الأرشيف
-          </button>
-          <button onClick={doArchive}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-purple-600 text-white hover:bg-purple-700">
+          <button onClick={archiveMonth}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-slate-700 text-white hover:bg-slate-800">
             <Archive size={14}/> أرشفة الشهر
           </button>
         </div>
@@ -412,10 +431,6 @@ function TimeSheetPage({ emp }) {
           exportFromBuiltin={exportFromBuiltin}
           exportFileRef={exportFileRef}
         />
-      )}
-
-      {showArchive && (
-        <ArchivePanel archives={tsArchives} setArchives={setTsArchives} onRestore={onRestore}/>
       )}
 
       {showLegend && (

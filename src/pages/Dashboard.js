@@ -7,7 +7,7 @@ import {
   Search, Moon, Sun, MessageSquare, X,
   CheckSquare, AlertTriangle, ChevronLeft, ChevronRight,
   Wrench, Box, TrendingUp, Heart,
-  Briefcase, Glasses, Type
+  Briefcase, Glasses, Type, Archive
 } from "lucide-react";
 import {
   ACCOUNTS, LOW_STOCK_THRESHOLD,
@@ -46,6 +46,7 @@ const LazyLeaveFormsPage = React.lazy(() => import('./LeaveFormsPage'));
 const LazyProjectManagementPage = React.lazy(() => import('./ProjectManagementPage'));
 const LazyIncentivePage = React.lazy(() => import('./IncentivePage'));
 const LazyMaintenanceWorkReport = React.lazy(() => import('./MaintenanceWorkReportPage'));
+const LazyTsArchivePage = React.lazy(() => import('./TimeSheetArchivePage'));
 
 function useSmartAlerts(employees) {
   const [alerts, setAlerts] = useState([]);
@@ -104,7 +105,7 @@ class ReqErrorBoundary extends React.Component {
 
 const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","changepass","health_insurance","approvals","employees","admin_dashboard","timesheet","incentive"]);
 const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","maint_work_report","inventory","furniture","projects"]);
-const RESTRICTED_VIEWS = new Set(["training","tasks","evaluation","timesheet","chat","maint_equipment","maint_parts","maint_reports","maint_work_report","inventory","furniture","projects"]);
+const RESTRICTED_VIEWS = new Set(["training","tasks","evaluation","timesheet","ts_archive","chat","maint_equipment","maint_parts","maint_reports","maint_work_report","inventory","furniture","projects"]);
 
 export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode, largeFont, setLargeFont }) {
   const isAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
@@ -160,7 +161,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
       });
     };
     syncNotifs();
-    const t = setInterval(syncNotifs, 30000);
+    const t = setInterval(syncNotifs, 120000);
     return () => clearInterval(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emp.id]);
@@ -229,7 +230,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     prevReqRef.current = allRequests;
   }, [allRequests, emp.id]);
   useEffect(() => {
-    const t = setInterval(() => { FirebaseAPI.loadRequests().then(list => { if(list?.length){const clean=list.filter(Boolean);storage.set("all_requests",clean);setAllRequests(clean);} }); }, 60000);
+    const t = setInterval(() => { FirebaseAPI.loadRequests().then(list => { if(list?.length){const clean=list.filter(Boolean);storage.set("all_requests",clean);setAllRequests(clean);} }); }, 180000);
     return () => clearInterval(t);
   }, []);
 
@@ -300,6 +301,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     { id:"health_insurance", label:"الضمان الصحي", icon:<Heart size={17}/> },
     ...((isAdmin||incentiveVisible) ? [{ id:"incentive", label:"نظام المكافآت", icon:<Star size={17}/>, badge: (() => { const c=storage.get("boc_inc_works",[]).filter(f=>f.status==="بانتظار المراجعة").length; return (isAdmin&&c>0)?c:0; })() }] : []),
     ...(canSeeRestricted("timesheet") ? [{ id:"timesheet", label:"التايم شيت", icon:<Calendar size={17}/> }] : []),
+    ...(canSeeRestricted("timesheet") ? [{ id:"ts_archive", label:"أرشيف التايم شيت", icon:<Archive size={17}/> }] : []),
     { id:"notifications", label:"الإشعارات", icon:<Bell size={17}/>, badge:unreadNotifs },
     { id:"changepass", label:"تغيير المرور", icon:<Shield size={17}/> },
   ];
@@ -480,7 +482,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
           )}
           {view==="notifications" && (
             <React.Suspense fallback={<PageSkeleton/>}>
-              <LazyNotificationsPage emp={emp}/>
+              <LazyNotificationsPage emp={emp} onNavigate={switchView}/>
             </React.Suspense>
           )}
           {view==="changepass" && (
@@ -521,6 +523,11 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
                 <LazyTimeSheetPage emp={emp}/>
               </React.Suspense>
             </TsErrorBoundary>
+          )}
+          {view==="ts_archive" && (
+            <React.Suspense fallback={<PageSkeleton rows={3}/>}>
+              <LazyTsArchivePage emp={emp}/>
+            </React.Suspense>
           )}
           {view==="admin_dashboard" && isAdmin && (
             <React.Suspense fallback={<PageSkeleton/>}>

@@ -186,9 +186,26 @@ export const FirebaseAPI = {
     } catch { return false; }
   },
   // ── Chat ──────────────────────────────────────────────────────────────────
+  pruneChat: async (keepLast = 200) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/chat.json?shallow=true`);
+      if (!res.ok) return;
+      const keysObj = await res.json();
+      if (!keysObj || typeof keysObj !== "object") return;
+      const keys = Object.keys(keysObj).sort(); // Firebase push keys sort chronologically
+      if (keys.length <= keepLast) return;
+      const toDelete = keys.slice(0, keys.length - keepLast);
+      await Promise.all(toDelete.map(k =>
+        fetch(`${FIREBASE_URL}/chat/${k}.json`, { method: "DELETE" }).catch(() => {})
+      ));
+    } catch {}
+  },
+
   sendMessage: async (msg) => {
     try {
       await fetch(`${FIREBASE_URL}/chat.json`, { method: "POST", body: JSON.stringify(msg) });
+      // Prune every ~20 sends to keep chat under 200 messages
+      if (Math.random() < 0.05) FirebaseAPI.pruneChat(200);
       return true;
     } catch { return false; }
   },
@@ -339,8 +356,15 @@ export const FirebaseAPI = {
   },
   saveRequests: async (list) => {
     try {
+      // Strip signatures only from archived requests (they're no longer exported).
+      // Active requests keep signatures so any device can export them.
+      const slim = (list || []).map(r => {
+        if (!r.archived) return r;
+        const { sigDataUrl: _s, empSigDataUrl: _e, ...rest } = r;
+        return rest;
+      });
       const res = await fetch(`${FIREBASE_URL}/all_requests.json`, {
-        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(list||[]),
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(slim),
       });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
@@ -583,21 +607,15 @@ export const FirebaseAPI = {
   savePushSub: async (empId, sub) => { try { await fetch(`${FIREBASE_URL}/push_subs/${empId}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(sub)}); return true; } catch{return false;} },
   loadPushSub: async (empId) => { try { const r=await fetch(`${FIREBASE_URL}/push_subs/${empId}.json`); if(!r.ok)return null; const d=await r.json(); return d&&typeof d==="object"?d:null; } catch{return null;} },
   removePushSub: async (empId) => { try { await fetch(`${FIREBASE_URL}/push_subs/${empId}.json`,{method:"DELETE"}); return true; } catch{return false;} },
+
   // ── Timesheet Archive ─────────────────────────────────────────────────────
-  saveArchive: async (list) => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/ts_archive.json`, {
-        method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify(list || []),
-      });
-      return res.ok;
-    } catch { return false; }
+  saveTimesheetArchive: async (year, month, data) => {
+    try { const r=await fetch(`${FIREBASE_URL}/ts_archive/${year}_${month+1}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}); return r.ok; } catch{return false;}
   },
-  loadArchive: async () => {
-    try {
-      const res = await fetch(`${FIREBASE_URL}/ts_archive.json`);
-      if (!res.ok) return null;
-      const data = await res.json();
-      return Array.isArray(data) ? data : (data && typeof data === "object" ? Object.values(data).filter(Boolean) : null);
-    } catch { return null; }
+  loadTimesheetArchive: async (year, month) => {
+    try { const r=await fetch(`${FIREBASE_URL}/ts_archive/${year}_${month+1}.json`); if(!r.ok)return null; return await r.json(); } catch{return null;}
+  },
+  listTimesheetArchives: async () => {
+    try { const r=await fetch(`${FIREBASE_URL}/ts_archive.json?shallow=true`); if(!r.ok)return[]; const k=await r.json(); return k?Object.keys(k).sort().reverse():[]; } catch{return[];}
   },
 };

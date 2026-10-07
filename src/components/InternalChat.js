@@ -18,7 +18,7 @@ function ChatWindow({ emp, partnerId, partnerName, messages, isConnected, onBack
   );
   const allMsgs = [...filtered, ...sentMsgs.filter(s => !filtered.some(f => f._key === s._key))];
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [allMsgs.length]);
-  useEffect(() => { if(!isConnected)return; const t=setInterval(async()=>{const d=await FirebaseAPI.getTyping(partnerId);setPt(!!(d&&n(d.toId)===n(emp.id)&&Date.now()-d.ts<5000));},2500); return()=>clearInterval(t); }, [partnerId,emp.id,isConnected]);
+  useEffect(() => { if(!isConnected)return; const t=setInterval(async()=>{const d=await FirebaseAPI.getTyping(partnerId);setPt(!!(d&&n(d.toId)===n(emp.id)&&Date.now()-d.ts<6000));},5000); return()=>clearInterval(t); }, [partnerId,emp.id,isConnected]);
 
   const send = async () => {
     if (!text.trim()) return;
@@ -77,7 +77,7 @@ function InternalChat({ emp, isConnected }) {
     setMessages(msgs); storage.set("chat_offline", msgs); setChatLoading(false);
   }, [isConnected]);
 
-  useEffect(() => { loadMessages(); const t = setInterval(loadMessages, 5000); return () => clearInterval(t); }, [loadMessages]);
+  useEffect(() => { loadMessages(); const t = setInterval(loadMessages, 10000); return () => clearInterval(t); }, [loadMessages]);
   const prevConn = useRef(null);
   useEffect(() => { if(isConnected&&prevConn.current===false){const q=storage.get("chat_pending",[]);if(q.length){storage.set("chat_pending",[]);Promise.all(q.map(m=>FirebaseAPI.sendMessage(m))).then(()=>loadMessages());}} prevConn.current=isConnected; }, [isConnected,loadMessages]);
 

@@ -63,13 +63,21 @@ function RequestsPage({ emp }) {
   useEffect(() => {
     const load = () => FirebaseAPI.loadRequests().then(list => {
       if (list && list.length > 0) {
-        storage.set("all_requests", list);
-        const mine = list.filter(r => r && Number(r.empId) === Number(emp.id));
+        const localMine = storage.get(`requests_${emp.id}`, []);
+        const mine = list
+          .filter(r => r && Number(r.empId) === Number(emp.id))
+          .map(fbR => {
+            const loc = localMine.find(l => l.id === fbR.id);
+            const sig = (!fbR.sigDataUrl && loc?.sigDataUrl) ? { sigDataUrl: loc.sigDataUrl } : {};
+            const empSig = (!fbR.empSigDataUrl && loc?.empSigDataUrl) ? { empSigDataUrl: loc.empSigDataUrl } : {};
+            return { ...fbR, ...sig, ...empSig };
+          });
         if (mine.length > 0) { storage.set(`requests_${emp.id}`, mine); setRequests(mine); }
+        storage.set("all_requests", list);
       }
     });
     load();
-    const poll = setInterval(load, 20000);
+    const poll = setInterval(load, 90000);
     const t = setTimeout(() => setPageLoading(false), 250);
     return () => { clearInterval(poll); clearTimeout(t); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -147,9 +155,10 @@ const NOTIF_FILTERS = [
   { key:"مهام",         match: n => n.type==="مهمة" },
 ];
 
-function NotificationsPage({ emp }) {
+function NotificationsPage({ emp, onNavigate }) {
   const [notifications, setNotifications] = useState(() => storage.get(`notifications_${emp.id}`, []));
   const [filter, setFilter] = useState("الكل");
+  const [recovering, setRecovering] = useState(null);
 
   useEffect(() => {
     FirebaseAPI.loadNotifications(emp.id).then(list => {
@@ -174,6 +183,62 @@ function NotificationsPage({ emp }) {
   const markAsRead = (id) => saveNotifs(notifications.map(n => n.id === id ? { ...n, read: true } : n));
   const markAllRead = () => saveNotifs(notifications.map(n => ({ ...n, read: true })));
   const deleteNotif = (id) => saveNotifs(notifications.filter(n => n.id !== id));
+
+  const rebuildRequest = (notif) => {
+    // Parse employee name from title: "📋 طلب إجازة زمنية — NAME" or "📋 طلب إعفاء بصمة — NAME"
+    const namePart = (notif.title || "").split("—").slice(1).join("—").trim();
+    const empAcc = ACCOUNTS.find(a => a.name && namePart && a.name.includes(namePart.split(" ")[0]));
+    // Detect type from title
+    let type = "إجازة زمنية";
+    if (notif.title?.includes("اعتيادية")) type = "إجازة اعتيادية";
+    else if (notif.title?.includes("مرضية")) type = "إجازة مرضية";
+    else if (notif.title?.includes("إعفاء بصمة") || notif.title?.includes("بصمة")) type = "إعفاء بصمة";
+    else if (notif.title?.includes("خارج العراق")) type = "إجازة خارج العراق";
+    // Parse days/hours from body: "زمنية — N ساعة" or "اعتيادية — N يوم"
+    const daysMatch = (notif.body || "").match(/(\d+)\s*(يوم|ساعة)/);
+    const days = daysMatch ? daysMatch[1] : "1";
+    const approxDate = notif.timestamp ? notif.timestamp.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    const newReq = {
+      id: Date.now(),
+      originalReqId: notif.reqId,
+      type,
+      dateFrom: approxDate,
+      dateTo: approxDate,
+      days,
+      purpose: (notif.body || "").split("|").slice(1).join("|").trim() || "—",
+      status: "بانتظار المراجعة",
+      submittedAt: notif.timestamp || new Date().toISOString(),
+      empId: empAcc?.id || null,
+      empName: namePart || notif.title,
+      note: "⚠️ طلب معاد بناؤه من الإشعار — التواريخ تقريبية",
+    };
+    const all = storage.get("all_requests", []);
+    storage.set("all_requests", [newReq, ...all]);
+    FirebaseAPI.saveRequests([newReq, ...all]);
+    if (onNavigate) onNavigate("approvals");
+  };
+
+  const recoverRequest = async (notif) => {
+    if (!notif.reqId) return;
+    setRecovering(notif.id);
+    try {
+      const fbList = await FirebaseAPI.loadRequests();
+      const req = fbList?.find(r => r && String(r.id) === String(notif.reqId));
+      if (req) {
+        const all = storage.get("all_requests", []);
+        if (!all.some(r => String(r.id) === String(notif.reqId))) {
+          storage.set("all_requests", [req, ...all]);
+        }
+        if (onNavigate) onNavigate("approvals");
+      } else {
+        if (window.confirm("لم يُعثر على الطلب في الخادم. هل تريد إنشاء طلب تعويضي من بيانات الإشعار؟")) {
+          rebuildRequest(notif);
+        }
+      }
+    } finally {
+      setRecovering(null);
+    }
+  };
 
   const unread = notifications.filter(n => !n.read).length;
   const activeFilter = NOTIF_FILTERS.find(f => f.key === filter);
@@ -205,6 +270,25 @@ function NotificationsPage({ emp }) {
                 <p className="font-bold text-sm">{n.title}</p>
                 <p className="text-xs text-secondary whitespace-pre-wrap">{n.body}</p>
                 <p className="text-[10px] text-secondary mt-0.5">{new Date(n.timestamp).toLocaleString("ar-IQ")}</p>
+                {n.reqId && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {onNavigate && (
+                      <button onClick={e=>{e.stopPropagation();markAsRead(n.id);onNavigate("approvals");}}
+                        className="text-[10px] px-2 py-1 bg-amber-100 text-amber-800 rounded-lg font-bold">
+                        📋 عرض في الموافقات
+                      </button>
+                    )}
+                    <button onClick={e=>{e.stopPropagation();recoverRequest(n);}}
+                      disabled={recovering===n.id}
+                      className="text-[10px] px-2 py-1 bg-emerald-100 text-emerald-800 rounded-lg font-bold disabled:opacity-50">
+                      {recovering===n.id ? "جاري..." : "🔄 استرداد من الخادم"}
+                    </button>
+                    <button onClick={e=>{e.stopPropagation();rebuildRequest(n);}}
+                      className="text-[10px] px-2 py-1 bg-blue-100 text-blue-800 rounded-lg font-bold">
+                      🛠️ طلب تعويضي
+                    </button>
+                  </div>
+                )}
               </div>
               {!n.read && <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 shrink-0"/>}
               <button onClick={e=>{e.stopPropagation();deleteNotif(n.id);}} className="text-secondary hover:text-red-500 shrink-0"><X size={14}/></button>

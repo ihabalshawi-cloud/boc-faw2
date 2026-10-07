@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Download, CheckCircle, ThumbsUp, ThumbsDown, X, PenTool, Printer, Send } from "lucide-react";
 import { ACCOUNTS } from "../constants";
-import { storage, fmtIraqi, INK_BLUE, generateApprovalStamp } from "../utils";
+import { storage, fmtIraqi } from "../utils";
 import { FirebaseAPI } from "../firebase";
 import { EmpPopover, playAlert, sendBackgroundPush } from "../components/Shared";
 import { hasPermission } from "../permissions";
@@ -12,7 +12,18 @@ function InlineSigPad({ onSave, onCancel }) {
   useEffect(() => {
     fetch("/supervisor_sig_stamp.png")
       .then(r => { if (!r.ok) throw new Error(); return r.blob(); })
-      .then(blob => { const fr = new FileReader(); fr.onload = () => setPreview(fr.result); fr.readAsDataURL(blob); })
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          const W = 300, H = Math.round(img.naturalHeight * (300 / img.naturalWidth));
+          const c = document.createElement("canvas"); c.width = W; c.height = H;
+          c.getContext("2d").drawImage(img, 0, 0, W, H);
+          setPreview(c.toDataURL("image/png"));
+          URL.revokeObjectURL(url);
+        };
+        img.src = url;
+      })
       .catch(() => setErr(true));
   }, []);
   return (
@@ -40,7 +51,7 @@ function ApprovalsPage({ emp }) {
   const canArchive = isSupervisor || isAdmin || isAttendanceAdmin;
   const canExportLeave = hasPermission(emp, "EXPORT_LEAVE_EXCEL");
   const sortDesc = (a,b) => { if(!a||!b) return 0; return new Date(b.decidedAt||b.submittedAt)-new Date(a.decidedAt||a.submittedAt); };
-  const [requests, setRequests] = useState(() => storage.get("all_requests", []).filter(r => r && r.status === "بانتظار المراجعة"));
+  const [requests, setRequests] = useState(() => storage.get("all_requests", []).filter(r => r && r.status === "بانتظار المراجعة" && !r.archived));
   const [approved, setApproved] = useState(() => storage.get("all_requests", []).filter(r => r && r.status === "موافق عليها" && !r.archived).sort(sortDesc));
   const [archived, setArchived] = useState(() => storage.get("all_requests", []).filter(r => r && r.archived).sort(sortDesc));
   const [sigReqId, setSigReqId] = useState(null);
@@ -51,7 +62,7 @@ function ApprovalsPage({ emp }) {
 
   const applyList = (list) => {
     storage.set("all_requests", list);
-    setRequests(list.filter(r => r && r.status === "بانتظار المراجعة"));
+    setRequests(list.filter(r => r && r.status === "بانتظار المراجعة" && !r.archived));
     setApproved(list.filter(r => r && r.status === "موافق عليها" && !r.archived).sort(sortDesc));
     setArchived(list.filter(r => r && r.archived).sort(sortDesc));
   };
@@ -61,7 +72,10 @@ function ApprovalsPage({ emp }) {
     setArchived(all.filter(r => r && r.archived).sort(sortDesc));
   };
   const archiveReq = (id) => {
-    const all = storage.get("all_requests", []).map(r => r.id === id ? {...r, archived:true} : r);
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000; // 30 days
+    const all = storage.get("all_requests", [])
+      .map(r => r.id === id ? {...r, archived:true, archivedAt: new Date().toISOString()} : r)
+      .filter(r => !r.archived || !r.archivedAt || new Date(r.archivedAt).getTime() > cutoff);
     storage.set("all_requests", all); FirebaseAPI.saveRequests(all);
     refreshApproved(); showToast("📁 تم أرشفة الطلب");
   };
@@ -69,6 +83,17 @@ function ApprovalsPage({ emp }) {
     const all = storage.get("all_requests", []).map(r => r.id === id ? {...r, archived:false} : r);
     storage.set("all_requests", all); FirebaseAPI.saveRequests(all);
     refreshApproved(); showToast("↩️ تم استرداد الطلب من الأرشيف");
+  };
+  const deleteArchivedReq = (id) => {
+    const all = storage.get("all_requests", []).filter(r => r.id !== id);
+    storage.set("all_requests", all); FirebaseAPI.saveRequests(all);
+    refreshApproved(); showToast("🗑️ تم حذف الطلب نهائياً");
+  };
+  const purgeAllArchived = () => {
+    if (!window.confirm("هل تريد حذف جميع الطلبات المؤرشفة نهائياً؟")) return;
+    const all = storage.get("all_requests", []).filter(r => r && !r.archived);
+    storage.set("all_requests", all); FirebaseAPI.saveRequests(all);
+    refreshApproved(); showToast("🗑️ تم حذف جميع الأرشيف");
   };
 
   const exportReqExcel = (req) => {
@@ -137,18 +162,23 @@ function ApprovalsPage({ emp }) {
   useEffect(() => {
     const load = () => FirebaseAPI.loadRequests().then(list => {
       if (!list?.length) return;
-      // Prefer local "decided" status over stale Firebase "pending" to avoid revert on slow writes
       const local = storage.get("all_requests", []);
       const DECIDED = new Set(["موافق عليها", "مرفوضة"]);
       const merged = list.map(fbR => {
         const loc = local.find(r => r.id === fbR.id);
         if (loc && DECIDED.has(loc.status) && !DECIDED.has(fbR.status)) return loc;
-        return fbR;
+        if (loc && loc.archived && !fbR.archived) return loc;
+        // For active requests Firebase now stores signatures; for archived, restore from local if present
+        const sig = (!fbR.sigDataUrl && loc?.sigDataUrl) ? { sigDataUrl: loc.sigDataUrl } : {};
+        const empSig = (!fbR.empSigDataUrl && loc?.empSigDataUrl) ? { empSigDataUrl: loc.empSigDataUrl } : {};
+        return { ...fbR, ...sig, ...empSig };
       });
-      applyList(merged);
+      // Include locally-archived items not present in Firebase
+      const localArchived = local.filter(r => r.archived && !merged.some(m => m.id === r.id));
+      applyList([...merged, ...localArchived]);
     });
     load();
-    const t = setInterval(load, 15000);
+    const t = setInterval(load, 60000);
     const onVisible = () => { if (document.visibilityState === "visible") load(); };
     document.addEventListener("visibilitychange", onVisible);
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVisible); };
@@ -172,25 +202,23 @@ function ApprovalsPage({ emp }) {
   };
 
   const updateStatus = (id, status, sigDataUrl=null) => {
-    const decidedAt = new Date().toISOString();
-    const stampDataUrl = status === "موافق عليها" ? generateApprovalStamp(fmtIraqi(decidedAt.slice(0,10))) : null;
     const allRequests = storage.get("all_requests", []);
-    const updated = allRequests.map(r => r.id === id ? { ...r, status, decidedAt, decidedBy:emp.name, sigDataUrl, stampDataUrl } : r);
+    const updated = allRequests.map(r => r.id === id ? { ...r, status, decidedAt:new Date().toISOString(), decidedBy:emp.name, sigDataUrl } : r);
     storage.set("all_requests", updated);
     FirebaseAPI.saveRequests(updated);
     const req = allRequests.find(r => r.id === id);
     if(req) {
       const empReqs = storage.get(`requests_${req.empId}`, []);
-      storage.set(`requests_${req.empId}`, empReqs.map(r => r.id === id ? { ...r, status, sigDataUrl, stampDataUrl } : r));
+      storage.set(`requests_${req.empId}`, empReqs.map(r => r.id === id ? { ...r, status, sigDataUrl } : r));
       const empNotifs = [{ id:Date.now(), type:status==="موافق عليها"?"موافقة":"رفض",
         title:status==="موافق عليها"?"✅ تمت الموافقة على طلبك":"❌ تم رفض طلبك",
         body:`${req.type} — ${req.days} يوم`, timestamp:new Date().toISOString(), read:false },
-        ...storage.get(`notifications_${req.empId}`, [])];
+        ...storage.get(`notifications_${req.empId}`, [])].slice(0, 30);
       storage.set(`notifications_${req.empId}`, empNotifs);
       FirebaseAPI.saveNotifications(req.empId, empNotifs);
       sendBackgroundPush(req.empId, empNotifs[0].title, empNotifs[0].body, empNotifs[0].type);
     }
-    setRequests(requests.filter(r => r.id !== id));
+    setRequests(prev => prev.filter(r => r.id !== id));
     setSigReqId(null);
     refreshApproved();
     showToast(`✅ تم ${status==="موافق عليها"?"قبول":"رفض"} الطلب`);
@@ -209,7 +237,7 @@ function ApprovalsPage({ emp }) {
       const adminNotifs = [{ id:Date.now()+admin.id, type:"أرشفة_إجازة",
         title:`📋 إجازة مرحّلة للأرشفة — ${req.empName}`,
         body:`${req.type} — ${req.days} يوم | وافق: ${req.decidedBy}`,
-        timestamp:new Date().toISOString(), read:false, reqId:req.id }, ...storage.get(nk,[])];
+        timestamp:new Date().toISOString(), read:false, reqId:req.id }, ...storage.get(nk,[])].slice(0, 30);
       storage.set(nk, adminNotifs);
       FirebaseAPI.saveNotifications(admin.id, adminNotifs);
     });
@@ -222,7 +250,7 @@ function ApprovalsPage({ emp }) {
     const empSig = req.empSigDataUrl ? `<img src="${req.empSigDataUrl}" style="max-width:130px;height:auto;"/>` : "(غير موقّع)";
     const w = window.open("","_blank");
     w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>نموذج إجازة</title>
-<style>body{font-family:Arial,sans-serif;padding:30px;direction:rtl}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:8px;text-align:right}h2,h3{text-align:center}.sigs{display:flex;justify-content:space-around;margin-top:30px;text-align:center}.sig-wrap{position:relative;display:inline-block;}</style>
+<style>body{font-family:Arial,sans-serif;padding:30px;direction:rtl}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:8px;text-align:right}h2,h3{text-align:center}.sigs{display:flex;justify-content:space-around;margin-top:30px;text-align:center}</style>
 </head><body><h2>شركة نفط البصرة — شعبة مستودع الفاو</h2>
 <h3>نموذج إجازة ${req.type} — موافق عليها</h3>
 <table><tr><th>الموظف</th><td>${req.empName}</td><th>نوع الإجازة</th><td>${req.type}</td></tr>
@@ -304,7 +332,10 @@ function ApprovalsPage({ emp }) {
 
       {canArchive && archived.length > 0 && (
         <div className="mt-6 space-y-3">
-          <h3 className="font-bold text-base border-t border-color pt-4 text-gray-500">📁 الأرشيف ({archived.length})</h3>
+          <div className="flex items-center justify-between border-t border-color pt-4">
+            <h3 className="font-bold text-base text-gray-500">📁 الأرشيف ({archived.length})</h3>
+            <button onClick={purgeAllArchived} className="text-[11px] px-3 py-1.5 bg-red-600 text-white rounded-lg">🗑️ حذف جميع الأرشيف</button>
+          </div>
           {archived.map(req=>(
             <div key={req.id} className="card rounded-2xl p-4 border-gray-200 border bg-gray-50/50 space-y-1">
               <div className="flex justify-between items-start">
@@ -319,6 +350,7 @@ function ApprovalsPage({ emp }) {
                   )}
                   <button onClick={()=>printForm(req)} className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] flex items-center gap-1"><Printer size={10}/> طباعة</button>
                   <button onClick={()=>restoreReq(req.id)} className="px-2.5 py-1.5 bg-amber-500 text-white rounded-lg text-[11px]">↩️ استرداد</button>
+                  <button onClick={()=>deleteArchivedReq(req.id)} className="px-2.5 py-1.5 bg-red-600 text-white rounded-lg text-[11px]">🗑️</button>
                 </div>
               </div>
             </div>
