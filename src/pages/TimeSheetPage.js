@@ -34,6 +34,9 @@ const _mvDefaults = new Map([
 function patchMovements(arr) {
   return arr.map(e => (!e.movement && _mvDefaults.get(e.id)) ? { ...e, movement: _mvDefaults.get(e.id) } : e);
 }
+function needsMovementPatch(arr) {
+  return arr.some(e => !e.movement && _mvDefaults.get(e.id));
+}
 
 function TimeSheetPage({ emp }) {
   const addToast = useToast();
@@ -91,8 +94,11 @@ function TimeSheetPage({ emp }) {
   useEffect(() => {
     FirebaseAPI.loadTimesheet().then(d => {
       if (d && Array.isArray(d.malak) && d.malak.length) {
-        const clean = { malak: patchMovements(dedup(d.malak)), contracts: patchMovements(dedup(d.contracts || [])), drivers: patchMovements(dedup(d.drivers || [])) };
+        const raw = { malak: d.malak, contracts: d.contracts || [], drivers: d.drivers || [] };
+        const shouldWrite = needsMovementPatch(raw.malak) || needsMovementPatch(raw.contracts) || needsMovementPatch(raw.drivers);
+        const clean = { malak: patchMovements(dedup(raw.malak)), contracts: patchMovements(dedup(raw.contracts)), drivers: patchMovements(dedup(raw.drivers)) };
         setData(clean); storage.set(STORAGE_KEY, clean);
+        if (shouldWrite) FirebaseAPI.saveTimesheet(clean);
       }
     });
   }, []);
