@@ -38,6 +38,14 @@ function needsMovementPatch(arr) {
   return arr.some(e => !e.movement && _mvDefaults.get(e.id));
 }
 
+const _malakOrder  = new Map(INITIAL_TS.malak.map((e, i) => [e.id, i]));
+const _contractsOrder = new Map(INITIAL_TS.contracts.map((e, i) => [e.id, i]));
+const _driversOrder = new Map((INITIAL_TS.drivers || []).map((e, i) => [e.id, i]));
+function sortByInitial(arr, orderMap) {
+  const sorted = [...arr].sort((a, b) => (orderMap.get(a.id) ?? 9999) - (orderMap.get(b.id) ?? 9999));
+  return { result: sorted, changed: sorted.some((e, i) => e.id !== arr[i]?.id) };
+}
+
 function TimeSheetPage({ emp }) {
   const addToast = useToast();
   const confirm  = useConfirm();
@@ -59,8 +67,8 @@ function TimeSheetPage({ emp }) {
         }
       }
       return {
-        malak:     malak.length     ? patchMovements(malak)     : INITIAL_TS.malak,
-        contracts: contracts.length ? patchMovements(contracts) : INITIAL_TS.contracts,
+        malak:     malak.length     ? sortByInitial(patchMovements(malak), _malakOrder).result     : INITIAL_TS.malak,
+        contracts: contracts.length ? sortByInitial(patchMovements(contracts), _contractsOrder).result : INITIAL_TS.contracts,
         drivers:   INITIAL_TS.drivers,
       };
     }
@@ -68,9 +76,9 @@ function TimeSheetPage({ emp }) {
     const contracts = dedup(toArr(raw.contracts));
     const drivers   = dedup(toArr(raw.drivers));
     return {
-      malak:     malak.length     ? patchMovements(malak)     : INITIAL_TS.malak,
-      contracts: contracts.length ? patchMovements(contracts) : INITIAL_TS.contracts,
-      drivers:   drivers.length   ? patchMovements(drivers)   : INITIAL_TS.drivers,
+      malak:     malak.length     ? sortByInitial(patchMovements(malak), _malakOrder).result     : INITIAL_TS.malak,
+      contracts: contracts.length ? sortByInitial(patchMovements(contracts), _contractsOrder).result : INITIAL_TS.contracts,
+      drivers:   drivers.length   ? sortByInitial(patchMovements(drivers), _driversOrder).result  : INITIAL_TS.drivers,
     };
   });
   const [editCell,       setEditCell]       = useState(null);
@@ -95,10 +103,13 @@ function TimeSheetPage({ emp }) {
     FirebaseAPI.loadTimesheet().then(d => {
       if (d && Array.isArray(d.malak) && d.malak.length) {
         const raw = { malak: d.malak, contracts: d.contracts || [], drivers: d.drivers || [] };
-        const shouldWrite = needsMovementPatch(raw.malak) || needsMovementPatch(raw.contracts) || needsMovementPatch(raw.drivers);
-        const clean = { malak: patchMovements(dedup(raw.malak)), contracts: patchMovements(dedup(raw.contracts)), drivers: patchMovements(dedup(raw.drivers)) };
+        const needsPatch = needsMovementPatch(raw.malak) || needsMovementPatch(raw.contracts) || needsMovementPatch(raw.drivers);
+        const malak     = sortByInitial(patchMovements(dedup(raw.malak)), _malakOrder);
+        const contracts = sortByInitial(patchMovements(dedup(raw.contracts)), _contractsOrder);
+        const drivers   = sortByInitial(patchMovements(dedup(raw.drivers)), _driversOrder);
+        const clean = { malak: malak.result, contracts: contracts.result, drivers: drivers.result };
         setData(clean); storage.set(STORAGE_KEY, clean);
-        if (shouldWrite) FirebaseAPI.saveTimesheet(clean);
+        if (needsPatch || malak.changed || contracts.changed || drivers.changed) FirebaseAPI.saveTimesheet(clean);
       }
     });
   }, []);
