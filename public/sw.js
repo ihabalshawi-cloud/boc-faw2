@@ -1,5 +1,5 @@
-/* BOC Faw — Service Worker v2.0 — Push + Cache */
-const CACHE_NAME = "boc-faw-v2";
+/* BOC Faw — Service Worker v3.0 — Push + Cache */
+const CACHE_NAME = "boc-faw-v3";
 const STATIC = ["/", "/index.html"];
 
 /* ── Install ── */
