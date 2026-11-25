@@ -7,7 +7,7 @@ import {
   Search, Moon, Sun, MessageSquare, X,
   CheckSquare, AlertTriangle, ChevronLeft, ChevronRight,
   Wrench, Box, TrendingUp, Heart,
-  Briefcase, Glasses, Type, Archive, FolderOpen
+  Briefcase, Glasses, Type, Archive, FolderOpen, Bot
 } from "lucide-react";
 import {
   ACCOUNTS, LOW_STOCK_THRESHOLD,
@@ -48,6 +48,7 @@ const LazyIncentivePage = React.lazy(() => import('./IncentivePage'));
 const LazyMaintenanceWorkReport = React.lazy(() => import('./MaintenanceWorkReportPage'));
 const LazyTsArchivePage = React.lazy(() => import('./TimeSheetArchivePage'));
 const LazyMaintDocsPage = React.lazy(() => import('./MaintenanceDocsPage'));
+const LazyTechnicalAdvisor = React.lazy(() => import('./TechnicalAdvisorPage'));
 
 function useSmartAlerts(employees) {
   const [alerts, setAlerts] = useState([]);
@@ -105,8 +106,8 @@ class ReqErrorBoundary extends React.Component {
 }
 
 const ADMIN_VIEWS = new Set(["home","analytics","requests","training","tasks","evaluation","chat","notifications","changepass","health_insurance","approvals","employees","admin_dashboard","timesheet","incentive"]);
-const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","maint_work_report","maint_docs","inventory","furniture","projects"]);
-const RESTRICTED_VIEWS = new Set(["training","tasks","evaluation","timesheet","ts_archive","chat","maint_equipment","maint_parts","maint_reports","maint_work_report","maint_docs","inventory","furniture","projects"]);
+const TECH_VIEWS  = new Set(["maint_equipment","maint_parts","maint_reports","maint_work_report","maint_docs","maint_advisor","inventory","furniture","projects"]);
+const RESTRICTED_VIEWS = new Set(["training","tasks","evaluation","timesheet","ts_archive","chat","maint_equipment","maint_parts","maint_reports","maint_work_report","maint_docs","maint_advisor","inventory","furniture","projects"]);
 
 export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, setFieldMode, largeFont, setLargeFont }) {
   const isAdmin = emp.role === "admin" || emp.jobNum === "728004" || emp.username === "i.shawi";
@@ -312,6 +313,7 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
     ...(canSeeRestricted("maint_reports") ? [{ id:"maint_reports", label:"تقارير الصيانة", icon:<TrendingUp size={17}/> }] : []),
     ...(canSeeRestricted("maint_work_report") ? [{ id:"maint_work_report", label:"تقرير العمل اليومي والشهري", icon:<ClipboardList size={17}/> }] : []),
     ...(canSeeRestricted("maint_docs") ? [{ id:"maint_docs", label:"مخططات ووثائق الصيانة", icon:<FolderOpen size={17}/> }] : []),
+    ...(canSeeRestricted("maint_advisor") ? [{ id:"maint_advisor", label:"المستشار الفني", icon:<Bot size={17}/> }] : []),
     ...(canSeeRestricted("inventory") ? [{ id:"inventory", label:"جرد الآلات الدقيقة", icon:<Package size={17}/> }] : []),
     ...(canSeeRestricted("furniture") ? [{ id:"furniture", label:"جرد الأثاث 2025", icon:<ClipboardList size={17}/> }] : []),
     ...(canSeeRestricted("projects") ? [{ id:"projects", label:"إدارة المشاريع", icon:<Briefcase size={17}/> }] : []),
@@ -480,6 +482,11 @@ export default function Dashboard({ emp, onLogout, dark, setDark, fieldMode, set
           {view==="maint_docs" && (
             <React.Suspense fallback={<div className="p-8 text-center text-secondary">جاري التحميل...</div>}>
               <LazyMaintDocsPage emp={emp}/>
+            </React.Suspense>
+          )}
+          {view==="maint_advisor" && (
+            <React.Suspense fallback={<div className="p-8 text-center text-secondary">جاري التحميل...</div>}>
+              <LazyTechnicalAdvisor/>
             </React.Suspense>
           )}
           {view==="evaluation" && (
