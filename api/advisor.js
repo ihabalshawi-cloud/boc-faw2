@@ -1,5 +1,5 @@
 // Vercel serverless function — Technical Advisor (AI chat proxy)
-// Uses Groq API (free tier). Keeps GROQ_API_KEY server-side.
+// Uses OpenRouter API (free tier). Keeps OPENROUTER_API_KEY server-side.
 
 const SYSTEM_PROMPT = `أنت المستشار الفني لشركة نفط البصرة، قسم السيطرة والنظم.
 مهمتك مساعدة موظفي القسم في مجالات:
@@ -24,8 +24,8 @@ module.exports = async (req, res) => {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const apiKey = process.env.GROQ_API_KEY || process.env.Groq_API_KEY;
-  if (!apiKey) return res.status(503).json({ error: "الخدمة غير مهيأة. يرجى إضافة GROQ_API_KEY في إعدادات Vercel." });
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: "الخدمة غير مهيأة. يرجى إضافة OPENROUTER_API_KEY في إعدادات Vercel." });
 
   const { messages } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -43,14 +43,16 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://boc-faw2.vercel.app",
+        "X-Title": "BOC Technical Advisor",
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: "meta-llama/llama-3.1-8b-instruct:free",
         max_tokens: 2048,
         messages: [{ role: "system", content: SYSTEM_PROMPT }, ...clean],
       }),
@@ -59,7 +61,7 @@ module.exports = async (req, res) => {
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       const msg = err?.error?.message || `HTTP ${response.status}`;
-      return res.status(502).json({ error: `خطأ من خدمة Groq: ${msg}` });
+      return res.status(502).json({ error: `خطأ من خدمة OpenRouter: ${msg}` });
     }
 
     const data = await response.json();
@@ -67,6 +69,6 @@ module.exports = async (req, res) => {
     return res.status(200).json({ reply: text });
   } catch (err) {
     console.error("advisor error:", err);
-    return res.status(502).json({ error: "تعذر الاتصال بخدمة Groq" });
+    return res.status(502).json({ error: "تعذر الاتصال بخدمة OpenRouter" });
   }
 };
