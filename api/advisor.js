@@ -50,7 +50,7 @@ module.exports = async (req, res) => {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "llama3-70b-8192",
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
         max_tokens: 2048,
         messages: [{ role: "system", content: SYSTEM_PROMPT }, ...clean],
       }),
