@@ -1,5 +1,5 @@
 // Vercel serverless function — Technical Advisor (AI chat proxy)
-// Uses OpenRouter API (free tier). Keeps OPENROUTER_API_KEY server-side.
+// Uses Google Gemini API (AI Studio free tier). Keeps GEMINI_API_KEY server-side.
 
 const SYSTEM_PROMPT = `أنت المستشار الفني لشركة نفط البصرة، قسم السيطرة والنظم.
 مهمتك مساعدة موظفي القسم في مجالات:
@@ -24,15 +24,14 @@ module.exports = async (req, res) => {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return res.status(503).json({ error: "الخدمة غير مهيأة. يرجى إضافة OPENROUTER_API_KEY في إعدادات Vercel." });
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: "الخدمة غير مهيأة. يرجى إضافة GEMINI_API_KEY في إعدادات Vercel." });
 
   const { messages } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "الرسائل مطلوبة" });
   }
 
-  // Validate messages (Groq uses OpenAI-compatible format)
   const validRoles = new Set(["user", "assistant"]);
   const clean = messages
     .filter(m => m && validRoles.has(m.role) && typeof m.content === "string" && m.content.trim())
@@ -42,33 +41,35 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: "يجب أن تكون آخر رسالة من المستخدم" });
   }
 
+  // Convert messages to Gemini format
+  const geminiMessages = clean.map(m => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-        "HTTP-Referer": "https://boc-faw2.vercel.app",
-        "X-Title": "BOC Technical Advisor",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "mistralai/mistral-7b-instruct:free",
-        max_tokens: 2048,
-        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...clean],
+        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: geminiMessages,
+        generationConfig: { maxOutputTokens: 2048 },
       }),
     });
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       const msg = err?.error?.message || `HTTP ${response.status}`;
-      return res.status(502).json({ error: `خطأ من خدمة OpenRouter: ${msg}` });
+      return res.status(502).json({ error: `خطأ من خدمة Gemini: ${msg}` });
     }
 
     const data = await response.json();
-    const text = data?.choices?.[0]?.message?.content || "";
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
     return res.status(200).json({ reply: text });
   } catch (err) {
     console.error("advisor error:", err);
-    return res.status(502).json({ error: "تعذر الاتصال بخدمة OpenRouter" });
+    return res.status(502).json({ error: "تعذر الاتصال بخدمة Gemini" });
   }
 };
