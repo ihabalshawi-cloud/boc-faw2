@@ -24,7 +24,7 @@ module.exports = async (req, res) => {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY || process.env.Groq_API_KEY;
   if (!apiKey) return res.status(503).json({ error: "الخدمة غير مهيأة. يرجى إضافة GROQ_API_KEY في إعدادات Vercel." });
 
   const { messages } = req.body || {};
