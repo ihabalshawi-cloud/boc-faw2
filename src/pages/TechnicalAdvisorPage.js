@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Send, Bot, User, AlertCircle, Trash2, Info } from "lucide-react";
+import { findAnswer } from "../data/advisorKnowledge";
 
 const SUGGESTIONS = [
   "كيف أشخّص عطل في محرك كهربائي؟",
@@ -10,6 +11,21 @@ const SUGGESTIONS = [
   "ما بروتوكول الاتصال بين RTU والـ SCADA؟",
 ];
 
+function renderAnswer(text) {
+  // Convert **bold** and newlines to JSX
+  const lines = text.split("\n");
+  return lines.map((line, i) => {
+    const parts = line.split(/\*\*(.+?)\*\*/g);
+    return (
+      <p key={i} className={line.trim() === "" ? "mt-2" : ""}>
+        {parts.map((part, j) =>
+          j % 2 === 1 ? <strong key={j}>{part}</strong> : part
+        )}
+      </p>
+    );
+  });
+}
+
 function Message({ msg }) {
   const isUser = msg.role === "user";
   return (
@@ -19,12 +35,12 @@ function Message({ msg }) {
       }`}>
         {isUser ? <User size={16} className="text-white" /> : <Bot size={16} className="text-white" />}
       </div>
-      <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+      <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
         isUser
           ? "bg-blue-600 text-white rounded-tr-sm"
           : "bg-secondary text-primary rounded-tl-sm border border-primary/10"
       }`}>
-        {msg.content}
+        {isUser ? msg.content : <div className="space-y-0.5">{renderAnswer(msg.content)}</div>}
       </div>
     </div>
   );
@@ -51,7 +67,6 @@ export default function TechnicalAdvisorPage() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -63,30 +78,19 @@ export default function TechnicalAdvisorPage() {
     const userText = text || input.trim();
     if (!userText || loading) return;
     setInput("");
-    setError(null);
 
     const updated = [...messages, { role: "user", content: userText }];
     setMessages(updated);
     setLoading(true);
 
-    try {
-      const res = await fetch("/api/advisor", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updated }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setError(data.error || "حدث خطأ غير متوقع");
-      } else {
-        setMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
-      }
-    } catch {
-      setError("تعذر الاتصال بالخادم. تحقق من الاتصال بالإنترنت.");
-    } finally {
-      setLoading(false);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
+    // Simulate thinking delay (600-900ms)
+    const delay = 600 + Math.random() * 300;
+    await new Promise(r => setTimeout(r, delay));
+
+    const answer = findAnswer(userText);
+    setMessages(prev => [...prev, { role: "assistant", content: answer }]);
+    setLoading(false);
+    setTimeout(() => inputRef.current?.focus(), 50);
   }
 
   function handleKeyDown(e) {
@@ -98,7 +102,6 @@ export default function TechnicalAdvisorPage() {
 
   function clearChat() {
     setMessages([]);
-    setError(null);
     inputRef.current?.focus();
   }
 
@@ -161,13 +164,6 @@ export default function TechnicalAdvisorPage() {
         ))}
 
         {loading && <TypingIndicator />}
-
-        {error && (
-          <div className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 mb-4 text-sm text-red-700 dark:text-red-400" dir="rtl">
-            <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
 
         <div ref={bottomRef} />
       </div>
