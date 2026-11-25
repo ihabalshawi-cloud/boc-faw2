@@ -1,5 +1,5 @@
 // Vercel serverless function — Technical Advisor (AI chat proxy)
-// Uses Google Gemini API (AI Studio free tier). Keeps GEMINI_API_KEY server-side.
+// Uses Hugging Face Inference API (free tier). Keeps HF_API_KEY server-side.
 
 const SYSTEM_PROMPT = `أنت المستشار الفني لشركة نفط البصرة، قسم السيطرة والنظم.
 مهمتك مساعدة موظفي القسم في مجالات:
@@ -24,8 +24,8 @@ module.exports = async (req, res) => {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(503).json({ error: "الخدمة غير مهيأة. يرجى إضافة GEMINI_API_KEY في إعدادات Vercel." });
+  const apiKey = process.env.HF_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: "الخدمة غير مهيأة. يرجى إضافة HF_API_KEY في إعدادات Vercel." });
 
   const { messages } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -41,35 +41,32 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: "يجب أن تكون آخر رسالة من المستخدم" });
   }
 
-  // Convert messages to Gemini format
-  const geminiMessages = clean.map(m => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }],
-  }));
-
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    const response = await fetch(url, {
+    const response = await fetch("https://api-inference.huggingface.co/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: geminiMessages,
-        generationConfig: { maxOutputTokens: 2048 },
+        model: "Qwen/Qwen2.5-7B-Instruct",
+        max_tokens: 2048,
+        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...clean],
+        stream: false,
       }),
     });
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      const msg = err?.error?.message || `HTTP ${response.status}`;
-      return res.status(502).json({ error: `خطأ من خدمة Gemini: ${msg}` });
+      const msg = err?.error?.message || err?.error || `HTTP ${response.status}`;
+      return res.status(502).json({ error: `خطأ من خدمة HuggingFace: ${msg}` });
     }
 
     const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const text = data?.choices?.[0]?.message?.content || "";
     return res.status(200).json({ reply: text });
   } catch (err) {
     console.error("advisor error:", err);
-    return res.status(502).json({ error: "تعذر الاتصال بخدمة Gemini" });
+    return res.status(502).json({ error: "تعذر الاتصال بخدمة HuggingFace" });
   }
 };
