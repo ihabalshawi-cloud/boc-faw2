@@ -274,7 +274,7 @@ export const VIEW_LABELS = {
   home:"الرئيسية", analytics:"التحليلات", requests:"طلبات الإجازة",
   attendance:"الحضور والانصراف", training:"التدريب", tasks:"المهام",
   inventory:"المخزون", furniture:"الأثاث", maint_equipment:"صيانة المعدات",
-  maint_parts:"قطع الغيار", maint_reports:"تقارير الصيانة", maint_work_report:"تقرير العمل اليومي والشهري",
+  maint_parts:"قطع الغيار", maint_reports:"تقارير الصيانة", maint_work_report:"تقرير العمل اليومي والشهري", maint_docs:"مخططات ووثائق الصيانة",
   chat:"الدردشة الداخلية", evaluation:"التقييم", notifications:"الإشعارات",
   audit:"سجل التعديلات", changepass:"تغيير كلمة المرور",
   employees:"إدارة الموظفين", approvals:"الموافقات",
