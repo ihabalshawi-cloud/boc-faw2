@@ -52,7 +52,7 @@ module.exports = async (req, res) => {
         "X-Title": "BOC Technical Advisor",
       },
       body: JSON.stringify({
-        model: "meta-llama/llama-3.1-8b-instruct:free",
+        model: "mistralai/mistral-7b-instruct:free",
         max_tokens: 2048,
         messages: [{ role: "system", content: SYSTEM_PROMPT }, ...clean],
       }),
